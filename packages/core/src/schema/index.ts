@@ -16,7 +16,9 @@
  * @see ADR-006 Admin Authentication Model
  */
 
+// @ts-expect-error - drizzle-orm will be installed in M2 (Monorepo Scaffold)
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+// @ts-expect-error - drizzle-orm will be installed in M2 (Monorepo Scaffold)
 import { relations } from 'drizzle-orm';
 
 /**
@@ -60,7 +62,7 @@ export const clients = sqliteTable('clients', {
   
   // Extensibility
   metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
-}, (table) => ({
+}, (table: typeof clients.$inferSelect) => ({
   // Indexes for common query patterns (dashboard list views)
   statusIdx: index('idx_clients_status').on(table.status),
   profileIdx: index('idx_clients_profile_id').on(table.profile_id),
@@ -105,7 +107,7 @@ export const tool_profiles = sqliteTable('tool_profiles', {
   // Timestamps
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-}, (table) => ({
+}, (table: typeof tool_profiles.$inferSelect) => ({
   // Index for dashboard list view
   nameIdx: index('idx_tool_profiles_name').on(table.name),
 }));
@@ -133,7 +135,7 @@ export const admin_keys = sqliteTable('admin_keys', {
   created_at: text('created_at').notNull(),
   rotated_at: text('rotated_at'), // Timestamp of last rotation, null if never rotated
   is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Only one active key
-}, (table) => ({
+}, (table: typeof admin_keys.$inferSelect) => ({
   // Index for active key lookup
   activeIdx: index('idx_admin_keys_is_active').on(table.is_active),
 }));
@@ -205,7 +207,7 @@ export const audit_events = sqliteTable('audit_events', {
   // Metadata
   ambassador_node: text('ambassador_node'), // Server hostname for multi-node deployments
   metadata: text('metadata').default('{}'), // JSON object for extensibility
-}, (table) => ({
+}, (table: typeof audit_events.$inferSelect) => ({
   // Indexes for common query patterns (audit log viewer)
   timestampIdx: index('idx_audit_events_timestamp').on(table.timestamp),
   clientIdIdx: index('idx_audit_events_client_id').on(table.client_id),
@@ -218,14 +220,14 @@ export const audit_events = sqliteTable('audit_events', {
 /**
  * Drizzle relations (for ORM query joins)
  */
-export const clientsRelations = relations(clients, ({ one }) => ({
+export const clientsRelations = relations(clients, ({ one }: { one: any }) => ({
   profile: one(tool_profiles, {
     fields: [clients.profile_id],
     references: [tool_profiles.profile_id],
   }),
 }));
 
-export const toolProfilesRelations = relations(tool_profiles, ({ one, many }) => ({
+export const toolProfilesRelations = relations(tool_profiles, ({ one, many }: { one: any; many: any }) => ({
   parent: one(tool_profiles, {
     fields: [tool_profiles.inherited_from],
     references: [tool_profiles.profile_id],

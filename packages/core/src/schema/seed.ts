@@ -8,6 +8,7 @@
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
 
+// @ts-expect-error - uuid will be installed in M2 (Monorepo Scaffold)
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 
@@ -233,7 +234,7 @@ export const builtInAdminRoles = {
  */
 export async function seedDatabase(db: any): Promise<void> {
   // Check if profiles already exist
-  const existingProfiles = await db.select().from('tool_profiles').limit(1);
+  const existingProfiles = await db.select().from('tool_profiles' as any).limit(1);
   
   if (existingProfiles.length > 0) {
     console.log('[seed] Profiles already exist, skipping seed');
