@@ -2,15 +2,19 @@
 name: Database Engineer
 description: Data and storage specialist for schema design, queries, migrations, and performance tuning.
 argument-hint: Describe the data requirement or database task
-tools: ['search', 'read', 'edit', 'runInTerminal']
+tools: ['search', 'read', 'edit', 'runInTerminal', 'agent']
 model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5.1 (copilot)']
 user-invokable: true
 disable-model-invocation: false
-agents: []
+agents: ['Lead Developer', 'Architect']
 handoffs:
   - label: Hand Off to Lead Developer
-    agent: lead-developer
+    agent: Lead Developer
     prompt: Implement the application-layer data access code using the schema and migrations defined above.
+    send: true
+  - label: Hand Off to Architect
+    agent: Architect
+    prompt: Data model questions or architectural clarification needed. Please review the schema design and provide guidance.
     send: true
 ---
 

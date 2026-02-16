@@ -9,19 +9,19 @@ disable-model-invocation: false
 agents: ['Lead Developer', 'Database Engineer', 'Security Engineer', 'Technical Manager']
 handoffs:
   - label: Hand Off to Lead Developer
-    agent: lead-developer
+    agent: Lead Developer
     prompt: Implement the architecture designed above. Follow the component boundaries and API contracts specified.
     send: true
   - label: Hand Off to Database Engineer
-    agent: database-engineer
+    agent: Database Engineer
     prompt: Implement the data model and schema designed above. Create migrations and data access layers.
     send: true
   - label: Hand Off to Security Engineer
-    agent: security-engineer
+    agent: Security Engineer
     prompt: Review the architecture design above for security implications. Focus on authentication, authorization, data protection, and potential vulnerabilities.
     send: true
   - label: Hand Off to Technical Manager
-    agent: technical-manager
+    agent: Technical Manager
     prompt: Review the architecture design above for alignment with project vision and business requirements. Provide approval or feedback.
     send: true
 ---

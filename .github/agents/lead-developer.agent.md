@@ -6,19 +6,27 @@ tools: ['search', 'read', 'edit', 'runInTerminal', 'githubRepo', 'agent']
 model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5.1 (copilot)']
 user-invokable: true
 disable-model-invocation: false
-agents: ['Junior Developer', 'Code Reviewer', 'QA Engineer']
+agents: ['Junior Developer', 'Code Reviewer', 'QA Engineer', 'Architect', 'Technical Manager']
 handoffs:
   - label: Delegate to Junior Developer
-    agent: junior-developer
+    agent: Junior Developer
     prompt: Implement the following task as described. Follow existing patterns in the codebase.
     send: true
   - label: Send to Code Review
-    agent: code-reviewer
+    agent: Code Reviewer
     prompt: Review the implementation above for correctness, maintainability, test coverage, and adherence to project standards.
     send: true
   - label: Send to QA
-    agent: qa-engineer
+    agent: QA Engineer
     prompt: Write tests for the implementation above. Target high coverage of all public APIs and edge cases.
+    send: true
+  - label: Consult Architect
+    agent: Architect
+    prompt: Implementation question or architectural clarification needed. The current design doesn't fit the requirement.
+    send: true
+  - label: Escalate to Technical Manager
+    agent: Technical Manager
+    prompt: Blocker or scope issue requires management decision. Please review and provide guidance.
     send: true
 ---
 
