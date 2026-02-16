@@ -1,7 +1,7 @@
 ---
 description: Engineering manager that coordinates agents, tracks progress, prioritizes work, and surfaces decisions to the human operator.
 mode: primary
-model: copilot/claude-opus-4-6
+model: github-copilot/claude-opus-4.6
 temperature: 0.2
 tools:
   write: false

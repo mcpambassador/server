@@ -1,7 +1,7 @@
 ---
 description: Designs system architecture, API contracts, and evaluates technology decisions. Use for architectural planning and design reviews.
 mode: subagent
-model: copilot/claude-opus-4-6
+model: github-copilot/claude-opus-4.6
 temperature: 0.2
 tools:
   write: false

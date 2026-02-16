@@ -1,7 +1,7 @@
 ---
 description: Data and storage specialist for schema design, queries, migrations, and performance tuning.
 mode: subagent
-model: copilot/claude-sonnet-4-5
+model: github-copilot/claude-sonnet-4.5
 temperature: 0.2
 tools:
   write: true

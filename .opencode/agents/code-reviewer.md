@@ -1,7 +1,7 @@
 ---
 description: Quality assurance reviewer for code review, standards enforcement, and code quality assessment.
 mode: subagent
-model: google/gemini-3-pro
+model: google/gemini-3-pro-preview
 temperature: 0.1
 tools:
   write: false

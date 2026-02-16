@@ -1,7 +1,7 @@
 ---
 description: QA and test engineer. Writes tests, validates acceptance criteria, tracks coverage, and performs gap analysis.
 mode: subagent
-model: ollama-cloud/minimax-m1
+model: ollama-cloud/minimax-m2.5
 temperature: 0.2
 tools:
   write: true

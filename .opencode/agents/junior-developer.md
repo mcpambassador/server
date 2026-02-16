@@ -1,7 +1,7 @@
 ---
 description: Junior engineer for feature implementation, bug fixes, and test writing. Follows established patterns.
 mode: subagent
-model: copilot/gpt-5-mini
+model: github-copilot/gpt-5-mini
 temperature: 0.3
 tools:
   write: true

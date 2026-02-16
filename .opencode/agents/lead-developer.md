@@ -1,7 +1,7 @@
 ---
 description: Senior full-stack engineer for core implementation, complex modules, and establishing coding patterns.
 mode: primary
-model: copilot/claude-sonnet-4-5
+model: github-copilot/claude-sonnet-4.5
 temperature: 0.3
 tools:
   write: true

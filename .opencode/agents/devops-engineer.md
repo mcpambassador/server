@@ -1,7 +1,7 @@
 ---
 description: Infrastructure and CI/CD specialist for Docker, Kubernetes, GitHub Actions, deployment, and monitoring.
 mode: subagent
-model: ollama-cloud/kimi-k2
+model: ollama-cloud/kimi-k2.5
 temperature: 0.2
 tools:
   write: true
