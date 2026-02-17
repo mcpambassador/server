@@ -30,6 +30,8 @@ export interface TlsCertificates {
 
 /**
  * Generate self-signed CA certificate
+ * 
+ * F-SEC-M6-023: CA remains 10-year validity (less frequent regeneration for trust chain)
  */
 async function generateCA(
   caKeyPath: string,
@@ -62,6 +64,9 @@ async function generateCA(
 
 /**
  * Generate server certificate signed by CA
+ * 
+ * F-SEC-M6-023 remediation: Reduced validity from 10 years to 1 year
+ * F-SEC-M6-022 remediation: Added SAN (Subject Alternative Name) extension
  */
 async function generateServerCert(
   caKeyPath: string,
@@ -69,7 +74,7 @@ async function generateServerCert(
   serverKeyPath: string,
   serverCertPath: string,
   serverName: string,
-  validityDays: number = 3650
+  validityDays: number = 365
 ): Promise<void> {
   // Generate server private key
   await execCommand('openssl', [
@@ -92,12 +97,19 @@ async function generateServerCert(
     `/C=US/ST=CA/L=SF/O=MCP Ambassador/OU=Community/CN=${serverName}`,
   ]);
 
-  // Sign CSR with CA
+  // F-SEC-M6-022 remediation: Create SAN extension file for modern TLS clients
+  const extFilePath = serverCertPath + '.ext';
+  const sanExtension = `subjectAltName=DNS:${serverName},DNS:localhost,IP:127.0.0.1`;
+  await fs.writeFile(extFilePath, sanExtension, 'utf-8');
+
+  // Sign CSR with CA (with SAN extension)
   await execCommand('openssl', [
     'x509',
     '-req',
     '-in',
     csrPath,
+    '-extfile',
+    extFilePath,
     '-CA',
     caCertPath,
     '-CAkey',
@@ -110,8 +122,9 @@ async function generateServerCert(
     '-sha256',
   ]);
 
-  // Cleanup CSR
+  // Cleanup CSR and extension file
   await fs.unlink(csrPath);
+  await fs.unlink(extFilePath);
 }
 
 /**
@@ -206,8 +219,9 @@ export async function initializeTls(config: TlsConfig): Promise<TlsCertificates>
       await generateServerCert(caKeyPath, caPath, keyPath, certPath, serverName);
       
       // Set restrictive permissions
+      // F-SEC-M6-024 remediation: CA key set to 0400 (read-only, more restrictive)
       await Promise.all([
-        fs.chmod(caKeyPath, 0o600),
+        fs.chmod(caKeyPath, 0o400),
         fs.chmod(keyPath, 0o600),
         fs.chmod(caPath, 0o644),
         fs.chmod(certPath, 0o644),

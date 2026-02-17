@@ -15,7 +15,8 @@
 # -----------------------------------------------------------------------------
 # STAGE 1: BUILD
 # -----------------------------------------------------------------------------
-FROM node:18-alpine AS builder
+# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS (supported until April 2026)
+FROM node:20-alpine AS builder
 
 # Install pnpm
 RUN npm install -g pnpm@8.15.0
@@ -45,7 +46,8 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 # STAGE 2: RUNTIME
 # -----------------------------------------------------------------------------
-FROM node:18-alpine
+# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS (supported until April 2026)
+FROM node:20-alpine
 
 # Install OpenSSL for TLS certificate generation
 # (Required for self-signed CA + server cert generation)

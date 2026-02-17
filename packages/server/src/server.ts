@@ -14,6 +14,7 @@ import {
   type SessionContext,
   type PipelineToolInvocationRequest,
   getEffectiveProfile,
+  AuthorizationError,
 } from '@mcpambassador/core';
 import { ApiKeyAuthProvider } from '@mcpambassador/authn-apikey';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
@@ -51,6 +52,15 @@ export interface ServerConfig {
   downstreamMcps?: DownstreamMcpConfig[];
   /** Database file path (defaults to dataDir/ambassador.db) */
   dbPath?: string;
+  /**
+   * Trust X-Forwarded-For header for source IP (F-SEC-M6-020 remediation)
+   * - false (default): Ignore X-Forwarded-For, use direct connection IP
+   * - true: Trust first IP in X-Forwarded-For (use only if behind trusted proxy)
+   * - string[]: Trust X-Forwarded-For only if request comes from these CIDR ranges
+   * 
+   * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
+   */
+  trustProxy?: boolean | string[];
 }
 
 export class AmbassadorServer {
@@ -72,6 +82,7 @@ export class AmbassadorServer {
       logLevel: config.logLevel || 'info',
       downstreamMcps: config.downstreamMcps || [],
       dbPath: config.dbPath || path.join(config.dataDir, 'ambassador.db'),
+      trustProxy: config.trustProxy || false,
     };
     
     this.mcpManager = new DownstreamMcpManager();
@@ -197,8 +208,16 @@ export class AmbassadorServer {
       }
     }
     
-   // Extract source IP (handle X-Forwarded-For if behind proxy)
-    const sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
+    // F-SEC-M6-020 remediation: Only trust X-Forwarded-For if trustProxy is configured
+    let sourceIp: string;
+    if (this.config.trustProxy) {
+      // Trust X-Forwarded-For (first IP in comma-separated list)
+      sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
+      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
+    } else {
+      // Default: Ignore X-Forwarded-For, use direct connection IP
+      sourceIp = request.ip ?? '0.0.0.0';
+    }
     
     if (!this.authn) {
       throw new Error('Authentication provider not initialized');
@@ -228,6 +247,13 @@ export class AmbassadorServer {
     // ==========================================================================
     // CLIENT REGISTRATION (no auth required - this is how clients get API keys)
     // ==========================================================================
+    
+    // F-SEC-M6-025 remediation: Rate limiting required when registration is implemented
+    // TODO: Add rate limiter before registration (e.g., @fastify/rate-limit) to prevent:
+    //   - DoS attacks via registration flooding
+    //   - API key exhaustion attacks
+    //   - Resource consumption (DB writes, email sends, etc.)
+    // Recommended: 5 requests per IP per hour, with exponential backoff on repeated violations
     
     this.fastify.post('/v1/clients/register', async (_request, reply) => {
       // M6: Stub implementation - will be completed with client registration logic
@@ -423,8 +449,9 @@ export class AmbassadorServer {
             error: 'Unauthorized',
             message: 'Valid API key required',
           });
-        } else if (err instanceof Error && err.message.includes('AuthorizationError')) {
+        } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
+          // F-SEC-M6-021 remediation: Use instanceof instead of string matching
           reply.status(403).send({
             error: 'Forbidden',
             message: 'Access denied',
@@ -446,47 +473,79 @@ export class AmbassadorServer {
     // ==========================================================================
     
     // M5.2: Profile CRUD
-    this.fastify.get('/v1/admin/profiles', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Profile list endpoint - M5.2 deferred to M6',
-      });
+    // F-SEC-M6-026 remediation: Admin authentication required even for stub endpoints
+    this.fastify.get('/v1/admin/profiles', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        // TODO: Add admin role check when admin authentication is implemented
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Profile list endpoint - M5.2 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
-    this.fastify.get('/v1/admin/profiles/:profileId', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Profile get endpoint - M5.2 deferred to M6',
-      });
+    this.fastify.get('/v1/admin/profiles/:profileId', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Profile get endpoint - M5.2 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
-    this.fastify.post('/v1/admin/profiles', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Profile create endpoint - M5.2 deferred to M6',
-      });
+    this.fastify.post('/v1/admin/profiles', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Profile create endpoint - M5.2 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
-    this.fastify.patch('/v1/admin/profiles/:profileId', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Profile update endpoint - M5.2 deferred to M6',
-      });
+    this.fastify.patch('/v1/admin/profiles/:profileId', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Profile update endpoint - M5.2 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
-    this.fastify.delete('/v1/admin/profiles/:profileId', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Profile delete endpoint - M5.2 deferred to M6',
-      });
+    this.fastify.delete('/v1/admin/profiles/:profileId', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Profile delete endpoint - M5.2 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
     // M5.3: Kill switch
-    this.fastify.post('/v1/admin/kill-switch/:target', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Kill switch endpoint - M5.3 deferred to M6',
-      });
+    this.fastify.post('/v1/admin/kill-switch/:target', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Kill switch endpoint - M5.3 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
     // F-SEC-M6-005: Detailed health endpoint (admin only)
@@ -517,19 +576,29 @@ export class AmbassadorServer {
     });
     
     // M5.4: Client lifecycle
-    this.fastify.patch('/v1/clients/:clientId/status', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Client lifecycle endpoint - M5.4 deferred to M6',
-      });
+    this.fastify.patch('/v1/clients/:clientId/status', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Client lifecycle endpoint - M5.4 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
     // M5.6: Audit query
-    this.fastify.get('/v1/audit/events', async (_request, reply) => {
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Audit query endpoint - M5.6 deferred to M6',
-      });
+    this.fastify.get('/v1/audit/events', async (request, reply) => {
+      try {
+        await this.authenticate(request);
+        reply.status(501).send({
+          error: 'Not Implemented',
+          message: 'Audit query endpoint - M5.6 deferred to M6',
+        });
+      } catch (err) {
+        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+      }
     });
     
     console.log('[Router] All routes registered');

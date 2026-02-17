@@ -8,11 +8,14 @@
  * - Argument types match declared schema
  * - String length limits enforced (default: 10,000 chars)
  * - Required arguments present
- * - ReDoS protection: 10ms regex timeout for disallow_patterns
+ * - ReDoS protection: Linear-time RE2 regex engine (no backtracking)
  * - redact_fields support for PII stripping
  * 
  * Security: F-SEC-M6-009 (tool argument validation)
+ * Security: F-SEC-M6.7-001 remediation — replaced setTimeout with RE2
  */
+
+import RE2 from 're2';
 
 export interface ToolSchema {
   name: string;
@@ -56,10 +59,10 @@ export interface ValidationResult {
 const DEFAULT_MAX_STRING_LENGTH = 10000;
 
 /**
- * Regex execution timeout (ReDoS protection)
- * Patterns exceeding this timeout fail-open (logged but not enforced)
+ * RE2 regex engine provides linear-time guarantees (no catastrophic backtracking)
+ * No timeout needed — RE2 runs in O(n) time where n is input length
+ * F-SEC-M6.7-001 remediation: Replaced Node.js RegExp + setTimeout with Google RE2
  */
-const REGEX_TIMEOUT_MS = 10;
 
 /**
  * Validate tool arguments against schema
@@ -325,24 +328,18 @@ function validateDisallowPatterns(
   
   for (const patternStr of patterns) {
     try {
-      // Compile regex with timeout protection
-      const regex = new RegExp(patternStr);
+      // F-SEC-M6.7-001 remediation: Use RE2 for linear-time regex (no ReDoS possible)
+      const regex = new RE2(patternStr);
       
       for (const str of flattenedStrings) {
-        // Test with timeout (using Promise.race for simple timeout)
-        const matched = testRegexWithTimeout(regex, str, REGEX_TIMEOUT_MS);
+        // RE2.test() runs in O(n) time — no catastrophic backtracking, no timeout needed
+        const matched = regex.test(str);
         
-        if (matched === true) {
+        if (matched) {
           return {
             valid: false,
             error: `Argument contains disallowed pattern: ${patternStr}`,
           };
-        } else if (matched === null) {
-          // Timeout - log error but fail-open for this pattern
-          console.error(
-            `[validation] Regex timeout (${REGEX_TIMEOUT_MS}ms) for pattern: ${patternStr}`
-          );
-          // Continue checking other patterns
         }
       }
     } catch (err) {
@@ -355,35 +352,15 @@ function validateDisallowPatterns(
 }
 
 /**
- * Test regex with timeout (ReDoS protection)
+ * F-SEC-M6.7-001 remediation: testRegexWithTimeout() removed
  * 
- * @returns true if matched, false if no match, null if timeout
+ * The previous implementation used setTimeout() which cannot interrupt
+ * synchronous regex.test() execution in Node.js V8 engine. This meant
+ * the ReDoS timeout provided ZERO protection.
+ * 
+ * Replaced with RE2 engine which guarantees linear-time execution with
+ * no catastrophic backtracking. No timeout mechanism is needed.
  */
-function testRegexWithTimeout(
-  regex: RegExp,
-  str: string,
-  timeoutMs: number
-): boolean | null {
-  let timedOut = false;
-  
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-  }, timeoutMs);
-  
-  try {
-    const result = regex.test(str);
-    clearTimeout(timeoutId);
-    
-    if (timedOut) {
-      return null; // Timeout occurred
-    }
-    
-    return result;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
-  }
-}
 
 /**
  * Flatten all strings from nested object (for pattern matching)
@@ -404,18 +381,51 @@ function flattenStrings(obj: unknown, result: string[]): void {
 
 /**
  * Redact sensitive fields from arguments (PII protection)
+ * 
+ * F-SEC-M6-029 remediation: Recursive redaction for nested objects and arrays
  */
 function redactFields(
   args: Record<string, unknown>,
   redactFieldNames: string[]
 ): Record<string, unknown> {
-  const redacted = { ...args };
-  
-  for (const fieldName of redactFieldNames) {
-    if (fieldName in redacted) {
-      redacted[fieldName] = '[REDACTED]';
-    }
+  return redactFieldsRecursive(args, redactFieldNames) as Record<string, unknown>;
+}
+
+/**
+ * Recursively redact fields in nested objects and arrays
+ */
+function redactFieldsRecursive(
+  value: unknown,
+  redactFieldNames: string[]
+): unknown {
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    return value;
   }
-  
-  return redacted;
+
+  // Handle arrays: recursively redact each element
+  if (Array.isArray(value)) {
+    return value.map(item => redactFieldsRecursive(item, redactFieldNames));
+  }
+
+  // Handle objects: recursively redact nested objects and check field names
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const redacted: Record<string, unknown> = {};
+
+    for (const [key, val] of Object.entries(obj)) {
+      // Check if this field name should be redacted
+      if (redactFieldNames.includes(key)) {
+        redacted[key] = '[REDACTED]';
+      } else {
+        // Recursively process nested values
+        redacted[key] = redactFieldsRecursive(val, redactFieldNames);
+      }
+    }
+
+    return redacted;
+  }
+
+  // Primitive values: return as-is
+  return value;
 }

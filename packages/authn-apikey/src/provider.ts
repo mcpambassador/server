@@ -93,7 +93,18 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
       };
     }
 
-    // TODO: Validate clientId is valid UUID format
+    // F-SEC-M6-028 remediation: Validate clientId is UUID v4 format
+    const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_V4_REGEX.test(clientId)) {
+      return {
+        success: false,
+        error: {
+          code: 'invalid_format',
+          message: 'Invalid client ID format',
+          provider: this.id,
+        },
+      };
+    }
 
     try {
       // Lookup by client_id (no timing leak - single DB query)

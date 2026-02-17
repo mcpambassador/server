@@ -86,16 +86,16 @@ services:
       start_period: 10s
       retries: 3
     
-    # Resource limits (adjust based on deployment requirements)
-    # Uncomment and modify for production deployments
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '2.0'
-    #       memory: 1G
-    #     reservations:
-    #       cpus: '0.5'
-    #       memory: 512M
+    # F-SEC-M7-002 remediation: Resource limits enabled by default
+    # Prevents container from consuming all host resources (DoS protection)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     
     # Network isolation (optional)
     # networks:
