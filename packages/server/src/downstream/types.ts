@@ -92,6 +92,21 @@ export interface ToolDescriptor {
 }
 
 /**
+ * SEC-M9-05: Tool name validation regex
+ * Allows alphanumeric, underscore, dot, and hyphen (1-128 chars)
+ */
+const TOOL_NAME_REGEX = /^[a-zA-Z0-9_.-]{1,128}$/;
+
+/**
+ * SEC-M9-05: Validate tool name against allowed pattern
+ * @param name - Tool name to validate
+ * @returns true if valid, false otherwise
+ */
+export function validateToolName(name: string): boolean {
+  return TOOL_NAME_REGEX.test(name);
+}
+
+/**
  * Aggregated tool catalog with source tracking
  */
 export interface AggregatedTool extends ToolDescriptor {

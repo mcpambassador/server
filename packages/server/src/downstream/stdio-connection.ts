@@ -12,6 +12,12 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 
 /**
+ * SEC-M9-02: Safe environment variable whitelist
+ * Only these system environment variables are passed to child processes
+ */
+export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 'USER', 'SHELL'];
+
+/**
  * Stdio-based MCP connection
  *
  * M6.3: Manages a child process running an MCP server over stdio
@@ -69,18 +75,28 @@ export class StdioMcpConnection extends EventEmitter {
     }
 
     // F-SEC-M6-001: Log spawned command for auditability
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     console.warn(`[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`);
     if (this.config.env) {
       const envKeys = Object.keys(this.config.env).join(', ');
       console.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
     }
 
+    // SEC-M9-02: Build safe environment - whitelist + config overrides
+    const safeEnv: Record<string, string> = {};
+    for (const key of SAFE_ENV_VARS) {
+      if (process.env[key]) {
+        safeEnv[key] = process.env[key]!;
+      }
+    }
+    // Add MCP-specific env vars from config
+    if (this.config.env) {
+      Object.assign(safeEnv, this.config.env);
+    }
+
     this.process = spawn(cmd, args, {
       cwd: this.config.cwd || process.cwd(),
-      env: {
-        ...process.env,
-        ...this.config.env, // Injected credentials
-      },
+      env: safeEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

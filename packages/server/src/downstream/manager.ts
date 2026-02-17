@@ -7,8 +7,9 @@ import type {
   ToolInvocationResponse,
   ConnectionHealth,
 } from './types.js';
-import { validateMcpConfig } from './types.js';
+import { validateMcpConfig, validateToolName } from './types.js';
 import { StdioMcpConnection } from './stdio-connection.js';
+import { HttpMcpConnection } from './http-connection.js';
 
 /**
  * Downstream MCP Connection Manager
@@ -25,7 +26,7 @@ import { StdioMcpConnection } from './stdio-connection.js';
  * Per Architecture §7.3 and dev-plan M6.3
  */
 export class DownstreamMcpManager {
-  private connections = new Map<string, StdioMcpConnection>();
+  private connections = new Map<string, StdioMcpConnection | HttpMcpConnection>();
   private toolToMcpMap = new Map<string, string>(); // tool_name -> mcp_name
   private aggregatedTools: AggregatedTool[] = [];
 
@@ -56,14 +57,32 @@ export class DownstreamMcpManager {
           });
 
           connection.on('error', err => {
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+            console.error(`[DownstreamMcpManager] MCP ${config.name} error:`, err);
+          });
+        } else if (config.transport === 'http' || config.transport === 'sse') {
+          const connection = new HttpMcpConnection(config);
+          await connection.start();
+          this.connections.set(config.name, connection);
+
+          // Register connection event handlers
+          connection.on('disconnect', () => {
+            console.log(`[DownstreamMcpManager] MCP ${config.name} disconnected`);
+            this.aggregateTools(); // Refresh tool catalog
+          });
+
+          connection.on('error', err => {
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             console.error(`[DownstreamMcpManager] MCP ${config.name} error:`, err);
           });
         } else {
           console.warn(
-            `[DownstreamMcpManager] Transport ${config.transport} not yet implemented for ${config.name}`
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+            `[DownstreamMcpManager] Unknown transport ${config.transport} for ${config.name}`
           );
         }
       } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         console.error(`[DownstreamMcpManager] Failed to start ${config.name}:`, err);
         // Continue with other MCPs even if one fails
       }
@@ -94,6 +113,14 @@ export class DownstreamMcpManager {
       const tools = connection.getTools();
 
       for (const tool of tools) {
+        // SEC-M9-05: Validate tool name
+        if (!validateToolName(tool.name)) {
+          console.warn(
+            `[DownstreamMcpManager] Skipping tool with invalid name from ${mcpName}: ${tool.name}`
+          );
+          continue;
+        }
+
         // Check for tool name conflicts
         if (this.toolToMcpMap.has(tool.name)) {
           const existingMcp = this.toolToMcpMap.get(tool.name);
@@ -105,9 +132,16 @@ export class DownstreamMcpManager {
           continue;
         }
 
+        // SEC-M9-05: Truncate description to 500 chars
+        let description = tool.description;
+        if (description && description.length > 500) {
+          description = description.substring(0, 500);
+        }
+
         // Add to aggregated catalog
         this.aggregatedTools.push({
           ...tool,
+          description,
           source_mcp: mcpName,
         });
 
@@ -196,6 +230,7 @@ export class DownstreamMcpManager {
   async refreshAll(): Promise<void> {
     const refreshPromises = Array.from(this.connections.values()).map(conn =>
       conn.refreshToolList().catch(err => {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         console.error(`[DownstreamMcpManager] Failed to refresh:`, err);
       })
     );
@@ -212,6 +247,7 @@ export class DownstreamMcpManager {
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         console.error(`[DownstreamMcpManager] Error stopping connection:`, err);
       })
     );
