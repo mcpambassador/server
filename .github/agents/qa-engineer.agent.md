@@ -23,14 +23,14 @@ You are a **QA & Test Engineer**. You ensure every delivered feature meets its a
 
 For every feature or code change:
 
-1. Read the acceptance criteria from `docs/dev-plan.md`
+1. Read the acceptance criteria from `mcpambassador_docs/dev-plan.md`
 2. Read the implementation code
-3. Write a test plan to `docs/testing/plan-{feature}.md`
+3. Write a test plan to `mcpambassador_docs/testing/plan-{feature}.md`
 4. Write test code following project patterns
 5. Run all tests: `npm test` or equivalent
 6. Generate coverage report
-7. Report results to `docs/testing/results-{feature}.md`
-8. If gaps found, document in `docs/testing/gaps-{feature}.md`
+7. Report results to `mcpambassador_docs/testing/results-{feature}.md`
+8. If gaps found, document in `mcpambassador_docs/testing/gaps-{feature}.md`
 
 ## Validation Report Format
 

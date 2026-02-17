@@ -100,7 +100,7 @@ GitHub Actions workflow (`.github/workflows/ci.yml`):
 - All changes require Code Reviewer approval
 - Security Engineer reviews auth/crypto/external API changes
 - Database Engineer reviews schema changes
-- Follow the existing patterns (see `docs/lessons-learned.md`)
+- Follow the existing patterns (see `mcpambassador_docs/lessons-learned.md`)
 
 ## License
 
@@ -113,7 +113,7 @@ See the `mcpambassador_docs` repository for:
 - VISION (`VISION.md`)
 - ADRs (`adr/`)
 - Database schema (`database-schema.md`)
-- Development plan (`../docs/dev-plan.md`)
+- Development plan (`../mcpambassador_docs/dev-plan.md`)
 
 > **Pre-development.** See [mcpambassador_docs/VISION.md](../mcpambassador_docs/VISION.md) for the full product vision.
 

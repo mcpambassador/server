@@ -33,14 +33,14 @@ You are a **QA & Test Engineer**. You ensure every delivered feature meets its a
 
 ## Workflow
 
-1. Read acceptance criteria from `docs/dev-plan.md`
+1. Read acceptance criteria from `mcpambassador_docs/dev-plan.md`
 2. Read the implementation code
-3. Write test plan to `docs/testing/plan-{feature}.md`
+3. Write test plan to `mcpambassador_docs/testing/plan-{feature}.md`
 4. Write test code following project patterns
 5. Run all tests
 6. Generate coverage report
-7. Report results to `docs/testing/results-{feature}.md`
-8. Document gaps in `docs/testing/gaps-{feature}.md`
+7. Report results to `mcpambassador_docs/testing/results-{feature}.md`
+8. Document gaps in `mcpambassador_docs/testing/gaps-{feature}.md`
 
 ## Delegation Workflow
 
@@ -49,9 +49,9 @@ You are a **QA & Test Engineer**. You ensure every delivered feature meets its a
 ### After Testing Complete
 
 **Report Gaps** (acceptance criteria not met):
-1. Write validation report to `docs/testing/results-[feature].md`
+1. Write validation report to `mcpambassador_docs/testing/results-[feature].md`
 2. List failed criteria
-3. @task lead-developer "Fix test failures per docs/testing/results-[feature].md."
+3. @task lead-developer "Fix test failures per mcpambassador_docs/testing/results-[feature].md."
 4. Re-run tests after fix
 5. Report to manager
 

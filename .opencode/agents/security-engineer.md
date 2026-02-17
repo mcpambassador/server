@@ -45,13 +45,13 @@ You are an **Application Security Specialist**. You protect the application from
 
 **Block on Critical Findings:**
 If Critical or High severity:
-1. Write security report to `docs/security/review-[feature].md`
+1. Write security report to `mcpambassador_docs/security/review-[feature].md`
 2. Mark critical issues as BLOCKING
 3. Escalate to manager immediately (don't task other agents)
 
 **Request Fixes** (Medium/Low severity):
 ```
-@task lead-developer "Fix security issues per docs/security/review-[feature].md. Priority: [critical/high] items."
+@task lead-developer "Fix security issues per mcpambassador_docs/security/review-[feature].md. Priority: [critical/high] items."
 ```
 Wait for fix → re-review → report to manager.
 

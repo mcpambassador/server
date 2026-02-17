@@ -54,7 +54,7 @@ If potential security issue found:
 5. Report to lead-developer
 
 **Request Changes** (blocking issues):
-Write review to `docs/reviews/pr-[num].md` with 🚫 Blocking section → report to lead-developer.
+Write review to `mcpambassador_docs/reviews/pr-[num].md` with 🚫 Blocking section → report to lead-developer.
 
 **Approve** (no blocking issues):
 Write review with ✅ **Approved** status → report to lead-developer: "Code review passed. Safe to merge."

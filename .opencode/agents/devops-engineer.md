@@ -44,9 +44,9 @@ You are a **DevOps & Infrastructure Engineer**. You own CI/CD, containers, deplo
 **Hand Off for Testing:**
 When new environment/pipeline ready:
 1. Set up infrastructure
-2. Write runbook to `docs/runbooks/[service].md`
+2. Write runbook to `mcpambassador_docs/runbooks/[service].md`
 3. @task lead-developer "Deploy [service] to [env] using runbook. Verify endpoints."
-4. @task qa-engineer "Run smoke tests on [env]. Report to docs/testing/smoke-[env].md"
+4. @task qa-engineer "Run smoke tests on [env]. Report to mcpambassador_docs/testing/smoke-[env].md"
 
 **Security Hardening** (production infrastructure):
 After setup:

@@ -45,7 +45,7 @@ Review junior dev's output, then proceed to code review.
 **Request Tests:**
 For critical features:
 ```
-@task qa-engineer "Write test plan for [feature]. Define edge cases in docs/testing/"
+@task qa-engineer "Write test plan for [feature]. Define edge cases in mcpambassador_docs/testing/"
 ```
 Read test plan → implement to pass tests → task QA to validate.
 

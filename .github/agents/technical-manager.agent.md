@@ -10,7 +10,7 @@ agents: ['Architect', 'Lead Developer', 'Junior Developer', 'Database Engineer',
 handoffs:
   - label: Assign to Architect
     agent: architect
-    prompt: Design the architecture for the following requirement. Write outputs to docs/.
+    prompt: Design the architecture for the following requirement. Write outputs to mcpambassador_docs/.
     send: true
   - label: Assign to Lead Developer
     agent: lead-developer
@@ -18,7 +18,7 @@ handoffs:
     send: true
   - label: Assign to Security Engineer
     agent: security-engineer
-    prompt: Perform a security review of the following code or feature. Write findings to docs/security/.
+    prompt: Perform a security review of the following code or feature. Write findings to mcpambassador_docs/security/.
     send: true
   - label: Assign to Code Reviewer
     agent: code-reviewer
