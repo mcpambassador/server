@@ -20,6 +20,7 @@
     "start": "node dist/bin/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run tests/e2e --testTimeout=120000",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts"
