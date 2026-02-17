@@ -158,9 +158,8 @@ export class AmbassadorServer {
     this.authn = new ApiKeyAuthProvider(this.db);
     this.authz = new LocalRbacProvider(this.db);
     this.audit = new FileAuditProvider({
-      logDir: path.join(this.config.dataDir, 'audit'),
-      maxFileSizeMb: 100,
-      retentionDays: 90,
+      auditDir: path.join(this.config.dataDir, 'audit'),
+      retention: 90,
     });
     
     await this.authn!.initialize({ id: 'api_key_auth' });
@@ -212,7 +211,8 @@ export class AmbassadorServer {
     let sourceIp: string;
     if (this.config.trustProxy) {
       // Trust X-Forwarded-For (first IP in comma-separated list)
-      sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
+      const forwardedFor = headers['x-forwarded-for'] || request.ip || '0.0.0.0';
+      sourceIp = forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
       // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
     } else {
       // Default: Ignore X-Forwarded-For, use direct connection IP
@@ -405,7 +405,8 @@ export class AmbassadorServer {
             headers[key] = value;
           }
         }
-        const sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
+        const forwardedFor = headers['x-forwarded-for'] || request.ip || '0.0.0.0';
+        const sourceIp = forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
         
         const authRequest = {
           headers,
@@ -636,7 +637,7 @@ export class AmbassadorServer {
     // Shutdown providers first (flushes audit buffer)
     if (this.audit) {
       console.log('[Server] Shutting down audit provider...');
-      await this.audit!.shutdown();
+      await this.audit.shutdown?.();
     }
     
     // Shutdown MCP connections
