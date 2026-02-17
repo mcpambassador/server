@@ -60,7 +60,7 @@ export const clients = sqliteTable('clients', {
   
   // Extensibility
   metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
-}, (table: typeof clients.$inferSelect) => ({
+}, (table) => ({
   // Indexes for common query patterns (dashboard list views)
   statusIdx: index('idx_clients_status').on(table.status),
   profileIdx: index('idx_clients_profile_id').on(table.profile_id),
@@ -93,7 +93,7 @@ export const tool_profiles = sqliteTable('tool_profiles', {
   rate_limits: text('rate_limits').notNull().default('{"requests_per_minute":60,"requests_per_hour":1000,"max_concurrent":5}'), // JSON object
   
   // Inheritance (max depth 5, cycles rejected at save time)
-  inherited_from: text('inherited_from').references(() => tool_profiles.profile_id, {
+  inherited_from: text('inherited_from').references((): any => tool_profiles.profile_id, {
     onDelete: 'set null', // If parent deleted, child loses inheritance (doesn't cascade delete)
     onUpdate: 'cascade'
   }),
@@ -105,7 +105,7 @@ export const tool_profiles = sqliteTable('tool_profiles', {
   // Timestamps
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull(),
-}, (table: typeof tool_profiles.$inferSelect) => ({
+}, (table) => ({
   // Index for dashboard list view
   nameIdx: index('idx_tool_profiles_name').on(table.name),
 }));
@@ -133,7 +133,7 @@ export const admin_keys = sqliteTable('admin_keys', {
   created_at: text('created_at').notNull(),
   rotated_at: text('rotated_at'), // Timestamp of last rotation, null if never rotated
   is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Only one active key
-}, (table: typeof admin_keys.$inferSelect) => ({
+}, (table) => ({
   // Index for active key lookup
   activeIdx: index('idx_admin_keys_is_active').on(table.is_active),
 }));
@@ -205,7 +205,7 @@ export const audit_events = sqliteTable('audit_events', {
   // Metadata
   ambassador_node: text('ambassador_node'), // Server hostname for multi-node deployments
   metadata: text('metadata').default('{}'), // JSON object for extensibility
-}, (table: typeof audit_events.$inferSelect) => ({
+}, (table) => ({
   // Indexes for common query patterns (audit log viewer)
   timestampIdx: index('idx_audit_events_timestamp').on(table.timestamp),
   clientIdIdx: index('idx_audit_events_client_id').on(table.client_id),

@@ -223,9 +223,6 @@ export async function getEffectiveProfile(
     throw new Error(`Profile not found: ${profile_id}`);
   }
   
-  // Start with leaf profile (child overrides parent)
-  const leaf = chain[0];
-  
   // Merge rules from parent chain (reverse order: root to leaf)
   const allowed_tools = new Set<string>();
   const denied_tools = new Set<string>();
@@ -238,6 +235,7 @@ export async function getEffectiveProfile(
   // Process from root to leaf (parents first, child last)
   for (let i = chain.length - 1; i >= 0; i--) {
     const profile = chain[i];
+    if (!profile) continue; // Skip undefined entries
     
     // Merge allowed_tools (M-1: JSON parsing with error handling)
     try {
@@ -263,6 +261,11 @@ export async function getEffectiveProfile(
       console.error(`[db:tool-profiles] Invalid rate_limits JSON for profile ${profile.profile_id}:`, err);
       // Keep previous rate_limits (or default from initialization)
     }
+  }
+  
+  const leaf = chain[chain.length - 1];
+  if (!leaf) {
+    throw new Error('Inheritance chain is empty');
   }
   
   return {

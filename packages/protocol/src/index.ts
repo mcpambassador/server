@@ -40,8 +40,13 @@ export type ClientStatus = 'active' | 'suspended' | 'revoked';
 export type EventType =
   | 'client_registration'
   | 'authentication'
+  | 'auth_success'
+  | 'auth_failure'
   | 'tool_invocation'
+  | 'tool_error'
   | 'authorization_decision'
+  | 'authz_permit'
+  | 'authz_deny'
   | 'profile_update'
   | 'admin_action'
   | 'error';
@@ -149,6 +154,10 @@ export interface ToolInvocationResponse {
     duration_ms?: number;
     /** Downstream MCP server that handled the request */
     mcp_server?: string;
+    /** Error message (if tool execution failed) */
+    error?: string;
+    /** Whether the invocation resulted in an error */
+    is_error?: boolean;
   };
 }
 
@@ -187,8 +196,8 @@ export interface AuditEvent {
   request_summary?: Record<string, unknown>;
   /** Response summary (JSON) */
   response_summary?: Record<string, unknown>;
-  /** Authorization decision (permit/deny) */
-  authz_decision?: 'permit' | 'deny';
+  /** Authorization decision (permit/deny/conditional) */
+  authz_decision?: 'permit' | 'deny' | 'conditional';
   /** Authorization policy that made the decision */
   authz_policy?: string;
   /** Ambassador node identifier (for multi-node deployments) */
