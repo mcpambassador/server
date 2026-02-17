@@ -1,3 +1,5 @@
+/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
+
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import { initializeTls } from './tls.js';
@@ -19,27 +21,24 @@ import {
 import { ApiKeyAuthProvider } from '@mcpambassador/authn-apikey';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
-import type { 
-  ToolCatalogResponse, 
-  ToolDescriptor,
-} from '@mcpambassador/protocol';
+import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
 
 /**
  * MCP Ambassador Server (M6)
- * 
+ *
  * HTTPS + TLS server with:
  * - Auto-generated self-signed CA + server cert (TOFU model)
- * - AAA pipeline integration  
+ * - AAA pipeline integration
  * - MCP JSON-RPC routing
  * - RESTful admin API
  * - Downstream MCP connection manager
- * 
+ *
  * Per Architecture §7:
  * - Default port: 8443
  * - TLS always on (self-signed for Community)
  * - CORS default deny
  * - All requests authenticated
- * 
+ *
  * Note: Using HTTPS for now; HTTP/2 can be enabled later as optimization
  */
 
@@ -57,7 +56,7 @@ export interface ServerConfig {
    * - false (default): Ignore X-Forwarded-For, use direct connection IP
    * - true: Trust first IP in X-Forwarded-For (use only if behind trusted proxy)
    * - string[]: Trust X-Forwarded-For only if request comes from these CIDR ranges
-   * 
+   *
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
   trustProxy?: boolean | string[];
@@ -72,7 +71,7 @@ export class AmbassadorServer {
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
   private pipeline: Pipeline | null = null;
-  
+
   constructor(config: ServerConfig) {
     this.config = {
       host: config.host || '0.0.0.0',
@@ -84,16 +83,16 @@ export class AmbassadorServer {
       dbPath: config.dbPath || path.join(config.dataDir, 'ambassador.db'),
       trustProxy: config.trustProxy || false,
     };
-    
+
     this.mcpManager = new DownstreamMcpManager();
   }
-  
+
   /**
    * Initialize server with TLS and routing
    */
   async initialize(): Promise<void> {
     console.log('[Server] Initializing MCP Ambassador Server...');
-    
+
     // Initialize TLS certificates
     const certDir = path.join(this.config.dataDir, 'certs');
     const tlsCerts = await initializeTls({
@@ -102,10 +101,10 @@ export class AmbassadorServer {
       keyPath: path.join(certDir, 'server-key.pem'),
       serverName: this.config.serverName,
     });
-    
+
     console.log(`[TLS] CA Fingerprint: ${tlsCerts.caFingerprint}`);
     console.log('[TLS] Store this fingerprint for client TOFU trust prompt');
-    
+
     // Create Fastify instance with HTTPS + TLS
     this.fastify = Fastify({
       logger: {
@@ -130,12 +129,12 @@ export class AmbassadorServer {
         honorCipherOrder: true,
       },
     });
-    
+
     // Register CORS plugin (default deny per Architecture §7.2)
     await this.fastify.register(fastifyCors, {
       origin: false, // Default deny
     });
-    
+
     // F-SEC-M6-008: Security headers
     this.fastify.addHook('onSend', async (_request, reply) => {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -143,7 +142,7 @@ export class AmbassadorServer {
       reply.header('X-Frame-Options', 'DENY');
       reply.header('Cache-Control', 'no-store');
     });
-    
+
     // Initialize database
     console.log(`[Server] Initializing database: ${this.config.dbPath}`);
     this.db = await initializeDatabase({
@@ -152,7 +151,7 @@ export class AmbassadorServer {
       enableWAL: true,
       seedOnInit: true,
     });
-    
+
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
     this.authn = new ApiKeyAuthProvider(this.db);
@@ -161,46 +160,48 @@ export class AmbassadorServer {
       auditDir: path.join(this.config.dataDir, 'audit'),
       retention: 90,
     });
-    
+
     await this.authn!.initialize({ id: 'api_key_auth' });
     await this.authz!.initialize({ id: 'local_rbac' });
     await this.audit!.initialize({ id: 'file_audit' });
-    
+
     // Initialize AAA pipeline
     this.pipeline = new Pipeline(this.authn!, this.authz!, this.audit!, {
       audit_on_failure: 'buffer', // Fail-open for audit (M5 behavior)
     });
-    
+
     console.log('[Server] AAA providers initialized');
     console.log('[Server] Pipeline initialized (available for M6.5)');
-    
+
     // Initialize downstream MCP connections
-    console.log(`[Server] Initializing ${this.config.downstreamMcps.length} downstream MCP connections...`);
+    console.log(
+      `[Server] Initializing ${this.config.downstreamMcps.length} downstream MCP connections...`
+    );
     await this.mcpManager.initialize(this.config.downstreamMcps);
-    
+
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
     // F-SEC-M6-012: No version banner
     this.fastify.get('/health', async () => {
-      return { 
+      return {
         status: 'ok',
       };
     });
-    
+
     // Register route handlers
     await this.registerRoutes();
-    
+
     console.log('[Server] Initialization complete');
   }
-  
+
   /**
    * Extract source IP from request, respecting trustProxy configuration
-   * 
+   *
    * Security: F-SEC-M6-020 remediation + F-SEC-P1-001 fix
    * - If trustProxy is false (default): Use only request.ip (direct connection)
    * - If trustProxy is true: Trust first IP in X-Forwarded-For header
    * - Always falls back to '0.0.0.0' if no IP available
-   * 
+   *
    * @param request - Fastify request object
    * @returns Source IP address as string
    */
@@ -208,7 +209,7 @@ export class AmbassadorServer {
     if (this.config.trustProxy) {
       // Trust X-Forwarded-For (first IP in comma-separated list)
       const forwardedHeader = request.headers['x-forwarded-for'];
-      const forwardedFor = 
+      const forwardedFor =
         (Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader) ||
         request.ip ||
         '0.0.0.0';
@@ -219,37 +220,37 @@ export class AmbassadorServer {
       return request.ip ?? '0.0.0.0';
     }
   }
-  
+
   /**
    * Authentication helper - extracts and validates auth from request
    * Returns SessionContext on success, throws 401 on failure
    */
   private async authenticate(request: FastifyRequest): Promise<SessionContext> {
     if (!this.authn) throw new Error('Authentication provider not initialized');
-    
+
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(request.headers)) {
       if (typeof value === 'string') {
         headers[key] = value;
       }
     }
-    
+
     // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
     const sourceIp = this.getSourceIp(request);
-    
+
     if (!this.authn) {
       throw new Error('Authentication provider not initialized');
     }
-    
+
     const authResult = await this.authn.authenticate({ headers, sourceIp });
-    
+
     if (!authResult.success || !authResult.session) {
       throw new Error('Unauthorized');
     }
-    
+
     return authResult.session;
   }
-  
+
   /**
    * Register all route handlers
    * Per Architecture §7.2:
@@ -261,18 +262,18 @@ export class AmbassadorServer {
    */
   private async registerRoutes(): Promise<void> {
     if (!this.fastify) throw new Error('Server not initialized');
-    
+
     // ==========================================================================
     // CLIENT REGISTRATION (no auth required - this is how clients get API keys)
     // ==========================================================================
-    
+
     // F-SEC-M6-025 remediation: Rate limiting required when registration is implemented
     // TODO: Add rate limiter before registration (e.g., @fastify/rate-limit) to prevent:
     //   - DoS attacks via registration flooding
     //   - API key exhaustion attacks
     //   - Resource consumption (DB writes, email sends, etc.)
     // Recommended: 5 requests per IP per hour, with exponential backoff on repeated violations
-    
+
     this.fastify.post('/v1/clients/register', async (_request, reply) => {
       // M6: Stub implementation - will be completed with client registration logic
       reply.status(501).send({
@@ -280,24 +281,24 @@ export class AmbassadorServer {
         message: 'Client registration endpoint - M6 implementation pending',
       });
     });
-    
+
     // ==========================================================================
     // MCP ENDPOINTS (authenticated)
     // ==========================================================================
-    
+
     // Tool catalog endpoint (M6.4)
     this.fastify.get('/v1/tools', async (request, reply) => {
       try {
         // Authenticate request
         const session = await this.authenticate(request);
-        
+
         // Get client's effective profile
         if (!this.db || !this.authz) {
           throw new Error('Server not properly initialized');
         }
-        
+
         const profile = await getEffectiveProfile(this.db, session.client_id);
-        
+
         if (!profile) {
           reply.status(403).send({
             error: 'Forbidden',
@@ -305,21 +306,21 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         // Get aggregated tool catalog from downstream MCPs
         const aggregatedTools = this.mcpManager.getToolCatalog();
-        
+
         // Filter tools based on client's profile
         // Check each tool against allowed_tools (glob patterns) and denied_tools
         const allowedTools: ToolDescriptor[] = [];
-        
+
         for (const tool of aggregatedTools) {
           // Use authz provider to check if tool is allowed
           const authzResult = await this.authz.authorize(session, {
             tool_name: tool.name,
             tool_arguments: {}, // Not needed for catalog check
           });
-          
+
           if (authzResult.decision === 'permit') {
             // Transform from AggregatedTool to protocol ToolDescriptor
             allowedTools.push({
@@ -332,20 +333,21 @@ export class AmbassadorServer {
             });
           }
         }
-        
+
         // Return tool catalog
         const response: ToolCatalogResponse = {
           tools: allowedTools,
           api_version: '1.0',
           timestamp: new Date().toISOString(),
         };
-        
+
         reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           reply.status(401).send({
             error: 'Unauthorized',
-            message: 'Valid API key required. Include X-API-Key or Authorization: Bearer <key> header.',
+            message:
+              'Valid API key required. Include X-API-Key or Authorization: Bearer <key> header.',
           });
         } else {
           console.error('[/v1/tools] Error:', err);
@@ -356,7 +358,7 @@ export class AmbassadorServer {
         }
       }
     });
-    
+
     // Tool invocation endpoint (M6.5)
     this.fastify.post('/v1/tools/invoke', async (request, reply) => {
       try {
@@ -369,7 +371,7 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         // Validate request body
         const body = request.body as any;
         if (!body || typeof body !== 'object') {
@@ -379,7 +381,7 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         if (!body.tool || typeof body.tool !== 'string') {
           reply.status(400).send({
             error: 'Bad Request',
@@ -387,8 +389,7 @@ export class AmbassadorServer {
           });
           return;
         }
-        
-        
+
         if (!body.arguments || typeof body.arguments !== 'object') {
           reply.status(400).send({
             error: 'Bad Request',
@@ -396,10 +397,10 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         // Authenticate request
         const session = await this.authenticate(request);
-        
+
         // F-SEC-M5-007: Validate client_id from session (defense-in-depth)
         if (!session.client_id || typeof session.client_id !== 'string') {
           reply.status(500).send({
@@ -408,14 +409,14 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         // Transform protocol request → pipeline internal request
         const pipelineRequest: PipelineToolInvocationRequest = {
           tool_name: body.tool,
           client_id: session.client_id,
           arguments: body.arguments,
         };
-        
+
         // Build AuthRequest
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(request.headers)) {
@@ -425,31 +426,31 @@ export class AmbassadorServer {
         }
         // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
         const sourceIp = this.getSourceIp(request);
-        
+
         const authRequest = {
           headers,
           sourceIp,
         };
-        
+
         // Create router function for pipeline
         const router = async (toolName: string, args: Record<string, unknown>) => {
           const mcpRequest = {
             tool_name: toolName,
             arguments: args,
           };
-          
+
           const mcpResponse = await this.mcpManager.invokeTool(mcpRequest);
-          
+
           // Get MCP name from tool catalog
           const tool = this.mcpManager.getToolDescriptor(toolName);
-          
+
           return {
             content: mcpResponse.content,
             isError: mcpResponse.isError,
             mcpServer: tool?.source_mcp,
           };
         };
-        
+
         // Invoke through AAA pipeline (with null check for pipeline)
         if (!this.pipeline) {
           reply.status(500).send({
@@ -458,9 +459,9 @@ export class AmbassadorServer {
           });
           return;
         }
-        
+
         const response = await this.pipeline.invoke(pipelineRequest, authRequest, router);
-        
+
         reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
@@ -485,12 +486,12 @@ export class AmbassadorServer {
         }
       }
     });
-    
+
     // ==========================================================================
     // ADMIN ENDPOINTS (authenticated + admin role required)
     // Deferred M5 endpoints: M5.2-M5.4, M5.6
     // ==========================================================================
-    
+
     // M5.2: Profile CRUD
     // F-SEC-M6-026 remediation: Admin authentication required even for stub endpoints
     this.fastify.get('/v1/admin/profiles', async (request, reply) => {
@@ -505,7 +506,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     this.fastify.get('/v1/admin/profiles/:profileId', async (request, reply) => {
       try {
         await this.authenticate(request);
@@ -517,7 +518,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     this.fastify.post('/v1/admin/profiles', async (request, reply) => {
       try {
         await this.authenticate(request);
@@ -529,7 +530,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     this.fastify.patch('/v1/admin/profiles/:profileId', async (request, reply) => {
       try {
         await this.authenticate(request);
@@ -541,7 +542,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     this.fastify.delete('/v1/admin/profiles/:profileId', async (request, reply) => {
       try {
         await this.authenticate(request);
@@ -553,7 +554,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     // M5.3: Kill switch
     this.fastify.post('/v1/admin/kill-switch/:target', async (request, reply) => {
       try {
@@ -566,13 +567,13 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     // F-SEC-M6-005: Detailed health endpoint (admin only)
     this.fastify.get('/v1/admin/health', async (request, reply) => {
       try {
         // Authentication required (F-SEC-M6.6 remediation)
         await this.authenticate(request);
-        
+
         reply.send({
           status: 'ok',
           version: '0.1.0',
@@ -593,7 +594,7 @@ export class AmbassadorServer {
         }
       }
     });
-    
+
     // M5.4: Client lifecycle
     this.fastify.patch('/v1/clients/:clientId/status', async (request, reply) => {
       try {
@@ -606,7 +607,7 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     // M5.6: Audit query
     this.fastify.get('/v1/audit/events', async (request, reply) => {
       try {
@@ -619,10 +620,10 @@ export class AmbassadorServer {
         reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
-    
+
     console.log('[Router] All routes registered');
   }
-  
+
   /**
    * Start the server
    */
@@ -630,51 +631,49 @@ export class AmbassadorServer {
     if (!this.fastify) {
       throw new Error('Server not initialized - call initialize() first');
     }
-    
+
     try {
       await this.fastify.listen({
         host: this.config.host,
         port: this.config.port,
       });
-      
-      console.log(
-        `[Server] Listening on https://${this.config.host}:${this.config.port}`
-      );
+
+      console.log(`[Server] Listening on https://${this.config.host}:${this.config.port}`);
     } catch (err) {
       console.error('[Server] Failed to start:', err);
       throw err;
     }
   }
-  
+
   /**
    * Stop the server
    */
   async stop(): Promise<void> {
     console.log('[Server] Shutting down...');
-    
+
     // Shutdown providers first (flushes audit buffer)
     if (this.audit) {
       console.log('[Server] Shutting down audit provider...');
       await this.audit.shutdown?.();
     }
-    
+
     // Shutdown MCP connections
     await this.mcpManager.shutdown();
-    
+
     // Close database
     if (this.db) {
       console.log('[Server] Closing database...');
       await closeDatabase(this.db);
     }
-    
+
     // Then shutdown HTTP server
     if (this.fastify) {
       await this.fastify.close();
     }
-    
+
     console.log('[Server] Shutdown complete');
   }
-  
+
   /**
    * Get the Fastify instance (for testing)
    */

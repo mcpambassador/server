@@ -1,6 +1,6 @@
 /**
  * LocalRbacProvider Tests
- * 
+ *
  * Tests authorization logic including:
  * - Deny-wins rule enforcement
  * - Glob matching
@@ -27,7 +27,7 @@ describe('LocalRbacProvider', () => {
     // Create in-memory database for testing
     db = await createDatabaseClient({ path: ':memory:', enableWAL: false });
     await db.migrate();
-    
+
     provider = new LocalRbacProvider(db);
     await provider.initialize({ provider_type: 'authz', provider_id: 'local_rbac' });
   });
@@ -272,7 +272,10 @@ describe('LocalRbacProvider', () => {
       const authorizedTools = await provider.listAuthorizedTools(session, allTools);
 
       expect(authorizedTools).toHaveLength(2);
-      expect(authorizedTools.map(t => t.name)).toEqual(['github.search_code', 'github.create_issue']);
+      expect(authorizedTools.map(t => t.name)).toEqual([
+        'github.search_code',
+        'github.create_issue',
+      ]);
     });
 
     it('should filter out denied tools from authorized list', async () => {

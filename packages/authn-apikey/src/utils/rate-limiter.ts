@@ -1,9 +1,9 @@
 /**
  * Rate Limiter Utility
- * 
+ *
  * In-memory rate limiter for Community tier.
  * Enterprise tier will use Redis for distributed rate limiting.
- * 
+ *
  * @see F-SEC-M4-010: Extracted for reuse across registration, admin recovery, etc.
  */
 
@@ -15,7 +15,7 @@ export class RateLimiter {
 
   /**
    * Check if the key has exceeded the rate limit
-   * 
+   *
    * @param key Rate limit key (e.g., IP address, client_id)
    * @param limit Maximum attempts allowed
    * @param windowMs Time window in milliseconds
@@ -43,7 +43,7 @@ export class RateLimiter {
 
   /**
    * Clean up expired entries
-   * 
+   *
    * Call periodically to prevent memory growth.
    */
   cleanup(): void {
@@ -57,24 +57,24 @@ export class RateLimiter {
 
   /**
    * Get current attempt count for a key
-   * 
+   *
    * @param key Rate limit key
    * @returns Current attempt count (0 if not found or expired)
    */
   getCount(key: string): number {
     const now = Date.now();
     const record = this.attempts.get(key);
-    
+
     if (!record || now > record.resetAt) {
       return 0;
     }
-    
+
     return record.count;
   }
 
   /**
    * Reset rate limit for a key
-   * 
+   *
    * @param key Rate limit key to reset
    */
   reset(key: string): void {

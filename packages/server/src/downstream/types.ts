@@ -1,6 +1,6 @@
 /**
  * Downstream MCP Manager Types
- * 
+ *
  * M6.3: Type definitions for downstream MCP connections
  * Supports stdio and HTTP transports per Architecture §7.3
  */
@@ -13,12 +13,12 @@ import { z } from 'zod';
 export interface DownstreamMcpConfig {
   name: string;
   transport: 'stdio' | 'http' | 'sse';
-  
+
   // stdio transport
   command?: string[];
   env?: Record<string, string>;
   cwd?: string;
-  
+
   // HTTP/SSE transport
   url?: string;
   headers?: Record<string, string>;
@@ -46,19 +46,23 @@ export function validateMcpConfig(config: DownstreamMcpConfig): void {
     if (!config.command || config.command.length === 0) {
       throw new Error(`[${config.name}] stdio transport requires command array`);
     }
-    
+
     const [cmd] = config.command;
     if (!cmd || cmd.trim() === '') {
       throw new Error(`[${config.name}] Empty command not allowed`);
     }
-    
+
     // Check for shell injection attempts in command
-    if (cmd.includes(';') || cmd.includes('|') || cmd.includes('&') || cmd.includes('`') || cmd.includes('$')) {
-      throw new Error(
-        `[${config.name}] Command contains shell metacharacters: ${cmd}`
-      );
+    if (
+      cmd.includes(';') ||
+      cmd.includes('|') ||
+      cmd.includes('&') ||
+      cmd.includes('`') ||
+      cmd.includes('$')
+    ) {
+      throw new Error(`[${config.name}] Command contains shell metacharacters: ${cmd}`);
     }
-    
+
     // Check for dangerous environment variables
     if (config.env) {
       for (const key of Object.keys(config.env)) {
@@ -132,13 +136,21 @@ export interface ConnectionHealth {
  * Prevents XSS, data exfiltration, and OOM from malicious MCPs
  */
 export const ToolInvocationResponseSchema = z.object({
-  content: z.array(
-    z.object({
-      type: z.enum(['text', 'image', 'resource']),
-      text: z.string().max(10 * 1024 * 1024).optional(), // 10MB max per text content
-      data: z.string().max(10 * 1024 * 1024).optional(), // 10MB max per data content
-      mimeType: z.string().optional(),
-    })
-  ).max(100), // Max 100 content items
+  content: z
+    .array(
+      z.object({
+        type: z.enum(['text', 'image', 'resource']),
+        text: z
+          .string()
+          .max(10 * 1024 * 1024)
+          .optional(), // 10MB max per text content
+        data: z
+          .string()
+          .max(10 * 1024 * 1024)
+          .optional(), // 10MB max per data content
+        mimeType: z.string().optional(),
+      })
+    )
+    .max(100), // Max 100 content items
   isError: z.boolean().optional(),
 });

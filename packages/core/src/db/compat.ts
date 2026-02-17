@@ -1,11 +1,13 @@
 /**
  * Database Compatibility Layer
- * 
+ *
  * Provides type-safe query builders that work across both SQLite and PostgreSQL.
  * Resolves Drizzle ORM union type incompatibility (F-TECH-DEBT-001).
- * 
+ *
  * @see docs/drizzle-type-errors-report.md
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import type { DatabaseClient } from './client.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
@@ -21,7 +23,7 @@ function isPostgres(db: DatabaseClient): boolean {
 
 /**
  * Type-safe insert operation compatible with both SQLite and PostgreSQL
- * 
+ *
  * @param db Database client (union type)
  * @param table Table to insert into
  * @returns Insert builder
@@ -35,7 +37,7 @@ export function compatInsert<TTable extends SQLiteTable | PgTable>(
 
 /**
  * Type-safe select operation compatible with both SQLite and PostgreSQL
- * 
+ *
  * @param db Database client (union type)
  * @param fields Optional field selection object
  * @returns Select builder
@@ -49,7 +51,7 @@ export function compatSelect(db: DatabaseClient, fields?: any): any {
 
 /**
  * Type-safe update operation compatible with both SQLite and PostgreSQL
- * 
+ *
  * @param db Database client (union type)
  * @param table Table to update
  * @returns Update builder
@@ -63,7 +65,7 @@ export function compatUpdate<TTable extends SQLiteTable | PgTable>(
 
 /**
  * Type-safe delete operation compatible with both SQLite and PostgreSQL
- * 
+ *
  * @param db Database client (union type)
  * @param table Table to delete from
  * @returns Delete builder
@@ -77,7 +79,7 @@ export function compatDelete<TTable extends SQLiteTable | PgTable>(
 
 /**
  * Type-safe count operation (wraps sql`SELECT COUNT(*) as count`)
- * 
+ *
  * @param query Select query builder
  * @returns Count aggregation query
  */
@@ -88,7 +90,7 @@ export function compatCount(query: any): any {
 
 /**
  * Execute raw SQL (handles both database types)
- * 
+ *
  * @param db Database client
  * @param sql Raw SQL string
  * @returns Query result

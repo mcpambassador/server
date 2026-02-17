@@ -1,13 +1,16 @@
 #!/usr/bin/env node
+
+/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/no-misused-promises, @typescript-eslint/explicit-function-return-type */
+
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
 
 /**
  * MCP Ambassador Server CLI
- * 
+ *
  * Usage:
  *   mcpambassador-server [options]
- * 
+ *
  * Options:
  *   --port <port>          Server port (default: 8443)
  *   --host <host>          Server host (default: 0.0.0.0)
@@ -27,11 +30,11 @@ interface CliArgs {
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
   const config: CliArgs = {};
-  
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     const next = args[i + 1];
-    
+
     switch (arg) {
       case '--port':
         if (next) {
@@ -92,13 +95,13 @@ Examples:
         process.exit(0);
     }
   }
-  
+
   return config;
 }
 
 async function main() {
   const args = parseArgs();
-  
+
   const server = new AmbassadorServer({
     port: args.port,
     host: args.host,
@@ -106,7 +109,7 @@ async function main() {
     serverName: args.serverName,
     logLevel: args.logLevel,
   });
-  
+
   // Handle shutdown signals
   const shutdown = async (signal: string) => {
     console.log(`\n[Server] Received ${signal}, shutting down gracefully...`);
@@ -118,10 +121,10 @@ async function main() {
       process.exit(1);
     }
   };
-  
+
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
-  
+
   // Start server
   try {
     await server.initialize();

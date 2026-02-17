@@ -1,6 +1,6 @@
 /**
  * Downstream MCP Manager - Main exports
- * 
+ *
  * M6.3: Manages connections to downstream MCP servers
  */
 

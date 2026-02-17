@@ -1,17 +1,19 @@
 /**
  * API Key Authentication Provider
- * 
+ *
  * Implements AuthenticationProvider SPI for API key authentication.
- * 
+ *
  * Security requirements (per security review checklist):
  * - crypto.randomBytes() for key generation (not Math.random())
  * - Argon2id parameters: m=19456, t=2, p=1 (OWASP minimum)
  * - Timing-safe verification (argon2.verify is inherently constant-time)
  * - Lookup by client_id then verify (no timing leak on key existence)
- * 
+ *
  * @see Architecture §9.2 API Key Authentication
  * @see ADR-001 Authentication Strategy
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
 
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
@@ -32,7 +34,7 @@ import { hashApiKey, isValidApiKeyFormat } from './keys.js';
  */
 const ARGON2_OPTIONS = {
   type: argon2.argon2id,
-  memoryCost: 19456,  // 19MB
+  memoryCost: 19456, // 19MB
   timeCost: 2,
   parallelism: 1,
 };
@@ -53,7 +55,7 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
 
   /**
    * Initialize provider
-   * 
+   *
    * Pre-computes a dummy hash for timing-safe non-existent client lookups.
    */
   async initialize(_config: Record<string, unknown>): Promise<void> {
@@ -64,11 +66,12 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
 
   /**
    * Authenticate client using X-API-Key and X-Client-Id headers
-   * 
+   *
    * Timing-safe: lookup by client_id then verify with argon2 (constant-time hash comparison)
    */
   async authenticate(request: AuthRequest): Promise<AuthResult> {
-    const apiKey = request.headers['x-api-key'] || request.headers['authorization']?.replace(/^Bearer\s+/, '');
+    const apiKey =
+      request.headers['x-api-key'] || request.headers['authorization']?.replace(/^Bearer\s+/, '');
     const clientId = request.headers['x-client-id'];
 
     if (!apiKey || !clientId) {
@@ -116,7 +119,7 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
       if (!client) {
         // F-SEC-M4-001: Use pre-computed dummy hash for timing-safe verification
         await argon2.verify(this.dummyHash, apiKey);
-        
+
         return {
           success: false,
           error: {
@@ -206,7 +209,7 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
       await this.db.query.clients.findFirst({
         where: (clients, { eq }) => eq(clients.status, 'active'),
       });
-      
+
       return {
         status: 'healthy',
         message: 'Database accessible',

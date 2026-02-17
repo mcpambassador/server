@@ -4,9 +4,21 @@ import * as os from 'os';
 import * as path from 'path';
 import * as argon2 from 'argon2';
 
-import { initializeDatabase, runMigrations, seedDatabaseIfNeeded, closeDatabase, type DatabaseClient, type DatabaseConfig } from '@mcpambassador/core';
+import {
+  initializeDatabase,
+  runMigrations,
+  seedDatabaseIfNeeded,
+  closeDatabase,
+  type DatabaseClient,
+  type DatabaseConfig,
+} from '@mcpambassador/core';
 
-import { generateAdminKey, recoverAdminKey, rotateAdminKey, factoryResetAdminKey } from '../src/admin/keys.js';
+import {
+  generateAdminKey,
+  recoverAdminKey,
+  rotateAdminKey,
+  factoryResetAdminKey,
+} from '../src/admin/keys.js';
 import { registerClient } from '../src/registration.js';
 import { rotateClientKey } from '../src/rotation.js';
 import { ApiKeyAuthProvider } from '../src/provider.js';
@@ -123,11 +135,17 @@ describe('authn-apikey mutations (integration)', () => {
   });
 
   it('registerClient: inserts client record with api_key_hash and active status', async () => {
-    const res = await registerClient(db, { friendly_name: 'test-cli', host_tool: 'vscode' }, '127.0.0.1');
+    const res = await registerClient(
+      db,
+      { friendly_name: 'test-cli', host_tool: 'vscode' },
+      '127.0.0.1'
+    );
     expect(res).toHaveProperty('client_id');
     expect(res).toHaveProperty('api_key');
 
-    const client = await db.query.clients.findFirst({ where: (c, { eq }) => eq(c.client_id, res.client_id) });
+    const client = await db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, res.client_id),
+    });
     expect(client).toBeDefined();
     expect(client!.status).toBe('active');
     expect(client!.api_key_hash).toBeTruthy();
@@ -135,20 +153,30 @@ describe('authn-apikey mutations (integration)', () => {
     const ok = await argon2.verify(client!.api_key_hash!, res.api_key);
     expect(ok).toBe(true);
 
-    const profile = await db.query.tool_profiles.findFirst({ where: (p, { eq }) => eq(p.name, 'all-tools') });
+    const profile = await db.query.tool_profiles.findFirst({
+      where: (p, { eq }) => eq(p.name, 'all-tools'),
+    });
     expect(profile).toBeDefined();
     expect(client!.profile_id).toBe(profile!.profile_id);
   });
 
   it('rotateClientKey: rotates client api key and invalidates old key', async () => {
-    const reg = await registerClient(db, { friendly_name: 'rot-client', host_tool: 'vscode' }, '127.0.0.1');
-    const before = await db.query.clients.findFirst({ where: (c, { eq }) => eq(c.client_id, reg.client_id) });
+    const reg = await registerClient(
+      db,
+      { friendly_name: 'rot-client', host_tool: 'vscode' },
+      '127.0.0.1'
+    );
+    const before = await db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, reg.client_id),
+    });
     const oldHash = before!.api_key_hash!;
 
     const rotated = await rotateClientKey(db, reg.client_id, reg.api_key);
     expect(rotated).toHaveProperty('api_key');
 
-    const after = await db.query.clients.findFirst({ where: (c, { eq }) => eq(c.client_id, reg.client_id) });
+    const after = await db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, reg.client_id),
+    });
     expect(after).toBeDefined();
     expect(after!.client_id).toBe(reg.client_id);
     expect(after!.api_key_hash).not.toBe(oldHash);
@@ -160,24 +188,36 @@ describe('authn-apikey mutations (integration)', () => {
   });
 
   it('ApiKeyAuthProvider.authenticate: succeeds and updates last_seen_at', async () => {
-    const reg = await registerClient(db, { friendly_name: 'auth-client', host_tool: 'vscode' }, '127.0.0.1');
+    const reg = await registerClient(
+      db,
+      { friendly_name: 'auth-client', host_tool: 'vscode' },
+      '127.0.0.1'
+    );
 
     const provider = new ApiKeyAuthProvider(db);
     await provider.initialize({});
 
-    const before = await db.query.clients.findFirst({ where: (c, { eq }) => eq(c.client_id, reg.client_id) });
+    const before = await db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, reg.client_id),
+    });
     expect(before).toBeDefined();
 
     const goodReq = { headers: { 'x-api-key': reg.api_key, 'x-client-id': reg.client_id } } as any;
-    const badReq = { headers: { 'x-api-key': 'amb_sk_invalid', 'x-client-id': reg.client_id } } as any;
+    const badReq = {
+      headers: { 'x-api-key': 'amb_sk_invalid', 'x-client-id': reg.client_id },
+    } as any;
 
     const good = await provider.authenticate(goodReq);
     expect(good.success).toBe(true);
     // wait for background update
-    await new Promise((r) => setTimeout(r, 150));
-    const after = await db.query.clients.findFirst({ where: (c, { eq }) => eq(c.client_id, reg.client_id) });
+    await new Promise(r => setTimeout(r, 150));
+    const after = await db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, reg.client_id),
+    });
     expect(after).toBeDefined();
-    expect(new Date(after!.last_seen_at).getTime()).toBeGreaterThan(new Date(before!.last_seen_at).getTime());
+    expect(new Date(after!.last_seen_at).getTime()).toBeGreaterThan(
+      new Date(before!.last_seen_at).getTime()
+    );
 
     const bad = await provider.authenticate(badReq);
     expect(bad.success).toBe(false);

@@ -1,9 +1,9 @@
 /**
  * @mcpambassador/protocol
- * 
+ *
  * Type-only package defining the API contract between Ambassador Client and Server.
  * Zero runtime dependencies. Follows semver for API versioning.
- * 
+ *
  * @see Architecture §16.3 Protocol Package
  */
 
@@ -58,7 +58,7 @@ export type Severity = 'info' | 'warn' | 'error' | 'critical';
 
 /**
  * Client registration request (POST /v1/clients/register)
- * 
+ *
  * @see Architecture §3.1 Registration
  */
 export interface RegistrationRequest {
@@ -92,7 +92,7 @@ export interface RegistrationResponse {
 
 /**
  * Tool catalog response (GET /v1/tools)
- * 
+ *
  * Returns the merged tool catalog from all downstream MCPs,
  * filtered by the client's effective profile.
  */
@@ -126,7 +126,7 @@ export interface ToolDescriptor {
 
 /**
  * Tool invocation request (POST /v1/tools/invoke)
- * 
+ *
  * @see Architecture §4.1 Pipeline Flow
  */
 export interface ToolInvocationRequest {
@@ -163,7 +163,7 @@ export interface ToolInvocationResponse {
 
 /**
  * Audit event schema
- * 
+ *
  * @see Architecture §5.3 AuditEvent
  * @see Architecture §11 Audit Deep Dive
  */
@@ -208,7 +208,7 @@ export interface AuditEvent {
 
 /**
  * Standard error response envelope
- * 
+ *
  * @see Architecture §4.3 Error Response Policy
  */
 export interface ErrorResponse {
@@ -224,9 +224,9 @@ export interface ErrorResponse {
 
 /**
  * Kill switch notification (Server Sent Events, Phase 2)
- * 
+ *
  * Sent via SSE when a tool or MCP is disabled by the server.
- * 
+ *
  * @see Architecture §17.2 Server Push & Kill Switch Propagation
  */
 export interface KillSwitchNotification {
@@ -244,7 +244,7 @@ export interface KillSwitchNotification {
 
 /**
  * Pagination metadata for list responses
- * 
+ *
  * @see Architecture §16.4 Admin API Design Principles
  */
 export interface PaginationMetadata {

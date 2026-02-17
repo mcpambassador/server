@@ -1,6 +1,6 @@
 /**
  * Config loader tests
- * 
+ *
  * Tests ${ENV_VAR} and ${file:/path} resolution, credential detection, validation.
  */
 

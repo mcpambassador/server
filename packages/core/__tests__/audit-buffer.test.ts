@@ -1,6 +1,6 @@
 /**
  * Audit buffer tests
- * 
+ *
  * Tests ring buffer overflow, spill to disk, flush behavior.
  */
 

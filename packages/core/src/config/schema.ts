@@ -1,8 +1,8 @@
 /**
  * Configuration schema (Zod)
- * 
+ *
  * Validates ambassador-server.yaml structure with type-safe config object.
- * 
+ *
  * @see Architecture §6 Server Configuration Model
  * @see ADR-005 Secrets Management Strategy
  */
@@ -14,13 +14,15 @@ import { z } from 'zod';
 const ServerConfigSchema = z.object({
   host: z.string().default('0.0.0.0'),
   port: z.number().int().min(1).max(65535).default(8443),
-  tls: z.object({
-    enabled: z.boolean().default(true),
-    auto_cert: z.boolean().optional(),
-    cert_file: z.string().optional(),
-    key_file: z.string().optional(),
-    ca_file: z.string().optional(),
-  }).optional(),
+  tls: z
+    .object({
+      enabled: z.boolean().default(true),
+      auto_cert: z.boolean().optional(),
+      cert_file: z.string().optional(),
+      key_file: z.string().optional(),
+      ca_file: z.string().optional(),
+    })
+    .optional(),
 });
 
 // ===== §6.1 Registration Configuration =====
@@ -70,11 +72,13 @@ const DownstreamMcpConfigSchema = z.object({
 // ===== §6.4 Providers Configuration (Supply Chain Security) =====
 
 const ProvidersConfigSchema = z.object({
-  allowed_packages: z.array(z.string()).default([
-    '@mcpambassador/authn-apikey',
-    '@mcpambassador/authz-local',
-    '@mcpambassador/audit-file',
-  ]),
+  allowed_packages: z
+    .array(z.string())
+    .default([
+      '@mcpambassador/authn-apikey',
+      '@mcpambassador/authz-local',
+      '@mcpambassador/audit-file',
+    ]),
 });
 
 // ===== §6.5 Database Configuration =====
@@ -93,7 +97,11 @@ const BufferConfigSchema = z.object({
   flush_interval_ms: z.number().int().min(100).default(5000),
   spill_to_disk: z.boolean().default(true),
   spill_path: z.string().default('./data/audit-spill.jsonl'), // F-SEC-M3-005: not /tmp
-  max_spill_size_bytes: z.number().int().min(1024 * 1024).default(100 * 1024 * 1024), // F-SEC-M3-006: 100MB default
+  max_spill_size_bytes: z
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .default(100 * 1024 * 1024), // F-SEC-M3-006: 100MB default
 });
 
 // ===== Root Configuration Schema =====

@@ -16,17 +16,17 @@ The protocol package follows **semantic versioning**:
 
 ## Exports
 
-| Export | Description |
-|---|---|
-| `RegistrationRequest` / `RegistrationResponse` | Client registration types |
-| `ToolCatalogResponse` | Tool catalog shape |
-| `ToolInvocationRequest` / `ToolInvocationResponse` | Tool call request/response |
-| `AuditEvent` | Audit event schema |
-| `ErrorResponse` | Standard error envelope |
-| `KillSwitchNotification` | Kill switch event (Phase 2) |
-| `ClientStatus`, `AuthMethod`, `HostTool`, `EventType`, `Severity` | Shared enums |
-| `API_VERSION` | API version constant |
-| `PaginationMetadata`, `ListResponse<T>` | Admin API response envelopes |
+| Export                                                            | Description                  |
+| ----------------------------------------------------------------- | ---------------------------- |
+| `RegistrationRequest` / `RegistrationResponse`                    | Client registration types    |
+| `ToolCatalogResponse`                                             | Tool catalog shape           |
+| `ToolInvocationRequest` / `ToolInvocationResponse`                | Tool call request/response   |
+| `AuditEvent`                                                      | Audit event schema           |
+| `ErrorResponse`                                                   | Standard error envelope      |
+| `KillSwitchNotification`                                          | Kill switch event (Phase 2)  |
+| `ClientStatus`, `AuthMethod`, `HostTool`, `EventType`, `Severity` | Shared enums                 |
+| `API_VERSION`                                                     | API version constant         |
+| `PaginationMetadata`, `ListResponse<T>`                           | Admin API response envelopes |
 
 ## Usage
 

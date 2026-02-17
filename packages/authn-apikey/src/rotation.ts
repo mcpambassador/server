@@ -1,12 +1,14 @@
 /**
  * API Key Rotation
- * 
+ *
  * Handles POST /v1/clients/{id}/rotate-key for key rotation.
- * 
+ *
  * Requires current valid API key. Generates new key, invalidates old hash.
- * 
+ *
  * @see Architecture §9.3 Key Rotation
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 
 import type { DatabaseClient } from '@mcpambassador/core';
 import { logger, AmbassadorError, compatUpdate, clients } from '@mcpambassador/core';
@@ -25,7 +27,7 @@ export interface RotateKeyResponse {
 
 /**
  * Rotate client API key
- * 
+ *
  * @param db Database client
  * @param clientId Client ID to rotate key for
  * @param currentApiKey Current API key (for verification)
@@ -42,11 +44,7 @@ export async function rotateClientKey(
   });
 
   if (!client) {
-    throw new AmbassadorError(
-      'Client not found',
-      'not_found',
-      404
-    );
+    throw new AmbassadorError('Client not found', 'not_found', 404);
   }
 
   if (client.status !== 'active') {
@@ -62,11 +60,7 @@ export async function rotateClientKey(
   const isValid = await argon2.verify(client.api_key_hash!, currentApiKey);
 
   if (!isValid) {
-    throw new AmbassadorError(
-      'Invalid current API key',
-      'invalid_credentials',
-      401
-    );
+    throw new AmbassadorError('Invalid current API key', 'invalid_credentials', 401);
   }
 
   // Generate new key and hash

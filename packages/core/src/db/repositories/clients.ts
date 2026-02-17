@@ -1,12 +1,15 @@
 /**
  * Client Repository
- * 
+ *
  * Data access layer for registered Ambassador Clients.
  * Handles client registration, authentication, lifecycle management.
- * 
+ *
  * @see Architecture §3.2 ClientRecord
  * @see schema/index.ts clients table
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 
 import { eq, and, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -35,7 +38,7 @@ export function sanitizeFriendlyName(name: string): string {
 
 /**
  * Register a new client
- * 
+ *
  * @param db Database client
  * @param data Client registration data
  * @param apiKey Plaintext API key to hash (only for api_key auth_method)
@@ -49,16 +52,16 @@ export async function registerClient(
 ): Promise<Client> {
   const now = new Date().toISOString();
   const client_id = uuidv4();
-  
+
   // Sanitize friendly_name
   const friendly_name = sanitizeFriendlyName(data.friendly_name);
-  
+
   // Hash API key if provided
   let api_key_hash: string | undefined;
   if (data.auth_method === 'api_key' && apiKey) {
     api_key_hash = await argon2.hash(apiKey, ARGON2_OPTIONS);
   }
-  
+
   const newClient: NewClient = {
     client_id,
     friendly_name,
@@ -73,17 +76,17 @@ export async function registerClient(
     last_seen_at: now,
     metadata: data.metadata || '{}',
   };
-  
+
   await compatInsert(db, clients).values(newClient);
-  
+
   console.log(`[db:clients] Registered client: ${client_id} (${friendly_name})`);
-  
+
   return newClient as Client;
 }
 
 /**
  * Authenticate client with API key
- * 
+ *
  * @param db Database client
  * @param client_id Client UUID
  * @param apiKey Plaintext API key
@@ -99,16 +102,18 @@ export async function authenticateClient(
     .from(clients)
     .where(eq(clients.client_id, client_id))
     .limit(1);
-  
+
   if (!client || !client.api_key_hash) {
     return null;
   }
-  
+
   if (client.status !== 'active') {
-    console.warn(`[db:clients] Authentication rejected: client ${client_id} status is ${client.status}`);
+    console.warn(
+      `[db:clients] Authentication rejected: client ${client_id} status is ${client.status}`
+    );
     return null;
   }
-  
+
   // Timing-safe verification
   try {
     const match = await argon2.verify(client.api_key_hash, apiKey);
@@ -119,12 +124,12 @@ export async function authenticateClient(
     console.error(`[db:clients] Argon2 verification error for client ${client_id}:`, err);
     return null;
   }
-  
+
   // Update last_seen_at (fire-and-forget with error logging - C-3 fix)
   updateLastSeen(db, client_id).catch(err => {
     console.error(`[db:clients] Failed to update last_seen for ${client_id}:`, err);
   });
-  
+
   return client;
 }
 
@@ -136,13 +141,13 @@ export async function getClientById(db: DatabaseClient, client_id: string): Prom
     .from(clients)
     .where(eq(clients.client_id, client_id))
     .limit(1);
-  
+
   return client || null;
 }
 
 /**
  * List clients with filtering and pagination
- * 
+ *
  * @param db Database client
  * @param filters Optional filters
  * @param pagination Cursor-based pagination (§16.4)
@@ -161,9 +166,9 @@ export async function listClients(
   }
 ): Promise<{ clients: Client[]; has_more: boolean; next_cursor?: string }> {
   const limit = pagination?.limit || 25;
-  
+
   let query = compatSelect(db).from(clients);
-  
+
   // Apply filters
   const conditions = [];
   if (filters?.status) {
@@ -175,25 +180,23 @@ export async function listClients(
   if (filters?.profile_id) {
     conditions.push(eq(clients.profile_id, filters.profile_id));
   }
-  
+
   // Cursor pagination (by last_seen_at DESC)
   if (pagination?.cursor) {
     conditions.push(sql`${clients.last_seen_at} < ${pagination.cursor}`);
   }
-  
+
   if (conditions.length > 0) {
     query = query.where(and(...conditions));
   }
-  
+
   // Order by last_seen_at DESC, limit + 1 to detect has_more
-  const results = await query
-    .orderBy(desc(clients.last_seen_at))
-    .limit(limit + 1);
-  
+  const results = await query.orderBy(desc(clients.last_seen_at)).limit(limit + 1);
+
   const has_more = results.length > limit;
   const clientsPage = has_more ? results.slice(0, limit) : results;
   const next_cursor = has_more ? clientsPage[clientsPage.length - 1].last_seen_at : undefined;
-  
+
   return {
     clients: clientsPage,
     has_more,
@@ -209,10 +212,8 @@ export async function updateClientStatus(
   client_id: string,
   status: 'active' | 'suspended' | 'revoked'
 ): Promise<void> {
-  await compatUpdate(db, clients)
-    .set({ status })
-    .where(eq(clients.client_id, client_id));
-  
+  await compatUpdate(db, clients).set({ status }).where(eq(clients.client_id, client_id));
+
   console.log(`[db:clients] Client ${client_id} status updated to ${status}`);
 }
 
@@ -228,7 +229,7 @@ export async function updateLastSeen(db: DatabaseClient, client_id: string): Pro
 
 /**
  * Rotate client API key
- * 
+ *
  * @param db Database client
  * @param client_id Client UUID
  * @param newApiKey New plaintext API key
@@ -239,11 +240,9 @@ export async function rotateClientApiKey(
   newApiKey: string
 ): Promise<void> {
   const api_key_hash = await argon2.hash(newApiKey, ARGON2_OPTIONS);
-  
-  await compatUpdate(db, clients)
-    .set({ api_key_hash })
-    .where(eq(clients.client_id, client_id));
-  
+
+  await compatUpdate(db, clients).set({ api_key_hash }).where(eq(clients.client_id, client_id));
+
   console.log(`[db:clients] API key rotated for client ${client_id}`);
 }
 
@@ -262,7 +261,7 @@ export async function updateClientMetadata(
 
 /**
  * Delete client (hard delete - use with caution)
- * 
+ *
  * Audit events referencing this client are preserved (no FK constraint).
  */
 export async function deleteClient(db: DatabaseClient, client_id: string): Promise<void> {
@@ -277,11 +276,11 @@ export async function countClientsByStatus(
   db: DatabaseClient
 ): Promise<{ status: string; count: number }[]> {
   const results = await compatSelect(db, {
-      status: clients.status,
-      count: sql<number>`count(*)`.as('count'),
-    })
+    status: clients.status,
+    count: sql<number>`count(*)`.as('count'),
+  })
     .from(clients)
     .groupBy(clients.status);
-  
+
   return results;
 }

@@ -1,9 +1,9 @@
 /**
  * Admin Authentication Middleware
- * 
+ *
  * Validates X-Admin-Key header against stored admin key hash.
  * Gates all /v1/admin/* and /v1/audit/* endpoints.
- * 
+ *
  * @see Architecture §9.5 Admin API Authentication
  */
 
@@ -25,7 +25,7 @@ export interface AdminAuthResult {
 
 /**
  * Authenticate admin key from request headers
- * 
+ *
  * @param db Database client
  * @param headers HTTP request headers
  * @returns Admin authentication result

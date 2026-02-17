@@ -1,6 +1,6 @@
 /**
  * E2E Test Helpers
- * 
+ *
  * Utility functions for end-to-end testing:
  * - Authenticated HTTPS requests
  * - Client registration
@@ -30,15 +30,15 @@ export async function makeRequest<T>(
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const url = new URL(TEST_BASE_URL + path);
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    
+
     if (options.apiKey) {
       headers['X-API-Key'] = options.apiKey;
     }
-    
+
     const reqOptions: https.RequestOptions = {
       method,
       hostname: url.hostname,
@@ -47,21 +47,23 @@ export async function makeRequest<T>(
       headers,
       rejectUnauthorized: false, // Self-signed cert in test
     };
-    
-    const req = https.request(reqOptions, (res) => {
+
+    const req = https.request(reqOptions, res => {
       let data = '';
-      
-      res.on('data', (chunk) => {
+
+      res.on('data', chunk => {
         data += chunk.toString();
       });
-      
+
       res.on('end', () => {
         // Check expected status code
         if (options.expectStatus && res.statusCode !== options.expectStatus) {
-          reject(new Error(`Expected status ${options.expectStatus}, got ${res.statusCode}: ${data}`));
+          reject(
+            new Error(`Expected status ${options.expectStatus}, got ${res.statusCode}: ${data}`)
+          );
           return;
         }
-        
+
         // Parse JSON response
         if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
           try {
@@ -74,15 +76,15 @@ export async function makeRequest<T>(
         }
       });
     });
-    
-    req.on('error', (error) => {
+
+    req.on('error', error => {
       reject(error);
     });
-    
+
     if (options.body) {
       req.write(JSON.stringify(options.body));
     }
-    
+
     req.end();
   });
 }
@@ -94,19 +96,15 @@ export async function registerClient(
   clientId: string,
   scope: string[] = ['read', 'write']
 ): Promise<ClientCredentials> {
-  const response = await makeRequest<{ api_key: string }>(
-    'POST',
-    '/v1/admin/clients',
-    {
-      body: {
-        client_id: clientId,
-        scope,
-      },
-      // Admin endpoint requires bootstrap (no auth on first call)
-      expectStatus: 201,
-    }
-  );
-  
+  const response = await makeRequest<{ api_key: string }>('POST', '/v1/admin/clients', {
+    body: {
+      client_id: clientId,
+      scope,
+    },
+    // Admin endpoint requires bootstrap (no auth on first call)
+    expectStatus: 201,
+  });
+
   return {
     client_id: clientId,
     api_key: response.api_key,
@@ -123,12 +121,8 @@ export interface ToolInfo {
 }
 
 export async function fetchTools(apiKey: string): Promise<ToolInfo[]> {
-  const response = await makeRequest<{ tools: ToolInfo[] }>(
-    'GET',
-    '/v1/tools',
-    { apiKey }
-  );
-  
+  const response = await makeRequest<{ tools: ToolInfo[] }>('GET', '/v1/tools', { apiKey });
+
   return response.tools;
 }
 
@@ -140,18 +134,14 @@ export async function invokeTool(
   toolName: string,
   parameters: Record<string, any>
 ): Promise<any> {
-  const response = await makeRequest<{ result: any }>(
-    'POST',
-    '/v1/tools/invoke',
-    {
-      apiKey,
-      body: {
-        tool: toolName,
-        parameters,
-      },
-    }
-  );
-  
+  const response = await makeRequest<{ result: any }>('POST', '/v1/tools/invoke', {
+    apiKey,
+    body: {
+      tool: toolName,
+      parameters,
+    },
+  });
+
   return response.result;
 }
 
@@ -159,49 +149,38 @@ export async function invokeTool(
  * Enable kill switch (admin operation)
  */
 export async function enableKillSwitch(adminApiKey: string): Promise<void> {
-  await makeRequest(
-    'POST',
-    '/v1/admin/kill-switch',
-    {
-      apiKey: adminApiKey,
-      body: { enabled: true },
-    }
-  );
+  await makeRequest('POST', '/v1/admin/kill-switch', {
+    apiKey: adminApiKey,
+    body: { enabled: true },
+  });
 }
 
 /**
  * Disable kill switch (admin operation)
  */
 export async function disableKillSwitch(adminApiKey: string): Promise<void> {
-  await makeRequest(
-    'POST',
-    '/v1/admin/kill-switch',
-    {
-      apiKey: adminApiKey,
-      body: { enabled: false },
-    }
-  );
+  await makeRequest('POST', '/v1/admin/kill-switch', {
+    apiKey: adminApiKey,
+    body: { enabled: false },
+  });
 }
 
 /**
  * Rotate client API key (admin operation)
  */
-export async function rotateApiKey(
-  adminApiKey: string,
-  clientId: string
-): Promise<string> {
+export async function rotateApiKey(adminApiKey: string, clientId: string): Promise<string> {
   const response = await makeRequest<{ api_key: string }>(
     'POST',
     `/v1/admin/clients/${clientId}/rotate`,
     { apiKey: adminApiKey }
   );
-  
+
   return response.api_key;
 }
 
 /**
  * Get audit log events (requires admin access or direct file read)
- * 
+ *
  * Note: In real deployment, this would query an admin endpoint.
  * For E2E tests, we can exec into container to read audit.jsonl
  */
@@ -226,14 +205,14 @@ export async function waitFor(
   const timeoutMs = options.timeoutMs || 5000;
   const intervalMs = options.intervalMs || 100;
   const startTime = Date.now();
-  
+
   while (Date.now() - startTime < timeoutMs) {
     if (await condition()) {
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
   }
-  
+
   throw new Error(options.timeoutError || 'Timeout waiting for condition');
 }
 
@@ -241,5 +220,5 @@ export async function waitFor(
  * Sleep for specified milliseconds
  */
 export async function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

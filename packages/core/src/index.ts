@@ -1,8 +1,8 @@
 /**
  * @mcpambassador/core
- * 
+ *
  * Core package exports: SPI interfaces, database layer, config loader, pipeline, providers, audit buffer.
- * 
+ *
  * @see Architecture §4 AAA Pipeline Architecture
  * @see Architecture §5 Service Provider Interface (SPI)
  */

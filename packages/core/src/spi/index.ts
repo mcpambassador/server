@@ -1,9 +1,9 @@
 /**
  * Service Provider Interface (SPI) definitions
- * 
+ *
  * Defines interfaces that all Authentication, Authorization, and Audit providers must implement.
  * Enables pluggable AAA modules per Architecture §5.
- * 
+ *
  * @see Architecture §5 Service Provider Interface (SPI)
  * @see ADR-002 Pluggable AAA Module Architecture
  */
@@ -14,23 +14,23 @@ import type { AuditEvent, ToolDescriptor } from '@mcpambassador/protocol';
 
 /**
  * Authentication Provider Interface
- * 
- * Implementations: ApiKeyAuthProvider (M4), JwtAuthProvider (Phase 2), 
+ *
+ * Implementations: ApiKeyAuthProvider (M4), JwtAuthProvider (Phase 2),
  *                  OidcAuthProvider (Phase 2), SamlAuthProvider (Phase 2),
  *                  MtlsAuthProvider (Phase 3)
- * 
+ *
  * @see Architecture §5.1
  */
 export interface AuthenticationProvider extends ProviderLifecycle {
   /** Unique provider identifier (e.g., "api_key", "oidc", "saml") */
   readonly id: string;
-  
+
   /** Validate incoming request and return authenticated session */
   authenticate(request: AuthRequest): Promise<AuthResult>;
-  
+
   /** Refresh existing session (optional, for token-based providers) */
   refresh?(refreshToken: string): Promise<AuthResult>;
-  
+
   /** Revoke session or token (optional) */
   revoke?(sessionId: string): Promise<void>;
 }
@@ -103,21 +103,24 @@ export interface SessionContext {
 
 /**
  * Authorization Provider Interface
- * 
+ *
  * Implementations: LocalRbacProvider (M5), LdapAuthzProvider (Phase 2),
  *                  OpaAuthzProvider (Phase 3)
- * 
+ *
  * @see Architecture §5.2
  */
 export interface AuthorizationProvider extends ProviderLifecycle {
   /** Unique provider identifier (e.g., "local_rbac", "ldap", "opa") */
   readonly id: string;
-  
+
   /** Check if session is authorized to invoke given tool */
   authorize(session: SessionContext, request: AuthzRequest): Promise<AuthzDecision>;
-  
+
   /** Return full list of tools this session is authorized to use */
-  listAuthorizedTools(session: SessionContext, allTools: ToolDescriptor[]): Promise<ToolDescriptor[]>;
+  listAuthorizedTools(
+    session: SessionContext,
+    allTools: ToolDescriptor[]
+  ): Promise<ToolDescriptor[]>;
 }
 
 /**
@@ -160,25 +163,25 @@ export interface AuthzCondition {
 
 /**
  * Audit Provider Interface
- * 
+ *
  * Implementations: FileAuditProvider (M5), DatabaseAuditProvider (Phase 2),
  *                  SyslogAuditProvider (Phase 2), SiemAuditProvider (Phase 3)
- * 
+ *
  * @see Architecture §5.3
  */
 export interface AuditProvider extends ProviderLifecycle {
   /** Unique provider identifier (e.g., "file", "database", "syslog") */
   readonly id: string;
-  
+
   /** Emit single audit event */
   emit(event: AuditEvent): Promise<void>;
-  
+
   /** Emit batch of events (optional, for buffered providers) */
   emitBatch?(events: AuditEvent[]): Promise<void>;
-  
+
   /** Flush any buffered events */
   flush(): Promise<void>;
-  
+
   /** Query audit events (optional, for queryable providers) */
   query?(filters: AuditQueryFilters): Promise<AuditEvent[]>;
 }
@@ -215,10 +218,10 @@ export interface ProviderHealth {
 export interface ProviderLifecycle {
   /** Initialize provider with configuration */
   initialize(config: Record<string, unknown>): Promise<void>;
-  
+
   /** Health check */
   healthCheck(): Promise<ProviderHealth>;
-  
+
   /** Shutdown gracefully (optional) */
   shutdown?(): Promise<void>;
 }

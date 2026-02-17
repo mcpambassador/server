@@ -1,20 +1,28 @@
 /**
  * Admin Key Management
- * 
+ *
  * Handles admin key generation, recovery, and rotation per ADR-006.
- * 
+ *
  * First boot: generates amb_ak_ admin key + amb_rt_ recovery token
  * Admin key printed to stdout only once (never logged, never in config)
  * Recovery token written to .recovery-token file with 0400 permissions
- * 
+ *
  * @see ADR-006 Admin Authentication Model
  * @see Architecture §9.5 Admin API Authentication
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
+
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, AmbassadorError, compatInsert, compatUpdate, admin_keys } from '@mcpambassador/core';
+import {
+  logger,
+  AmbassadorError,
+  compatInsert,
+  compatUpdate,
+  admin_keys,
+} from '@mcpambassador/core';
 import { eq } from 'drizzle-orm';
 import { generateApiKey, hashApiKey } from '../keys.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
@@ -44,9 +52,9 @@ export interface AdminKeyGeneration {
 
 /**
  * Generate admin key and recovery token (first boot)
- * 
+ *
  * This should be called during server initialization if no admin key exists.
- * 
+ *
  * @param db Database client
  * @param dataDir Data directory for recovery token file (default: ./data)
  * @returns Admin key and recovery token (plain text)
@@ -78,7 +86,7 @@ export async function generateAdminKey(
 
   // Insert into database
   const now = new Date().toISOString();
-  
+
   await compatInsert(db, admin_keys).values({
     key_hash: adminKeyHash,
     recovery_token_hash: recoveryTokenHash,
@@ -126,12 +134,12 @@ setInterval(() => recoveryRateLimiter.cleanup(), 5 * 60 * 1000);
 
 /**
  * Recover admin access using recovery token
- * 
+ *
  * Validates recovery token and generates a new admin key.
  * Recovery token remains valid (one recovery token per admin key).
- * 
+ *
  * Rate limited: 3 attempts per hour per IP.
- * 
+ *
  * @param db Database client
  * @param recoveryToken Recovery token from .recovery-token file
  * @param sourceIp Source IP for rate limiting
@@ -157,11 +165,7 @@ export async function recoverAdminKey(
   });
 
   if (!adminKeyRecord) {
-    throw new AmbassadorError(
-      'No active admin key found - use initial setup',
-      'not_found',
-      404
-    );
+    throw new AmbassadorError('No active admin key found - use initial setup', 'not_found', 404);
   }
 
   // Verify recovery token
@@ -171,11 +175,7 @@ export async function recoverAdminKey(
   if (!isValid) {
     // F-SEC-M4-008: Hash IP for privacy (PII in logs)
     logger.warn(`[admin-key] Failed recovery attempt from IP hash ${hashIp(sourceIp)}`);
-    throw new AmbassadorError(
-      'Invalid recovery token',
-      'invalid_credentials',
-      401
-    );
+    throw new AmbassadorError('Invalid recovery token', 'invalid_credentials', 401);
   }
 
   // Generate new admin key
@@ -202,10 +202,10 @@ export async function recoverAdminKey(
 
 /**
  * Rotate admin key with dual verification
- * 
+ *
  * Requires both current admin key AND recovery token (dual factor).
  * Generates new admin key AND new recovery token.
- * 
+ *
  * @param db Database client
  * @param currentAdminKey Current admin key
  * @param recoveryToken Current recovery token
@@ -224,11 +224,7 @@ export async function rotateAdminKey(
   });
 
   if (!adminKeyRecord) {
-    throw new AmbassadorError(
-      'No active admin key found',
-      'not_found',
-      404
-    );
+    throw new AmbassadorError('No active admin key found', 'not_found', 404);
   }
 
   // Verify both admin key AND recovery token (dual verification)
@@ -240,11 +236,7 @@ export async function rotateAdminKey(
 
   if (!isAdminKeyValid || !isRecoveryTokenValid) {
     logger.warn('[admin-key] Failed admin key rotation - invalid credentials');
-    throw new AmbassadorError(
-      'Invalid admin key or recovery token',
-      'invalid_credentials',
-      401
-    );
+    throw new AmbassadorError('Invalid admin key or recovery token', 'invalid_credentials', 401);
   }
 
   // Generate new admin key and new recovery token
@@ -281,12 +273,12 @@ export async function rotateAdminKey(
 
 /**
  * Factory reset admin key (CLI command)
- * 
+ *
  * Revokes current admin key and generates a new one.
  * Requires filesystem access (reads recovery token from file).
- * 
+ *
  * This is a CLI-only operation, not exposed via HTTP API.
- * 
+ *
  * @param db Database client
  * @param dataDir Data directory containing .recovery-token file
  * @returns New admin key
@@ -298,7 +290,7 @@ export async function factoryResetAdminKey(
   // Read recovery token from file
   const recoveryTokenPath = path.join(dataDir, '.recovery-token');
   let recoveryToken: string;
-  
+
   try {
     recoveryToken = (await fs.readFile(recoveryTokenPath, 'utf-8')).trim();
   } catch (error) {
@@ -317,7 +309,7 @@ export async function factoryResetAdminKey(
   if (adminKeyRecord) {
     const argon2 = await import('argon2');
     const isValid = await argon2.verify(adminKeyRecord.recovery_token_hash, recoveryToken);
-    
+
     if (!isValid) {
       throw new AmbassadorError(
         'Invalid recovery token in file - cannot perform factory reset',

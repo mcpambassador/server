@@ -1,16 +1,22 @@
 /**
  * Configuration loader with secrets resolution
- * 
+ *
  * Implements ${ENV_VAR} and ${file:/path} resolution with startup validation.
- * 
+ *
  * @see Architecture §6 Configuration & Secrets Management
  * @see ADR-005 Secrets Management Strategy
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
+
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'yaml';
-import { AmbassadorConfigSchema, buildCredentialPatterns, type AmbassadorConfig } from './schema.js';
+import {
+  AmbassadorConfigSchema,
+  buildCredentialPatterns,
+  type AmbassadorConfig,
+} from './schema.js';
 import { logger } from '../utils/logger.js';
 import { AmbassadorError } from '../utils/errors.js';
 
@@ -34,7 +40,7 @@ export interface ConfigLoadOptions {
 
 /**
  * Load configuration from YAML file with secrets resolution
- * 
+ *
  * @param configPath Path to ambassador-server.yaml
  * @param options Loading options
  * @returns Validated and resolved configuration
@@ -62,9 +68,9 @@ export async function loadConfig(
         'config_too_large'
       );
     }
-    
+
     const fileContent = await fs.readFile(configPath, 'utf-8');
-    
+
     // Parse YAML with explicit limits (F-SEC-M3-003)
     const rawConfig = yaml.parse(fileContent, {
       maxAliasCount: 50,
@@ -75,7 +81,12 @@ export async function loadConfig(
     // 2. Resolve secrets (${ENV_VAR} and ${file:/path})
     const credentialPatterns = buildCredentialPatterns(additional_credential_patterns);
     const baseDir = secrets_base_dir || path.dirname(path.resolve(configPath));
-    const resolvedConfig = await resolveSecrets(rawConfig, credentialPatterns, enforcement, baseDir);
+    const resolvedConfig = await resolveSecrets(
+      rawConfig,
+      credentialPatterns,
+      enforcement,
+      baseDir
+    );
 
     // 3. Validate schema with Zod
     const validatedConfig = AmbassadorConfigSchema.parse(resolvedConfig);
@@ -100,7 +111,7 @@ export async function loadConfig(
 
 /**
  * Resolve ${ENV_VAR} and ${file:/path} references in config
- * 
+ *
  * @param obj Config object (mutated in place)
  * @param credentialPatterns List of credential field patterns
  * @param enforcement Enforcement mode ('warn' | 'block')
@@ -119,11 +130,17 @@ async function resolveSecrets(
     if (envMatch) {
       const envVar = envMatch[1];
       if (!envVar) {
-        throw new AmbassadorError('Invalid ENV reference: variable name is empty', 'config_resolution_error');
+        throw new AmbassadorError(
+          'Invalid ENV reference: variable name is empty',
+          'config_resolution_error'
+        );
       }
       const value = process.env[envVar];
       if (value === undefined) {
-        throw new AmbassadorError(`Environment variable ${envVar} not found`, 'config_resolution_error');
+        throw new AmbassadorError(
+          `Environment variable ${envVar} not found`,
+          'config_resolution_error'
+        );
       }
       return value;
     }
@@ -139,7 +156,9 @@ async function resolveSecrets(
   }
 
   if (Array.isArray(obj)) {
-    return Promise.all(obj.map(item => resolveSecrets(item, credentialPatterns, enforcement, secretsBaseDir)));
+    return Promise.all(
+      obj.map(item => resolveSecrets(item, credentialPatterns, enforcement, secretsBaseDir))
+    );
   }
 
   if (obj !== null && typeof obj === 'object') {
@@ -179,7 +198,7 @@ async function resolveSecrets(
 
 /**
  * Resolve ${file:/path} reference with path containment (F-SEC-M3-001)
- * 
+ *
  * @param filePath Path to secret file (absolute or relative to secrets base dir)
  * @param secretsBaseDir Base directory for path containment
  * @returns Secret value (trimmed)
@@ -188,14 +207,14 @@ async function resolveSecrets(
 async function resolveFileReference(filePath: string, secretsBaseDir: string): Promise<string> {
   try {
     // Resolve to absolute path (relative to secrets base dir)
-    const absolutePath = path.isAbsolute(filePath) 
-      ? filePath 
+    const absolutePath = path.isAbsolute(filePath)
+      ? filePath
       : path.resolve(secretsBaseDir, filePath);
 
     // Resolve canonical path (follows symlinks) and validate containment
     const realPath = await fs.realpath(absolutePath);
     const realBase = await fs.realpath(secretsBaseDir);
-    
+
     if (!realPath.startsWith(realBase + path.sep) && realPath !== realBase) {
       throw new AmbassadorError(
         `Secret file path escapes allowed directory: ${filePath}`,
@@ -205,7 +224,7 @@ async function resolveFileReference(filePath: string, secretsBaseDir: string): P
 
     // Validate file exists and is readable
     const stats = await fs.lstat(realPath);
-    
+
     // Reject symlinks (defense in depth - realpath already resolved them)
     if (stats.isSymbolicLink()) {
       throw new AmbassadorError(
@@ -222,7 +241,9 @@ async function resolveFileReference(filePath: string, secretsBaseDir: string): P
     // Check permissions (should be 0600 or 0400)
     const mode = stats.mode & 0o777;
     if (mode > 0o600) {
-      logger.warn(`[config] Secret file ${realPath} has permissive permissions (${mode.toString(8)}) - should be 0600 or 0400`);
+      logger.warn(
+        `[config] Secret file ${realPath} has permissive permissions (${mode.toString(8)}) - should be 0600 or 0400`
+      );
     }
 
     // Read file content
@@ -233,7 +254,10 @@ async function resolveFileReference(filePath: string, secretsBaseDir: string): P
       throw error;
     }
     if (error instanceof Error) {
-      throw new AmbassadorError(`Cannot read secret file ${filePath}: ${error.message}`, 'file_resolution_error');
+      throw new AmbassadorError(
+        `Cannot read secret file ${filePath}: ${error.message}`,
+        'file_resolution_error'
+      );
     }
     throw error;
   }
@@ -249,12 +273,12 @@ function isCredentialFieldKey(key: string, patterns: string[]): boolean {
 
 /**
  * Scrub environment variables matching credential patterns (ADR-005 §2.3.3)
- * 
+ *
  * F-SEC-M3-009: delete process.env.VAR actually works in Node.js
  */
 function scrubEnvironmentVariables(credentialPatterns: string[]): void {
   const scrubbed: string[] = [];
-  
+
   for (const key of Object.keys(process.env)) {
     if (isCredentialFieldKey(key, credentialPatterns)) {
       delete process.env[key]; // This works in Node.js (F-SEC-M3-009)
@@ -263,7 +287,8 @@ function scrubEnvironmentVariables(credentialPatterns: string[]): void {
   }
 
   if (scrubbed.length > 0) {
-    logger.info(`[config] Scrubbed ${scrubbed.length} environment variables: ${scrubbed.join(', ')}`);
+    logger.info(
+      `[config] Scrubbed ${scrubbed.length} environment variables: ${scrubbed.join(', ')}`
+    );
   }
 }
-

@@ -1,6 +1,6 @@
 /**
  * FileAuditProvider Tests
- * 
+ *
  * Tests audit logging including:
  * - Event buffering and flushing
  * - Daily file rotation
@@ -35,7 +35,7 @@ describe('FileAuditProvider', () => {
 
   afterEach(async () => {
     await provider.shutdown();
-    
+
     // Clean up test directory
     try {
       await fs.rm(testDir, { recursive: true, force: true });

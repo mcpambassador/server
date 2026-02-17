@@ -1,20 +1,20 @@
 /**
  * E2E Test Setup - Docker Lifecycle Management
- * 
+ *
  * Manages automated Docker container lifecycle for end-to-end testing:
  * - Builds container from Dockerfile
  * - Starts container with test configuration
  * - Waits for health endpoint
  * - Tears down container after tests
  * - Cleans up volumes
- * 
+ *
  * Usage:
  *   import { startTestContainer, stopTestContainer } from './setup';
- *   
+ *
  *   beforeAll(async () => {
  *     await startTestContainer();
  *   });
- *   
+ *
  *   afterAll(async () => {
  *     await stopTestContainer();
  *   });
@@ -42,27 +42,27 @@ let containerProcess: ChildProcess | null = null;
 function execCommand(command: string, args: string[] = []): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: 'pipe' });
-    
+
     let stdout = '';
     let stderr = '';
-    
-    proc.stdout?.on('data', (data) => {
+
+    proc.stdout?.on('data', data => {
       stdout += data.toString();
     });
-    
-    proc.stderr?.on('data', (data) => {
+
+    proc.stderr?.on('data', data => {
       stderr += data.toString();
     });
-    
-    proc.on('close', (code) => {
+
+    proc.on('close', code => {
       if (code === 0) {
         resolve(stdout.trim());
       } else {
         reject(new Error(`${command} failed (code ${code}): ${stderr}`));
       }
     });
-    
-    proc.on('error', (err) => {
+
+    proc.on('error', err => {
       reject(err);
     });
   });
@@ -74,23 +74,21 @@ function execCommand(command: string, args: string[] = []): Promise<string> {
 async function waitForHealthy(maxWaitMs = 30000): Promise<void> {
   const startTime = Date.now();
   const pollIntervalMs = 500;
-  
+
   while (Date.now() - startTime < maxWaitMs) {
     try {
       const response = await new Promise<number>((resolve, reject) => {
-        const req = https.get(
-          `${TEST_BASE_URL}/health`,
-          { rejectUnauthorized: false },
-          (res) => resolve(res.statusCode || 0)
+        const req = https.get(`${TEST_BASE_URL}/health`, { rejectUnauthorized: false }, res =>
+          resolve(res.statusCode || 0)
         );
-        
+
         req.on('error', reject);
         req.setTimeout(2000, () => {
           req.destroy();
           reject(new Error('Health check timeout'));
         });
       });
-      
+
       if (response === 200) {
         console.log('[E2E Setup] Container is healthy');
         return;
@@ -98,10 +96,10 @@ async function waitForHealthy(maxWaitMs = 30000): Promise<void> {
     } catch (error) {
       // Expected during startup
     }
-    
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
-  
+
   throw new Error(`Container failed to become healthy within ${maxWaitMs}ms`);
 }
 
@@ -110,9 +108,9 @@ async function waitForHealthy(maxWaitMs = 30000): Promise<void> {
  */
 async function buildTestImage(): Promise<void> {
   console.log('[E2E Setup] Building Docker image...');
-  
+
   const serverRoot = path.resolve(__dirname, '../../..');
-  
+
   try {
     await execCommand('docker', [
       'build',
@@ -122,7 +120,7 @@ async function buildTestImage(): Promise<void> {
       path.join(serverRoot, 'Dockerfile'),
       serverRoot,
     ]);
-    
+
     console.log('[E2E Setup] Docker image built successfully');
   } catch (error) {
     console.error('[E2E Setup] Docker build failed:', error);
@@ -135,17 +133,17 @@ async function buildTestImage(): Promise<void> {
  */
 export async function startTestContainer(): Promise<void> {
   console.log('[E2E Setup] Starting test container...');
-  
+
   // Build image
   await buildTestImage();
-  
+
   // Clean up any existing test container
   try {
     await execCommand('docker', ['rm', '-f', TEST_CONTAINER_NAME]);
   } catch {
     // Container doesn't exist - expected
   }
-  
+
   // Start container
   const args = [
     'run',
@@ -160,29 +158,29 @@ export async function startTestContainer(): Promise<void> {
     'NODE_ENV=test',
     'mcpambassador-server:test',
   ];
-  
+
   containerProcess = spawn('docker', args, {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  
+
   // Log container output for debugging
-  containerProcess.stdout?.on('data', (data) => {
+  containerProcess.stdout?.on('data', data => {
     console.log('[Container]', data.toString().trim());
   });
-  
-  containerProcess.stderr?.on('data', (data) => {
+
+  containerProcess.stderr?.on('data', data => {
     console.error('[Container Error]', data.toString().trim());
   });
-  
-  containerProcess.on('close', (code) => {
+
+  containerProcess.on('close', code => {
     if (code !== 0 && code !== null) {
       console.error(`[E2E Setup] Container exited with code ${code}`);
     }
   });
-  
+
   // Wait for container to be healthy
   await waitForHealthy();
-  
+
   console.log('[E2E Setup] Test container ready');
 }
 
@@ -191,26 +189,26 @@ export async function startTestContainer(): Promise<void> {
  */
 export async function stopTestContainer(): Promise<void> {
   console.log('[E2E Setup] Stopping test container...');
-  
+
   if (containerProcess) {
     containerProcess.kill('SIGTERM');
-    
+
     // Wait for graceful shutdown
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       containerProcess!.on('close', resolve);
       setTimeout(resolve, 5000); // Force after 5s
     });
-    
+
     containerProcess = null;
   }
-  
+
   // Force remove container if still running
   try {
     await execCommand('docker', ['rm', '-f', TEST_CONTAINER_NAME]);
   } catch {
     // Already removed
   }
-  
+
   console.log('[E2E Setup] Test container stopped');
 }
 

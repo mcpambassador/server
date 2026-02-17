@@ -1,8 +1,8 @@
 /**
  * Tool Argument Validation
- * 
+ *
  * Validates tool invocation arguments against downstream MCP's declared schema.
- * 
+ *
  * Per Architecture §4.4:
  * - Argument names match declared schema
  * - Argument types match declared schema
@@ -10,7 +10,7 @@
  * - Required arguments present
  * - ReDoS protection: Linear-time RE2 regex engine (no backtracking)
  * - redact_fields support for PII stripping
- * 
+ *
  * Security: F-SEC-M6-009 (tool argument validation)
  * Security: F-SEC-M6.7-001 remediation — replaced setTimeout with RE2
  */
@@ -41,9 +41,9 @@ export interface SchemaProperty {
 }
 
 export interface ArgumentRestrictions {
-  max_string_length?: number;       // Default: 10,000 characters
-  disallow_patterns?: string[];     // Regex patterns to reject (ReDoS protected)
-  redact_fields?: string[];         // Fields to strip before routing
+  max_string_length?: number; // Default: 10,000 characters
+  disallow_patterns?: string[]; // Regex patterns to reject (ReDoS protected)
+  redact_fields?: string[]; // Fields to strip before routing
 }
 
 export interface ValidationResult {
@@ -66,7 +66,7 @@ const DEFAULT_MAX_STRING_LENGTH = 10000;
 
 /**
  * Validate tool arguments against schema
- * 
+ *
  * @param args Tool invocation arguments
  * @param schema Tool schema from downstream MCP tools/list
  * @param restrictions Optional additional restrictions from profile
@@ -78,30 +78,27 @@ export function validateToolArguments(
   restrictions?: ArgumentRestrictions
 ): ValidationResult {
   const maxStringLength = restrictions?.max_string_length ?? DEFAULT_MAX_STRING_LENGTH;
-  
+
   // 1. Validate against schema
   const schemaValidation = validateAgainstSchema(args, schema, maxStringLength);
   if (!schemaValidation.valid) {
     return schemaValidation;
   }
-  
+
   // 2. Apply disallow_patterns (ReDoS protected)
   if (restrictions?.disallow_patterns && restrictions.disallow_patterns.length > 0) {
-    const patternValidation = validateDisallowPatterns(
-      args,
-      restrictions.disallow_patterns
-    );
+    const patternValidation = validateDisallowPatterns(args, restrictions.disallow_patterns);
     if (!patternValidation.valid) {
       return patternValidation;
     }
   }
-  
+
   // 3. Redact sensitive fields
   let sanitizedArgs = args;
   if (restrictions?.redact_fields && restrictions.redact_fields.length > 0) {
     sanitizedArgs = redactFields(args, restrictions.redact_fields);
   }
-  
+
   return {
     valid: true,
     sanitizedArgs,
@@ -117,16 +114,16 @@ function validateAgainstSchema(
   maxStringLength: number
 ): ValidationResult {
   const inputSchema = schema.inputSchema;
-  
+
   // Check type is object
   if (inputSchema.type !== 'object') {
     return { valid: false, error: 'Schema type must be object' };
   }
-  
+
   const properties = inputSchema.properties || {};
   const required = inputSchema.required || [];
   const additionalProperties = inputSchema.additionalProperties ?? true;
-  
+
   // Check required arguments present
   for (const requiredArg of required) {
     if (!(requiredArg in args)) {
@@ -136,7 +133,7 @@ function validateAgainstSchema(
       };
     }
   }
-  
+
   // Check argument names (reject unknown arguments if additionalProperties=false)
   if (!additionalProperties) {
     for (const argName of Object.keys(args)) {
@@ -148,7 +145,7 @@ function validateAgainstSchema(
       }
     }
   }
-  
+
   // Validate each argument type and constraints
   for (const [argName, argValue] of Object.entries(args)) {
     const propSchema = properties[argName];
@@ -162,7 +159,7 @@ function validateAgainstSchema(
         error: `Unknown argument: ${argName}`,
       };
     }
-    
+
     const typeValidation = validateType(argValue, propSchema, maxStringLength);
     if (!typeValidation.valid) {
       return {
@@ -171,7 +168,7 @@ function validateAgainstSchema(
       };
     }
   }
-  
+
   return { valid: true };
 }
 
@@ -184,14 +181,14 @@ function validateType(
   maxStringLength: number
 ): ValidationResult {
   const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-  
+
   // Check if value matches any allowed type
   let matchedType = false;
-  
+
   for (const type of types) {
     if (type === 'string' && typeof value === 'string') {
       matchedType = true;
-      
+
       // Enforce string length limits
       if (value.length > maxStringLength) {
         return {
@@ -199,57 +196,57 @@ function validateType(
           error: `String exceeds maximum length of ${maxStringLength} characters`,
         };
       }
-      
+
       if (schema.minLength !== undefined && value.length < schema.minLength) {
         return {
           valid: false,
           error: `String shorter than minimum length of ${schema.minLength}`,
         };
       }
-      
+
       if (schema.maxLength !== undefined && value.length > schema.maxLength) {
         return {
           valid: false,
           error: `String exceeds maximum length of ${schema.maxLength}`,
         };
       }
-      
+
       break;
     } else if (type === 'number' && typeof value === 'number') {
       matchedType = true;
-      
+
       if (schema.minimum !== undefined && value < schema.minimum) {
         return {
           valid: false,
           error: `Number less than minimum of ${schema.minimum}`,
         };
       }
-      
+
       if (schema.maximum !== undefined && value > schema.maximum) {
         return {
           valid: false,
           error: `Number exceeds maximum of ${schema.maximum}`,
         };
       }
-      
+
       break;
     } else if (type === 'integer' && typeof value === 'number' && Number.isInteger(value)) {
       matchedType = true;
-      
+
       if (schema.minimum !== undefined && value < schema.minimum) {
         return {
           valid: false,
           error: `Integer less than minimum of ${schema.minimum}`,
         };
       }
-      
+
       if (schema.maximum !== undefined && value > schema.maximum) {
         return {
           valid: false,
           error: `Integer exceeds maximum of ${schema.maximum}`,
         };
       }
-      
+
       break;
     } else if (type === 'boolean' && typeof value === 'boolean') {
       matchedType = true;
@@ -259,7 +256,7 @@ function validateType(
       break;
     } else if (type === 'array' && Array.isArray(value)) {
       matchedType = true;
-      
+
       // Validate array items if schema provided
       if (schema.items) {
         for (let i = 0; i < value.length; i++) {
@@ -272,11 +269,16 @@ function validateType(
           }
         }
       }
-      
+
       break;
-    } else if (type === 'object' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    } else if (
+      type === 'object' &&
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
       matchedType = true;
-      
+
       // Validate nested object properties if schema provided
       if (schema.properties) {
         for (const [propName, propValue] of Object.entries(value)) {
@@ -292,18 +294,18 @@ function validateType(
           }
         }
       }
-      
+
       break;
     }
   }
-  
+
   if (!matchedType) {
     return {
       valid: false,
       error: `Type mismatch: expected ${types.join(' or ')}, got ${typeof value}`,
     };
   }
-  
+
   // Check enum constraint
   if (schema.enum && !schema.enum.includes(value)) {
     return {
@@ -311,7 +313,7 @@ function validateType(
       error: `Value not in allowed enum: ${JSON.stringify(schema.enum)}`,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -325,16 +327,16 @@ function validateDisallowPatterns(
   // Flatten all string values from args (including nested)
   const flattenedStrings: string[] = [];
   flattenStrings(args, flattenedStrings);
-  
+
   for (const patternStr of patterns) {
     try {
       // F-SEC-M6.7-001 remediation: Use RE2 for linear-time regex (no ReDoS possible)
       const regex = new RE2(patternStr);
-      
+
       for (const str of flattenedStrings) {
         // RE2.test() runs in O(n) time — no catastrophic backtracking, no timeout needed
         const matched = regex.test(str);
-        
+
         if (matched) {
           return {
             valid: false,
@@ -347,17 +349,17 @@ function validateDisallowPatterns(
       console.error(`[validation] Invalid disallow_pattern: ${patternStr}`, err);
     }
   }
-  
+
   return { valid: true };
 }
 
 /**
  * F-SEC-M6.7-001 remediation: testRegexWithTimeout() removed
- * 
+ *
  * The previous implementation used setTimeout() which cannot interrupt
  * synchronous regex.test() execution in Node.js V8 engine. This meant
  * the ReDoS timeout provided ZERO protection.
- * 
+ *
  * Replaced with RE2 engine which guarantees linear-time execution with
  * no catastrophic backtracking. No timeout mechanism is needed.
  */
@@ -381,7 +383,7 @@ function flattenStrings(obj: unknown, result: string[]): void {
 
 /**
  * Redact sensitive fields from arguments (PII protection)
- * 
+ *
  * F-SEC-M6-029 remediation: Recursive redaction for nested objects and arrays
  */
 function redactFields(
@@ -394,10 +396,7 @@ function redactFields(
 /**
  * Recursively redact fields in nested objects and arrays
  */
-function redactFieldsRecursive(
-  value: unknown,
-  redactFieldNames: string[]
-): unknown {
+function redactFieldsRecursive(value: unknown, redactFieldNames: string[]): unknown {
   // Handle null/undefined
   if (value === null || value === undefined) {
     return value;

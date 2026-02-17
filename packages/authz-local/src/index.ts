@@ -1,14 +1,16 @@
 /**
  * @mcpambassador/authz-local
- * 
+ *
  * Local RBAC Authorization Provider (Phase 1)
- * 
+ *
  * Authorizes tool access based on Tool Profiles stored in the database.
  * Supports glob patterns, deny lists, rate limits, and profile inheritance.
- * 
+ *
  * @see Architecture §5.2 AuthorizationProvider
  * @see Architecture §10 Authorization Logic Deep Dive
  */
+
+/* eslint-disable no-console, @typescript-eslint/require-await */
 
 import type {
   AuthorizationProvider,
@@ -17,19 +19,15 @@ import type {
   AuthzRequest,
   ProviderHealth,
 } from '@mcpambassador/core';
-import {
-  getEffectiveProfile,
-  getClientById,
-  type DatabaseClient,
-} from '@mcpambassador/core';
+import { getEffectiveProfile, getClientById, type DatabaseClient } from '@mcpambassador/core';
 import type { ToolDescriptor } from '@mcpambassador/protocol';
 
 /**
  * Local RBAC Authorization Provider
- * 
+ *
  * Checks if a tool is allowed based on the client's effective profile.
  * Profile resolution includes inheritance chain merging.
- * 
+ *
  * Authorization logic:
  * 1. Retrieve client's profile from database
  * 2. Resolve effective profile (merge inheritance chain)
@@ -52,7 +50,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
 
   /**
    * Health check (required by ProviderLifecycle)
-   * 
+   *
    * Verifies database connectivity by querying profile count.
    */
   async healthCheck(): Promise<ProviderHealth> {
@@ -89,7 +87,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
 
   /**
    * Authorize tool access for a session
-   * 
+   *
    * @param session Session context from authentication
    * @param request Authorization request with tool name and arguments
    * @returns Authorization decision (permit/deny) with policy details
@@ -169,14 +167,17 @@ export class LocalRbacProvider implements AuthorizationProvider {
 
   /**
    * List all tools that the session is authorized to use
-   * 
+   *
    * Filters the full tool catalog based on the session's effective profile.
-   * 
+   *
    * @param session Session context from authentication
    * @param allTools Full tool catalog from all downstream MCPs
    * @returns Filtered list of authorized tools
    */
-  async listAuthorizedTools(session: SessionContext, allTools: ToolDescriptor[]): Promise<ToolDescriptor[]> {
+  async listAuthorizedTools(
+    session: SessionContext,
+    allTools: ToolDescriptor[]
+  ): Promise<ToolDescriptor[]> {
     // Get client and effective profile
     const client = await getClientById(this.db, session.client_id);
     if (!client) {
@@ -185,7 +186,9 @@ export class LocalRbacProvider implements AuthorizationProvider {
     }
 
     if (client.status !== 'active') {
-      console.warn(`[authz:local] Client ${client.client_id} is ${client.status}, returning empty tool list`);
+      console.warn(
+        `[authz:local] Client ${client.client_id} is ${client.status}, returning empty tool list`
+      );
       return [];
     }
 
@@ -202,13 +205,17 @@ export class LocalRbacProvider implements AuthorizationProvider {
 
     for (const tool of allTools) {
       // Check denied_tools first (deny-wins)
-      const isDenied = effectiveProfile.denied_tools.some((pattern: string) => matchGlob(pattern, tool.name));
+      const isDenied = effectiveProfile.denied_tools.some((pattern: string) =>
+        matchGlob(pattern, tool.name)
+      );
       if (isDenied) {
         continue; // Skip this tool
       }
 
       // Check allowed_tools
-      const isAllowed = effectiveProfile.allowed_tools.some((pattern: string) => matchGlob(pattern, tool.name));
+      const isAllowed = effectiveProfile.allowed_tools.some((pattern: string) =>
+        matchGlob(pattern, tool.name)
+      );
       if (isAllowed) {
         authorizedTools.push(tool);
       }
@@ -227,17 +234,17 @@ const MAX_PATTERN_LENGTH = 200;
 
 /**
  * Match tool name against glob pattern
- * 
+ *
  * Supports * wildcard (e.g., "github.*" matches "github.search_code").
  * Special cases:
  * - "*" matches all tools
  * - "github.*" matches "github.search_code", "github.create_issue", etc.
  * - "github.search_*" matches "github.search_code", "github.search_issues", etc.
  * - Exact match (no wildcard) requires full string equality
- * 
+ *
  * Security: Uses linear-time string matching instead of regex to prevent ReDoS.
  * No regex engine = no catastrophic backtracking possible.
- * 
+ *
  * @param pattern Glob pattern (may contain * wildcards)
  * @param tool Fully qualified tool name
  * @returns True if tool matches pattern, false if pattern too long
@@ -245,7 +252,9 @@ const MAX_PATTERN_LENGTH = 200;
 export function matchGlob(pattern: string, tool: string): boolean {
   // Enforce max pattern length (F-SEC-M5-001)
   if (pattern.length > MAX_PATTERN_LENGTH) {
-    console.warn(`[authz:local] Pattern exceeds max length (${MAX_PATTERN_LENGTH}): ${pattern.substring(0, 50)}...`);
+    console.warn(
+      `[authz:local] Pattern exceeds max length (${MAX_PATTERN_LENGTH}): ${pattern.substring(0, 50)}...`
+    );
     return false;
   }
 

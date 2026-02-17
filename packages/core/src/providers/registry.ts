@@ -1,12 +1,14 @@
 /**
  * Provider Registry
- * 
+ *
  * Dynamic provider loading with allow-list enforcement and lifecycle management.
- * 
+ *
  * @see Architecture §5.4 Provider Lifecycle
  * @see ADR-002 Pluggable AAA Module Architecture
  * @see Security Finding F-008 (Supply Chain Security)
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 
 import type {
   AuthenticationProvider,
@@ -29,7 +31,7 @@ export class ProviderRegistry {
   private authnProviders = new Map<string, AuthenticationProvider>();
   private authzProviders = new Map<string, AuthorizationProvider>();
   private auditProviders = new Map<string, AuditProvider>();
-  
+
   private allowedPackages: string[];
 
   constructor(allowedPackages: string[]) {
@@ -38,7 +40,7 @@ export class ProviderRegistry {
 
   /**
    * Load and initialize a provider from a package
-   * 
+   *
    * @param type Provider type
    * @param packageName NPM package name (e.g., '@mcpambassador/authn-apikey')
    * @param config Provider-specific configuration
@@ -63,10 +65,10 @@ export class ProviderRegistry {
     try {
       // Dynamic import
       const module = await import(packageName);
-      
+
       // Extract provider class (convention: default export or named export matching type)
       const ProviderClass = module.default || module[this.getExpectedExportName(type)];
-      
+
       if (!ProviderClass) {
         throw new AmbassadorError(
           `Package ${packageName} does not export a valid provider class`,
@@ -95,7 +97,9 @@ export class ProviderRegistry {
       // Register in appropriate map
       this.registerProvider(type, provider);
 
-      logger.info(`[registry] Provider ${packageName} loaded successfully (status: ${health.status})`);
+      logger.info(
+        `[registry] Provider ${packageName} loaded successfully (status: ${health.status})`
+      );
       return provider as AuthenticationProvider | AuthorizationProvider | AuditProvider;
     } catch (error) {
       if (error instanceof AmbassadorError) {
@@ -129,19 +133,28 @@ export class ProviderRegistry {
     // Check type-specific methods
     switch (type) {
       case 'authentication': {
-        const authnProvider =provider as AuthenticationProvider;
+        const authnProvider = provider as AuthenticationProvider;
         if (typeof authnProvider.authenticate !== 'function') {
-          throw new AmbassadorError('AuthenticationProvider missing authenticate() method', 'provider_invalid');
+          throw new AmbassadorError(
+            'AuthenticationProvider missing authenticate() method',
+            'provider_invalid'
+          );
         }
         break;
       }
       case 'authorization': {
         const authzProvider = provider as AuthorizationProvider;
         if (typeof authzProvider.authorize !== 'function') {
-          throw new AmbassadorError('AuthorizationProvider missing authorize() method', 'provider_invalid');
+          throw new AmbassadorError(
+            'AuthorizationProvider missing authorize() method',
+            'provider_invalid'
+          );
         }
         if (typeof authzProvider.listAuthorizedTools !== 'function') {
-          throw new AmbassadorError('AuthorizationProvider missing listAuthorizedTools() method', 'provider_invalid');
+          throw new AmbassadorError(
+            'AuthorizationProvider missing listAuthorizedTools() method',
+            'provider_invalid'
+          );
         }
         break;
       }
@@ -164,10 +177,16 @@ export class ProviderRegistry {
   private registerProvider(type: ProviderType, provider: ProviderLifecycle): void {
     switch (type) {
       case 'authentication':
-        this.authnProviders.set((provider as AuthenticationProvider).id, provider as AuthenticationProvider);
+        this.authnProviders.set(
+          (provider as AuthenticationProvider).id,
+          provider as AuthenticationProvider
+        );
         break;
       case 'authorization':
-        this.authzProviders.set((provider as AuthorizationProvider).id, provider as AuthorizationProvider);
+        this.authzProviders.set(
+          (provider as AuthorizationProvider).id,
+          provider as AuthorizationProvider
+        );
         break;
       case 'audit':
         this.auditProviders.set((provider as AuditProvider).id, provider as AuditProvider);

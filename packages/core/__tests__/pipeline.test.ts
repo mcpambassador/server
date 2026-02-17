@@ -1,6 +1,6 @@
 /**
  * Pipeline tests
- * 
+ *
  * Tests AAA pipeline orchestration with mock providers.
  */
 

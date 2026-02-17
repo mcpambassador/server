@@ -1,6 +1,6 @@
 /**
  * Custom error classes
- * 
+ *
  * All Ambassador errors extend AmbassadorError for consistent error handling.
  */
 

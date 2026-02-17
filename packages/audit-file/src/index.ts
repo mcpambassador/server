@@ -1,14 +1,16 @@
 /**
  * @mcpambassador/audit-file
- * 
+ *
  * File-based Audit Provider (Phase 1)
- * 
+ *
  * Writes audit events to JSONL (JSON Lines) files for tamper-evident logging.
  * File naming: audit-YYYY-MM-DD.jsonl, rotated daily at midnight UTC.
- * 
+ *
  * @see Architecture §5.3 AuditProvider
  * @see Architecture §11 Audit Deep Dive
  */
+
+/* eslint-disable no-console, @typescript-eslint/no-misused-promises, prefer-const */
 
 import type { AuditProvider, AuditQueryFilters, ProviderHealth } from '@mcpambassador/core';
 import type { AuditEvent } from '@mcpambassador/protocol';
@@ -19,10 +21,10 @@ import { createInterface } from 'readline';
 
 /**
  * File-based Audit Provider
- * 
+ *
  * Appends audit events to daily-rotated JSONL files.
  * Each event is one JSON object per line (no commas, no array wrapper).
- * 
+ *
  * Configuration:
  * - auditDir: Directory to store audit files (default: ./audit-logs)
  * - retention: Number of days to retain old audit files (default: 90)
@@ -52,17 +54,19 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Initialize provider (required by ProviderLifecycle)
-   * 
+   *
    * Creates audit directory and starts periodic flush timer.
    */
   async initialize(_config: Record<string, unknown>): Promise<void> {
     // Validate and resolve audit directory path (F-SEC-M5-002)
     await this.validateAuditDir();
-    
+
     // Ensure audit directory exists with restricted permissions
     await fs.mkdir(this.resolvedAuditDir, { recursive: true, mode: 0o700 });
-    
-    console.log(`[audit:file] Initialized: dir=${this.resolvedAuditDir}, retention=${this.retention}d, flushInterval=${this.flushInterval}ms`);
+
+    console.log(
+      `[audit:file] Initialized: dir=${this.resolvedAuditDir}, retention=${this.retention}d, flushInterval=${this.flushInterval}ms`
+    );
 
     // Start periodic flush
     this.flushTimer = setInterval(async () => {
@@ -77,7 +81,7 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Validate audit directory path (F-SEC-M5-002)
-   * 
+   *
    * Ensures auditDir is resolved to an absolute path and does not traverse outside
    * an allowed base directory. Protects against path traversal attacks.
    */
@@ -89,7 +93,9 @@ export class FileAuditProvider implements AuditProvider {
     // after resolution. In Phase 2/3, consider restricting to a specific base directory.
     const normalized = path.normalize(this.resolvedAuditDir);
     if (normalized.includes('..')) {
-      throw new Error(`[audit:file] Invalid audit directory (path traversal detected): ${this.auditDir}`);
+      throw new Error(
+        `[audit:file] Invalid audit directory (path traversal detected): ${this.auditDir}`
+      );
     }
 
     // Check if path exists and if it's a symlink, resolve it
@@ -107,7 +113,7 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Health check (required by ProviderLifecycle)
-   * 
+   *
    * Verifies audit directory exists and is writable.
    */
   async healthCheck(): Promise<ProviderHealth> {
@@ -149,7 +155,7 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Shutdown provider (required by ProviderLifecycle)
-   * 
+   *
    * Flushes remaining events and stops flush timer.
    */
   async shutdown(): Promise<void> {
@@ -170,9 +176,9 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Emit audit event (buffered write)
-   * 
+   *
    * Adds event to in-memory buffer. Actual write happens in flush().
-   * 
+   *
    * @param event Audit event to log
    */
   async emit(event: AuditEvent): Promise<void> {
@@ -191,7 +197,7 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Emit batch of events (optional optimization)
-   * 
+   *
    * @param events Array of audit events
    */
   async emitBatch(events: AuditEvent[]): Promise<void> {
@@ -210,10 +216,10 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Flush buffered events to disk
-   * 
+   *
    * Writes all buffered events to appropriate daily file.
    * Groups by date to support proper daily rotation.
-   * 
+   *
    * Uses atomic buffer swap and flush lock to prevent race conditions (F-SEC-M5-004).
    */
   async flush(): Promise<void> {
@@ -246,10 +252,10 @@ export class FileAuditProvider implements AuditProvider {
       // Write to each date's file
       for (const [date, events] of eventsByDate.entries()) {
         const filePath = getAuditFilePath(this.resolvedAuditDir, date);
-        
+
         // Append events as JSONL (one JSON object per line)
         const lines = events.map(e => JSON.stringify(e)).join('\n') + '\n';
-        
+
         try {
           await fs.appendFile(filePath, lines, { encoding: 'utf-8', mode: 0o600 });
         } catch (error) {
@@ -271,10 +277,10 @@ export class FileAuditProvider implements AuditProvider {
 
   /**
    * Query audit events from JSONL files
-   * 
+   *
    * Reads and filters JSONL files by date range.
    * Supports filtering by client_id, user_id, event_type, severity.
-   * 
+   *
    * @param filters Query filters
    * @returns Array of matching audit events
    */
@@ -283,7 +289,9 @@ export class FileAuditProvider implements AuditProvider {
     const limit = filters.limit || 1000;
 
     // Determine date range
-    const startDate = filters.start_time ? new Date(filters.start_time) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
+    const startDate = filters.start_time
+      ? new Date(filters.start_time)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
     const endDate = filters.end_time ? new Date(filters.end_time) : new Date();
 
     // Generate list of dates to scan
@@ -300,7 +308,7 @@ export class FileAuditProvider implements AuditProvider {
     // Read each date's file
     for (const date of datesToScan) {
       const filePath = getAuditFilePath(this.resolvedAuditDir, date);
-      
+
       try {
         const events = await readAuditFile(filePath, filters);
         results.push(...events);
@@ -355,7 +363,7 @@ export class FileAuditProvider implements AuditProvider {
 
 /**
  * Get audit file path for a given date
- * 
+ *
  * @param auditDir Base audit directory
  * @param date Date (ISO 8601 string or Date object)
  * @returns Full path to audit file (e.g., /var/log/ambassador/audit-2026-02-16.jsonl)
@@ -368,7 +376,7 @@ export function getAuditFilePath(auditDir: string, date: string | Date): string 
 
 /**
  * Read and filter audit events from a JSONL file
- * 
+ *
  * @param filePath Path to JSONL audit file
  * @param filters Query filters
  * @returns Array of matching audit events

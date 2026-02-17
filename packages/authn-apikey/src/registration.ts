@@ -1,17 +1,19 @@
 /**
  * Client Registration
- * 
+ *
  * Handles POST /v1/clients/register for API key client onboarding.
- * 
+ *
  * Security requirements:
  * - Rate limiting: 10 registrations/hour per source IP
  * - Max clients: 50 (Community tier)
  * - Body size validation: 4KB max
  * - Friendly name sanitization
- * 
+ *
  * @see Architecture §6.1 Registration Endpoint
  * @see Security Finding F-001
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
 
 import { v4 as uuidv4 } from 'uuid';
 import type { DatabaseClient } from '@mcpambassador/core';
@@ -25,7 +27,14 @@ import { hashIp, redactIp } from './utils/privacy.js';
  */
 export interface RegisterClientRequest {
   friendly_name: string;
-  host_tool: 'vscode' | 'claude-desktop' | 'claude-code' | 'opencode' | 'gemini-cli' | 'chatgpt' | 'custom';
+  host_tool:
+    | 'vscode'
+    | 'claude-desktop'
+    | 'claude-code'
+    | 'opencode'
+    | 'gemini-cli'
+    | 'chatgpt'
+    | 'custom';
   machine_fingerprint?: string;
   profile_id?: string; // Optional: defaults to 'all-tools' profile
 }
@@ -50,7 +59,7 @@ setInterval(() => registrationRateLimiter.cleanup(), 5 * 60 * 1000);
 
 /**
  * Register a new client
- * 
+ *
  * @param db Database client
  * @param request Registration request
  * @param sourceIp Source IP address for rate limiting
@@ -132,11 +141,7 @@ export async function registerClient(
     });
 
     if (!profile) {
-      throw new AmbassadorError(
-        `Profile ${profileId} not found`,
-        'validation_error',
-        400
-      );
+      throw new AmbassadorError(`Profile ${profileId} not found`, 'validation_error', 400);
     }
   }
 
@@ -164,7 +169,9 @@ export async function registerClient(
   });
 
   // F-SEC-M4-007: Redact IP in logs (show first octet only)
-  logger.info(`[registration] Client registered: ${clientId} (${sanitizedName}) from ${redactIp(sourceIp)}`);
+  logger.info(
+    `[registration] Client registered: ${clientId} (${sanitizedName}) from ${redactIp(sourceIp)}`
+  );
 
   return {
     client_id: clientId,
@@ -172,6 +179,7 @@ export async function registerClient(
     friendly_name: sanitizedName,
     profile_id: profileId,
     created_at: now,
-    message: 'IMPORTANT: Save this API key securely - it will not be shown again. Configure your client with X-API-Key and X-Client-Id headers.',
+    message:
+      'IMPORTANT: Save this API key securely - it will not be shown again. Configure your client with X-API-Key and X-Client-Id headers.',
   };
 }

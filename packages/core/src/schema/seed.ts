@@ -1,12 +1,15 @@
 /**
  * MCP Ambassador - Seed Data
- * 
+ *
  * Default Tool Profiles and reference data for Phase 1 deployment.
  * These profiles are inserted on first server boot.
- * 
+ *
  * @see Architecture §10.2 Tool Profile Examples
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
+
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 
 import { tool_profiles } from './index.js';
 
@@ -22,20 +25,21 @@ function now(): string {
 
 /**
  * Default Tool Profiles (Phase 1)
- * 
+ *
  * These profiles are created on first boot and can be modified by admins.
  */
 export const defaultProfiles: NewToolProfile[] = [
   {
     profile_id: uuidv4(),
     name: 'all-tools',
-    description: 'Full access to all tools. Default profile for auto-registered clients in Community tier.',
+    description:
+      'Full access to all tools. Default profile for auto-registered clients in Community tier.',
     allowed_tools: JSON.stringify(['*']), // Glob: all tools
     denied_tools: JSON.stringify([]), // No denials
     rate_limits: JSON.stringify({
       requests_per_minute: 60,
       requests_per_hour: 1000,
-      max_concurrent: 10
+      max_concurrent: 10,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify([]), // All environments
@@ -52,7 +56,7 @@ export const defaultProfiles: NewToolProfile[] = [
     rate_limits: JSON.stringify({
       requests_per_minute: 0,
       requests_per_hour: 0,
-      max_concurrent: 0
+      max_concurrent: 0,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify([]),
@@ -86,7 +90,7 @@ export const defaultProfiles: NewToolProfile[] = [
     rate_limits: JSON.stringify({
       requests_per_minute: 30,
       requests_per_hour: 500,
-      max_concurrent: 5
+      max_concurrent: 5,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify([]),
@@ -117,7 +121,7 @@ export const defaultProfiles: NewToolProfile[] = [
     rate_limits: JSON.stringify({
       requests_per_minute: 120,
       requests_per_hour: 2000,
-      max_concurrent: 15
+      max_concurrent: 15,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify(['dev', 'staging']), // Not production
@@ -129,18 +133,12 @@ export const defaultProfiles: NewToolProfile[] = [
     profile_id: uuidv4(),
     name: 'database-engineer',
     description: 'Database-focused tools. Inherits from developer + database admin tools.',
-    allowed_tools: JSON.stringify([
-      'database.*',
-      'postgres.*',
-      'mysql.*',
-      'mongodb.*',
-      'redis.*',
-    ]),
+    allowed_tools: JSON.stringify(['database.*', 'postgres.*', 'mysql.*', 'mongodb.*', 'redis.*']),
     denied_tools: JSON.stringify([]),
     rate_limits: JSON.stringify({
       requests_per_minute: 60,
       requests_per_hour: 1000,
-      max_concurrent: 10
+      max_concurrent: 10,
     }),
     inherited_from: null, // Could inherit from 'developer' but keeping simple for Phase 1
     environment_scope: JSON.stringify([]),
@@ -174,7 +172,7 @@ export const defaultProfiles: NewToolProfile[] = [
     rate_limits: JSON.stringify({
       requests_per_minute: 30,
       requests_per_hour: 500,
-      max_concurrent: 5
+      max_concurrent: 5,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify([]), // All environments (audit everywhere)
@@ -191,7 +189,7 @@ export const defaultProfiles: NewToolProfile[] = [
     rate_limits: JSON.stringify({
       requests_per_minute: 60,
       requests_per_hour: 1000,
-      max_concurrent: 10
+      max_concurrent: 10,
     }),
     inherited_from: null,
     environment_scope: JSON.stringify([]),
@@ -199,8 +197,8 @@ export const defaultProfiles: NewToolProfile[] = [
       {
         days: ['mon', 'tue', 'wed', 'thu', 'fri'],
         start_utc: '08:00',
-        end_utc: '18:00'
-      }
+        end_utc: '18:00',
+      },
     ]),
     created_at: now(),
     updated_at: now(),
@@ -209,13 +207,14 @@ export const defaultProfiles: NewToolProfile[] = [
 
 /**
  * Built-in admin roles (referenced in ADR-006)
- * 
+ *
  * These are NOT stored in tool_profiles — they are hardcoded authorization
  * roles for admin API access. Documented here for reference.
  */
 export const builtInAdminRoles = {
   'ambassador-admin': {
-    description: 'Full admin access: profile CRUD, client lifecycle, kill switch, audit read, admin key rotation',
+    description:
+      'Full admin access: profile CRUD, client lifecycle, kill switch, audit read, admin key rotation',
     permissions: ['admin:*', 'audit:read'],
     immutable: true,
   },
@@ -228,26 +227,26 @@ export const builtInAdminRoles = {
 
 /**
  * Seed function - inserts default profiles if none exist
- * 
+ *
  * Called by server bootstrap on first run. Idempotent (checks if profiles exist).
- * 
+ *
  * @param db Drizzle database instance
  */
 export async function seedDatabase(db: any): Promise<void> {
   // Check if profiles already exist
   const existingProfiles = await db.query.tool_profiles.findMany({ limit: 1 });
-  
+
   if (existingProfiles.length > 0) {
     console.log('[seed] Profiles already exist, skipping seed');
     return;
   }
-  
+
   console.log(`[seed] Inserting ${defaultProfiles.length} default Tool Profiles...`);
-  
+
   for (const profile of defaultProfiles) {
     await db.insert(tool_profiles).values(profile);
   }
-  
+
   console.log('[seed] Seed complete');
 }
 

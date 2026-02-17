@@ -1,12 +1,12 @@
 /**
  * Database Access Layer - Barrel Export
- * 
+ *
  * Exports all database client setup and repository functions.
- * 
+ *
  * Usage:
  * ```typescript
  * import { initializeDatabase, registerClient, createToolProfile } from './db';
- * 
+ *
  * const db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: './data/ambassador.db' });
  * const client = await registerClient(db, { ... }, apiKey);
  * ```
@@ -24,12 +24,7 @@ export {
 } from './client.js';
 
 // Compatibility layer for Drizzle ORM queries
-export {
-  compatInsert,
-  compatSelect,
-  compatUpdate,
-  compatDelete,
-} from './compat.js';
+export { compatInsert, compatSelect, compatUpdate, compatDelete } from './compat.js';
 
 // Client repository
 export {
