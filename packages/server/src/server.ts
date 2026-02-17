@@ -12,6 +12,7 @@ import {
   type AuthorizationProvider,
   type AuditProvider,
   type SessionContext,
+  type PipelineToolInvocationRequest,
   getEffectiveProfile,
 } from '@mcpambassador/core';
 import { ApiKeyAuthProvider } from '@mcpambassador/authn-apikey';
@@ -20,8 +21,6 @@ import { FileAuditProvider } from '@mcpambassador/audit-file';
 import type { 
   ToolCatalogResponse, 
   ToolDescriptor,
-  ToolInvocationRequest as ProtocolToolInvocationRequest,
-  ToolInvocationResponse as ProtocolToolInvocationResponse,
 } from '@mcpambassador/protocol';
 
 /**
@@ -199,7 +198,11 @@ export class AmbassadorServer {
     }
     
    // Extract source IP (handle X-Forwarded-For if behind proxy)
-    const sourceIp = (headers['x-forwarded-for'] || request.ip || '0.0.0.0').split(',')[0].trim();
+    const sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
+    
+    if (!this.authn) {
+      throw new Error('Authentication provider not initialized');
+    }
     
     const authResult = await this.authn.authenticate({ headers, sourceIp });
     
@@ -341,6 +344,7 @@ export class AmbassadorServer {
           return;
         }
         
+        
         if (!body.arguments || typeof body.arguments !== 'object') {
           reply.status(400).send({
             error: 'Bad Request',
@@ -362,7 +366,7 @@ export class AmbassadorServer {
         }
         
         // Transform protocol request → pipeline internal request
-        const pipelineRequest = {
+        const pipelineRequest: PipelineToolInvocationRequest = {
           tool_name: body.tool,
           client_id: session.client_id,
           arguments: body.arguments,
@@ -375,7 +379,7 @@ export class AmbassadorServer {
             headers[key] = value;
           }
         }
-        const sourceIp = (headers['x-forwarded-for'] || request.ip || '0.0.0.0').split(',')[0].trim();
+        const sourceIp = (headers['x-forwarded-for'] ?? request.ip ?? '0.0.0.0').split(',')[0].trim();
         
         const authRequest = {
           headers,
@@ -401,8 +405,16 @@ export class AmbassadorServer {
           };
         };
         
-        // Invoke through AAA pipeline
-        const response = await this.pipeline!.invoke(pipelineRequest, authRequest, router);
+        // Invoke through AAA pipeline (with null check for pipeline)
+        if (!this.pipeline) {
+          reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Pipeline not initialized',
+          });
+          return;
+        }
+        
+        const response = await this.pipeline.invoke(pipelineRequest, authRequest, router);
         
         reply.send(response);
       } catch (err) {
@@ -538,7 +550,7 @@ export class AmbassadorServer {
     // Shutdown providers first (flushes audit buffer)
     if (this.audit) {
       console.log('[Server] Shutting down audit provider...');
-      await this.audit.shutdown();
+      await this.audit!.shutdown();
     }
     
     // Shutdown MCP connections

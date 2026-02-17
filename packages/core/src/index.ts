@@ -28,6 +28,7 @@ export * from './audit/index.js';
 
 // Pipeline orchestrator (M3.2)
 export * from './pipeline/index.js';
+export type { PipelineToolInvocationRequest } from './pipeline/index.js';
 
 // Utilities
 export * from './utils/errors.js';

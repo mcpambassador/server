@@ -17,7 +17,6 @@ import type {
   AuthzRequest,
 } from '../spi/index.js';
 import type {
-  ToolInvocationRequest,
   ToolInvocationResponse,
   AuditEvent,
   Severity,
@@ -30,6 +29,16 @@ import {
   ServiceUnavailableError,
   ValidationError,
 } from '../utils/errors.js';
+
+/**
+ * Internal tool invocation request format (pipeline layer)
+ * Different from protocol's ToolInvocationRequest which is external API format
+ */
+export interface PipelineToolInvocationRequest {
+  tool_name: string;
+  client_id: string;
+  arguments: Record<string, unknown>;
+}
 
 /**
  * Pipeline configuration
@@ -70,7 +79,7 @@ export class Pipeline {
    * @throws AuthenticationError, AuthorizationError, ServiceUnavailableError
    */
   async invoke(
-    request: ToolInvocationRequest,
+    request: PipelineToolInvocationRequest,
     authRequest: AuthRequest,
     router?: (toolName: string, args: Record<string, unknown>) => Promise<{ content: unknown; isError?: boolean; mcpServer?: string }>
   ): Promise<ToolInvocationResponse> {
