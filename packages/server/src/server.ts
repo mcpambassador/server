@@ -490,13 +490,30 @@ export class AmbassadorServer {
     });
     
     // F-SEC-M6-005: Detailed health endpoint (admin only)
-    this.fastify.get('/v1/admin/health', async (_request, reply) => {
-      // TODO: Add authentication check when AAA pipeline integrated
-      reply.send({
-        status: 'ok',
-        version: '0.1.0',
-        mcp_status: this.mcpManager.getStatus(),
-      });
+    this.fastify.get('/v1/admin/health', async (request, reply) => {
+      try {
+        // Authentication required (F-SEC-M6.6 remediation)
+        await this.authenticate(request);
+        
+        reply.send({
+          status: 'ok',
+          version: '0.1.0',
+          mcp_status: this.mcpManager.getStatus(),
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'Unauthorized') {
+          reply.status(401).send({
+            error: 'Unauthorized',
+            message: 'Valid API key required',
+          });
+        } else {
+          console.error('[/v1/admin/health] Error:', err);
+          reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Health check failed',
+          });
+        }
+      }
     });
     
     // M5.4: Client lifecycle
