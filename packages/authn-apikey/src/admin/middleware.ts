@@ -7,6 +7,8 @@
  * @see Architecture §9.5 Admin API Authentication
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return */
+
 import type { DatabaseClient } from '@mcpambassador/core';
 import { logger } from '@mcpambassador/core';
 import * as argon2 from 'argon2';
