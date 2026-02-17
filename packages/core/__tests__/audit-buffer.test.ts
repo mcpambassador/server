@@ -148,11 +148,8 @@ describe('AuditBuffer', () => {
     await buffer.add(createMockEvent('event-1'));
     await buffer.add(createMockEvent('event-2'));
 
-    // Fast-forward time
-    vi.advanceTimersByTime(100);
-
-    // Wait for flush
-    await vi.runAllTimersAsync();
+    // Fast-forward time and wait for callbacks
+    await vi.advanceTimersByTimeAsync(100);
 
     expect(flushed.length).toBeGreaterThan(0);
 

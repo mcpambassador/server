@@ -160,9 +160,10 @@ describe('Pipeline', () => {
 
     const response = await pipeline.invoke(request, authRequest);
 
-    // Should return placeholder response (M6 not implemented yet)
-    expect(response.success).toBe(false);
-    expect(response.error?.code).toBe('not_implemented');
+    // Should return error response (no router configured)
+    expect(response).toBeDefined();
+    expect(response.result).toBeNull();
+    expect(response.metadata?.error).toBe('Router not configured');
 
     // Verify audit events
     expect(audit.events.length).toBeGreaterThan(0);

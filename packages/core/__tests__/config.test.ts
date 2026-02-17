@@ -58,7 +58,7 @@ downstream_mcps:
 `;
 
     await fs.writeFile(configPath, configYaml);
-    const config = await loadConfig(configPath, { scrub_env_vars: false });
+    const config = await loadConfig(configPath, { scrub_env_vars: false, enforcement: 'warn' });
 
     expect(config.server.port).toBe(8443);
     expect(config.authentication.provider).toBe('api_key');

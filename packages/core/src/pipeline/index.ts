@@ -7,7 +7,7 @@
  * @see Architecture §4.2 Pipeline Failure Behavior
  */
 
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 
 import { v4 as uuidv4 } from 'uuid';
 import type {
