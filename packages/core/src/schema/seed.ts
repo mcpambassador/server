@@ -8,7 +8,6 @@
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
 
-// @ts-expect-error - uuid will be installed in M2 (Monorepo Scaffold)
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 

@@ -8,13 +8,10 @@
  * @see schema/index.ts clients table
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { eq, and, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { clients, type Client, type NewClient, type ClientMetadata } from '../../schema/index.js';
-// @ts-expect-error - uuid will be installed in M2
 import { v4 as uuidv4 } from 'uuid';
-// @ts-expect-error - argon2 will be installed in M2
 import argon2 from 'argon2';
 
 /**

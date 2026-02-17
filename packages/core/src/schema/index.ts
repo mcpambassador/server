@@ -16,9 +16,7 @@
  * @see ADR-006 Admin Authentication Model
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2 (Monorepo Scaffold)
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
-// @ts-expect-error - drizzle-orm will be installed in M2 (Monorepo Scaffold)
 import { relations } from 'drizzle-orm';
 
 /**

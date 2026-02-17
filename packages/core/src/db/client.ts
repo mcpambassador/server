@@ -8,19 +8,13 @@
  * @see dev-plan.md M1 Database Schema Design
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
-// @ts-expect-error - better-sqlite3 will be installed in M2
 import Database from 'better-sqlite3';
-// @ts-expect-error - postgres will be installed in M2
 import postgres from 'postgres';
 import * as schema from '../schema/index.js';
 import { seedDatabase } from '../schema/seed.js';
-// @ts-expect-error - @types/node will be installed in M2
 import fs from 'fs';
-// @ts-expect-error - @types/node will be installed in M2
 import path from 'path';
 
 type BetterSQLite3Database = ReturnType<typeof drizzleSqlite>;

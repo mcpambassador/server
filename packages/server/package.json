@@ -1,0 +1,47 @@
+{
+  "name": "@mcpambassador/server",
+  "version": "0.1.0",
+  "description": "MCP Ambassador Server - HTTP/2 + TLS server with AAA pipeline, MCP routing, admin API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcpambassador-server": "./dist/bin/server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/bin/server.ts",
+    "start": "node dist/bin/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@mcpambassador/core": "workspace:*",
+    "@mcpambassador/protocol": "workspace:*",
+    "@mcpambassador/authn-apikey": "workspace:*",
+    "@mcpambassador/authz-local": "workspace:*",
+    "@mcpambassador/audit-file": "workspace:*",
+    "@fastify/cors": "^9.0.1",
+    "fastify": "^4.26.0",
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/uuid": "^9.0.7",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}

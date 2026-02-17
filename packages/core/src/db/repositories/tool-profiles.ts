@@ -9,11 +9,9 @@
  * @see schema/index.ts tool_profiles table
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { eq, sql, isNull } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { tool_profiles, type ToolProfile, type NewToolProfile, type RateLimits } from '../../schema/index.js';
-// @ts-expect-error - uuid will be installed in M2
 import { v4 as uuidv4 } from 'uuid';
 
 /**

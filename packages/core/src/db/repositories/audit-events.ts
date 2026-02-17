@@ -9,11 +9,9 @@
  * @see schema/index.ts audit_events table
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { audit_events, type AuditEvent, type NewAuditEvent } from '../../schema/index.js';
-// @ts-expect-error - uuid will be installed in M2
 import { v4 as uuidv4 } from 'uuid';
 
 /**

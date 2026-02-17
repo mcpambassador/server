@@ -9,17 +9,12 @@
  * @see schema/index.ts admin_keys table
  */
 
-// @ts-expect-error - drizzle-orm will be installed in M2
 import { eq, and } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { admin_keys, type AdminKey, type NewAdminKey } from '../../schema/index.js';
-// @ts-expect-error - argon2 will be installed in M2
 import argon2 from 'argon2';
-// @ts-expect-error - @types/node will be installed in M2
 import crypto from 'crypto';
-// @ts-expect-error - @types/node will be installed in M2
 import fs from 'fs';
-// @ts-expect-error - @types/node will be installed in M2
 import path from 'path';
 
 /**

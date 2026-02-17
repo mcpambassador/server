@@ -1,0 +1,43 @@
+{
+  "name": "@mcpambassador/core",
+  "version": "0.1.0",
+  "description": "MCP Ambassador Core - SPI interfaces, pipeline, config loader, database schema",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:push": "drizzle-kit push:sqlite",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@mcpambassador/protocol": "workspace:*",
+    "argon2": "^0.31.2",
+    "better-sqlite3": "^9.3.0",
+    "drizzle-orm": "^0.29.3",
+    "pino": "^8.17.2",
+    "postgres": "^3.4.3",
+    "uuid": "^9.0.1",
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/uuid": "^9.0.7",
+    "drizzle-kit": "^0.20.10",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}
