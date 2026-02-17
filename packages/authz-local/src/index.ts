@@ -15,7 +15,6 @@ import type {
   AuthzDecision,
   SessionContext,
   AuthzRequest,
-  ProviderConfig,
   ProviderHealth,
 } from '@mcpambassador/core';
 import {
@@ -46,7 +45,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
   /**
    * Initialize provider (required by ProviderLifecycle)
    */
-  async initialize(_config: ProviderConfig): Promise<void> {
+  async initialize(_config: Record<string, unknown>): Promise<void> {
     // No initialization required for local RBAC
     console.log(`[authz:local] Initialized: provider_id=${this.id}`);
   }
@@ -60,23 +59,12 @@ export class LocalRbacProvider implements AuthorizationProvider {
     const startTime = Date.now();
     try {
       // Simple query to verify DB connectivity
-      const result = await this.db.get<{ count: number }>(
-        'SELECT COUNT(*) as count FROM tool_profiles'
-      );
+      const profiles = await this.db.query.tool_profiles.findMany();
       const latency_ms = Date.now() - startTime;
 
-      if (result && typeof result.count === 'number') {
-        return {
-          status: 'healthy',
-          message: `DB connected, ${result.count} profiles available`,
-          latency_ms,
-          last_checked: new Date().toISOString(),
-        };
-      }
-
       return {
-        status: 'unhealthy',
-        message: 'DB query returned unexpected result',
+        status: 'healthy',
+        message: `DB connected, ${profiles.length} profiles available`,
         latency_ms,
         last_checked: new Date().toISOString(),
       };

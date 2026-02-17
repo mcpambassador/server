@@ -8,8 +8,8 @@
  * @see dev-plan.md M1 Database Schema Design
  */
 
-import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzleSqlite, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import Database from 'better-sqlite3';
 import postgres from 'postgres';
 import * as schema from '../schema/index.js';
@@ -17,10 +17,9 @@ import { seedDatabase } from '../schema/seed.js';
 import fs from 'fs';
 import path from 'path';
 
-type BetterSQLite3Database = ReturnType<typeof drizzleSqlite>;
-type PostgresJsDatabase = ReturnType<typeof drizzlePostgres>;
-
-export type DatabaseClient = BetterSQLite3Database | PostgresJsDatabase;
+export type DatabaseClient = 
+  | BetterSQLite3Database<typeof schema>
+  | PostgresJsDatabase<typeof schema>;
 
 export interface DatabaseConfig {
   type: 'sqlite' | 'postgres';
@@ -54,7 +53,7 @@ export async function initializeDatabase(config: DatabaseConfig): Promise<Databa
 /**
  * Initialize SQLite database (Community tier)
  */
-function initializeSQLite(config: DatabaseConfig): BetterSQLite3Database {
+function initializeSQLite(config: DatabaseConfig): BetterSQLite3Database<typeof schema> {
   const filePath = config.sqliteFilePath || './data/ambassador.db';
   
   // Ensure directory exists
@@ -100,7 +99,7 @@ function initializeSQLite(config: DatabaseConfig): BetterSQLite3Database {
 /**
  * Initialize PostgreSQL database (Pro/Enterprise tier)
  */
-async function initializePostgres(config: DatabaseConfig): Promise<PostgresJsDatabase> {
+async function initializePostgres(config: DatabaseConfig): Promise<PostgresJsDatabase<typeof schema>> {
   if (!config.postgresUrl) {
     throw new Error('[db] PostgreSQL URL is required for postgres database type');
   }

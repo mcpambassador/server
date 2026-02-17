@@ -10,7 +10,7 @@
  * @see Architecture §11 Audit Deep Dive
  */
 
-import type { AuditProvider, AuditQueryFilters, ProviderConfig, ProviderHealth } from '@mcpambassador/core';
+import type { AuditProvider, AuditQueryFilters, ProviderHealth } from '@mcpambassador/core';
 import type { AuditEvent } from '@mcpambassador/protocol';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
@@ -55,7 +55,7 @@ export class FileAuditProvider implements AuditProvider {
    * 
    * Creates audit directory and starts periodic flush timer.
    */
-  async initialize(_config: ProviderConfig): Promise<void> {
+  async initialize(_config: Record<string, unknown>): Promise<void> {
     // Validate and resolve audit directory path (F-SEC-M5-002)
     await this.validateAuditDir();
     
@@ -237,7 +237,7 @@ export class FileAuditProvider implements AuditProvider {
       const eventsByDate = new Map<string, AuditEvent[]>();
 
       for (const event of toFlush) {
-        const date = event.timestamp.split('T')[0]; // Extract YYYY-MM-DD
+        const date = event.timestamp.split('T')[0]!; // Extract YYYY-MM-DD (always present in ISO format)
         const events = eventsByDate.get(date) || [];
         events.push(event);
         eventsByDate.set(date, events);
