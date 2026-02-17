@@ -29,6 +29,11 @@ import {
   ServiceUnavailableError,
   ValidationError,
 } from '../utils/errors.js';
+import {
+  validateToolArguments,
+  type ToolSchema,
+  type ArgumentRestrictions,
+} from '../validation/index.js';
 
 /**
  * Internal tool invocation request format (pipeline layer)
@@ -70,18 +75,22 @@ export class Pipeline {
   /**
    * Process tool invocation through AAA pipeline
    * 
-   * Flow: AuthN → AuthZ → Audit → Route → Audit
+   * Flow: AuthN → AuthZ → Validation → Audit → Route → Audit
    * 
    * @param request Tool invocation request
    * @param authRequest Authentication request context
    * @param router Optional routing function to invoke downstream MCP (M6 injection)
+   * @param toolSchema Optional tool schema for argument validation (M6.7)
+   * @param argumentRestrictions Optional argument restrictions for Enterprise deployments (M6.7)
    * @returns Tool invocation response
-   * @throws AuthenticationError, AuthorizationError, ServiceUnavailableError
+   * @throws AuthenticationError, AuthorizationError, ValidationError, ServiceUnavailableError
    */
   async invoke(
     request: PipelineToolInvocationRequest,
     authRequest: AuthRequest,
-    router?: (toolName: string, args: Record<string, unknown>) => Promise<{ content: unknown; isError?: boolean; mcpServer?: string }>
+    router?: (toolName: string, args: Record<string, unknown>) => Promise<{ content: unknown; isError?: boolean; mcpServer?: string }>,
+    toolSchema?: ToolSchema,
+    argumentRestrictions?: ArgumentRestrictions
   ): Promise<ToolInvocationResponse> {
     // F-SEC-M3-012: Input validation
     if (!request.tool_name || !request.client_id) {
@@ -170,6 +179,45 @@ export class Pipeline {
         throw new AuthorizationError(authzDecision.reason);
       }
 
+      // ===== Stage 2.5: Argument Validation (M6.7) =====
+      let validatedArgs = request.arguments;
+      
+      if (toolSchema) {
+        logger.debug(`[pipeline] Validate: tool=${request.tool_name}`);
+        
+        const validationResult = validateToolArguments(
+          request.arguments,
+          toolSchema,
+          argumentRestrictions
+        );
+        
+        if (!validationResult.valid) {
+          // Log validation failure
+          await this.emitAuditEvent({
+            event_id: uuidv4(),
+            timestamp: new Date().toISOString(),
+            event_type: 'tool_error',
+            severity: 'warn',
+            session_id: session.session_id,
+            client_id: session.client_id,
+            user_id: session.user_id,
+            auth_method: session.auth_method,
+            source_ip: authRequest.sourceIp,
+            action: 'validation',
+            tool_name: request.tool_name,
+            authz_decision: 'permit',
+            metadata: { 
+              validation_error: validationResult.error,
+            },
+          });
+          
+          throw new ValidationError(validationResult.error || 'Argument validation failed');
+        }
+        
+        // Use sanitized args (with redacted fields) for routing
+        validatedArgs = validationResult.sanitizedArgs || request.arguments;
+      }
+
       // ===== Stage 3: Tool Routing (M6) =====
       logger.debug(`[pipeline] Route: tool=${request.tool_name}`);
       
@@ -188,8 +236,8 @@ export class Pipeline {
         };
       } else {
         try {
-          // Route to downstream MCP
-          const mcpResponse = await router(request.tool_name, request.arguments);
+          // Route to downstream MCP with validated/sanitized arguments
+          const mcpResponse = await router(request.tool_name, validatedArgs);
           
           response = {
             result: mcpResponse.content,
@@ -242,9 +290,13 @@ export class Pipeline {
 
       return response;
     } catch (error) {
-      // F-SEC-M3-010: Only emit pipeline_error audit event if NOT already emitted by AuthN/AuthZ
-      // AuthenticationError and AuthorizationError have already logged specific audit events
-      if (!(error instanceof AuthenticationError) && !(error instanceof AuthorizationError)) {
+      // F-SEC-M3-010: Only emit pipeline_error audit event if NOT already emitted by AuthN/AuthZ/Validation
+      // AuthenticationError, AuthorizationError, and ValidationError have already logged specific audit events
+      if (
+        !(error instanceof AuthenticationError) && 
+        !(error instanceof AuthorizationError) &&
+        !(error instanceof ValidationError)
+      ) {
         const duration = Date.now() - startTime;
         await this.emitAuditEvent({
           event_id: uuidv4(),
