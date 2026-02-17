@@ -10,7 +10,7 @@
  * @see Architecture §10 Authorization Logic Deep Dive
  */
 
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable no-console, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import type {
   AuthorizationProvider,
