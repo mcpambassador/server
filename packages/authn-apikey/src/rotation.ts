@@ -9,7 +9,8 @@
  */
 
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, AmbassadorError } from '@mcpambassador/core';
+import { logger, AmbassadorError, compatUpdate, clients } from '@mcpambassador/core';
+import { eq } from 'drizzle-orm';
 import { generateApiKey, hashApiKey } from './keys.js';
 
 /**
@@ -74,14 +75,12 @@ export async function rotateClientKey(
 
   // Update database
   const now = new Date().toISOString();
-  await db.update()
-    .table('clients')
+  await compatUpdate(db, clients)
     .set({
       api_key_hash: newApiKeyHash,
       last_seen_at: now,
     })
-    .where((clients, { eq }) => eq(clients.client_id, clientId))
-    .run();
+    .where(eq(clients.client_id, clientId));
 
   logger.info(`[key-rotation] Client key rotated: ${clientId}`);
 

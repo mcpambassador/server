@@ -170,7 +170,16 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
     try {
       // Execute raw SQL content (migrations contain full DDL statements)
       // Note: For production, consider using drizzle-kit migrate() instead
-      await (db as any).execute(sqlContent);
+      if ((db as any).session?.client?.exec) {
+        // SQLite: use underlying better-sqlite3 exec() via session.client
+        (db as any).session.client.exec(sqlContent);
+      } else if ((db as any).session?.client?.unsafe) {
+        // PostgreSQL: use postgres.js unsafe() for raw SQL
+        await (db as any).session.client.unsafe(sqlContent);
+      } else {
+        // Fallback
+        await (db as any).execute(sqlContent);
+      }
       console.log(`[db] ✓ Migration complete: ${file}`);
     } catch (err) {
       console.error(`[db] ✗ Migration failed: ${file}`, err);
@@ -203,12 +212,12 @@ export async function closeDatabase(db: DatabaseClient): Promise<void> {
   // PostgreSQL: await db.$client.end()
   
   try {
-    if ((db as any).$client?.close) {
-      (db as any).$client.close();
+    if ((db as any).session?.client?.close) {
+      (db as any).session.client.close();
       console.log('[db] SQLite connection closed');
     }
-    else if ((db as any).$client?.end) {
-      await (db as any).$client.end();
+    else if ((db as any).session?.client?.end) {
+      await (db as any).session.client.end();
       console.log('[db] PostgreSQL connection closed');
     }
   } catch (err) {
@@ -225,15 +234,16 @@ export async function closeDatabase(db: DatabaseClient): Promise<void> {
 export async function checkDatabaseHealth(db: DatabaseClient): Promise<boolean> {
   try {
     // Simple query to verify connection - handle both database types
-    if ('execute' in db && typeof db.execute === 'function') {
-      // PostgreSQL: has execute method
-      await db.execute('SELECT 1' as any);
+    const client = (db as any).session?.client;
+    if (client?.prepare) {
+      // SQLite: use prepare().run() via session.client
+      client.prepare('SELECT 1').run();
+    } else if (client?.unsafe) {
+      // PostgreSQL: use unsafe() via session.client
+      await client.unsafe('SELECT 1');
     } else {
-      // SQLite: use prepare().run()
-      const prepare = (db as any).$client?.prepare;
-      if (prepare) {
-        prepare('SELECT 1').run();
-      }
+      // Fallback
+      await (db as any).execute('SELECT 1' as any);
     }
     return true;
   } catch (err) {

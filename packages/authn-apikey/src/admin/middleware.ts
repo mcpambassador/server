@@ -8,7 +8,7 @@
  */
 
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, AmbassadorError } from '@mcpambassador/core';
+import { logger } from '@mcpambassador/core';
 import * as argon2 from 'argon2';
 import { isValidApiKeyFormat } from '../keys.js';
 
@@ -60,7 +60,7 @@ export async function authenticateAdmin(
   try {
     // Get active admin key from database
     const adminKeyRecord = await db.query.admin_keys.findFirst({
-      where: (keys, { eq }) => eq(keys.status, 'active'),
+      where: (keys, { eq }) => eq(keys.is_active, true),
     });
 
     if (!adminKeyRecord) {

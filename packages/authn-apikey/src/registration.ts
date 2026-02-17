@@ -15,7 +15,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, AmbassadorError } from '@mcpambassador/core';
+import { logger, AmbassadorError, compatInsert, clients } from '@mcpambassador/core';
 import { generateApiKey, hashApiKey } from './keys.js';
 import { RateLimiter } from './utils/rate-limiter.js';
 import { hashIp, redactIp } from './utils/privacy.js';
@@ -109,8 +109,8 @@ export async function registerClient(
   }
 
   // Get default profile if not specified
-  let profileId = request.profile_id;
-  if (!profileId) {
+  let profileId: string;
+  if (!request.profile_id) {
     const defaultProfile = await db.query.tool_profiles.findFirst({
       where: (profiles, { eq }) => eq(profiles.name, 'all-tools'),
     });
@@ -125,6 +125,7 @@ export async function registerClient(
 
     profileId = defaultProfile.profile_id;
   } else {
+    profileId = request.profile_id;
     // Verify profile exists
     const profile = await db.query.tool_profiles.findFirst({
       where: (profiles, { eq }) => eq(profiles.profile_id, profileId),
@@ -146,7 +147,7 @@ export async function registerClient(
 
   // Create client record
   const now = new Date().toISOString();
-  await db.insert().into('clients').values({
+  await compatInsert(db, clients).values({
     client_id: clientId,
     friendly_name: sanitizedName,
     host_tool: request.host_tool,
@@ -160,7 +161,7 @@ export async function registerClient(
     last_seen_at: now,
     // F-SEC-M4-007: Hash source IP for privacy compliance (GDPR)
     metadata: JSON.stringify({ source_ip_hash: hashIp(sourceIp) }),
-  }).run();
+  });
 
   // F-SEC-M4-007: Redact IP in logs (show first octet only)
   logger.info(`[registration] Client registered: ${clientId} (${sanitizedName}) from ${redactIp(sourceIp)}`);

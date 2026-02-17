@@ -30,5 +30,8 @@
     "prettier": "^3.2.4",
     "typescript": "^5.3.3",
     "vitest": "^1.2.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
   }
 }

@@ -15,6 +15,7 @@
 
 import * as argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
+import { eq } from 'drizzle-orm';
 import type {
   AuthenticationProvider,
   AuthRequest,
@@ -22,7 +23,7 @@ import type {
   ProviderHealth,
   SessionContext,
 } from '@mcpambassador/core';
-import { logger } from '@mcpambassador/core';
+import { logger, compatUpdate, clients } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { hashApiKey, isValidApiKeyFormat } from './keys.js';
 
@@ -55,7 +56,7 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
    * 
    * Pre-computes a dummy hash for timing-safe non-existent client lookups.
    */
-  async initialize(config: Record<string, unknown>): Promise<void> {
+  async initialize(_config: Record<string, unknown>): Promise<void> {
     // F-SEC-M4-001: Generate proper dummy hash for timing-safe verification
     this.dummyHash = await hashApiKey('amb_sk_' + 'x'.repeat(48));
     logger.info('[authn-apikey] Provider initialized');
@@ -154,9 +155,12 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
       }
 
       // Update last_seen_at (background - don't block auth)
-      this.db.update().set({ last_seen_at: new Date().toISOString() }).where((clients, { eq }) => eq(clients.client_id, clientId)).run().catch(err => {
-        logger.warn(`[authn-apikey] Failed to update last_seen_at: ${err.message}`);
-      });
+      compatUpdate(this.db, clients)
+        .set({ last_seen_at: new Date().toISOString() })
+        .where(eq(clients.client_id, clientId))
+        .catch((err: Error) => {
+          logger.warn(`[authn-apikey] Failed to update last_seen_at: ${err.message}`);
+        });
 
       // Create session context
       const now = Math.floor(Date.now() / 1000);

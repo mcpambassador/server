@@ -23,6 +23,14 @@ export {
   type DatabaseConfig,
 } from './client.js';
 
+// Compatibility layer for Drizzle ORM queries
+export {
+  compatInsert,
+  compatSelect,
+  compatUpdate,
+  compatDelete,
+} from './compat.js';
+
 // Client repository
 export {
   registerClient,

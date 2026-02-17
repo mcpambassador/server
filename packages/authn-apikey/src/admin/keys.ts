@@ -13,23 +13,23 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, AmbassadorError } from '@mcpambassador/core';
+import { logger, AmbassadorError, compatInsert, compatUpdate, admin_keys } from '@mcpambassador/core';
+import { eq } from 'drizzle-orm';
 import { generateApiKey, hashApiKey } from '../keys.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
-import { hashIp, redactIp } from '../utils/privacy.js';
+import { hashIp } from '../utils/privacy.js';
 
 /**
  * Admin key record (admin_keys table)
  */
 export interface AdminKeyRecord {
-  key_id: string;
+  id: number;
   key_hash: string; // Argon2id hash of amb_ak_
   recovery_token_hash: string; // Argon2id hash of amb_rt_
   created_at: string;
-  last_rotated_at: string;
-  status: 'active' | 'revoked';
+  rotated_at: string | null;
+  is_active: boolean;
 }
 
 /**
@@ -57,7 +57,7 @@ export async function generateAdminKey(
 ): Promise<AdminKeyGeneration> {
   // Check if admin key already exists
   const existingKey = await db.query.admin_keys.findFirst({
-    where: (keys, { eq }) => eq(keys.status, 'active'),
+    where: (keys, { eq }) => eq(keys.is_active, true),
   });
 
   if (existingKey) {
@@ -77,25 +77,22 @@ export async function generateAdminKey(
   const recoveryTokenHash = await hashApiKey(recoveryToken);
 
   // Insert into database
-  // F-SEC-M4-004: Use ESM import instead of require()
-  const keyId = randomUUID();
   const now = new Date().toISOString();
   
-  await db.insert().into('admin_keys').values({
-    key_id: keyId,
+  await compatInsert(db, admin_keys).values({
     key_hash: adminKeyHash,
     recovery_token_hash: recoveryTokenHash,
     created_at: now,
-    last_rotated_at: now,
-    status: 'active',
-  }).run();
+    rotated_at: null,
+    is_active: true,
+  });
 
   // Write recovery token to file with 0400 permissions
   await fs.mkdir(dataDir, { recursive: true });
   const recoveryTokenPath = path.join(dataDir, '.recovery-token');
   await fs.writeFile(recoveryTokenPath, recoveryToken, { mode: 0o400 });
 
-  logger.info(`[admin-key] Admin key generated (key_id: ${keyId})`);
+  logger.info('[admin-key] Admin key generated');
   logger.info(`[admin-key] Recovery token written to ${recoveryTokenPath} (mode 0400)`);
 
   return {
@@ -156,7 +153,7 @@ export async function recoverAdminKey(
 
   // Find active admin key record
   const adminKeyRecord = await db.query.admin_keys.findFirst({
-    where: (keys, { eq }) => eq(keys.status, 'active'),
+    where: (keys, { eq }) => eq(keys.is_active, true),
   });
 
   if (!adminKeyRecord) {
@@ -187,14 +184,12 @@ export async function recoverAdminKey(
 
   // Update database (keep same recovery token hash)
   const now = new Date().toISOString();
-  await db.update()
-    .table('admin_keys')
+  await compatUpdate(db, admin_keys)
     .set({
       key_hash: newAdminKeyHash,
-      last_rotated_at: now,
+      rotated_at: now,
     })
-    .where((keys, { eq }) => eq(keys.key_id, adminKeyRecord.key_id))
-    .run();
+    .where(eq(admin_keys.id, adminKeyRecord.id));
 
   // F-SEC-M4-008: Hash IP for privacy (PII in logs)
   logger.info(`[admin-key] Admin key recovered from IP hash ${hashIp(sourceIp)}`);
@@ -225,7 +220,7 @@ export async function rotateAdminKey(
 ): Promise<AdminKeyGeneration> {
   // Find active admin key record
   const adminKeyRecord = await db.query.admin_keys.findFirst({
-    where: (keys, { eq }) => eq(keys.status, 'active'),
+    where: (keys, { eq }) => eq(keys.is_active, true),
   });
 
   if (!adminKeyRecord) {
@@ -262,15 +257,13 @@ export async function rotateAdminKey(
 
   // Update database
   const now = new Date().toISOString();
-  await db.update()
-    .table('admin_keys')
+  await compatUpdate(db, admin_keys)
     .set({
       key_hash: newAdminKeyHash,
       recovery_token_hash: newRecoveryTokenHash,
-      last_rotated_at: now,
+      rotated_at: now,
     })
-    .where((keys, { eq }) => eq(keys.key_id, adminKeyRecord.key_id))
-    .run();
+    .where(eq(admin_keys.id, adminKeyRecord.id));
 
   // Write new recovery token to file
   const recoveryTokenPath = path.join(dataDir, '.recovery-token');
@@ -318,7 +311,7 @@ export async function factoryResetAdminKey(
 
   // F-SEC-M4-009: Verify recovery token before revoking (defense in depth)
   const adminKeyRecord = await db.query.admin_keys.findFirst({
-    where: (keys, { eq }) => eq(keys.status, 'active'),
+    where: (keys, { eq }) => eq(keys.is_active, true),
   });
 
   if (adminKeyRecord) {
@@ -335,11 +328,9 @@ export async function factoryResetAdminKey(
   }
 
   // Revoke all existing admin keys
-  await db.update()
-    .table('admin_keys')
-    .set({ status: 'revoked' })
-    .where((keys, { eq }) => eq(keys.status, 'active'))
-    .run();
+  await compatUpdate(db, admin_keys)
+    .set({ is_active: false })
+    .where(eq(admin_keys.is_active, true));
 
   // Generate new admin key
   return await generateAdminKey(db, dataDir);

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { generateApiKey, hashApiKey, verifyApiKey, isValid ApiKeyFormat } from '../src/keys.js';
+import { generateApiKey, hashApiKey, verifyApiKey, isValidApiKeyFormat } from '../src/keys.js';
 
 describe('API Key Generation (M4.3)', () => {
   it('should generate client API key with correct format', () => {

@@ -8,6 +8,8 @@
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
 
+import { tool_profiles } from './index.js';
+
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 
@@ -233,7 +235,7 @@ export const builtInAdminRoles = {
  */
 export async function seedDatabase(db: any): Promise<void> {
   // Check if profiles already exist
-  const existingProfiles = await db.select().from('tool_profiles' as any).limit(1);
+  const existingProfiles = await db.query.tool_profiles.findMany({ limit: 1 });
   
   if (existingProfiles.length > 0) {
     console.log('[seed] Profiles already exist, skipping seed');
@@ -243,7 +245,7 @@ export async function seedDatabase(db: any): Promise<void> {
   console.log(`[seed] Inserting ${defaultProfiles.length} default Tool Profiles...`);
   
   for (const profile of defaultProfiles) {
-    await db.insert('tool_profiles').values(profile);
+    await db.insert(tool_profiles).values(profile);
   }
   
   console.log('[seed] Seed complete');
