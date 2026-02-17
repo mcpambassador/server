@@ -13,6 +13,7 @@ import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { audit_events, type AuditEvent, type NewAuditEvent } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { compatInsert, compatSelect, compatDelete } from '../compat.js';
 
 /**
  * Insert audit event
@@ -44,7 +45,7 @@ export async function insertAuditEvent(db: DatabaseClient, event: Omit<NewAuditE
     metadata: event.metadata || '{}',
   };
   
-  await db.insert(audit_events).values(newEvent);
+  await compatInsert(db, audit_events).values(newEvent);
 }
 
 /**
@@ -73,7 +74,7 @@ export async function queryAuditEvents(
 ): Promise<{ events: AuditEvent[]; has_more: boolean; next_cursor?: string; total_count?: number }> {
   const limit = pagination?.limit || 100;
   
-  let query = db.select().from(audit_events);
+  let query = compatSelect(db).from(audit_events);
   
   // Build conditions
   const conditions = [];
@@ -129,8 +130,7 @@ export async function queryAuditEvents(
  * Get audit event by ID
  */
 export async function getAuditEventById(db: DatabaseClient, event_id: string): Promise<AuditEvent | null> {
-  const [event] = await db
-    .select()
+  const [event] = await compatSelect(db)
     .from(audit_events)
     .where(eq(audit_events.event_id, event_id))
     .limit(1);
@@ -169,8 +169,7 @@ export async function countAuditEvents(
     conditions.push(eq(audit_events.severity, filters.severity as any));
   }
   
-  let query = db
-    .select({ count: sql<number>`count(*)`.as('count') })
+  let query = compatSelect(db, { count: sql<number>`count(*)`.as('count') })
     .from(audit_events);
   
   if (conditions.length > 0) {
@@ -189,8 +188,7 @@ export async function countAuditEvents(
  * @returns Number of events deleted
  */
 export async function deleteOldAuditEvents(db: DatabaseClient, olderThan: string): Promise<number> {
-  const result = await db
-    .delete(audit_events)
+  await compatDelete(db, audit_events)
     .where(sql`${audit_events.timestamp} < ${olderThan}`);
   
   // Drizzle doesn't return rowCount directly, would need to query count first
@@ -217,16 +215,14 @@ export async function getAuditStatistics(
   ];
   
   // Total count
-  const [totalResult] = await db
-    .select({ count: sql<number>`count(*)`.as('count') })
+  const [totalResult] = await compatSelect(db, { count: sql<number>`count(*)`.as('count') })
     .from(audit_events)
     .where(and(...conditions));
   
   const total_events = totalResult?.count || 0;
   
   // By event type
-  const by_event_type = await db
-    .select({
+  const by_event_type = await compatSelect(db, {
       event_type: audit_events.event_type,
       count: sql<number>`count(*)`.as('count'),
     })
@@ -237,8 +233,7 @@ export async function getAuditStatistics(
     .limit(10);
   
   // By severity
-  const by_severity = await db
-    .select({
+  const by_severity = await compatSelect(db, {
       severity: audit_events.severity,
       count: sql<number>`count(*)`.as('count'),
     })
@@ -248,8 +243,7 @@ export async function getAuditStatistics(
     .orderBy(desc(sql`count(*)`));
   
   // By client (top 10)
-  const by_client = await db
-    .select({
+  const by_client = await compatSelect(db, {
       client_id: audit_events.client_id,
       count: sql<number>`count(*)`.as('count'),
     })

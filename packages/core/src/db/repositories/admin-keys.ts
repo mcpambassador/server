@@ -9,9 +9,10 @@
  * @see schema/index.ts admin_keys table
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
-import { admin_keys, type AdminKey, type NewAdminKey } from '../../schema/index.js';
+import { admin_keys, type NewAdminKey } from '../../schema/index.js';
+import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
 import argon2 from 'argon2';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -80,7 +81,7 @@ export async function createAdminKey(
     is_active: true,
   };
   
-  await db.insert(admin_keys).values(newAdminKey);
+  await compatInsert(db, admin_keys).values(newAdminKey);
   
   // Write recovery token to file (0400 permissions - owner read-only)
   await writeRecoveryTokenFile(dataDir, recovery_token);
@@ -102,8 +103,7 @@ export async function authenticateAdminKey(
   adminKey: string
 ): Promise<boolean> {
   // Fetch active admin key
-  const [activeKey] = await db
-    .select()
+  const [activeKey] = await compatSelect(db)
     .from(admin_keys)
     .where(eq(admin_keys.is_active, true))
     .limit(1);
@@ -140,8 +140,7 @@ export async function rotateAdminKey(
   dataDir: string
 ): Promise<{ admin_key: string; recovery_token: string }> {
   // Fetch current active key
-  const [currentKey] = await db
-    .select()
+  const [currentKey] = await compatSelect(db)
     .from(admin_keys)
     .where(eq(admin_keys.is_active, true))
     .limit(1);
@@ -168,8 +167,7 @@ export async function rotateAdminKey(
   const now = new Date().toISOString();
   
   // Deactivate old key
-  await db
-    .update(admin_keys)
+  await compatUpdate(db, admin_keys)
     .set({ is_active: false })
     .where(eq(admin_keys.id, currentKey.id));
   
@@ -182,7 +180,7 @@ export async function rotateAdminKey(
     is_active: true,
   };
   
-  await db.insert(admin_keys).values(newAdminKey);
+  await compatInsert(db, admin_keys).values(newAdminKey);
   
   // Write new recovery token to file
   await writeRecoveryTokenFile(dataDir, new_recovery_token);
@@ -207,8 +205,7 @@ export async function recoverAdminKey(
   dataDir: string
 ): Promise<{ admin_key: string; recovery_token: string }> {
   // Fetch current active key
-  const [currentKey] = await db
-    .select()
+  const [currentKey] = await compatSelect(db)
     .from(admin_keys)
     .where(eq(admin_keys.is_active, true))
     .limit(1);
@@ -233,8 +230,7 @@ export async function recoverAdminKey(
   const now = new Date().toISOString();
   
   // Deactivate old key
-  await db
-    .update(admin_keys)
+  await compatUpdate(db, admin_keys)
     .set({ is_active: false })
     .where(eq(admin_keys.id, currentKey.id));
   
@@ -247,7 +243,7 @@ export async function recoverAdminKey(
     is_active: true,
   };
   
-  await db.insert(admin_keys).values(newAdminKey);
+  await compatInsert(db, admin_keys).values(newAdminKey);
   
   // Write new recovery token to file
   await writeRecoveryTokenFile(dataDir, new_recovery_token);
@@ -263,7 +259,7 @@ export async function recoverAdminKey(
  * @param db Database client
  */
 export async function factoryResetAdminKey(db: DatabaseClient): Promise<void> {
-  await db.delete(admin_keys);
+  await compatDelete(db, admin_keys);
   console.log('[db:admin-keys] Factory reset: all admin keys deleted');
 }
 
@@ -273,8 +269,7 @@ export async function factoryResetAdminKey(db: DatabaseClient): Promise<void> {
  * Returns first 8 chars of key hash for audit attribution.
  */
 export async function getAdminKeyHashPrefix(db: DatabaseClient): Promise<string | null> {
-  const [activeKey] = await db
-    .select()
+  const [activeKey] = await compatSelect(db)
     .from(admin_keys)
     .where(eq(admin_keys.is_active, true))
     .limit(1);

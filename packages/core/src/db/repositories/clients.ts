@@ -12,6 +12,7 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { clients, type Client, type NewClient, type ClientMetadata } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
 import argon2 from 'argon2';
 
 /**
@@ -73,7 +74,7 @@ export async function registerClient(
     metadata: data.metadata || '{}',
   };
   
-  await db.insert(clients).values(newClient);
+  await compatInsert(db, clients).values(newClient);
   
   console.log(`[db:clients] Registered client: ${client_id} (${friendly_name})`);
   
@@ -94,8 +95,7 @@ export async function authenticateClient(
   apiKey: string
 ): Promise<Client | null> {
   // Timing-safe lookup: fetch by client_id, then verify hash
-  const [client] = await db
-    .select()
+  const [client] = await compatSelect(db)
     .from(clients)
     .where(eq(clients.client_id, client_id))
     .limit(1);
@@ -132,8 +132,7 @@ export async function authenticateClient(
  * Get client by ID
  */
 export async function getClientById(db: DatabaseClient, client_id: string): Promise<Client | null> {
-  const [client] = await db
-    .select()
+  const [client] = await compatSelect(db)
     .from(clients)
     .where(eq(clients.client_id, client_id))
     .limit(1);
@@ -163,7 +162,7 @@ export async function listClients(
 ): Promise<{ clients: Client[]; has_more: boolean; next_cursor?: string }> {
   const limit = pagination?.limit || 25;
   
-  let query = db.select().from(clients);
+  let query = compatSelect(db).from(clients);
   
   // Apply filters
   const conditions = [];
@@ -210,8 +209,7 @@ export async function updateClientStatus(
   client_id: string,
   status: 'active' | 'suspended' | 'revoked'
 ): Promise<void> {
-  await db
-    .update(clients)
+  await compatUpdate(db, clients)
     .set({ status })
     .where(eq(clients.client_id, client_id));
   
@@ -223,8 +221,7 @@ export async function updateClientStatus(
  */
 export async function updateLastSeen(db: DatabaseClient, client_id: string): Promise<void> {
   const now = new Date().toISOString();
-  await db
-    .update(clients)
+  await compatUpdate(db, clients)
     .set({ last_seen_at: now })
     .where(eq(clients.client_id, client_id));
 }
@@ -243,8 +240,7 @@ export async function rotateClientApiKey(
 ): Promise<void> {
   const api_key_hash = await argon2.hash(newApiKey, ARGON2_OPTIONS);
   
-  await db
-    .update(clients)
+  await compatUpdate(db, clients)
     .set({ api_key_hash })
     .where(eq(clients.client_id, client_id));
   
@@ -259,8 +255,7 @@ export async function updateClientMetadata(
   client_id: string,
   metadata: ClientMetadata
 ): Promise<void> {
-  await db
-    .update(clients)
+  await compatUpdate(db, clients)
     .set({ metadata: JSON.stringify(metadata) })
     .where(eq(clients.client_id, client_id));
 }
@@ -271,7 +266,7 @@ export async function updateClientMetadata(
  * Audit events referencing this client are preserved (no FK constraint).
  */
 export async function deleteClient(db: DatabaseClient, client_id: string): Promise<void> {
-  await db.delete(clients).where(eq(clients.client_id, client_id));
+  await compatDelete(db, clients).where(eq(clients.client_id, client_id));
   console.log(`[db:clients] Client deleted: ${client_id}`);
 }
 
@@ -281,8 +276,7 @@ export async function deleteClient(db: DatabaseClient, client_id: string): Promi
 export async function countClientsByStatus(
   db: DatabaseClient
 ): Promise<{ status: string; count: number }[]> {
-  const results = await db
-    .select({
+  const results = await compatSelect(db, {
       status: clients.status,
       count: sql<number>`count(*)`.as('count'),
     })

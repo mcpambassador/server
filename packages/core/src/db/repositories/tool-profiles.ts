@@ -13,6 +13,7 @@ import { eq, sql, isNull } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { tool_profiles, type ToolProfile, type NewToolProfile, type RateLimits } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
 
 /**
  * Maximum profile inheritance depth (Architecture §3.3)
@@ -57,7 +58,7 @@ export async function createToolProfile(
     updated_at: now,
   };
   
-  await db.insert(tool_profiles).values(newProfile);
+  await compatInsert(db, tool_profiles).values(newProfile);
   
   console.log(`[db:tool-profiles] Created profile: ${profile_id} (${newProfile.name})`);
   
@@ -68,8 +69,7 @@ export async function createToolProfile(
  * Get profile by ID
  */
 export async function getToolProfileById(db: DatabaseClient, profile_id: string): Promise<ToolProfile | null> {
-  const [profile] = await db
-    .select()
+  const [profile] = await compatSelect(db)
     .from(tool_profiles)
     .where(eq(tool_profiles.profile_id, profile_id))
     .limit(1);
@@ -81,8 +81,7 @@ export async function getToolProfileById(db: DatabaseClient, profile_id: string)
  * Get profile by name
  */
 export async function getToolProfileByName(db: DatabaseClient, name: string): Promise<ToolProfile | null> {
-  const [profile] = await db
-    .select()
+  const [profile] = await compatSelect(db)
     .from(tool_profiles)
     .where(eq(tool_profiles.name, name))
     .limit(1);
@@ -106,7 +105,7 @@ export async function listToolProfiles(
 ): Promise<{ profiles: ToolProfile[]; has_more: boolean; next_cursor?: string }> {
   const limit = pagination?.limit || 25;
   
-  let query = db.select().from(tool_profiles);
+  let query = compatSelect(db).from(tool_profiles);
   
   // Cursor pagination (by name ASC)
   if (pagination?.cursor) {
@@ -148,8 +147,7 @@ export async function updateToolProfile(
   
   const now = new Date().toISOString();
   
-  await db
-    .update(tool_profiles)
+  await compatUpdate(db, tool_profiles)
     .set({ ...updates, updated_at: now })
     .where(eq(tool_profiles.profile_id, profile_id));
   
@@ -163,7 +161,7 @@ export async function updateToolProfile(
  */
 export async function deleteToolProfile(db: DatabaseClient, profile_id: string): Promise<void> {
   // FK constraint will reject if any clients reference this profile
-  await db.delete(tool_profiles).where(eq(tool_profiles.profile_id, profile_id));
+  await compatDelete(db, tool_profiles).where(eq(tool_profiles.profile_id, profile_id));
   console.log(`[db:tool-profiles] Profile deleted: ${profile_id}`);
 }
 
@@ -324,8 +322,7 @@ async function validateInheritance(
  * Get child profiles (profiles that inherit from this one)
  */
 export async function getChildProfiles(db: DatabaseClient, profile_id: string): Promise<ToolProfile[]> {
-  return db
-    .select()
+  return compatSelect(db)
     .from(tool_profiles)
     .where(eq(tool_profiles.inherited_from, profile_id));
 }
@@ -334,8 +331,7 @@ export async function getChildProfiles(db: DatabaseClient, profile_id: string): 
  * Get root profiles (profiles with no parent)
  */
 export async function getRootProfiles(db: DatabaseClient): Promise<ToolProfile[]> {
-  return db
-    .select()
+  return compatSelect(db)
     .from(tool_profiles)
     .where(isNull(tool_profiles.inherited_from));
 }

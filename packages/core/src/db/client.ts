@@ -225,8 +225,17 @@ export async function closeDatabase(db: DatabaseClient): Promise<void> {
  */
 export async function checkDatabaseHealth(db: DatabaseClient): Promise<boolean> {
   try {
-    // Simple query to verify connection
-    await db.execute('SELECT 1' as any);
+    // Simple query to verify connection - handle both database types
+    if ('execute' in db && typeof db.execute === 'function') {
+      // PostgreSQL: has execute method
+      await db.execute('SELECT 1' as any);
+    } else {
+      // SQLite: use prepare().run()
+      const prepare = (db as any).$client?.prepare;
+      if (prepare) {
+        prepare('SELECT 1').run();
+      }
+    }
     return true;
   } catch (err) {
     console.error('[db] Health check failed:', err);

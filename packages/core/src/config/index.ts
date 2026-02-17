@@ -10,7 +10,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'yaml';
-import { AmbassadorConfigSchema, isCredentialField, buildCredentialPatterns, type AmbassadorConfig } from './schema.js';
+import { AmbassadorConfigSchema, buildCredentialPatterns, type AmbassadorConfig } from './schema.js';
 import { logger } from '../utils/logger.js';
 import { AmbassadorError } from '../utils/errors.js';
 
@@ -118,6 +118,9 @@ async function resolveSecrets(
     const envMatch = obj.match(/^\$\{ENV:([A-Z_][A-Z0-9_]*)\}$/);
     if (envMatch) {
       const envVar = envMatch[1];
+      if (!envVar) {
+        throw new AmbassadorError('Invalid ENV reference: variable name is empty', 'config_resolution_error');
+      }
       const value = process.env[envVar];
       if (value === undefined) {
         throw new AmbassadorError(`Environment variable ${envVar} not found`, 'config_resolution_error');
