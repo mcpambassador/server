@@ -10,7 +10,7 @@
  * @see Architecture §11 Audit Deep Dive
  */
 
-/* eslint-disable no-console, @typescript-eslint/no-misused-promises, prefer-const */
+/* eslint-disable no-console, @typescript-eslint/no-misused-promises, prefer-const, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import type { AuditProvider, AuditQueryFilters, ProviderHealth } from '@mcpambassador/core';
 import type { AuditEvent } from '@mcpambassador/protocol';

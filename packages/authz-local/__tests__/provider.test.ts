@@ -13,9 +13,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { LocalRbacProvider, matchGlob } from '../src/index.js';
 import type { SessionContext, AuthzRequest } from '@mcpambassador/core';
 import {
-  createDatabaseClient,
-  createClient,
+  initializeDatabase,
+  runMigrations,
+  registerClient,
   createToolProfile,
+  closeDatabase,
   type DatabaseClient,
 } from '@mcpambassador/core';
 
@@ -25,8 +27,8 @@ describe('LocalRbacProvider', () => {
 
   beforeEach(async () => {
     // Create in-memory database for testing
-    db = await createDatabaseClient({ path: ':memory:', enableWAL: false });
-    await db.migrate();
+    db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: ':memory:', enableWAL: false });
+    await runMigrations(db);
 
     provider = new LocalRbacProvider(db);
     await provider.initialize({ provider_type: 'authz', provider_id: 'local_rbac' });
@@ -34,7 +36,7 @@ describe('LocalRbacProvider', () => {
 
   afterEach(async () => {
     await provider.shutdown();
-    await db.close();
+    await closeDatabase(db);
   });
 
   describe('authorize()', () => {
@@ -48,7 +50,7 @@ describe('LocalRbacProvider', () => {
       });
 
       // Create client with this profile
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -85,7 +87,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -121,7 +123,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify(['github.delete_*']), // But deny deletions
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -167,7 +169,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -205,7 +207,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -245,7 +247,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -286,7 +288,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify(['github.delete_*']),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
@@ -323,7 +325,7 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await createClient(db, {
+      const client = await registerClient(db, {
         friendly_name: 'test-client',
         host_tool: 'vscode',
         auth_method: 'api_key',
