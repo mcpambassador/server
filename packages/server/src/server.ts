@@ -194,6 +194,33 @@ export class AmbassadorServer {
   }
   
   /**
+   * Extract source IP from request, respecting trustProxy configuration
+   * 
+   * Security: F-SEC-M6-020 remediation + F-SEC-P1-001 fix
+   * - If trustProxy is false (default): Use only request.ip (direct connection)
+   * - If trustProxy is true: Trust first IP in X-Forwarded-For header
+   * - Always falls back to '0.0.0.0' if no IP available
+   * 
+   * @param request - Fastify request object
+   * @returns Source IP address as string
+   */
+  private getSourceIp(request: FastifyRequest): string {
+    if (this.config.trustProxy) {
+      // Trust X-Forwarded-For (first IP in comma-separated list)
+      const forwardedHeader = request.headers['x-forwarded-for'];
+      const forwardedFor = 
+        (Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader) ||
+        request.ip ||
+        '0.0.0.0';
+      return forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
+      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
+    } else {
+      // Default: Ignore X-Forwarded-For, use direct connection IP
+      return request.ip ?? '0.0.0.0';
+    }
+  }
+  
+  /**
    * Authentication helper - extracts and validates auth from request
    * Returns SessionContext on success, throws 401 on failure
    */
@@ -207,17 +234,8 @@ export class AmbassadorServer {
       }
     }
     
-    // F-SEC-M6-020 remediation: Only trust X-Forwarded-For if trustProxy is configured
-    let sourceIp: string;
-    if (this.config.trustProxy) {
-      // Trust X-Forwarded-For (first IP in comma-separated list)
-      const forwardedFor = headers['x-forwarded-for'] || request.ip || '0.0.0.0';
-      sourceIp = forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
-      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
-    } else {
-      // Default: Ignore X-Forwarded-For, use direct connection IP
-      sourceIp = request.ip ?? '0.0.0.0';
-    }
+    // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
+    const sourceIp = this.getSourceIp(request);
     
     if (!this.authn) {
       throw new Error('Authentication provider not initialized');
@@ -405,8 +423,8 @@ export class AmbassadorServer {
             headers[key] = value;
           }
         }
-        const forwardedFor = headers['x-forwarded-for'] || request.ip || '0.0.0.0';
-        const sourceIp = forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
+        // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
+        const sourceIp = this.getSourceIp(request);
         
         const authRequest = {
           headers,
