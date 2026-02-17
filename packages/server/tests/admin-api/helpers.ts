@@ -16,10 +16,7 @@ export interface TestServerHandle {
 export async function startTestServer(): Promise<TestServerHandle> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-'));
 
-  const server = new AmbassadorServer({ dataDir: tmp, port: 0, host: '127.0.0.1' });
-  await server.initialize();
-
-  // Open a separate DB handle to create admin key
+  // Initialize database and create admin key BEFORE starting server
   const dbPath = path.join(tmp, 'ambassador.db');
   const db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: dbPath, seedOnInit: true });
 
@@ -29,6 +26,13 @@ export async function startTestServer(): Promise<TestServerHandle> {
   // Create admin key for tests (plaintext returned)
   const { admin_key } = await createAdminKey(db as DatabaseClient, tmp);
 
+  // Close the temporary DB connection
+  await closeDatabase(db as DatabaseClient);
+
+  // Now initialize the server - it will open its own DB connection
+  const server = new AmbassadorServer({ dataDir: tmp, port: 0, host: '127.0.0.1' });
+  await server.initialize();
+
   return {
     fastify: server.getServer(),
     adminKey: admin_key,
@@ -36,12 +40,6 @@ export async function startTestServer(): Promise<TestServerHandle> {
     stop: async () => {
       try {
         await server.stop();
-      } catch (e) {
-        // ignore
-      }
-
-      try {
-        await closeDatabase(db as DatabaseClient);
       } catch (e) {
         // ignore
       }

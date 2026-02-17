@@ -489,84 +489,20 @@ export class AmbassadorServer {
 
     // ==========================================================================
     // ADMIN ENDPOINTS (authenticated + admin role required)
-    // Deferred M5 endpoints: M5.2-M5.4, M5.6
+    // M8: Admin API Implementation
     // ==========================================================================
 
-    // M5.2: Profile CRUD
-    // F-SEC-M6-026 remediation: Admin authentication required even for stub endpoints
-    this.fastify.get('/v1/admin/profiles', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        // TODO: Add admin role check when admin authentication is implemented
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Profile list endpoint - M5.2 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
+    // Register admin routes plugin
+    const { adminRoutes } = await import('./admin/routes.js');
+    await this.fastify.register(
+      adminRoutes,
+      {
+        db: this.db!,
+        audit: this.audit!,
+        mcpManager: this.mcpManager,
+        dataDir: this.config.dataDir,
       }
-    });
-
-    this.fastify.get('/v1/admin/profiles/:profileId', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Profile get endpoint - M5.2 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
-
-    this.fastify.post('/v1/admin/profiles', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Profile create endpoint - M5.2 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
-
-    this.fastify.patch('/v1/admin/profiles/:profileId', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Profile update endpoint - M5.2 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
-
-    this.fastify.delete('/v1/admin/profiles/:profileId', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Profile delete endpoint - M5.2 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
-
-    // M5.3: Kill switch
-    this.fastify.post('/v1/admin/kill-switch/:target', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Kill switch endpoint - M5.3 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
+    );
 
     // F-SEC-M6-005: Detailed health endpoint (admin only)
     this.fastify.get('/v1/admin/health', async (request, reply) => {
@@ -592,32 +528,6 @@ export class AmbassadorServer {
             message: 'Health check failed',
           });
         }
-      }
-    });
-
-    // M5.4: Client lifecycle
-    this.fastify.patch('/v1/clients/:clientId/status', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Client lifecycle endpoint - M5.4 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
-      }
-    });
-
-    // M5.6: Audit query
-    this.fastify.get('/v1/audit/events', async (request, reply) => {
-      try {
-        await this.authenticate(request);
-        reply.status(501).send({
-          error: 'Not Implemented',
-          message: 'Audit query endpoint - M5.6 deferred to M6',
-        });
-      } catch (err) {
-        reply.status(401).send({ error: 'Unauthorized', message: 'Admin authentication required' });
       }
     });
 
