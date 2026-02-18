@@ -8,6 +8,9 @@ import path from 'path';
 import { fileURLToPath } from 'node:url';
 import {
   initializeDatabase,
+  runMigrations,
+  seedDatabaseIfNeeded,
+  createAdminKey,
   closeDatabase,
   Pipeline,
   type DatabaseClient,
@@ -164,6 +167,20 @@ export class AmbassadorServer {
       enableWAL: true,
       seedOnInit: true,
     });
+
+    // Run database migrations (creates tables if needed)
+    console.log('[Server] Running database migrations...');
+    await runMigrations(this.db as DatabaseClient);
+
+    // Seed default profiles if needed
+    console.log('[Server] Seeding database...');
+    await seedDatabaseIfNeeded(this.db as DatabaseClient, {
+      type: 'sqlite',
+      seedOnInit: true,
+    });
+
+    // Bootstrap admin key on first boot
+    await this.bootstrapAdminKey();
 
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
@@ -730,6 +747,55 @@ export class AmbassadorServer {
       console.error('[Server] Failed to start:', err);
       throw err;
     }
+  }
+
+  /**
+   * Bootstrap admin key on first boot
+   * 
+   * If no active admin key exists in the database, generates one and prints
+   * it to stdout. The key is only shown once — store it securely.
+   * 
+   * Uses a raw SQL query to check for existing keys to avoid importing
+   * schema tables into server.ts.
+   * 
+   * @see ADR-006 Admin Authentication Model
+   */
+  private async bootstrapAdminKey(): Promise<void> {
+    // Check for existing active admin key using a raw query
+    // (avoids importing schema tables into server.ts)
+    const client = (this.db as any).session?.client;
+    let hasKey = false;
+    
+    if (client?.prepare) {
+      // SQLite
+      const row = client.prepare('SELECT COUNT(*) as cnt FROM admin_keys WHERE is_active = 1').get();
+      hasKey = row?.cnt > 0;
+    }
+
+    if (hasKey) {
+      console.log('[Server] Admin key already exists');
+      return;
+    }
+
+    // First boot — generate admin key
+    console.log('[Server] First boot detected — generating admin key...');
+    const { admin_key, recovery_token } = await createAdminKey(
+      this.db! as DatabaseClient,
+      this.config.dataDir
+    );
+
+    // Print to stdout ONLY (security: never logged, never stored in plaintext)
+    console.log('');
+    console.log('======================================================================');
+    console.log('           FIRST BOOT — ADMIN CREDENTIALS (shown only once!)');
+    console.log('======================================================================');
+    console.log(`  Admin Key:      ${admin_key}`);
+    console.log(`  Recovery Token: ${recovery_token}`);
+    console.log(`  Recovery file:  ${this.config.dataDir}/.recovery-token`);
+    console.log('');
+    console.log('  ⚠  SAVE THESE NOW — they will NOT be shown again!');
+    console.log('======================================================================');
+    console.log('');
   }
 
   /**

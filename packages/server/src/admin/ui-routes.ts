@@ -192,9 +192,18 @@ export async function registerUiRoutes(
       return reply.redirect(302, '/admin/login');
     }
 
-    // F-SEC-M10-003: Session regeneration to prevent session fixation
-    // Destroy old session and create new one with admin flag
-    await request.session.destroy();
+    // F-SEC-M10-003: Session fixation prevention
+    // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
+    // nullify the request.session object, making it impossible to set properties afterward.
+    // As a workaround, we manually clear existing session data to prevent data leakage.
+    // LIMITATION: This does not regenerate the session ID, which is less secure than proper
+    // session regeneration. Consider upgrading @fastify/session when a fixed version is available.
+    
+    // Clear any existing session data (prevents data leakage from previous sessions)
+    if (request.session.isAdmin) delete (request.session as any).isAdmin;
+    if (request.session.flash) delete (request.session as any).flash;
+    
+    // Set new authenticated session data
     request.session.isAdmin = true;
     request.session.flash = { type: 'success', message: 'Login successful' };
     await request.session.save();

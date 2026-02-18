@@ -70,6 +70,7 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/node_modules ./no
 # Copy each workspace package with its dist, package.json, and node_modules
 # The node_modules in each package contains symlinks to workspace dependencies
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/dist ./packages/core/dist
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/drizzle ./packages/core/drizzle
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/package.json ./packages/core/
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/node_modules ./packages/core/node_modules
 
