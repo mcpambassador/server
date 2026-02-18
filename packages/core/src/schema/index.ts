@@ -22,6 +22,56 @@ import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 /**
+ * users table
+ *
+ * Stores user identities. Users are the primary identity entity (ADR-011).
+ * A user can own multiple clients (VS Code, Claude Code, etc.).
+ * In Community tier, users may be auto-created from client registrations.
+ * In Pro/Enterprise, users are provisioned by admins or federated from IdPs.
+ *
+ * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
+ * @see Architecture §3.5 Identity Resolution Rules
+ */
+export const users = sqliteTable(
+  'users',
+  {
+    // Primary key
+    user_id: text('user_id').primaryKey().notNull(), // UUIDv4
+
+    // Identity
+    display_name: text('display_name').notNull(), // Human-readable name
+    email: text('email'), // Nullable — not required for Community/local users
+
+    // Lifecycle
+    status: text('status', {
+      enum: ['active', 'suspended', 'deactivated'],
+    })
+      .notNull()
+      .default('active'),
+
+    // Authentication source
+    auth_source: text('auth_source', {
+      enum: ['local', 'oidc', 'preshared_key'],
+    })
+      .notNull()
+      .default('local'),
+
+    // Timestamps
+    created_at: text('created_at').notNull(), // ISO 8601
+    last_login_at: text('last_login_at'), // ISO 8601, nullable
+
+    // Extensibility
+    metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
+  },
+  table => ({
+    // Indexes
+    emailIdx: index('idx_users_email').on(table.email),
+    statusIdx: index('idx_users_status').on(table.status),
+    authSourceIdx: index('idx_users_auth_source').on(table.auth_source),
+  })
+);
+
+/**
  * clients table
  *
  * Stores registered Ambassador Clients. Each client represents an installation
@@ -49,7 +99,10 @@ export const clients = sqliteTable(
       ],
     }).notNull(),
     machine_fingerprint: text('machine_fingerprint'), // SHA-256 hex, nullable
-    owner_user_id: text('owner_user_id'), // FK to users table (Phase 2), null in Community
+    owner_user_id: text('owner_user_id').references(() => users.user_id, {
+      onDelete: 'set null',
+      onUpdate: 'cascade',
+    }), // FK to users table, null in Community
 
     // Authentication
     auth_method: text('auth_method', {
@@ -253,10 +306,18 @@ export const audit_events = sqliteTable(
 /**
  * Drizzle relations (for ORM query joins)
  */
+export const usersRelations = relations(users, ({ many }: { many: any }) => ({
+  clients: many(clients),
+}));
+
 export const clientsRelations = relations(clients, ({ one }: { one: any }) => ({
   profile: one(tool_profiles, {
     fields: [clients.profile_id],
     references: [tool_profiles.profile_id],
+  }),
+  owner: one(users, {
+    fields: [clients.owner_user_id],
+    references: [users.user_id],
   }),
 }));
 
@@ -278,6 +339,9 @@ export const toolProfilesRelations = relations(
 /**
  * TypeScript types derived from schema (for application code)
  */
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
 
