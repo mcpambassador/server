@@ -69,6 +69,14 @@ export class BoundedSessionStore implements SessionStore {
       callback(err);
     }
   }
+
+  /**
+   * Clear all sessions (F-SEC-M10-005)
+   * Used when rotating admin credentials
+   */
+  clear(): void {
+    this.store.clear();
+  }
 }
 
 /**
@@ -142,4 +150,77 @@ export class LoginRateLimiter {
 
     return Math.ceil(remaining / 1000);
   }
+
+  /**
+   * Get failure count for IP (F-SEC-M10-004)
+   * Used for brute force detection alerts
+   */
+  getFailureCount(ip: string): number {
+    const record = this.attempts.get(ip);
+    if (!record) return 0;
+
+    const now = Date.now();
+    const elapsed = now - record.firstAttempt;
+
+    // If window expired, return 0
+    if (elapsed > this.windowMs) {
+      return 0;
+    }
+
+    return record.count;
+  }
+
+  /**
+   * Get progressive delay for failed attempts (F-SEC-M10-006)
+   * Returns delay in milliseconds (exponential backoff: 1s, 2s, 4s, 8s, 15s max)
+   */
+  getDelayMs(ip: string): number {
+    const record = this.attempts.get(ip);
+    if (!record) return 0;
+
+    // Exponential backoff: 2^(count-1) seconds, capped at 15 seconds
+    return Math.min(1000 * Math.pow(2, record.count - 1), 15000);
+  }
+}
+
+/**
+ * Get or create session secret (F-SEC-M10-001)
+ *
+ * Priority: 1) ADMIN_SESSION_SECRET env var, 2) Persisted file, 3) Generate new
+ * Persists to `.session-secret` in dataDir with 0600 permissions
+ *
+ * @param dataDir - Data directory path
+ * @returns Cryptographically secure session secret (≥32 chars)
+ */
+export function getOrCreateSessionSecret(dataDir: string): string {
+  // Environment variable takes priority
+  const envSecret = process.env['ADMIN_SESSION_SECRET'];
+  if (envSecret && envSecret.length >= 32) {
+    return envSecret;
+  }
+
+  // Try to read existing secret from file
+  const crypto = require('node:crypto') as typeof import('node:crypto');
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+
+  const secretPath = path.join(dataDir, '.session-secret');
+
+  try {
+    const existing = fs.readFileSync(secretPath, 'utf8').trim();
+    if (existing.length >= 32) {
+      return existing;
+    }
+  } catch {
+    // File doesn't exist or unreadable, generate new secret
+  }
+
+  // Generate new cryptographically random secret
+  const secret = crypto.randomBytes(32).toString('hex'); // 64 hex chars
+
+  // Persist to file with restrictive permissions
+  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+  fs.writeFileSync(secretPath, secret, { mode: 0o600 });
+
+  return secret;
 }

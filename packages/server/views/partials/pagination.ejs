@@ -1,12 +1,12 @@
-<% if (locals.totalPages && totalPages > 1) { %>
+<% if (page > 1 || hasMore) { %>
   <nav class="pagination">
     <% if (page > 1) { %>
       <a href="?page=<%= page - 1 %>">Previous</a>
     <% } %>
-    
-    <span>Page <%= page %> of <%= totalPages %></span>
-    
-    <% if (page < totalPages) { %>
+
+    <span>Page <%= page %></span>
+
+    <% if (hasMore) { %>
       <a href="?page=<%= page + 1 %>">Next</a>
     <% } %>
   </nav>

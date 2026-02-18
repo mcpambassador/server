@@ -30,6 +30,9 @@ coverage/
 *.db-wal
 data/
 
+# Admin session secrets (F-SEC-M10-001)
+.session-secret
+
 # Logs
 logs/
 *.log

@@ -14,16 +14,13 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
+import type { KillSwitchManager } from './kill-switch-manager.js';
+import { escapeHtml } from './html-escape.js';
 
 export interface HtmxRoutesOptions {
   db: DatabaseClient;
+  killSwitchManager: KillSwitchManager;
 }
-
-/**
- * Kill switch state (shared with routes.ts)
- * Phase 2/3 will move to database
- */
-const killSwitchState = new Map<string, boolean>();
 
 /**
  * Check if request has authenticated admin session
@@ -60,8 +57,9 @@ async function requireHxRequest(request: FastifyRequest, reply: FastifyReply): P
  */
 export async function registerHtmxRoutes(
   fastify: FastifyInstance,
-  _opts: HtmxRoutesOptions
+  opts: HtmxRoutesOptions
 ): Promise<void> {
+  const { killSwitchManager } = opts;
 
   /**
    * POST /admin/api/kill-switch/:type/:target - Toggle kill switch
@@ -74,21 +72,17 @@ export async function registerHtmxRoutes(
     (request, reply) => {
       const { type, target } = request.params;
 
-      const key = `${type}:${target}`;
-      const isActive = killSwitchState.get(key) || false;
+      const isActive = killSwitchManager.isActive(type, target);
 
-      if (isActive) {
-        killSwitchState.delete(key);
-      } else {
-        killSwitchState.set(key, true);
-      }
+      // CR-M10-001: Use shared kill-switch manager instead of local Map
+      killSwitchManager.toggle(type, target);
 
       const newState = !isActive;
 
       const buttonHtml = `
         <button 
           class="kill-switch-btn ${newState ? 'active' : ''}"
-          hx-post="/admin/api/kill-switch/${type}/${target}"
+          hx-post="/admin/api/kill-switch/${escapeHtml(type)}/${escapeHtml(target)}"
           hx-swap="outerHTML"
           hx-target="this">
           ${newState ? '🛑 Enabled' : '✓ Disabled'}
@@ -119,11 +113,11 @@ export async function registerHtmxRoutes(
       }
 
       const rowHtml = `
-        <tr id="client-${id}">
-          <td>${id}</td>
-          <td>${status}</td>
+        <tr id="client-${escapeHtml(id)}">
+          <td>${escapeHtml(id)}</td>
+          <td>${escapeHtml(status)}</td>
           <td>
-            <select hx-patch="/admin/api/clients/${id}/status" hx-target="#client-${id}">
+            <select hx-patch="/admin/api/clients/${escapeHtml(id)}/status" hx-target="#client-${escapeHtml(id)}">
               <option value="active" ${status === 'active' ? 'selected' : ''}>Active</option>
               <option value="suspended" ${status === 'suspended' ? 'selected' : ''}>Suspended</option>
             </select>
@@ -152,8 +146,8 @@ export async function registerHtmxRoutes(
 
       const id = `prof_${Date.now()}`;
       const html = `
-      <li id="profile-${id}">
-        <a href="/admin/profiles/${id}/edit">${name}</a>
+      <li id="profile-${escapeHtml(id)}">
+        <a href="/admin/profiles/${escapeHtml(id)}/edit">${escapeHtml(name)}</a>
       </li>
     `;
 
@@ -178,8 +172,8 @@ export async function registerHtmxRoutes(
       }
 
       const html = `
-        <div id="profile-${id}" class="profile-card">
-          <h3>${name}</h3>
+        <div id="profile-${escapeHtml(id)}" class="profile-card">
+          <h3>${escapeHtml(name)}</h3>
           <p>Updated successfully</p>
         </div>
       `;

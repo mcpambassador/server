@@ -22,6 +22,8 @@ import { ApiKeyAuthProvider } from '@mcpambassador/authn-apikey';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
 import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
+import { BoundedSessionStore } from './admin/session.js';
+import { KillSwitchManager } from './admin/kill-switch-manager.js';
 
 /**
  * MCP Ambassador Server (M6)
@@ -76,6 +78,8 @@ export class AmbassadorServer {
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
   private pipeline: Pipeline | null = null;
+  private killSwitchManager: KillSwitchManager; // CR-M10-001
+  private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -92,6 +96,7 @@ export class AmbassadorServer {
     };
 
     this.mcpManager = new DownstreamMcpManager();
+    this.killSwitchManager = new KillSwitchManager(); // CR-M10-001: Initialize shared manager
   }
 
   /**
@@ -231,9 +236,14 @@ export class AmbassadorServer {
     const ejs = (await import('ejs')).default;
 
     // Import admin modules
-    const { BoundedSessionStore } = await import('./admin/session.js');
+    const { getOrCreateSessionSecret } = await import('./admin/session.js');
     const { registerUiRoutes } = await import('./admin/ui-routes.js');
     const { registerHtmxRoutes } = await import('./admin/htmx-routes.js');
+
+    // Create session store instance if not already created (F-SEC-M10-005)
+    if (!this.sessionStore) {
+      this.sessionStore = new BoundedSessionStore(100);
+    }
 
     // Create admin Fastify instance with same TLS config
     this.adminServer = Fastify({
@@ -262,16 +272,16 @@ export class AmbassadorServer {
     // Register cookie support
     await this.adminServer.register(fastifyCookie);
 
-    // Register session with bounded store (SEC-M10-06)
+    // F-SEC-M10-001: Use secure session secret (env var or generated)
     await this.adminServer.register(fastifySession, {
-      secret: 'a-secret-with-minimum-length-of-32-characters', // TODO: Move to config
+      secret: getOrCreateSessionSecret(this.config.dataDir),
       cookie: {
         secure: true,
         httpOnly: true,
         sameSite: 'strict',
         path: '/admin',
       },
-      store: new BoundedSessionStore(100),
+      store: this.sessionStore,
       saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
     });
 
@@ -325,6 +335,7 @@ export class AmbassadorServer {
       audit: this.audit!,
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
+      killSwitchManager: this.killSwitchManager, // CR-M10-001
     });
 
     // Register UI routes
@@ -332,11 +343,15 @@ export class AmbassadorServer {
       db: this.db!,
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
+      audit: this.audit!, // F-SEC-M10-004
+      killSwitchManager: this.killSwitchManager, // CR-M10-001
+      sessionStore: this.sessionStore, // F-SEC-M10-005
     });
 
     // Register htmx fragment routes
     await registerHtmxRoutes(this.adminServer, {
       db: this.db!,
+      killSwitchManager: this.killSwitchManager, // CR-M10-001
     });
 
     console.log('[Admin] Admin UI server initialized');
@@ -649,6 +664,7 @@ export class AmbassadorServer {
         audit: this.audit!,
         mcpManager: this.mcpManager,
         dataDir: this.config.dataDir,
+        killSwitchManager: this.killSwitchManager, // CR-M10-001
       }
     );
 

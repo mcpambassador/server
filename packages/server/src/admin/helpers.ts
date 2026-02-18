@@ -5,6 +5,38 @@
  */
 
 import type { DatabaseClient } from '@mcpambassador/core';
+
+// Template/data interfaces for admin UI helpers
+export interface McpStatusItem {
+  name?: string;
+  transport?: string;
+  status?: string;
+  toolCount?: number;
+}
+
+export interface AuditEventSummary {
+  timestamp: string | number;
+  client_id?: string | null;
+  action?: string | null;
+  tool_name?: string | null;
+  decision?: string | null;
+  profile_id?: string | null;
+}
+
+export interface ClientSummary {
+  id?: string;
+  name?: string;
+  profile_name?: string;
+  status?: string;
+  created_at?: string | number;
+}
+
+export interface ProfileSummary {
+  id?: string;
+  name?: string;
+  allowed_tools?: string;
+  denied_tools?: string;
+}
 import {
   listClients,
   listToolProfiles,
@@ -22,27 +54,23 @@ export async function getDashboardData(
 ): Promise<{
   clientCount: number;
   profileCount: number;
-  mcpStatus: unknown[];
-  auditEvents: unknown[];
+  mcpStatus: McpStatusItem[];
+  auditEvents: AuditEventSummary[];
 }> {
-  // Get client count - use pagination to get approximate count
-  const clientsData = await listClients(db, undefined, { limit: 100 });
+  // Run dashboard queries in parallel
+  const [clientsData, profilesData, mcpStatus, auditData] = await Promise.all([
+    listClients(db, undefined, { limit: 100 }),
+    listToolProfiles(db, {}),
+    Promise.resolve(mcpManager.getStatus()),
+    queryAuditEvents(db, undefined, { limit: 10 }),
+  ]);
   const clientCount = clientsData.clients.length;
-
-  // Get profile count using listToolProfiles
-  const profilesData = await listToolProfiles(db, {});
   const profileCount = profilesData.profiles.length;
-
-  // Get downstream MCP status
-  const mcpStatus = mcpManager.getStatus();
-
-  // Get recent audit events (last 10)
-  const auditData = await queryAuditEvents(db, undefined, { limit: 10 });
 
   return {
     clientCount,
     profileCount,
-    mcpStatus: Array.isArray(mcpStatus) ? mcpStatus : [],
+    mcpStatus: Array.isArray(mcpStatus) ? (mcpStatus as McpStatusItem[]) : [],
     auditEvents: auditData.events || [],
   };
 }
@@ -55,11 +83,10 @@ export async function getClients(
   page = 1,
   limit = 20
 ): Promise<{
-  clients: unknown[];
-  total: number;
+  clients: ClientSummary[];
   page: number;
   limit: number;
-  totalPages: number;
+  hasMore: boolean;
 }> {
   // For Phase 1, just get first page of clients
   // Phase 2 will implement proper cursor-based pagination
@@ -67,27 +94,26 @@ export async function getClients(
 
   return {
     clients: clientsData.clients || [],
-    total: clientsData.clients.length, // Approximate
     page,
     limit,
-    totalPages: clientsData.has_more ? page + 1 : page,
+    hasMore: clientsData.has_more ?? false,
   };
 }
 
 /**
  * Get all profiles
  */
-export async function getProfiles(db: DatabaseClient): Promise<unknown[]> {
+export async function getProfiles(db: DatabaseClient): Promise<ProfileSummary[]> {
   const { profiles } = await listToolProfiles(db, {});
-  return profiles || [];
+  return (profiles || []) as ProfileSummary[];
 }
 
 /**
  * Get single profile by ID
  */
-export async function getProfile(db: DatabaseClient, id: string): Promise<Record<string, unknown> | null> {
+export async function getProfile(db: DatabaseClient, id: string): Promise<ProfileSummary | null> {
   const profile = await getToolProfileById(db, id);
-  return profile || null;
+  return (profile as ProfileSummary) || null;
 }
 
 /**
@@ -110,11 +136,10 @@ export async function getAuditLog(
   limit = 50,
   filters?: { client_id?: string; action?: string }
 ): Promise<{
-  events: unknown[];
-  total: number;
+  events: AuditEventSummary[];
   page: number;
   limit: number;
-  totalPages: number;
+  hasMore: boolean;
 }> {
   // For Phase 1, just get first page of events
   // Phase 2 will implement proper cursor-based pagination
@@ -129,10 +154,9 @@ export async function getAuditLog(
 
   return {
     events: auditData.events || [],
-    total: auditData.events.length, // Approximate
     page,
     limit,
-    totalPages: auditData.has_more ? page + 1 : page,
+    hasMore: auditData.has_more ?? false,
   };
 }
 

@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { DownstreamMcpManager } from '../downstream/index.js';
+import type { KillSwitchManager } from './kill-switch-manager.js';
 import { authenticateAdmin } from './middleware.js';
 import {
   createProfileSchema,
@@ -45,13 +46,8 @@ export interface AdminRoutesConfig {
   audit: AuditProvider;
   mcpManager: DownstreamMcpManager;
   dataDir: string;
+  killSwitchManager: KillSwitchManager; // CR-M10-001: Shared kill switch manager
 }
-
-/**
- * Kill switch state (in-memory for Phase 1)
- * Phase 2/3 will persist to database or config file
- */
-const killSwitchState = new Map<string, boolean>();
 
 /**
  * Admin routes plugin
@@ -61,7 +57,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   opts: AdminRoutesConfig,
   done
 ) => {
-  const { db, audit, mcpManager, dataDir } = opts;
+  const { db, audit, mcpManager, dataDir, killSwitchManager } = opts;
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -356,13 +352,14 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
   // ==========================================================================
   // M8.8: POST /v1/admin/kill-switch/:target
+  // CR-M10-001: Use shared kill switch manager
   // ==========================================================================
   fastify.post('/v1/admin/kill-switch/:target', async (request, reply) => {
     const { target } = killSwitchParamsSchema.parse(request.params);
     const body = killSwitchSchema.parse(request.body);
 
-    // Store kill switch state
-    killSwitchState.set(target, body.enabled);
+    // Store kill switch state using shared manager
+    killSwitchManager.set(target, body.enabled);
 
     // Emit audit event
     await audit.emit({

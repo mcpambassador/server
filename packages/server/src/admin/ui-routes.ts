@@ -13,10 +13,13 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { DatabaseClient } from '@mcpambassador/core';
+import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { DownstreamMcpManager } from '../downstream/index.js';
+import type { KillSwitchManager } from './kill-switch-manager.js';
+import type { BoundedSessionStore } from './session.js';
 import { authenticateAdminKey } from '@mcpambassador/core';
 import { LoginRateLimiter } from './session.js';
+import crypto from 'node:crypto';
 import {
   getDashboardData,
   getClients,
@@ -42,6 +45,9 @@ export interface UiRoutesOptions {
   db: DatabaseClient;
   mcpManager: DownstreamMcpManager;
   dataDir: string;
+  audit: AuditProvider; // F-SEC-M10-004
+  killSwitchManager: KillSwitchManager; // CR-M10-001
+  sessionStore: BoundedSessionStore; // F-SEC-M10-005
 }
 
 /**
@@ -49,6 +55,17 @@ export interface UiRoutesOptions {
  */
 function isAuthenticated(request: FastifyRequest): boolean {
   return request.session?.isAdmin === true;
+}
+
+/**
+ * CR-M10-009: Extract flash message helper to eliminate duplication
+ * Returns flash message and removes it from session
+ * Note: Currently only applied to login page. Will be applied to other routes as needed.
+ */
+function extractFlash(request: FastifyRequest): { type: string; message: string } | undefined {
+  const flash = request.session.flash;
+  delete request.session.flash;
+  return flash;
 }
 
 /**
@@ -82,8 +99,7 @@ export async function registerUiRoutes(
     if (isAuthenticated(request)) {
       return reply.redirect(302, '/admin/dashboard');
     }
-    const flash = request.session.flash;
-    delete request.session.flash;
+    const flash = extractFlash(request);
 
     return reply.view('login', {
       flash,
@@ -93,26 +109,62 @@ export async function registerUiRoutes(
 
   /**
    * POST /admin/login - Handle login form submission
+   * F-SEC-M10-004: Session regeneration + audit events
+   * CR-M10-004: Consistent error handling (redirect+flash)
+   * CR-M10-005: Refactored for clarity
    */
   fastify.post<{ Body: { admin_key?: string } }>('/admin/login', async (request, reply) => {
     const sourceIp = request.ip || '0.0.0.0';
-
-    // Check rate limit
-    if (rateLimiter.isRateLimited(sourceIp)) {
-      const retryAfter = rateLimiter.getRetryAfter(sourceIp);
-      return reply
-        .header('Retry-After', retryAfter.toString())
-        .status(429)
-        .send({
-          error: 'Too Many Requests',
-          message: `Too many failed login attempts. Try again in ${retryAfter} seconds.`,
-        });
-    }
-
     const { admin_key: adminKey } = request.body;
 
+    // F-SEC-M10-004: Check rate limit with audit event on brute force
+    if (rateLimiter.isRateLimited(sourceIp)) {
+      const retryAfter = rateLimiter.getRetryAfter(sourceIp);
+      
+      // Emit brute force detection audit event
+      await opts.audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        event_type: 'error',
+        severity: 'critical',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'brute_force_detected',
+        metadata: { retry_after: retryAfter },
+      });
+
+      // CR-M10-004: Use redirect+flash instead of JSON for consistency
+      request.session.flash = {
+        type: 'error',
+        message: `Too many failed login attempts. Try again in ${retryAfter} seconds.`,
+      };
+      return reply.redirect(302, '/admin/login');
+    }
+
+    // F-SEC-M10-006: Apply progressive delay before authentication attempt
+    const delayMs = rateLimiter.getDelayMs(sourceIp);
+    if (delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    // Validate input
     if (!adminKey || typeof adminKey !== 'string') {
       rateLimiter.recordFailure(sourceIp);
+      
+      // F-SEC-M10-004: Emit login failure audit event
+      await opts.audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        event_type: 'auth_failure',
+        severity: 'warn',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'login_failure',
+        metadata: { reason: 'missing_key' },
+      });
+
       request.session.flash = { type: 'error', message: 'Admin key is required' };
       return reply.redirect(302, '/admin/login');
     }
@@ -122,14 +174,46 @@ export async function registerUiRoutes(
 
     if (!isValid) {
       rateLimiter.recordFailure(sourceIp);
+
+      // F-SEC-M10-004: Emit login failure audit event
+      await opts.audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        event_type: 'auth_failure',
+        severity: 'warn',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'login_failure',
+        metadata: { reason: 'invalid_key' },
+      });
+
       request.session.flash = { type: 'error', message: 'Invalid admin key' };
       return reply.redirect(302, '/admin/login');
     }
 
-    // Success - set session and reset rate limit
-    rateLimiter.reset(sourceIp);
+    // F-SEC-M10-003: Session regeneration to prevent session fixation
+    // Destroy old session and create new one with admin flag
+    await request.session.destroy();
     request.session.isAdmin = true;
+    request.session.flash = { type: 'success', message: 'Login successful' };
     await request.session.save();
+
+    // Success - reset rate limit
+    rateLimiter.reset(sourceIp);
+
+    // F-SEC-M10-004: Emit login success audit event
+    await opts.audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      event_type: 'auth_success',
+      severity: 'info',
+      client_id: undefined,
+      user_id: 'admin',
+      source_ip: sourceIp,
+      action: 'login_success',
+      metadata: {},
+    });
 
     return reply.redirect(302, '/admin/dashboard');
   });
