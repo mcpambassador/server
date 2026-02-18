@@ -381,13 +381,22 @@ export async function registerUiRoutes(
    * GET /admin/downstream - Downstream MCP management
    */
   fastify.get('/admin/downstream', { preHandler: requireAuth }, async (request, reply) => {
-    const mcpStatus = mcpManager.getStatus();
+    const status = mcpManager.getStatus();
 
     const flash = request.session.flash;
     delete request.session.flash;
 
     return reply.view('downstream', {
-      mcpStatus,
+      mcpStatus: status.connections.map(c => ({
+        name: c.name,
+        status: c.connected ? 'Connected' : 'Disconnected',
+        toolCount: c.tool_count,
+      })),
+      summary: {
+        totalConnections: status.total_connections,
+        healthyConnections: status.healthy_connections,
+        totalTools: status.total_tools,
+      },
       flash,
       title: 'Downstream MCPs',
     });
