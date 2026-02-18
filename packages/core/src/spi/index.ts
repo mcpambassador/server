@@ -83,10 +83,10 @@ export interface AuthError {
 export interface SessionContext {
   /** Server-generated session UUID */
   session_id: string;
-  /** Client ID from database */
+  /** Client ID from database (or connection ID in ephemeral mode) */
   client_id: string;
-  /** Linked user ID (null in Community API-key mode) */
-  user_id?: string;
+  /** Linked user ID (REQUIRED in Phase 3+, optional for backward compat) */
+  user_id: string;
   /** Which provider authenticated this session */
   auth_method: string;
   /** User's groups (from IdP or local database) */
@@ -97,6 +97,10 @@ export interface SessionContext {
   issued_at: number;
   /** Unix timestamp (seconds) */
   expires_at: number;
+  /** Connection ID (Phase 3+: from session_connections table) */
+  connection_id?: string;
+  /** Tool profile ID (Phase 3+: from session) */
+  profile_id?: string;
 }
 
 // ===== §5.2 Authorization SPI =====

@@ -20,25 +20,18 @@ import {
   type SessionContext,
   type PipelineToolInvocationRequest,
   getEffectiveProfile,
-  getClientById,
-  getToolProfileById,
   AuthorizationError,
   AmbassadorError,
 } from '@mcpambassador/core';
 import {
-  ApiKeyAuthProvider,
-  registerClient,
-  type RegisterClientRequest,
-  rotateClientKey,
-  type RotateKeyResponse,
-} from '@mcpambassador/authn-apikey';
+  EphemeralAuthProvider,
+  getOrCreateHmacSecret,
+  registerSession,
+  type RegistrationRequest,
+} from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
-import type {
-  ToolCatalogResponse,
-  ToolDescriptor,
-  RegistrationResponse,
-} from '@mcpambassador/protocol';
+import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
 import { BoundedSessionStore } from './admin/session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 
@@ -97,6 +90,7 @@ export class AmbassadorServer {
   private pipeline: Pipeline | null = null;
   private killSwitchManager: KillSwitchManager; // CR-M10-001
   private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005
+  private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -197,14 +191,18 @@ export class AmbassadorServer {
 
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
-    this.authn = new ApiKeyAuthProvider(this.db);
+    
+    // Initialize ephemeral auth provider with HMAC secret
+    this.hmacSecret = getOrCreateHmacSecret(this.config.dataDir);
+    this.authn = new EphemeralAuthProvider(this.db, this.hmacSecret);
+    
     this.authz = new LocalRbacProvider(this.db);
     this.audit = new FileAuditProvider({
       auditDir: path.join(this.config.dataDir, 'audit'),
       retention: 90,
     });
 
-    await this.authn!.initialize({ id: 'api_key_auth' });
+    await this.authn!.initialize({ id: 'ephemeral_auth' });
     await this.authz!.initialize({ id: 'local_rbac' });
     await this.audit!.initialize({ id: 'file_audit' });
 
@@ -460,132 +458,62 @@ export class AmbassadorServer {
     if (!this.fastify) throw new Error('Server not initialized');
 
     // ==========================================================================
-    // CLIENT REGISTRATION (no auth required - this is how clients get API keys)
+    // SESSION REGISTRATION (no auth required - uses preshared key)
     // ==========================================================================
 
     this.fastify.post(
-      '/v1/clients/register',
+      '/v1/sessions/register',
       { bodyLimit: 4096 },
       async (request, reply) => {
         try {
           // Parse request body
-          const body = request.body as RegisterClientRequest;
+          const body = request.body as RegistrationRequest;
 
           // Get source IP for rate limiting
           const sourceIp = this.getSourceIp(request);
 
-          // Register client (includes rate limiting, validation, key generation)
-          const result = await registerClient(this.db!, body, sourceIp);
-
-          // Lookup profile name from database
-          const profile = await getToolProfileById(this.db!, result.profile_id);
-
-          if (!profile) {
-            throw new AmbassadorError(
-              `Profile ${result.profile_id} not found`,
-              'internal_error',
-              500
-            );
-          }
+          // Register session (includes rate limiting, validation, token generation)
+          const result = await registerSession(this.db!, this.hmacSecret!, body, sourceIp);
 
           // Build protocol-compliant response
-          const response: RegistrationResponse = {
-            client_id: result.client_id,
-            api_key: result.api_key,
-            profile_id: result.profile_id,
-            profile_name: profile.name,
-            status: 'active',
-          };
-
-          reply.status(201).send(response);
-        } catch (err) {
-          if (err instanceof AmbassadorError) {
-            // Use statusCode from AmbassadorError (429, 400, 403, 500)
-            reply.status(err.statusCode || 500).send({
-              error: err.code,
-              message: err.message,
-            });
-          } else {
-            // Unexpected error
-            reply.status(500).send({
-              error: 'internal_error',
-              message: 'Client registration failed',
-            });
-          }
-        }
-      }
-    );
-
-    // ==========================================================================
-    // CLIENT KEY ROTATION (authenticated)
-    // ==========================================================================
-
-    this.fastify.post(
-      '/v1/clients/:id/rotate-key',
-      { bodyLimit: 4096 },
-      async (request, reply) => {
-        try {
-          // Authenticate request
-          const session = await this.authenticate(request);
-
-          // Extract client ID from path parameter
-          const params = request.params as { id: string };
-          const clientId = params.id;
-
-          // SECURITY: Verify the authenticated client_id matches the requested :id
-          // A client can only rotate their own key
-          if (session.client_id !== clientId) {
-            reply.status(403).send({
-              error: 'forbidden',
-              message: 'You can only rotate your own API key',
-            });
-            return;
-          }
-
-          // Parse request body to get current API key
-          const body = request.body as { current_api_key?: string };
-
-          if (!body || typeof body.current_api_key !== 'string') {
-            reply.status(400).send({
-              error: 'bad_request',
-              message: 'Missing or invalid "current_api_key" field',
-            });
-            return;
-          }
-
-          // Rotate the key (validates current key, generates new key, invalidates old)
-          const result: RotateKeyResponse = await rotateClientKey(
-            this.db!,
-            clientId,
-            body.current_api_key
-          );
-
-          // Return 201 with new key (shown only once)
           reply.status(201).send(result);
         } catch (err) {
-          if (err instanceof Error && err.message === 'Unauthorized') {
-            reply.status(401).send({
-              error: 'unauthorized',
-              message:
-                'Valid API key required. Include X-API-Key or Authorization: Bearer <key> header.',
-            });
-          } else if (err instanceof AmbassadorError) {
-            // Use statusCode from AmbassadorError (401, 403, 404, 500)
-            reply.status(err.statusCode || 500).send({
+          if (err instanceof AmbassadorError) {
+            reply.status(err.statusCode).send({
               error: err.code,
               message: err.message,
             });
           } else {
-            // Unexpected error
-            console.error('[key-rotation] Error:', err);
+            this.fastify!.log.error({ err }, '[Server] Session registration error');
             reply.status(500).send({
-              error: 'internal_error',
-              message: 'Key rotation failed',
+              error: 'registration_failed',
+              message: 'Failed to register session',
             });
           }
         }
       }
     );
+
+    // Legacy route: redirect /v1/clients/register to 410 Gone
+    this.fastify.post('/v1/clients/register', async (_request, reply) => {
+      reply.status(410).send({
+        error: 'endpoint_retired',
+        message:
+          'API key authentication is retired. Use POST /v1/sessions/register with preshared key instead.',
+      });
+    });
+
+    // ==========================================================================
+    // CLIENT KEY ROTATION (retired)
+    // ==========================================================================
+
+    this.fastify.post('/v1/clients/:id/rotate-key', async (_request, reply) => {
+      reply.status(410).send({
+        error: 'endpoint_retired',
+        message:
+          'API key rotation is retired. Sessions are managed automatically with preshared keys.',
+      });
+    });
 
     // ==========================================================================
     // MCP ENDPOINTS (authenticated)
@@ -597,25 +525,28 @@ export class AmbassadorServer {
         // Authenticate request
         const session = await this.authenticate(request);
 
-        // Get client's effective profile
+        // Get profile directly from session (Phase 3)
         if (!this.db || !this.authz) {
           throw new Error('Server not properly initialized');
         }
 
-        const client = await getClientById(this.db, session.client_id);
-        if (!client) {
+        // In ephemeral auth, session.profile_id and session.attributes.profile_id
+        // are available. Use session.profile_id (or fallback to attributes.profile_id)
+        const profileId = session.profile_id || session.attributes.profile_id;
+        if (!profileId) {
           reply.status(403).send({
             error: 'Forbidden',
-            message: 'Client not found',
+            message: 'No profile assigned to session',
           });
           return;
         }
-        const profile = await getEffectiveProfile(this.db, client.profile_id);
+
+        const profile = await getEffectiveProfile(this.db, profileId);
 
         if (!profile) {
           reply.status(403).send({
             error: 'Forbidden',
-            message: 'No profile assigned to client',
+            message: 'Profile not found',
           });
           return;
         }
@@ -660,7 +591,7 @@ export class AmbassadorServer {
           reply.status(401).send({
             error: 'Unauthorized',
             message:
-              'Valid API key required. Include X-API-Key or Authorization: Bearer <key> header.',
+              'Valid session token required. Include X-Session-Token header.',
           });
         } else {
           console.error('[/v1/tools] Error:', err);
@@ -780,7 +711,7 @@ export class AmbassadorServer {
         if (err instanceof Error && err.message === 'Unauthorized') {
           reply.status(401).send({
             error: 'Unauthorized',
-            message: 'Valid API key required',
+            message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
@@ -833,7 +764,7 @@ export class AmbassadorServer {
         if (err instanceof Error && err.message === 'Unauthorized') {
           reply.status(401).send({
             error: 'Unauthorized',
-            message: 'Valid API key required',
+            message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
           console.error('[/v1/admin/health] Error:', err);

@@ -170,7 +170,7 @@ export class ApiKeyAuthProvider implements AuthenticationProvider {
       const session: SessionContext = {
         session_id: uuidv4(),
         client_id: client.client_id,
-        user_id: client.owner_user_id || undefined,
+        user_id: client.owner_user_id || 'anonymous', // Required field per Phase 3
         auth_method: 'api_key',
         groups: [], // Phase 2: populate from user profile
         attributes: {
