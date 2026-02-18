@@ -58,6 +58,7 @@ export const users = sqliteTable(
 
     // Timestamps
     created_at: text('created_at').notNull(), // ISO 8601
+    updated_at: text('updated_at').notNull(), // ISO 8601
     last_login_at: text('last_login_at'), // ISO 8601, nullable
 
     // Phase 4 credential vault (SEC-V2-004)

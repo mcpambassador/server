@@ -49,8 +49,8 @@ services:
       # Logging
       MCP_AMBASSADOR_LOG_LEVEL: ${LOG_LEVEL:-info}
       
-      # Production mode
-      NODE_ENV: production
+      # Production mode (override with NODE_ENV env var for dev/test)
+      NODE_ENV: ${NODE_ENV:-production}
       
       # Downstream MCP API keys (ADR-009)
       ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}

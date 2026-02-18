@@ -296,6 +296,7 @@ export async function seedDevPresharedKeys(db: any): Promise<void> {
     status: 'active',
     auth_source: 'preshared_key',
     created_at: timestamp,
+    updated_at: timestamp,
     metadata: '{}',
   });
 
