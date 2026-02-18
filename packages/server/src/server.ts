@@ -20,12 +20,22 @@ import {
   type SessionContext,
   type PipelineToolInvocationRequest,
   getEffectiveProfile,
+  getToolProfileById,
   AuthorizationError,
+  AmbassadorError,
 } from '@mcpambassador/core';
-import { ApiKeyAuthProvider } from '@mcpambassador/authn-apikey';
+import {
+  ApiKeyAuthProvider,
+  registerClient,
+  type RegisterClientRequest,
+} from '@mcpambassador/authn-apikey';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
-import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
+import type {
+  ToolCatalogResponse,
+  ToolDescriptor,
+  RegistrationResponse,
+} from '@mcpambassador/protocol';
 import { BoundedSessionStore } from './admin/session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 
@@ -450,20 +460,58 @@ export class AmbassadorServer {
     // CLIENT REGISTRATION (no auth required - this is how clients get API keys)
     // ==========================================================================
 
-    // F-SEC-M6-025 remediation: Rate limiting required when registration is implemented
-    // TODO: Add rate limiter before registration (e.g., @fastify/rate-limit) to prevent:
-    //   - DoS attacks via registration flooding
-    //   - API key exhaustion attacks
-    //   - Resource consumption (DB writes, email sends, etc.)
-    // Recommended: 5 requests per IP per hour, with exponential backoff on repeated violations
+    this.fastify.post(
+      '/v1/clients/register',
+      { bodyLimit: 4096 },
+      async (request, reply) => {
+        try {
+          // Parse request body
+          const body = request.body as RegisterClientRequest;
 
-    this.fastify.post('/v1/clients/register', async (_request, reply) => {
-      // M6: Stub implementation - will be completed with client registration logic
-      reply.status(501).send({
-        error: 'Not Implemented',
-        message: 'Client registration endpoint - M6 implementation pending',
-      });
-    });
+          // Get source IP for rate limiting
+          const sourceIp = this.getSourceIp(request);
+
+          // Register client (includes rate limiting, validation, key generation)
+          const result = await registerClient(this.db!, body, sourceIp);
+
+          // Lookup profile name from database
+          const profile = await getToolProfileById(this.db!, result.profile_id);
+
+          if (!profile) {
+            throw new AmbassadorError(
+              `Profile ${result.profile_id} not found`,
+              'internal_error',
+              500
+            );
+          }
+
+          // Build protocol-compliant response
+          const response: RegistrationResponse = {
+            client_id: result.client_id,
+            api_key: result.api_key,
+            profile_id: result.profile_id,
+            profile_name: profile.name,
+            status: 'active',
+          };
+
+          reply.status(201).send(response);
+        } catch (err) {
+          if (err instanceof AmbassadorError) {
+            // Use statusCode from AmbassadorError (429, 400, 403, 500)
+            reply.status(err.statusCode || 500).send({
+              error: err.code,
+              message: err.message,
+            });
+          } else {
+            // Unexpected error
+            reply.status(500).send({
+              error: 'internal_error',
+              message: 'Client registration failed',
+            });
+          }
+        }
+      }
+    );
 
     // ==========================================================================
     // MCP ENDPOINTS (authenticated)
