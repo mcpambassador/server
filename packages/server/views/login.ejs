@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <main class="container">
+    <article class="login-card">
+      <header>
+        <h1>Admin Login</h1>
+      </header>
+      
+      <% if (locals.flash) { %>
+        <div class="flash flash-<%= flash.type %>">
+          <%= flash.message %>
+        </div>
+      <% } %>
+      
+      <form method="POST" action="/admin/login">
+        <label for="admin_key">
+          Admin Key
+          <input type="password" id="admin_key" name="admin_key" required autocomplete="off">
+        </label>
+        
+        <button type="submit">Login</button>
+      </form>
+    </article>
+  </main>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Profile - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Edit Profile: <%= profile.name %></h1>
+      
+      <form method="POST" action="/v1/admin/profiles/<%= profile.id %>">
+        <label for="name">
+          Profile Name
+          <input type="text" id="name" name="name" value="<%= profile.name %>" required>
+        </label>
+        
+        <label for="allowed_tools">
+          Allowed Tools (JSON array of glob patterns)
+          <textarea id="allowed_tools" name="allowed_tools" rows="5"><%= profile.allowed_tools || '["*"]' %></textarea>
+        </label>
+        
+        <label for="denied_tools">
+          Denied Tools (JSON array of glob patterns)
+          <textarea id="denied_tools" name="denied_tools" rows="5"><%= profile.denied_tools || '[]' %></textarea>
+        </label>
+        
+        <button type="submit">Save Changes</button>
+        <a href="/admin/profiles" role="button" class="secondary">Cancel</a>
+      </form>
+    </main>
+  </div>
+</body>
+</html>

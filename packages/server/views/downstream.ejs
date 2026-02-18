@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Downstream MCPs - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Downstream MCP Servers</h1>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Transport</th>
+            <th>Status</th>
+            <th>Tool Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (mcpStatus.length === 0) { %>
+            <tr><td colspan="4">No downstream MCPs configured</td></tr>
+          <% } else { %>
+            <% mcpStatus.forEach(mcp => { %>
+              <tr>
+                <td><%= mcp.name %></td>
+                <td><%= mcp.transport %></td>
+                <td><%= mcp.status %></td>
+                <td><%= mcp.toolCount || 0 %></td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+      
+      <p><small>Note: Downstream MCP configuration is managed via server config file.</small></p>
+    </main>
+  </div>
+</body>
+</html>

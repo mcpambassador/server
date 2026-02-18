@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Log - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Audit Log</h1>
+      
+      <form method="GET" action="/admin/audit">
+        <div class="grid">
+          <label for="client_id">
+            Client ID
+            <input type="text" id="client_id" name="client_id" value="<%= filters.client_id || '' %>" placeholder="Filter by client">
+          </label>
+          
+          <label for="action">
+            Action
+            <input type="text" id="action" name="action" value="<%= filters.action || '' %>" placeholder="Filter by action">
+          </label>
+          
+          <div>
+            <label>&nbsp;</label>
+            <button type="submit">Filter</button>
+          </div>
+        </div>
+      </form>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Client</th>
+            <th>Action</th>
+            <th>Tool</th>
+            <th>Decision</th>
+            <th>Profile</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (events.length === 0) { %>
+            <tr><td colspan="6">No audit events found</td></tr>
+          <% } else { %>
+            <% events.forEach(evt => { %>
+              <tr>
+                <td><%= formatTimestamp(evt.timestamp) %></td>
+                <td><%= evt.client_id %></td>
+                <td><%= evt.action %></td>
+                <td><%= evt.tool_name || 'N/A' %></td>
+                <td><%= evt.decision %></td>
+                <td><%= evt.profile_id || 'N/A' %></td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+      
+      <%- include('partials/pagination') %>
+    </main>
+  </div>
+</body>
+</html>

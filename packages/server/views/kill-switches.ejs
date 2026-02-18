@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kill Switches - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Kill Switches</h1>
+      
+      <p>Active kill switches that block tool/profile/client execution.</p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Target</th>
+            <th>Reason</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (killSwitches.length === 0) { %>
+            <tr><td colspan="5">No active kill switches</td></tr>
+          <% } else { %>
+            <% killSwitches.forEach(ks => { %>
+              <tr id="killswitch-<%= ks.type %>-<%= ks.target %>">
+                <td><%= ks.type %></td>
+                <td><%= ks.target %></td>
+                <td><%= ks.reason || 'N/A' %></td>
+                <td><%= formatTimestamp(ks.created_at) %></td>
+                <td>
+                  <button 
+                    hx-post="/admin/api/kill-switch/<%= ks.type %>/<%= ks.target %>"
+                    hx-swap="outerHTML"
+                    hx-target="this"
+                    class="secondary">
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+      
+      <section>
+        <h2>Add Kill Switch</h2>
+        <form method="POST" action="/v1/admin/kill-switches">
+          <label for="type">
+            Type
+            <select id="type" name="type" required>
+              <option value="tool">Tool</option>
+              <option value="profile">Profile</option>
+              <option value="client">Client</option>
+            </select>
+          </label>
+          
+          <label for="target">
+            Target
+            <input type="text" id="target" name="target" required placeholder="tool name, profile ID, or client ID">
+          </label>
+          
+          <label for="reason">
+            Reason
+            <input type="text" id="reason" name="reason" placeholder="Optional reason">
+          </label>
+          
+          <button type="submit">Add Kill Switch</button>
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

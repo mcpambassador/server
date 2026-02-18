@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profiles - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Profiles</h1>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Allowed Tools</th>
+            <th>Denied Tools</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (profiles.length === 0) { %>
+            <tr><td colspan="4">No profiles defined</td></tr>
+          <% } else { %>
+            <% profiles.forEach(profile => { %>
+              <tr id="profile-<%= profile.id %>">
+                <td><%= profile.name %></td>
+                <td><%= profile.allowed_tools || '["*"]' %></td>
+                <td><%= profile.denied_tools || '[]' %></td>
+                <td>
+                  <a href="/admin/profiles/<%= profile.id %>/edit">Edit</a>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,122 @@
+/* Admin UI Custom Styles */
+
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.admin-nav {
+  width: 250px;
+  background: #f5f5f5;
+  padding: 1rem;
+  border-right: 1px solid #ddd;
+}
+
+.admin-nav h2 {
+  margin-bottom: 1rem;
+}
+
+.admin-nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.admin-nav li {
+  margin-bottom: 0.5rem;
+}
+
+.admin-nav a {
+  display: block;
+  padding: 0.5rem;
+  color: #333;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.admin-nav a:hover {
+  background: #e0e0e0;
+}
+
+.admin-content {
+  flex: 1;
+  padding: 2rem;
+}
+
+.login-card {
+  max-width: 400px;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.flash {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  border: 1px solid;
+}
+
+.flash-error {
+  background: #fee;
+  border-color: #c55;
+  color: #c55;
+}
+
+.flash-success {
+  background: #efe;
+  border-color: #5c5;
+  color: #5c5;
+}
+
+.flash-info {
+  background: #eef;
+  border-color: #55c;
+  color: #55c;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stats-grid article {
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.stats-grid h2 {
+  font-size: 2rem;
+  margin: 0.5rem 0;
+}
+
+.kill-switch-btn {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  background: #5c5;
+  color: white;
+}
+
+.kill-switch-btn.active {
+  background: #c55;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 1rem 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}

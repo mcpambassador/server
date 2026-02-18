@@ -25,12 +25,10 @@ export async function startAdminTestServer(opts: { uiEnabled?: boolean } = {}): 
   // Start the server with admin UI enabled on ephemeral ports
   const server = new AmbassadorServer({ dataDir: tmp, port: 0, adminPort: 0, adminUiEnabled: opts.uiEnabled ?? true, host: '127.0.0.1' })
   // initialize may start Fastify instances; implementation may vary
-  // let errors bubble up to tests so they fail until implemented
-  // @ts-ignore - ambient API expected on AmbassadorServer
   await server.initialize()
 
   return {
-    fastify: server.getServer(),
+    fastify: server.getAdminServer(),
     adminKey: admin_key,
     dataDir: tmp,
     stop: async () => {

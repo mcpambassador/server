@@ -60,12 +60,17 @@ export interface ServerConfig {
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
   trustProxy?: boolean | string[];
+  /** Admin UI port (defaults to 9443, 0 for ephemeral) */
+  adminPort?: number;
+  /** Enable admin UI (defaults to true) */
+  adminUiEnabled?: boolean;
 }
 
 export class AmbassadorServer {
   private fastify: FastifyInstance | null = null;
+  private adminServer: FastifyInstance | null = null;
   private mcpManager: DownstreamMcpManager;
-  private config: Required<ServerConfig>;
+  private config: Required<ServerConfig> & { adminPort: number; adminUiEnabled: boolean };
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
@@ -82,6 +87,8 @@ export class AmbassadorServer {
       downstreamMcps: config.downstreamMcps || [],
       dbPath: config.dbPath || path.join(config.dataDir, 'ambassador.db'),
       trustProxy: config.trustProxy || false,
+      adminPort: config.adminPort ?? 9443,
+      adminUiEnabled: config.adminUiEnabled ?? true,
     };
 
     this.mcpManager = new DownstreamMcpManager();
@@ -191,7 +198,148 @@ export class AmbassadorServer {
     // Register route handlers
     await this.registerRoutes();
 
+    // Initialize admin UI server (M10)
+    if (this.config.adminUiEnabled !== false) {
+      await this.initializeAdminServer(tlsCerts);
+    }
+
     console.log('[Server] Initialization complete');
+  }
+
+  /**
+   * Initialize admin UI server (M10)
+   * 
+   * Creates separate Fastify instance on adminPort with:
+   * - Session management
+   * - EJS view rendering
+   * - Static file serving
+   * - UI and htmx routes
+   * - Security headers
+   * 
+   * @see ADR-007 Admin UI Technology Selection (EJS + htmx)
+   * @see ADR-008 Admin UI Routing (Dedicated Port 9443)
+   */
+  private async initializeAdminServer(tlsCerts: { key: string; cert: string; ca: string }): Promise<void> {
+    console.log('[Admin] Initializing admin UI server...');
+
+    // Import required plugins
+    const fastifyView = (await import('@fastify/view')).default;
+    const fastifyStatic = (await import('@fastify/static')).default;
+    const fastifyFormbody = (await import('@fastify/formbody')).default;
+    const fastifyCookie = (await import('@fastify/cookie')).default;
+    const fastifySession = (await import('@fastify/session')).default;
+    const ejs = (await import('ejs')).default;
+
+    // Import admin modules
+    const { BoundedSessionStore } = await import('./admin/session.js');
+    const { registerUiRoutes } = await import('./admin/ui-routes.js');
+    const { registerHtmxRoutes } = await import('./admin/htmx-routes.js');
+
+    // Create admin Fastify instance with same TLS config
+    this.adminServer = Fastify({
+      logger: {
+        level: this.config.logLevel,
+      },
+      bodyLimit: 1048576,
+      https: {
+        key: Buffer.from(tlsCerts.key),
+        cert: Buffer.from(tlsCerts.cert),
+        ca: Buffer.from(tlsCerts.ca),
+        minVersion: 'TLSv1.2',
+        ciphers: [
+          'TLS_AES_256_GCM_SHA384',
+          'TLS_AES_128_GCM_SHA256',
+          'TLS_CHACHA20_POLY1305_SHA256',
+          'ECDHE-ECDSA-AES256-GCM-SHA384',
+          'ECDHE-RSA-AES256-GCM-SHA384',
+          'ECDHE-ECDSA-AES128-GCM-SHA256',
+          'ECDHE-RSA-AES128-GCM-SHA256',
+        ].join(':'),
+        honorCipherOrder: true,
+      },
+    });
+
+    // Register cookie support
+    await this.adminServer.register(fastifyCookie);
+
+    // Register session with bounded store (SEC-M10-06)
+    await this.adminServer.register(fastifySession, {
+      secret: 'a-secret-with-minimum-length-of-32-characters', // TODO: Move to config
+      cookie: {
+        secure: true,
+        httpOnly: true,
+        sameSite: 'strict',
+        path: '/admin',
+      },
+      store: new BoundedSessionStore(100),
+      saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
+    });
+
+    // Register form body parser
+    await this.adminServer.register(fastifyFormbody);
+
+    // Determine view paths relative to this source file
+    const viewsPath = path.join(__dirname, '..', 'views');
+    const publicPath = path.join(__dirname, '..', 'public');
+
+    // Register view engine (EJS)
+    await this.adminServer.register(fastifyView, {
+      engine: {
+        ejs,
+      },
+      root: viewsPath,
+      options: {
+        filename: viewsPath,
+      },
+    });
+
+    // Register static file serving
+    await this.adminServer.register(fastifyStatic, {
+      root: publicPath,
+      prefix: '/',
+    });
+
+    // Security headers hook (SEC-M10-01, SEC-M10-10)
+    this.adminServer.addHook('onSend', async (_request, reply, payload) => {
+      // SEC-M10-01: Content Security Policy
+      reply.header(
+        'Content-Security-Policy',
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
+      );
+
+      // SEC-M10-10: Cache-Control for all admin responses
+      reply.header('Cache-Control', 'no-store');
+
+      // Additional security headers
+      reply.header('X-Content-Type-Options', 'nosniff');
+      reply.header('X-Frame-Options', 'DENY');
+      reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+
+      return payload;
+    });
+
+    // Register admin REST API routes (so they work on admin port too)
+    const { adminRoutes } = await import('./admin/routes.js');
+    await this.adminServer.register(adminRoutes, {
+      db: this.db!,
+      audit: this.audit!,
+      mcpManager: this.mcpManager,
+      dataDir: this.config.dataDir,
+    });
+
+    // Register UI routes
+    await registerUiRoutes(this.adminServer, {
+      db: this.db!,
+      mcpManager: this.mcpManager,
+      dataDir: this.config.dataDir,
+    });
+
+    // Register htmx fragment routes
+    await registerHtmxRoutes(this.adminServer, {
+      db: this.db!,
+    });
+
+    console.log('[Admin] Admin UI server initialized');
   }
 
   /**
@@ -549,6 +697,16 @@ export class AmbassadorServer {
       });
 
       console.log(`[Server] Listening on https://${this.config.host}:${this.config.port}`);
+
+      // Start admin UI server if enabled
+      if (this.adminServer) {
+        await this.adminServer.listen({
+          host: this.config.host,
+          port: this.config.adminPort,
+        });
+
+        console.log(`[Admin] Admin UI listening on https://${this.config.host}:${this.config.adminPort}`);
+      }
     } catch (err) {
       console.error('[Server] Failed to start:', err);
       throw err;
@@ -576,6 +734,11 @@ export class AmbassadorServer {
       await closeDatabase(this.db);
     }
 
+    // Shutdown admin server
+    if (this.adminServer) {
+      await this.adminServer.close();
+    }
+
     // Then shutdown HTTP server
     if (this.fastify) {
       await this.fastify.close();
@@ -585,9 +748,30 @@ export class AmbassadorServer {
   }
 
   /**
-   * Get the Fastify instance (for testing)
+   * Get the main API Fastify instance (for testing)
+   * 
+   * Returns the primary API server instance. Tests use this to inject
+   * requests for API routes (/health, /v1/*).
    */
   getServer(): FastifyInstance {
+    if (!this.fastify) {
+      throw new Error('Server not initialized');
+    }
+    return this.fastify;
+  }
+
+  /**
+   * Get the admin UI Fastify instance (for testing)
+   * 
+   * Returns the admin UI server instance. Tests use this to inject
+   * requests for admin UI and htmx routes. Falls back to the main
+   * server if admin UI is disabled.
+   */
+  getAdminServer(): FastifyInstance {
+    if (this.adminServer) {
+      return this.adminServer;
+    }
+    // Fallback to main server when admin UI is disabled
     if (!this.fastify) {
       throw new Error('Server not initialized');
     }

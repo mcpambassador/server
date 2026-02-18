@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title || 'Admin' %> - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Navigation Sidebar -->
+    <%- include('partials/nav') %>
+
+    <!-- Main Content -->
+    <main class="admin-content">
+      <!-- Flash Messages -->
+      <%- include('partials/flash') %>
+
+      <!-- Page Content -->
+      <%- body %>
+    </main>
+  </div>
+</body>
+</html>
