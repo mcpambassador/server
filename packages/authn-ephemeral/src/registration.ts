@@ -193,6 +193,7 @@ export async function registerSession(
         session_token: token,
         expires_at: existingSession.expires_at,
         profile_id: existingSession.profile_id,
+        connection_id: connectionId,
       };
     }
 
@@ -243,6 +244,7 @@ export async function registerSession(
       session_token: token,
       expires_at: expiresAt,
       profile_id: validatedKey.profile_id,
+      connection_id: connectionId,
     };
   } catch (err) {
     recordFailure(sourceIp);

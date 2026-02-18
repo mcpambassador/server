@@ -19,6 +19,7 @@ export interface RegistrationResponse {
   session_token: string;
   expires_at: string; // ISO 8601
   profile_id: string;
+  connection_id: string;
 }
 
 /**

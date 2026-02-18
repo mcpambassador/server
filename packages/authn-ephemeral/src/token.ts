@@ -22,7 +22,7 @@ import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, preshared_keys, compatUpdate } from '@mcpambassador/core';
+import { logger, preshared_keys, compatUpdate, AmbassadorError } from '@mcpambassador/core';
 import type {
   ValidatedPresharedKey,
   GeneratedSessionToken,
@@ -74,13 +74,13 @@ export async function validatePresharedKey(
   // 1. Validate format
   if (!rawKey.startsWith('amb_pk_')) {
     await randomDelay();
-    throw new Error('Invalid preshared key format');
+    throw new AmbassadorError('Invalid preshared key format', 'invalid_credentials', 401);
   }
 
   const keyBody = rawKey.slice(7); // Remove "amb_pk_" prefix
   if (keyBody.length !== 48 || !/^[A-Za-z0-9_-]+$/.test(keyBody)) {
     await randomDelay();
-    throw new Error('Invalid preshared key format');
+    throw new AmbassadorError('Invalid preshared key format', 'invalid_credentials', 401);
   }
 
   // 2. Extract prefix (first 8 chars of random portion after amb_pk_)
@@ -101,7 +101,7 @@ export async function validatePresharedKey(
   if (validCandidates.length === 0) {
     logger.warn('[authn-ephemeral] No active keys found for prefix');
     await randomDelay();
-    throw new Error('Invalid preshared key');
+    throw new AmbassadorError('Invalid preshared key', 'invalid_credentials', 401);
   }
 
   // 4. Verify against each candidate (early exit on first match)
@@ -133,7 +133,7 @@ export async function validatePresharedKey(
   // 5. No match found - add random delay
   logger.warn('[authn-ephemeral] Preshared key verification failed');
   await randomDelay();
-  throw new Error('Invalid preshared key');
+  throw new AmbassadorError('Invalid preshared key', 'invalid_credentials', 401);
 }
 
 /**

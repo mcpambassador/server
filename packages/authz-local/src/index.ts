@@ -95,44 +95,62 @@ export class LocalRbacProvider implements AuthorizationProvider {
   async authorize(session: SessionContext, request: AuthzRequest): Promise<AuthzDecision> {
     const { tool_name } = request;
 
-    // 1. Get client record to retrieve profile_id
-    const client = await getClientById(this.db, session.client_id);
-    if (!client) {
-      return {
-        decision: 'deny',
-        reason: `Client not found: ${session.client_id}`,
-        policy_id: 'system_default',
-      };
-    }
-
-    // 2. Check if client is suspended or revoked
-    if (client.status === 'suspended') {
-      return {
-        decision: 'deny',
-        reason: 'Client is suspended',
-        policy_id: 'system_lifecycle',
-      };
-    }
-
-    if (client.status === 'revoked') {
-      return {
-        decision: 'deny',
-        reason: 'Client is revoked',
-        policy_id: 'system_lifecycle',
-      };
-    }
-
-    // 3. Get effective profile (merged from inheritance chain)
+    // Dual-path profile resolution:
+    // 1. Session-based auth (ephemeral): profile_id is directly available from session context
+    // 2. Legacy client-based auth: look up profile_id from clients table
     let effectiveProfile;
-    try {
-      effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
-    } catch (error) {
-      console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
-      return {
-        decision: 'deny',
-        reason: 'Profile resolution error',
-        policy_id: 'system_error',
-      };
+
+    if (session.profile_id) {
+      // New path: ephemeral session auth provides profile_id directly
+      try {
+        effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
+      } catch (error) {
+        console.error(`[authz:local] Failed to resolve profile ${session.profile_id}:`, error);
+        return {
+          decision: 'deny',
+          reason: 'Profile resolution error',
+          policy_id: 'system_error',
+        };
+      }
+    } else {
+      // Legacy path: client-based auth requires client lookup
+      const client = await getClientById(this.db, session.client_id);
+      if (!client) {
+        return {
+          decision: 'deny',
+          reason: `Client not found: ${session.client_id}`,
+          policy_id: 'system_default',
+        };
+      }
+
+      // Check if client is suspended or revoked
+      if (client.status === 'suspended') {
+        return {
+          decision: 'deny',
+          reason: 'Client is suspended',
+          policy_id: 'system_lifecycle',
+        };
+      }
+
+      if (client.status === 'revoked') {
+        return {
+          decision: 'deny',
+          reason: 'Client is revoked',
+          policy_id: 'system_lifecycle',
+        };
+      }
+
+      // Get effective profile from client's profile_id
+      try {
+        effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
+      } catch (error) {
+        console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
+        return {
+          decision: 'deny',
+          reason: 'Profile resolution error',
+          policy_id: 'system_error',
+        };
+      }
     }
 
     // 4. DENY-WINS: Check denied_tools first
@@ -178,26 +196,41 @@ export class LocalRbacProvider implements AuthorizationProvider {
     session: SessionContext,
     allTools: ToolDescriptor[]
   ): Promise<ToolDescriptor[]> {
-    // Get client and effective profile
-    const client = await getClientById(this.db, session.client_id);
-    if (!client) {
-      console.warn(`[authz:local] Client not found for session ${session.session_id}`);
-      return [];
-    }
-
-    if (client.status !== 'active') {
-      console.warn(
-        `[authz:local] Client ${client.client_id} is ${client.status}, returning empty tool list`
-      );
-      return [];
-    }
-
+    // Dual-path profile resolution:
+    // 1. Session-based auth (ephemeral): profile_id is directly available from session context
+    // 2. Legacy client-based auth: look up profile_id from clients table
     let effectiveProfile;
-    try {
-      effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
-    } catch (error) {
-      console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
-      return [];
+
+    if (session.profile_id) {
+      // New path: ephemeral session auth provides profile_id directly
+      try {
+        effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
+      } catch (error) {
+        console.error(`[authz:local] Failed to resolve profile ${session.profile_id}:`, error);
+        return [];
+      }
+    } else {
+      // Legacy path: client-based auth requires client lookup
+      const client = await getClientById(this.db, session.client_id);
+      if (!client) {
+        console.warn(`[authz:local] Client not found for session ${session.session_id}`);
+        return [];
+      }
+
+      if (client.status !== 'active') {
+        console.warn(
+          `[authz:local] Client ${client.client_id} is ${client.status}, returning empty tool list`
+        );
+        return [];
+      }
+
+      // Get effective profile from client's profile_id
+      try {
+        effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
+      } catch (error) {
+        console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
+        return [];
+      }
     }
 
     // Filter tools using same logic as authorize()

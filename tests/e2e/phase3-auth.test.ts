@@ -181,7 +181,9 @@ describe('Phase 3 Auth E2E Tests', () => {
     // Save for later tests
     sessionToken = response.body.session_token;
     sessionId = response.body.session_id;
+    connectionId = response.body.connection_id;
 
+    expect(response.body).toHaveProperty('connection_id');
     console.log('[Test] Session registered:', { sessionId, connectionId });
   });
 
@@ -192,7 +194,7 @@ describe('Phase 3 Auth E2E Tests', () => {
       'test-e2e-invalid'
     );
 
-    expect([401, 500]).toContain(response.status);
+    expect(response.status).toBe(401);
     expect(response.body).toHaveProperty('error');
   });
 
@@ -265,11 +267,9 @@ describe('Phase 3 Auth E2E Tests', () => {
       { 'X-Session-Token': sessionToken }
     );
 
-    // Server does not currently return connection_id on registration,
-    // so we cannot reliably disconnect the created connection by id.
-    // Expect 404 Not Found for unknown/missing connection id.
-    expect(response.status).toBe(404);
-    expect(response.body).toHaveProperty('error');
+    // connection_id is now returned from registration
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty('connection_id', connectionId);
   });
 
   test('Test 9: Disconnect wrong connection should return 404', async () => {
