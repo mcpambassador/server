@@ -11,7 +11,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 
-import { tool_profiles } from './index.js';
+import { tool_profiles, users } from './index.js';
 
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
@@ -256,4 +256,54 @@ export async function seedDatabase(db: any): Promise<void> {
 export function getDefaultProfileId(name: string): string | null {
   const profile = defaultProfiles.find(p => p.name === name);
   return profile ? profile.profile_id : null;
+}
+
+/**
+ * Seeds dev/test preshared key data
+ * Only runs in NODE_ENV=development or NODE_ENV=test
+ */
+export async function seedDevPresharedKeys(db: any): Promise<void> {
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    console.log('[seed] Skipping dev preshared key seed (not development/test environment)');
+    return;
+  }
+
+  // Check if dev user already exists
+  const existingUsers = await db.query.users.findMany({ limit: 1 });
+  if (existingUsers.length > 0) {
+    console.log('[seed] Users already exist, skipping dev seed');
+    return;
+  }
+
+  const devUserId = uuidv4();
+  const timestamp = now();
+
+  // Find the all-tools profile
+  const allToolsProfile = await db.query.tool_profiles.findFirst({
+    where: (profile: any, { eq }: any) => eq(profile.name, 'all-tools'),
+  });
+
+  if (!allToolsProfile) {
+    console.log('[seed] Warning: all-tools profile not found, skipping dev preshared key seed');
+    return;
+  }
+
+  // Insert dev user
+  await db.insert(users).values({
+    user_id: devUserId,
+    display_name: 'Dev User',
+    email: 'dev@localhost',
+    status: 'active',
+    auth_source: 'preshared_key',
+    created_at: timestamp,
+    metadata: '{}',
+  });
+
+  // NOTE: The actual preshared key hash and prefix are generated at server startup
+  // when the server detects no preshared keys exist and the dev seed flag is set.
+  // This seed only creates the user entry. The preshared key record is created
+  // by the server's bootstrap logic (similar to admin key first-boot generation).
+  // This avoids hardcoding Argon2id hashes in seed data.
+  console.log(`[seed] Created dev user: ${devUserId}`);
+  console.log('[seed] Dev preshared key will be generated on first server boot');
 }

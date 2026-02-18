@@ -18,7 +18,7 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 /**
@@ -60,6 +60,9 @@ export const users = sqliteTable(
     created_at: text('created_at').notNull(), // ISO 8601
     last_login_at: text('last_login_at'), // ISO 8601, nullable
 
+    // Phase 4 credential vault (SEC-V2-004)
+    vault_salt: text('vault_salt'), // Random per-user salt for credential vault KDF, nullable
+
     // Extensibility
     metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
   },
@@ -68,6 +71,187 @@ export const users = sqliteTable(
     emailIdx: index('idx_users_email').on(table.email),
     statusIdx: index('idx_users_status').on(table.status),
     authSourceIdx: index('idx_users_auth_source').on(table.auth_source),
+  })
+);
+
+/**
+ * preshared_keys table
+ *
+ * Stores preshared keys for Phase 3 ephemeral session authentication.
+ * Each key is bound to a user and tool profile. Keys are provisioned by admins
+ * and used by clients to establish ephemeral sessions.
+ *
+ * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
+ * @see SEC-V2-001 Preshared Key Format and Lookup
+ */
+export const preshared_keys = sqliteTable(
+  'preshared_keys',
+  {
+    // Primary key
+    key_id: text('key_id').primaryKey().notNull(), // UUIDv4
+
+    // Key material
+    key_prefix: text('key_prefix').notNull(), // First 8 chars of raw key for O(1) lookup
+    key_hash: text('key_hash').notNull(), // Argon2id output string
+
+    // Identity
+    label: text('label').notNull(), // Human-readable label, e.g., "Alice - Developer"
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    // Authorization
+    profile_id: text('profile_id')
+      .notNull()
+      .references(() => tool_profiles.profile_id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+
+    // Lifecycle
+    status: text('status', {
+      enum: ['active', 'suspended', 'revoked'],
+    })
+      .notNull()
+      .default('active'),
+    created_by: text('created_by').notNull(), // Admin user_id who provisioned this key
+    created_at: text('created_at').notNull(), // ISO 8601
+    expires_at: text('expires_at'), // Optional key-level expiry, ISO 8601
+    last_used_at: text('last_used_at'), // ISO 8601, nullable
+
+    // Extensibility
+    metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
+  },
+  table => ({
+    // Indexes
+    keyPrefixIdx: index('idx_preshared_keys_key_prefix').on(table.key_prefix),
+    userIdIdx: index('idx_preshared_keys_user_id').on(table.user_id),
+    statusIdx: index('idx_preshared_keys_status').on(table.status),
+    keyHashUnique: uniqueIndex('unique_preshared_keys_key_hash').on(table.key_hash),
+  })
+);
+
+/**
+ * user_sessions table
+ *
+ * Stores ephemeral user sessions for Phase 3 shared-identity model.
+ * A session is established via preshared key authentication and represents
+ * the user's active "work context" for a defined time period.
+ *
+ * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
+ * @see SEC-V2-003 Session Token Format
+ */
+export const user_sessions = sqliteTable(
+  'user_sessions',
+  {
+    // Primary key
+    session_id: text('session_id').primaryKey().notNull(), // UUIDv4
+
+    // Identity
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    // Session token
+    session_token_hash: text('session_token_hash').notNull(), // HMAC-SHA256 hex string
+    token_nonce: text('token_nonce').notNull(), // 32-byte hex-encoded nonce for HMAC input
+
+    // Lifecycle
+    status: text('status', {
+      enum: ['active', 'idle', 'spinning_down', 'suspended', 'expired'],
+    })
+      .notNull()
+      .default('active'),
+
+    // Authorization
+    profile_id: text('profile_id')
+      .notNull()
+      .references(() => tool_profiles.profile_id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+
+    // Timestamps
+    created_at: text('created_at').notNull(), // ISO 8601
+    last_activity_at: text('last_activity_at').notNull(), // ISO 8601
+    expires_at: text('expires_at').notNull(), // ISO 8601
+
+    // Timeouts
+    idle_timeout_seconds: integer('idle_timeout_seconds').notNull().default(1800), // 30 minutes
+    spindown_delay_seconds: integer('spindown_delay_seconds').notNull().default(300), // 5 minutes
+
+    // Extensibility
+    metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
+  },
+  table => ({
+    // Indexes
+    userStatusIdx: index('idx_user_sessions_user_status').on(table.user_id, table.status),
+    statusIdx: index('idx_user_sessions_status').on(table.status),
+    expiresAtIdx: index('idx_user_sessions_expires_at').on(table.expires_at),
+    tokenHashIdx: uniqueIndex('unique_user_sessions_token_hash').on(table.session_token_hash),
+  })
+);
+
+/**
+ * session_connections table
+ *
+ * Tracks individual client connections to an ephemeral session.
+ * A session can have multiple concurrent connections (VS Code + Claude Desktop).
+ *
+ * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
+ */
+export const session_connections = sqliteTable(
+  'session_connections',
+  {
+    // Primary key
+    connection_id: text('connection_id').primaryKey().notNull(), // UUIDv4
+
+    // Session reference
+    session_id: text('session_id')
+      .notNull()
+      .references(() => user_sessions.session_id, {
+        onDelete: 'cascade',
+        onUpdate: 'cascade',
+      }),
+
+    // Connection identity
+    friendly_name: text('friendly_name').notNull(), // "VS Code - Dev Laptop"
+    host_tool: text('host_tool', {
+      enum: [
+        'vscode',
+        'claude-desktop',
+        'claude-code',
+        'opencode',
+        'gemini-cli',
+        'chatgpt',
+        'jetbrains',
+        'cli',
+        'custom',
+      ],
+    }).notNull(),
+
+    // Timestamps
+    connected_at: text('connected_at').notNull(), // ISO 8601
+    last_heartbeat_at: text('last_heartbeat_at').notNull(), // ISO 8601
+    disconnected_at: text('disconnected_at'), // ISO 8601, nullable
+
+    // Lifecycle
+    status: text('status', {
+      enum: ['connected', 'disconnected'],
+    })
+      .notNull()
+      .default('connected'),
+  },
+  table => ({
+    // Indexes
+    sessionIdIdx: index('idx_session_connections_session_id').on(table.session_id),
+    statusIdx: index('idx_session_connections_status').on(table.status),
   })
 );
 
@@ -308,7 +492,45 @@ export const audit_events = sqliteTable(
  */
 export const usersRelations = relations(users, ({ many }: { many: any }) => ({
   clients: many(clients),
+  presharedKeys: many(preshared_keys),
+  sessions: many(user_sessions),
 }));
+
+export const presharedKeysRelations = relations(preshared_keys, ({ one }: { one: any }) => ({
+  user: one(users, {
+    fields: [preshared_keys.user_id],
+    references: [users.user_id],
+  }),
+  profile: one(tool_profiles, {
+    fields: [preshared_keys.profile_id],
+    references: [tool_profiles.profile_id],
+  }),
+}));
+
+export const userSessionsRelations = relations(
+  user_sessions,
+  ({ one, many }: { one: any; many: any }) => ({
+    user: one(users, {
+      fields: [user_sessions.user_id],
+      references: [users.user_id],
+    }),
+    profile: one(tool_profiles, {
+      fields: [user_sessions.profile_id],
+      references: [tool_profiles.profile_id],
+    }),
+    connections: many(session_connections),
+  })
+);
+
+export const sessionConnectionsRelations = relations(
+  session_connections,
+  ({ one }: { one: any }) => ({
+    session: one(user_sessions, {
+      fields: [session_connections.session_id],
+      references: [user_sessions.session_id],
+    }),
+  })
+);
 
 export const clientsRelations = relations(clients, ({ one }: { one: any }) => ({
   profile: one(tool_profiles, {
@@ -333,6 +555,8 @@ export const toolProfilesRelations = relations(
       relationName: 'inheritance',
     }),
     clients: many(clients),
+    presharedKeys: many(preshared_keys),
+    sessions: many(user_sessions),
   })
 );
 
@@ -353,6 +577,15 @@ export type NewAdminKey = typeof admin_keys.$inferInsert;
 
 export type AuditEvent = typeof audit_events.$inferSelect;
 export type NewAuditEvent = typeof audit_events.$inferInsert;
+
+export type PresharedKey = typeof preshared_keys.$inferSelect;
+export type NewPresharedKey = typeof preshared_keys.$inferInsert;
+
+export type UserSession = typeof user_sessions.$inferSelect;
+export type NewUserSession = typeof user_sessions.$inferInsert;
+
+export type SessionConnection = typeof session_connections.$inferSelect;
+export type NewSessionConnection = typeof session_connections.$inferInsert;
 
 /**
  * JSON-typed interfaces for metadata fields
