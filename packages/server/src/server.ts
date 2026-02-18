@@ -20,6 +20,7 @@ import {
   type SessionContext,
   type PipelineToolInvocationRequest,
   getEffectiveProfile,
+  getClientById,
   getToolProfileById,
   AuthorizationError,
   AmbassadorError,
@@ -528,7 +529,15 @@ export class AmbassadorServer {
           throw new Error('Server not properly initialized');
         }
 
-        const profile = await getEffectiveProfile(this.db, session.client_id);
+        const client = await getClientById(this.db, session.client_id);
+        if (!client) {
+          reply.status(403).send({
+            error: 'Forbidden',
+            message: 'Client not found',
+          });
+          return;
+        }
+        const profile = await getEffectiveProfile(this.db, client.profile_id);
 
         if (!profile) {
           reply.status(403).send({

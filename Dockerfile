@@ -5,7 +5,7 @@
 # - Multi-stage build (build + runtime separation)
 # - Non-root user (mcpambassador:1000)
 # - Read-only root filesystem (except /data volume)
-# - Minimal Alpine runtime (reduced attack surface)
+# - Minimal Debian Slim runtime (reduced attack surface)
 # - No unnecessary build tools in final image
 #
 # Build: docker build -t mcpambassador-server:latest .
@@ -15,8 +15,11 @@
 # -----------------------------------------------------------------------------
 # STAGE 1: BUILD
 # -----------------------------------------------------------------------------
-# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS (supported until April 2026)
-FROM node:20-alpine AS builder
+# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
+FROM node:20-slim AS builder
+
+# Install build tools for native modules (better-sqlite3, argon2)
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
 RUN npm install -g pnpm@8.15.0
@@ -48,17 +51,16 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 # STAGE 2: RUNTIME
 # -----------------------------------------------------------------------------
-# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS (supported until April 2026)
-FROM node:20-alpine
+# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
+FROM node:20-slim
 
-# Install OpenSSL for TLS certificate generation
-# (Required for self-signed CA + server cert generation)
-RUN apk add --no-cache openssl
+# Install openssl for TLS certificate generation
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user (node:20-alpine has node:1000 — remove it first)
-RUN deluser node 2>/dev/null; delgroup node 2>/dev/null; \
-    addgroup -g 1000 mcpambassador && \
-    adduser -D -u 1000 -G mcpambassador mcpambassador
+# Create non-root user (node:20-slim has node:1000 — remove it first)
+RUN userdel node 2>/dev/null; groupdel node 2>/dev/null; \
+    groupadd -g 1000 mcpambassador && \
+    useradd -u 1000 -g mcpambassador -m -s /bin/false mcpambassador
 
 # Set working directory
 WORKDIR /app
