@@ -4,6 +4,7 @@ import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
+import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
 import { DownstreamMcpManager, type DownstreamMcpConfig } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
@@ -27,7 +28,10 @@ import {
   AmbassadorError,
   user_sessions,
   session_connections,
+  preshared_keys,
   compatUpdate,
+  compatInsert,
+  seedDevPresharedKeys,
 } from '@mcpambassador/core';
 import {
   EphemeralAuthProvider,
@@ -195,8 +199,14 @@ export class AmbassadorServer {
       seedOnInit: true,
     });
 
+    // Seed dev preshared keys in development/test
+    await seedDevPresharedKeys(this.db as any);
+
     // Bootstrap admin key on first boot
     await this.bootstrapAdminKey();
+    
+    // Bootstrap dev preshared key on first boot (dev/test only)
+    await this.bootstrapDevPresharedKey();
 
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
@@ -1101,6 +1111,98 @@ export class AmbassadorServer {
     console.log('');
     console.log('  ⚠  SAVE THESE NOW — they will NOT be shown again!');
     console.log('======================================================================');
+    console.log('');
+  }
+
+  /**
+   * Bootstrap Dev Preshared Key (M14.3)
+   * 
+   * On first boot in development/test environments, if no preshared keys exist
+   * and a dev user exists (from seedDevPresharedKeys), generates a random
+   * preshared key and prints it to stdout.
+   * 
+   * The key is only shown once — store it securely for testing.
+   * 
+   * ONLY runs if NODE_ENV is 'development', 'test', or unset.
+   * 
+   * @see Architecture §14.3 Preshared Key Bootstrap
+   */
+  private async bootstrapDevPresharedKey(): Promise<void> {
+    // Only run in dev/test environments
+    const nodeEnv = process.env.NODE_ENV;
+    if (nodeEnv !== 'development' && nodeEnv !== 'test' && nodeEnv !== undefined) {
+      console.log('[Server] Skipping dev preshared key bootstrap (not dev/test environment)');
+      return;
+    }
+
+    // Check if any preshared keys already exist
+    const existingKeys = await this.db!.query.preshared_keys.findMany({ limit: 1 });
+    if (existingKeys.length > 0) {
+      console.log('[Server] Preshared keys already exist, skipping dev bootstrap');
+      return;
+    }
+
+    // Check if dev user exists (from seed)
+    const devUser = await this.db!.query.users.findFirst({
+      where: (user, { eq }) => eq(user.email, 'dev@localhost'),
+    });
+
+    if (!devUser) {
+      console.log('[Server] No dev user found, skipping dev preshared key bootstrap');
+      return;
+    }
+
+    // Find the 'all-tools' profile
+    const allToolsProfile = await this.db!.query.tool_profiles.findFirst({
+      where: (profile, { eq }) => eq(profile.name, 'all-tools'),
+    });
+
+    if (!allToolsProfile) {
+      console.log('[Server] Warning: all-tools profile not found, skipping dev preshared key bootstrap');
+      return;
+    }
+
+    // First boot in dev/test — generate dev preshared key
+    console.log('[Server] First boot detected (dev/test) — generating dev preshared key...');
+
+    // Generate random preshared key: amb_pk_ + 48 chars of base64url
+    const randomBytes = crypto.randomBytes(36); // 36 bytes → 48 base64 chars
+    const base64url = randomBytes
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    const presharedKey = `amb_pk_${base64url}`;
+
+    // Extract prefix: first 8 chars after amb_pk_
+    const keyPrefix = base64url.substring(0, 8);
+
+    // Hash with Argon2id
+    const keyHash = await argon2.hash(presharedKey, {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
+
+    // Insert into preshared_keys table
+    const nowIso = new Date().toISOString();
+    await compatInsert(this.db!, preshared_keys).values({
+      key_id: crypto.randomUUID(),
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      label: 'dev-bootstrap-key',
+      user_id: devUser.user_id,
+      profile_id: allToolsProfile.profile_id,
+      status: 'active',
+      created_by: 'system-bootstrap',
+      created_at: nowIso,
+    });
+
+    // Print to stdout ONLY
+    console.log('');
+    console.log('[Server] Dev preshared key: ' + presharedKey);
+    console.log('[Server] ⚠  Dev only — NOT for production');
     console.log('');
   }
 

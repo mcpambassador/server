@@ -23,6 +23,9 @@ export {
   type DatabaseConfig,
 } from './client.js';
 
+// Seed functions
+export { seedDatabase, seedDevPresharedKeys } from '../schema/seed.js';
+
 // Compatibility layer for Drizzle ORM queries
 export { compatInsert, compatSelect, compatUpdate, compatDelete } from './compat.js';
 

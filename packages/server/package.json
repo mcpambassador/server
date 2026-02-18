@@ -38,6 +38,7 @@
     "@mcpambassador/authz-local": "workspace:*",
     "@mcpambassador/core": "workspace:*",
     "@mcpambassador/protocol": "workspace:*",
+    "argon2": "^0.31.2",
     "drizzle-orm": "^0.29.3",
     "ejs": "^4.0.1",
     "fastify": "^4.26.0",

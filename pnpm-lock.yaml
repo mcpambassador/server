@@ -221,6 +221,9 @@ importers:
       '@mcpambassador/protocol':
         specifier: workspace:*
         version: link:../protocol
+      argon2:
+        specifier: ^0.31.2
+        version: 0.31.2
       drizzle-orm:
         specifier: ^0.29.3
         version: 0.29.5(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)

@@ -616,3 +616,6 @@ export interface AuditResponseSummary {
   result_size?: number;
   error_code?: string;
 }
+
+// Re-export seed functions
+export { seedDatabase, seedDevPresharedKeys } from './seed.js';
