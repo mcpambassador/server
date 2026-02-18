@@ -98,6 +98,12 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/p
 
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/package.json ./
 
+# Copy example config to bundled location (Docker default)
+# This allows the server to start with pre-configured downstream MCPs
+# Users can override by mounting custom config to /data/config/ambassador-server.yaml
+RUN mkdir -p ./config
+COPY --chown=mcpambassador:mcpambassador config/ambassador-server.example.yaml ./config/ambassador-server.example.yaml
+
 # Create data directory with proper permissions
 # This is the ONLY writable directory (for database, certs, audit logs)
 RUN mkdir -p /data && \
@@ -110,6 +116,10 @@ ENV NODE_ENV=production \
     MCP_AMBASSADOR_HOST=0.0.0.0 \
     MCP_AMBASSADOR_PORT=8443 \
     MCP_AMBASSADOR_LOG_LEVEL=info
+
+# Configure npm/npx to use writable tmpfs (fixes npx on read-only filesystem)
+ENV NPM_CONFIG_CACHE=/tmp/.npm-cache \
+    HOME=/tmp
 
 # Switch to non-root user
 USER mcpambassador

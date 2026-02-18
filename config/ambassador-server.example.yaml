@@ -35,19 +35,19 @@ downstream_mcps:
     health_check_interval_ms: 60000
 
   # Context7 - Documentation and code context (stdio MCP)
-  # SEC-M9-06: Pinned version (@0.1.0, not @latest)
+  # SEC-M9-06: Pinned version (not @latest)
   - name: context7
     transport: stdio
-    command: ["npx", "-y", "@upstash/context7-mcp@0.1.0"]
+    command: ["npx", "-y", "@upstash/context7-mcp@2.1.1"]
     env:
       CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
     timeout_ms: 15000
 
   # Tavily Search - Web search capabilities (stdio MCP)
-  # SEC-M9-06: Pinned version (@0.1.0, not @latest)
+  # SEC-M9-06: Pinned version (not @latest)
   - name: tavily-search
     transport: stdio
-    command: ["npx", "-y", "tavily-mcp@0.1.0"]
+    command: ["npx", "-y", "tavily-mcp@0.2.17"]
     env:
       TAVILY_API_KEY: "${TAVILY_API_KEY}"
     timeout_ms: 15000

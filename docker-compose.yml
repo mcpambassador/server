@@ -79,9 +79,10 @@ services:
     # Read-only root filesystem (except /data volume)
     read_only: true
     
-    # Temporary directories (required for Node.js runtime)
+    # Temporary directories (required for Node.js runtime and npx)
+    # exec is required because npx downloads and executes packages from /tmp
     tmpfs:
-      - /tmp:noexec,nosuid,size=64M
+      - /tmp:exec,size=128M
     
     # Health check
     healthcheck:

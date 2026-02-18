@@ -4,6 +4,9 @@
 
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
+import fs from 'fs';
+import yaml from 'yaml';
+import type { DownstreamMcpConfig } from '../downstream/index.js';
 
 /**
  * MCP Ambassador Server CLI
@@ -99,15 +102,127 @@ Examples:
   return config;
 }
 
+/**
+ * Find config file by checking multiple locations in order
+ * 1. {dataDir}/config/ambassador-server.yaml (user's custom config in volume)
+ * 2. /app/config/ambassador-server.example.yaml (bundled default - Docker only)
+ * 3. {cwd}/config/ambassador-server.example.yaml (local dev)
+ */
+function findConfigFile(dataDir: string): string | null {
+  const candidates = [
+    path.join(dataDir, 'config', 'ambassador-server.yaml'),
+    '/app/config/ambassador-server.example.yaml',
+    path.join(process.cwd(), 'config', 'ambassador-server.example.yaml'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      console.log(`[Server] Found config file: ${candidate}`);
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve ${ENV_VAR} references in a string
+ * Supports both ${VAR} and ${ENV:VAR} syntax for compatibility
+ */
+function resolveEnvVar(value: string): string {
+  // Match ${VAR} or ${ENV:VAR}
+  return value.replace(/\$\{(?:ENV:)?([A-Z_][A-Z0-9_]*)\}/g, (_match, varName: string) => {
+    const envValue = process.env[varName];
+    if (envValue === undefined) {
+      console.warn(`[Server] Environment variable ${varName} not set, substituting empty string`);
+      return '';
+    }
+    return envValue;
+  });
+}
+
+/**
+ * Recursively resolve ${ENV_VAR} references in config object
+ */
+function resolveEnvVars(obj: unknown): unknown {
+  if (typeof obj === 'string') {
+    return resolveEnvVar(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => resolveEnvVars(item));
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const resolved: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      resolved[key] = resolveEnvVars(value);
+    }
+    return resolved;
+  }
+  return obj;
+}
+
+/**
+ * Load downstream MCP config from YAML file
+ * Only extracts downstream_mcps section, doesn't require full config
+ */
+async function loadDownstreamMcpConfig(configPath: string): Promise<DownstreamMcpConfig[]> {
+  const fileContent = fs.readFileSync(configPath, 'utf-8');
+  const rawConfig = yaml.parse(fileContent);
+
+  if (!rawConfig || typeof rawConfig !== 'object') {
+    throw new Error('Invalid config file: not an object');
+  }
+
+  const downstreamMcps = (rawConfig as Record<string, unknown>).downstream_mcps;
+  
+  if (!downstreamMcps) {
+    console.warn('[Server] No downstream_mcps section found in config');
+    return [];
+  }
+
+  if (!Array.isArray(downstreamMcps)) {
+    throw new Error('Invalid config: downstream_mcps must be an array');
+  }
+
+  // Resolve environment variables in the config
+  const resolved = resolveEnvVars(downstreamMcps) as DownstreamMcpConfig[];
+  
+  return resolved;
+}
+
 async function main() {
   const args = parseArgs();
+
+  const dataDir = args.dataDir || process.env.MCP_AMBASSADOR_DATA_DIR || path.join(process.cwd(), 'data');
+
+  // Try to load downstream MCP configuration
+  let downstreamMcps: DownstreamMcpConfig[] = [];
+  const configFile = findConfigFile(dataDir);
+
+  if (configFile) {
+    try {
+      console.log('[Server] Loading downstream MCP configuration...');
+      downstreamMcps = await loadDownstreamMcpConfig(configFile);
+      console.log(`[Server] Loaded ${downstreamMcps.length} downstream MCP(s) from config`);
+    } catch (err) {
+      console.error('[Server] Failed to load config file:', err);
+      console.warn('[Server] Starting without downstream MCPs');
+    }
+  } else {
+    console.warn('[Server] No config file found - starting without downstream MCPs');
+    console.log('[Server] Checked locations:');
+    console.log(`  - ${path.join(dataDir, 'config', 'ambassador-server.yaml')}`);
+    console.log('  - /app/config/ambassador-server.example.yaml');
+    console.log(`  - ${path.join(process.cwd(), 'config', 'ambassador-server.example.yaml')}`);
+  }
 
   const server = new AmbassadorServer({
     port: args.port || (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
     host: args.host || process.env.MCP_AMBASSADOR_HOST,
-    dataDir: args.dataDir || process.env.MCP_AMBASSADOR_DATA_DIR || path.join(process.cwd(), 'data'),
+    dataDir,
     serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
     logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
+    downstreamMcps,
   });
 
   // Handle shutdown signals

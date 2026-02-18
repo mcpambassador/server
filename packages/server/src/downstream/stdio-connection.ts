@@ -49,6 +49,7 @@ export class StdioMcpConnection extends EventEmitter {
   private nextRequestId = 1;
   private toolCache: ToolDescriptor[] | null = null;
   private isHealthy = false;
+  private processExited = false;
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -123,6 +124,7 @@ export class StdioMcpConnection extends EventEmitter {
     // Handle process exit
     childProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       console.log(`[MCP:${this.config.name}] Process exited: code=${code} signal=${signal}`);
+      this.processExited = true;
       this.isHealthy = false;
       this.emit('disconnect');
     });
@@ -137,8 +139,20 @@ export class StdioMcpConnection extends EventEmitter {
     // Wait for process to be ready (simple heuristic: wait 500ms)
     await new Promise(resolve => setTimeout(resolve, 500));
 
+    // Check if process already exited (e.g., npx install failure)
+    if (this.processExited) {
+      throw new Error(`[${this.config.name}] Process exited during startup`);
+    }
+
     // Fetch initial tool list
-    await this.refreshToolList();
+    try {
+      await this.refreshToolList();
+    } catch (err) {
+      // If tool list fetch fails, mark unhealthy but don't crash
+      console.error(`[MCP:${this.config.name}] Failed to fetch initial tool list:`, err);
+      this.isHealthy = false;
+      return; // Continue without tools — will retry on health check
+    }
 
     this.isHealthy = true;
     console.log(`[MCP:${this.config.name}] Started successfully`);
