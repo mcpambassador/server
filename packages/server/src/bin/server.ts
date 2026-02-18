@@ -103,11 +103,11 @@ async function main() {
   const args = parseArgs();
 
   const server = new AmbassadorServer({
-    port: args.port,
-    host: args.host,
-    dataDir: args.dataDir || path.join(process.cwd(), 'data'),
-    serverName: args.serverName,
-    logLevel: args.logLevel,
+    port: args.port || (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
+    host: args.host || process.env.MCP_AMBASSADOR_HOST,
+    dataDir: args.dataDir || process.env.MCP_AMBASSADOR_DATA_DIR || path.join(process.cwd(), 'data'),
+    serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
+    logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
   });
 
   // Handle shutdown signals

@@ -12,6 +12,9 @@
 
 import type { Session } from 'fastify';
 import type { SessionStore } from '@fastify/session';
+import { randomBytes } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 
 // Augment Fastify's Session interface with our admin fields
 declare module 'fastify' {
@@ -200,14 +203,10 @@ export function getOrCreateSessionSecret(dataDir: string): string {
   }
 
   // Try to read existing secret from file
-  const crypto = require('node:crypto') as typeof import('node:crypto');
-  const fs = require('node:fs') as typeof import('node:fs');
-  const path = require('node:path') as typeof import('node:path');
-
-  const secretPath = path.join(dataDir, '.session-secret');
+  const secretPath = join(dataDir, '.session-secret');
 
   try {
-    const existing = fs.readFileSync(secretPath, 'utf8').trim();
+    const existing = readFileSync(secretPath, 'utf8').trim();
     if (existing.length >= 32) {
       return existing;
     }
@@ -216,11 +215,11 @@ export function getOrCreateSessionSecret(dataDir: string): string {
   }
 
   // Generate new cryptographically random secret
-  const secret = crypto.randomBytes(32).toString('hex'); // 64 hex chars
+  const secret = randomBytes(32).toString('hex'); // 64 hex chars
 
   // Persist to file with restrictive permissions
-  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
-  fs.writeFileSync(secretPath, secret, { mode: 0o600 });
+  mkdirSync(dirname(secretPath), { recursive: true });
+  writeFileSync(secretPath, secret, { mode: 0o600 });
 
   return secret;
 }

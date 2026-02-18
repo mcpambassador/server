@@ -34,10 +34,12 @@ COPY packages/audit-file/package.json ./packages/audit-file/
 COPY packages/server/package.json ./packages/server/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+# Using --shamefully-hoist to flatten node_modules (npm-style) for Docker compatibility
+# This prevents pnpm symlink issues when copying to the runtime stage
+RUN pnpm install --frozen-lockfile --shamefully-hoist
 
 # Copy source code
-COPY tsconfig.json ./
+COPY tsconfig.base.json ./
 COPY packages/ ./packages/
 
 # Build all packages
@@ -53,27 +55,46 @@ FROM node:20-alpine
 # (Required for self-signed CA + server cert generation)
 RUN apk add --no-cache openssl
 
-# Create non-root user
-RUN addgroup -g 1000 mcpambassador && \
+# Create non-root user (node:20-alpine has node:1000 — remove it first)
+RUN deluser node 2>/dev/null; delgroup node 2>/dev/null; \
+    addgroup -g 1000 mcpambassador && \
     adduser -D -u 1000 -G mcpambassador mcpambassador
 
 # Set working directory
 WORKDIR /app
 
 # Copy built artifacts from builder
+# Root node_modules contains all external dependencies (hoisted)
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/node_modules ./node_modules
+
+# Copy each workspace package with its dist, package.json, and node_modules
+# The node_modules in each package contains symlinks to workspace dependencies
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/dist ./packages/core/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/package.json ./packages/core/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/core/node_modules ./packages/core/node_modules
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/protocol/dist ./packages/protocol/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/protocol/package.json ./packages/protocol/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/protocol/node_modules ./packages/protocol/node_modules
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/dist ./packages/authn-apikey/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/package.json ./packages/authn-apikey/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/node_modules ./packages/authn-apikey/node_modules
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-local/dist ./packages/authz-local/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-local/package.json ./packages/authz-local/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-local/node_modules ./packages/authz-local/node_modules
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/dist ./packages/audit-file/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/package.json ./packages/audit-file/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/node_modules ./packages/audit-file/node_modules
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/dist ./packages/server/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/package.json ./packages/server/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/node_modules ./packages/server/node_modules
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/views ./packages/server/views
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/public ./packages/server/public
+
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/package.json ./
 
 # Create data directory with proper permissions
@@ -92,8 +113,9 @@ ENV NODE_ENV=production \
 # Switch to non-root user
 USER mcpambassador
 
-# Expose port
+# Expose ports
 EXPOSE 8443
+EXPOSE 9443
 
 # Health check
 # The server should respond to GET /health with 200 OK

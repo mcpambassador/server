@@ -20,8 +20,6 @@
 #   - Use volume encryption for sensitive data at rest
 # =============================================================================
 
-version: '3.8'
-
 services:
   mcpambassador-server:
     build:

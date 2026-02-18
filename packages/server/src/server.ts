@@ -5,6 +5,7 @@ import fastifyCors from '@fastify/cors';
 import { initializeTls } from './tls.js';
 import { DownstreamMcpManager, type DownstreamMcpConfig } from './downstream/index.js';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import {
   initializeDatabase,
   closeDatabase,
@@ -289,6 +290,8 @@ export class AmbassadorServer {
     await this.adminServer.register(fastifyFormbody);
 
     // Determine view paths relative to this source file
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
     const viewsPath = path.join(__dirname, '..', 'views');
     const publicPath = path.join(__dirname, '..', 'public');
 
