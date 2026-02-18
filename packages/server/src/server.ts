@@ -29,6 +29,8 @@ import {
   ApiKeyAuthProvider,
   registerClient,
   type RegisterClientRequest,
+  rotateClientKey,
+  type RotateKeyResponse,
 } from '@mcpambassador/authn-apikey';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
@@ -508,6 +510,77 @@ export class AmbassadorServer {
             reply.status(500).send({
               error: 'internal_error',
               message: 'Client registration failed',
+            });
+          }
+        }
+      }
+    );
+
+    // ==========================================================================
+    // CLIENT KEY ROTATION (authenticated)
+    // ==========================================================================
+
+    this.fastify.post(
+      '/v1/clients/:id/rotate-key',
+      { bodyLimit: 4096 },
+      async (request, reply) => {
+        try {
+          // Authenticate request
+          const session = await this.authenticate(request);
+
+          // Extract client ID from path parameter
+          const params = request.params as { id: string };
+          const clientId = params.id;
+
+          // SECURITY: Verify the authenticated client_id matches the requested :id
+          // A client can only rotate their own key
+          if (session.client_id !== clientId) {
+            reply.status(403).send({
+              error: 'forbidden',
+              message: 'You can only rotate your own API key',
+            });
+            return;
+          }
+
+          // Parse request body to get current API key
+          const body = request.body as { current_api_key?: string };
+
+          if (!body || typeof body.current_api_key !== 'string') {
+            reply.status(400).send({
+              error: 'bad_request',
+              message: 'Missing or invalid "current_api_key" field',
+            });
+            return;
+          }
+
+          // Rotate the key (validates current key, generates new key, invalidates old)
+          const result: RotateKeyResponse = await rotateClientKey(
+            this.db!,
+            clientId,
+            body.current_api_key
+          );
+
+          // Return 201 with new key (shown only once)
+          reply.status(201).send(result);
+        } catch (err) {
+          if (err instanceof Error && err.message === 'Unauthorized') {
+            reply.status(401).send({
+              error: 'unauthorized',
+              message:
+                'Valid API key required. Include X-API-Key or Authorization: Bearer <key> header.',
+            });
+          } else if (err instanceof AmbassadorError) {
+            // Use statusCode from AmbassadorError (401, 403, 404, 500)
+            reply.status(err.statusCode || 500).send({
+              error: err.code,
+              message: err.message,
+            });
+          } else {
+            // Unexpected error
+            console.error('[key-rotation] Error:', err);
+            reply.status(500).send({
+              error: 'internal_error',
+              message: 'Key rotation failed',
             });
           }
         }

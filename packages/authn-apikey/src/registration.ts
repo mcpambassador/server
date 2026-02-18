@@ -22,6 +22,19 @@ import { generateApiKey, hashApiKey } from './keys.js';
 import { RateLimiter } from './utils/rate-limiter.js';
 import { hashIp, redactIp } from './utils/privacy.js';
 
+// Allowed host tools for registrations (exported for tests)
+export const ALLOWED_HOST_TOOLS = [
+  'vscode',
+  'cursor',
+  'windsurf',
+  'jetbrains',
+  'vim',
+  'neovim',
+  'emacs',
+  'cli',
+  'other',
+] as const;
+
 /**
  * Registration request body
  */
@@ -100,6 +113,27 @@ export async function registerClient(
     throw new AmbassadorError(
       'friendly_name must contain at least one valid character (alphanumeric, space, dot, dash, underscore)',
       'validation_error',
+      400
+    );
+  }
+
+  // Validate host_tool against allowed list (F-REG-001)
+  if (!ALLOWED_HOST_TOOLS.includes(request.host_tool as any)) {
+    throw new AmbassadorError(
+      `Invalid host_tool: must be one of ${ALLOWED_HOST_TOOLS.join(', ')}`,
+      'INVALID_HOST_TOOL',
+      400
+    );
+  }
+
+  // Validate/sanitize machine_fingerprint (F-REG-002)
+  if (
+    request.machine_fingerprint &&
+    !/^[a-zA-Z0-9_\-]{1,128}$/.test(request.machine_fingerprint)
+  ) {
+    throw new AmbassadorError(
+      'Invalid machine_fingerprint: must be 1-128 alphanumeric characters, hyphens, or underscores',
+      'INVALID_FINGERPRINT',
       400
     );
   }
