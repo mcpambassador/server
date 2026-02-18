@@ -54,9 +54,18 @@ const RATE_LIMIT_CONFIG = {
 };
 
 /**
- * Session configuration
+ * Session configuration interface (M15)
  */
-const SESSION_CONFIG = {
+export interface SessionRegConfig {
+  ttlSeconds?: number;
+  idleTimeoutSeconds?: number;
+  spindownDelaySeconds?: number;
+}
+
+/**
+ * Default session configuration (used if not overridden)
+ */
+const DEFAULT_SESSION_CONFIG: Required<SessionRegConfig> = {
   ttlSeconds: 28800, // 8 hours
   idleTimeoutSeconds: 1800, // 30 minutes
   spindownDelaySeconds: 300, // 5 minutes
@@ -69,14 +78,24 @@ const SESSION_CONFIG = {
  * @param hmacSecret HMAC secret for token generation
  * @param body Registration request
  * @param sourceIp Source IP address (for rate limiting)
+ * @param sessionConfig Optional session configuration overrides
  * @returns Registration response
  */
 export async function registerSession(
   db: DatabaseClient,
   hmacSecret: Buffer,
   body: RegistrationRequest,
-  sourceIp: string
+  sourceIp: string,
+  sessionConfig?: SessionRegConfig
 ): Promise<RegistrationResponse> {
+  // Merge provided config with defaults
+  const config: Required<SessionRegConfig> = {
+    ttlSeconds: sessionConfig?.ttlSeconds ?? DEFAULT_SESSION_CONFIG.ttlSeconds,
+    idleTimeoutSeconds: sessionConfig?.idleTimeoutSeconds ?? DEFAULT_SESSION_CONFIG.idleTimeoutSeconds,
+    spindownDelaySeconds:
+      sessionConfig?.spindownDelaySeconds ?? DEFAULT_SESSION_CONFIG.spindownDelaySeconds,
+  };
+
   // 1. Rate limit check
   await checkRateLimit(sourceIp);
 
@@ -182,7 +201,7 @@ export async function registerSession(
     const { token, tokenHash, nonce } = generateSessionToken(hmacSecret, sessionId);
 
     const now = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + SESSION_CONFIG.ttlSeconds * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + config.ttlSeconds * 1000).toISOString();
 
     // Insert session record
     await compatInsert(db, user_sessions).values({
@@ -195,8 +214,8 @@ export async function registerSession(
       created_at: now,
       last_activity_at: now,
       expires_at: expiresAt,
-      idle_timeout_seconds: SESSION_CONFIG.idleTimeoutSeconds,
-      spindown_delay_seconds: SESSION_CONFIG.spindownDelaySeconds,
+      idle_timeout_seconds: config.idleTimeoutSeconds,
+      spindown_delay_seconds: config.spindownDelaySeconds,
       metadata: '{}',
     });
 

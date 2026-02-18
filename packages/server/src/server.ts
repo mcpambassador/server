@@ -2,8 +2,11 @@
 
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
+import crypto from 'crypto';
+import { eq } from 'drizzle-orm';
 import { initializeTls } from './tls.js';
 import { DownstreamMcpManager, type DownstreamMcpConfig } from './downstream/index.js';
+import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -22,12 +25,16 @@ import {
   getEffectiveProfile,
   AuthorizationError,
   AmbassadorError,
+  user_sessions,
+  session_connections,
+  compatUpdate,
 } from '@mcpambassador/core';
 import {
   EphemeralAuthProvider,
   getOrCreateHmacSecret,
   registerSession,
   type RegistrationRequest,
+  type SessionRegConfig,
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
@@ -91,6 +98,8 @@ export class AmbassadorServer {
   private killSwitchManager: KillSwitchManager; // CR-M10-001
   private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
+  private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
+  private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -213,6 +222,16 @@ export class AmbassadorServer {
 
     console.log('[Server] AAA providers initialized');
     console.log('[Server] Pipeline initialized (available for M6.5)');
+
+    // Initialize session lifecycle manager (M15)
+    const sessionConfig = {
+      evaluationIntervalMs: 60000, // 1 minute (TODO: read from config)
+      sweepIntervalMs: 900000, // 15 minutes
+      ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009
+    };
+    this.lifecycleManager = new SessionLifecycleManager(this.db, this.audit!, sessionConfig);
+    this.lifecycleManager.start();
+    console.log('[Server] Session lifecycle manager started');
 
     // Initialize downstream MCP connections
     console.log(
@@ -472,8 +491,21 @@ export class AmbassadorServer {
           // Get source IP for rate limiting
           const sourceIp = this.getSourceIp(request);
 
+          // Build session config (TODO: read from loaded config once config loading is implemented)
+          const sessionConfig: SessionRegConfig = {
+            ttlSeconds: 28800, // 8 hours (default)
+            idleTimeoutSeconds: 1800, // 30 minutes (default)
+            spindownDelaySeconds: 300, // 5 minutes (default)
+          };
+
           // Register session (includes rate limiting, validation, token generation)
-          const result = await registerSession(this.db!, this.hmacSecret!, body, sourceIp);
+          const result = await registerSession(
+            this.db!,
+            this.hmacSecret!,
+            body,
+            sourceIp,
+            sessionConfig
+          );
 
           // Build protocol-compliant response
           reply.status(201).send(result);
@@ -493,6 +525,219 @@ export class AmbassadorServer {
         }
       }
     );
+
+    // ==========================================================================
+    // SESSION HEARTBEAT (M15.1)
+    // ==========================================================================
+
+    this.fastify.post('/v1/sessions/heartbeat', async (request, reply) => {
+      try {
+        // Authenticate request
+        const session = await this.authenticate(request);
+
+        // Rate limit: max 1 heartbeat per 5 seconds per session (SEC-V2-006)
+        const lastHeartbeat = this.heartbeatRateLimit.get(session.session_id);
+        const now = Date.now();
+        if (lastHeartbeat && now - lastHeartbeat < 5000) {
+          reply.status(429).send({
+            error: 'rate_limit_exceeded',
+            message: 'Heartbeat rate limit: max 1 per 5 seconds',
+          });
+          return;
+        }
+
+        // Update rate limit tracker
+        this.heartbeatRateLimit.set(session.session_id, now);
+
+        // Get session record
+        const sessionRecord = await this.db!.query.user_sessions.findFirst({
+          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
+        });
+
+        if (!sessionRecord) {
+          reply.status(404).send({
+            error: 'session_not_found',
+            message: 'Session not found',
+          });
+          return;
+        }
+
+        // Don't allow heartbeat on expired sessions — check both status AND time-based expiry (SR-M15-001)
+        if (sessionRecord.status === 'expired' || new Date(sessionRecord.expires_at).getTime() < now) {
+          reply.status(410).send({
+            error: 'session_expired',
+            message: 'Session expired, re-register required',
+          });
+          return;
+        }
+
+        const nowIso = new Date(now).toISOString();
+
+        // Calculate new expiry (extend by session TTL, but respect hard max from creation time)
+        const createdAt = new Date(sessionRecord.created_at).getTime();
+        const ttlHardMaxMs = 86400 * 1000; // 24 hours (SEC-V2-009)
+        const maxExpiryTime = createdAt + ttlHardMaxMs;
+
+        // Get TTL from session config (use default 8h if not configured)
+        // TODO: Read from config once config loading is implemented
+        const sessionTtlMs = 28800 * 1000; // 8 hours
+        const newExpiryTime = Math.min(now + sessionTtlMs, maxExpiryTime);
+        const newExpiryIso = new Date(newExpiryTime).toISOString();
+
+        // Update session: last_activity_at, expires_at, reactivate if idle/suspended
+        const updates: any = {
+          last_activity_at: nowIso,
+          expires_at: newExpiryIso,
+        };
+
+        // Reactivate if idle or suspended
+        if (sessionRecord.status === 'idle' || sessionRecord.status === 'suspended') {
+          updates.status = 'active';
+        }
+
+        await compatUpdate(this.db!, user_sessions)
+          .set(updates)
+          .where(eq(user_sessions.session_id, session.session_id));
+
+        // Update connection heartbeat (find connection for this request)
+        // Note: We don't have connection_id in the auth context yet, so update all connected connections
+        const connections = await this.db!.query.session_connections.findMany({
+          where: (conns, { eq, and }) =>
+            and(eq(conns.session_id, session.session_id), eq(conns.status, 'connected')),
+        });
+
+        for (const conn of connections) {
+          await compatUpdate(this.db!, session_connections)
+            .set({ last_heartbeat_at: nowIso })
+            .where(eq(session_connections.connection_id, conn.connection_id));
+        }
+
+        // Emit audit event
+        await this.audit!.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action' as any,
+          severity: 'info',
+          session_id: session.session_id,
+          user_id: session.user_id,
+          auth_method: 'api_key' as any,
+          source_ip: this.getSourceIp(request),
+          action: 'heartbeat_received',
+          metadata: {
+            previous_status: sessionRecord.status,
+            new_status: updates.status || sessionRecord.status,
+            expires_at: newExpiryIso,
+          },
+        });
+
+        reply.send({
+          status: 'ok',
+          session_status: updates.status || sessionRecord.status,
+          expires_at: newExpiryIso,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'Unauthorized') {
+          reply.status(401).send({
+            error: 'Unauthorized',
+            message: 'Valid session token required',
+          });
+        } else {
+          this.fastify!.log.error({ err }, '[Server] Heartbeat error');
+          reply.status(500).send({
+            error: 'heartbeat_failed',
+            message: 'Failed to process heartbeat',
+          });
+        }
+      }
+    });
+
+    // ==========================================================================
+    // GRACEFUL DISCONNECT (M15.2)
+    // ==========================================================================
+
+    this.fastify.delete('/v1/sessions/connections/:connectionId', async (request, reply) => {
+      try {
+        // Authenticate request
+        const session = await this.authenticate(request);
+
+        const { connectionId } = request.params as { connectionId: string };
+
+        if (!connectionId) {
+          reply.status(400).send({
+            error: 'validation_error',
+            message: 'Connection ID required',
+          });
+          return;
+        }
+
+        // Get connection record
+        const connection = await this.db!.query.session_connections.findFirst({
+          where: (conns, { eq }) => eq(conns.connection_id, connectionId),
+        });
+
+        if (!connection) {
+          reply.status(404).send({
+            error: 'connection_not_found',
+            message: 'Connection not found',
+          });
+          return;
+        }
+
+        // Verify connection belongs to authenticated session
+        if (connection.session_id !== session.session_id) {
+          reply.status(403).send({
+            error: 'forbidden',
+            message: 'Connection does not belong to authenticated session',
+          });
+          return;
+        }
+
+        // Mark connection as disconnected
+        const nowIso = new Date().toISOString();
+        await compatUpdate(this.db!, session_connections)
+          .set({
+            status: 'disconnected',
+            disconnected_at: nowIso,
+          })
+          .where(eq(session_connections.connection_id, connectionId));
+
+        // Emit audit event
+        await this.audit!.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action' as any,
+          severity: 'info',
+          session_id: session.session_id,
+          user_id: session.user_id,
+          auth_method: 'api_key' as any,
+          source_ip: this.getSourceIp(request),
+          action: 'connection_disconnected',
+          metadata: {
+            connection_id: connectionId,
+            friendly_name: connection.friendly_name,
+            host_tool: connection.host_tool,
+          },
+        });
+
+        reply.send({
+          status: 'disconnected',
+          connection_id: connectionId,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'Unauthorized') {
+          reply.status(401).send({
+            error: 'Unauthorized',
+            message: 'Valid session token required',
+          });
+        } else {
+          this.fastify!.log.error({ err }, '[Server] Disconnect error');
+          reply.status(500).send({
+            error: 'disconnect_failed',
+            message: 'Failed to disconnect connection',
+          });
+        }
+      }
+    });
 
     // Legacy route: redirect /v1/clients/register to 410 Gone
     this.fastify.post('/v1/clients/register', async (_request, reply) => {
@@ -864,6 +1109,13 @@ export class AmbassadorServer {
    */
   async stop(): Promise<void> {
     console.log('[Server] Shutting down...');
+
+    // Stop session lifecycle manager (M15)
+    if (this.lifecycleManager) {
+      console.log('[Server] Stopping session lifecycle manager...');
+      this.lifecycleManager.stop();
+      this.heartbeatRateLimit.clear();
+    }
 
     // Shutdown providers first (flushes audit buffer)
     if (this.audit) {

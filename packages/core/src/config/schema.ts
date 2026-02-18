@@ -90,6 +90,25 @@ const DatabaseConfigSchema = z.object({
   ssl: z.boolean().optional(),
 });
 
+// ===== §6.6 Session Lifecycle Configuration (M15) =====
+
+const SessionConfigSchema = z
+  .object({
+    /** Idle timeout in seconds (30 min default, max 24h) — SEC-V2-009 */
+    idle_timeout_seconds: z.number().int().min(5).max(86400).default(1800),
+    /** Spindown delay in seconds (5 min default, max 24h) */
+    spindown_delay_seconds: z.number().int().min(5).max(86400).default(300),
+    /** Session TTL in seconds (16h default, max 24h) — SEC-V2-009 */
+    ttl_seconds: z.number().int().min(60).max(86400).default(57600),
+    /** Expected heartbeat interval in seconds (1 min default) */
+    heartbeat_expected_interval_seconds: z.number().int().min(5).max(3600).default(60),
+    /** Sweep interval in seconds (15 min default) */
+    sweep_interval_seconds: z.number().int().min(30).max(86400).default(900),
+    /** Evaluation interval in seconds (1 min default) */
+    evaluation_interval_seconds: z.number().int().min(5).max(300).default(60),
+  })
+  .optional();
+
 // ===== §11.4 Audit Buffer Configuration =====
 
 const BufferConfigSchema = z.object({
@@ -116,6 +135,7 @@ export const AmbassadorConfigSchema = z.object({
   downstream_mcps: z.array(DownstreamMcpConfigSchema),
   providers: ProvidersConfigSchema.optional(),
   buffer: BufferConfigSchema.optional(),
+  session: SessionConfigSchema,
 });
 
 // ===== Infer TypeScript type from schema =====
