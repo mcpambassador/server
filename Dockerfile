@@ -32,6 +32,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/protocol/package.json ./packages/protocol/
 COPY packages/authn-apikey/package.json ./packages/authn-apikey/
+COPY packages/authn-ephemeral/package.json ./packages/authn-ephemeral/
 COPY packages/authz-local/package.json ./packages/authz-local/
 COPY packages/audit-file/package.json ./packages/audit-file/
 COPY packages/server/package.json ./packages/server/
@@ -83,6 +84,10 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/protocol
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/dist ./packages/authn-apikey/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/package.json ./packages/authn-apikey/
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-apikey/node_modules ./packages/authn-apikey/node_modules
+
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-ephemeral/dist ./packages/authn-ephemeral/dist
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-ephemeral/package.json ./packages/authn-ephemeral/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authn-ephemeral/node_modules ./packages/authn-ephemeral/node_modules
 
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-local/dist ./packages/authz-local/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-local/package.json ./packages/authz-local/
