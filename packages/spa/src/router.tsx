@@ -11,10 +11,17 @@ import { ClientDetail } from '@/pages/ClientDetail';
 import { Credentials } from '@/pages/Credentials';
 import { Profile } from '@/pages/Profile';
 import { Subscriptions } from '@/pages/Subscriptions';
+import { Dashboard as AdminDashboard } from '@/pages/admin/Dashboard';
 import { UsersAdmin } from '@/pages/admin/Users';
+import { UserDetail } from '@/pages/admin/UserDetail';
 import { GroupsAdmin } from '@/pages/admin/Groups';
+import { GroupDetail } from '@/pages/admin/GroupDetail';
 import { McpsAdmin } from '@/pages/admin/Mcps';
+import { McpDetail as AdminMcpDetail } from '@/pages/admin/McpDetail';
+import { McpWizard } from '@/pages/admin/McpWizard';
 import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
+import { KillSwitches } from '@/pages/admin/KillSwitches';
+import { Settings } from '@/pages/admin/Settings';
 
 export const router = createBrowserRouter([
   {
@@ -66,10 +73,26 @@ export const router = createBrowserRouter([
         element: <Subscriptions />,
       },
       {
+        path: 'admin/dashboard',
+        element: (
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        ),
+      },
+      {
         path: 'admin/users',
         element: (
           <AdminRoute>
             <UsersAdmin />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/users/:userId',
+        element: (
+          <AdminRoute>
+            <UserDetail />
           </AdminRoute>
         ),
       },
@@ -82,6 +105,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'admin/groups/:groupId',
+        element: (
+          <AdminRoute>
+            <GroupDetail />
+          </AdminRoute>
+        ),
+      },
+      {
         path: 'admin/mcps',
         element: (
           <AdminRoute>
@@ -90,10 +121,42 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'admin/mcps/new',
+        element: (
+          <AdminRoute>
+            <McpWizard />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/mcps/:mcpId',
+        element: (
+          <AdminRoute>
+            <AdminMcpDetail />
+          </AdminRoute>
+        ),
+      },
+      {
         path: 'admin/audit',
         element: (
           <AdminRoute>
             <AuditLogsAdmin />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/kill-switches',
+        element: (
+          <AdminRoute>
+            <KillSwitches />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/settings',
+        element: (
+          <AdminRoute>
+            <Settings />
           </AdminRoute>
         ),
       },

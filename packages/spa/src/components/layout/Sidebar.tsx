@@ -11,6 +11,8 @@ import {
   UserCircle,
   UserPlus,
   KeyRound,
+  Power,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,10 +37,13 @@ const userNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+  { title: 'Dashboard', href: '/app/admin/dashboard', icon: LayoutDashboard, adminOnly: true },
   { title: 'Users', href: '/app/admin/users', icon: UsersIcon, adminOnly: true },
   { title: 'Groups', href: '/app/admin/groups', icon: UserPlus, adminOnly: true },
   { title: 'MCPs', href: '/app/admin/mcps', icon: Package, adminOnly: true },
   { title: 'Audit Logs', href: '/app/admin/audit', icon: ScrollText, adminOnly: true },
+  { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: Power, adminOnly: true },
+  { title: 'Settings', href: '/app/admin/settings', icon: SettingsIcon, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -49,7 +54,13 @@ export function Sidebar() {
     queryFn: authApi.getSession,
   });
 
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (href: string) => {
+    // Exact match for the base route
+    if (location.pathname === href) return true;
+    // Also match sub-routes (e.g., /app/admin/users/123 should highlight "Users")
+    if (href !== '/app/dashboard' && location.pathname.startsWith(href + '/')) return true;
+    return false;
+  };
 
   return (
     <aside

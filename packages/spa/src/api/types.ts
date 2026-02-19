@@ -83,8 +83,23 @@ export interface McpTool {
 
 export interface PaginatedResponse<T> {
   data: T[];
-  cursor?: string;
-  hasMore: boolean;
+  pagination: {
+    has_more: boolean;
+    next_cursor: string | null;
+    total_count: number;
+  };
+}
+
+export interface AdminClient {
+  client_id: string;
+  client_name: string;
+  key_prefix: string;
+  owner_user_id: string;
+  status: 'active' | 'suspended' | 'revoked';
+  profile_id?: string;
+  created_at: string;
+  expires_at?: string;
+  last_used_at?: string;
 }
 
 export interface CredentialStatus {
@@ -103,4 +118,150 @@ export interface SetCredentialsRequest {
 export interface ChangePasswordRequest {
   current_password: string;
   new_password: string;
+}
+
+// Admin types
+export interface AdminUser {
+  user_id: string;
+  username: string;
+  display_name?: string;
+  email?: string;
+  is_admin: boolean;
+  status: 'active' | 'suspended';
+  created_at: string;
+  last_login_at?: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  display_name?: string;
+  email?: string;
+  is_admin?: boolean;
+}
+
+export interface UpdateUserRequest {
+  display_name?: string;
+  email?: string;
+  is_admin?: boolean;
+  status?: 'active' | 'suspended';
+}
+
+export interface Group {
+  group_id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGroupRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+}
+
+export interface GroupMember {
+  user_id: string;
+  username: string;
+  display_name?: string;
+  added_at: string;
+}
+
+export interface McpCatalogEntry {
+  mcp_id: string;
+  name: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  transport_type: 'stdio' | 'http' | 'sse';
+  config: Record<string, unknown>;
+  isolation_mode: 'shared' | 'per_user';
+  status: 'draft' | 'published' | 'archived';
+  validation_status?: 'pending' | 'valid' | 'invalid';
+  requires_user_credentials: boolean;
+  credential_schema?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateMcpRequest {
+  name: string;
+  display_name: string;
+  description?: string;
+  icon_url?: string;
+  transport_type: 'stdio' | 'http' | 'sse';
+  config: Record<string, unknown>;
+  isolation_mode?: 'shared' | 'per_user';
+  requires_user_credentials?: boolean;
+  credential_schema?: Record<string, unknown>;
+}
+
+export interface UpdateMcpRequest {
+  display_name?: string;
+  description?: string;
+  icon_url?: string;
+  transport_type?: 'stdio' | 'http' | 'sse';
+  config?: Record<string, unknown>;
+  isolation_mode?: 'shared' | 'per_user';
+  requires_user_credentials?: boolean;
+  credential_schema?: Record<string, unknown>;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  tools_discovered: Array<{ name: string; description?: string }>;
+}
+
+export interface AuditEvent {
+  event_id: string;
+  timestamp: string;
+  event_type: string;
+  severity: 'info' | 'warn' | 'error';
+  client_id?: string;
+  user_id?: string;
+  source_ip: string;
+  action: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface Session {
+  session_id: string;
+  user_id: string;
+  username: string;
+  created_at: string;
+  expires_at: string;
+  ip_address?: string;
+}
+
+export interface DownstreamStatus {
+  total_connections: number;
+  healthy_connections: number;
+  total_tools: number;
+  connections: Array<{
+    name: string;
+    status: string;
+    tools: number;
+  }>;
+}
+
+export interface KillSwitchResponse {
+  target: string;
+  enabled: boolean;
+  timestamp: string;
+}
+
+export interface Profile {
+  profile_id: string;
+  name: string;
+  description?: string;
+  allowed_tools?: string[];
+  created_at: string;
+  updated_at: string;
 }
