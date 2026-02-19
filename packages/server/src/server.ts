@@ -46,6 +46,7 @@ import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
 import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
 import { BoundedSessionStore } from './admin/session.js';
+import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 
 /**
@@ -108,7 +109,8 @@ export class AmbassadorServer {
   private audit: AuditProvider | null = null;
   private pipeline: Pipeline | null = null;
   private killSwitchManager: KillSwitchManager; // CR-M10-001
-  private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005
+  private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005: Admin session store
+  private userSessionStore: UserSessionStore | null = null; // M21: User session store
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
@@ -273,6 +275,16 @@ export class AmbassadorServer {
     this.lifecycleManager = new SessionLifecycleManager(this.db, this.audit!, sessionConfig, this.userPool);
     this.lifecycleManager.start();
     console.log('[Server] Session lifecycle manager started');
+
+    // M21: Initialize user session store and register on main server
+    console.log('[Server] Registering user session management...');
+    this.userSessionStore = new UserSessionStore(1000);
+    const { registerUserSession } = await import('./auth/user-session.js');
+    await registerUserSession(this.fastify, {
+      dataDir: this.config.dataDir,
+      store: this.userSessionStore,
+    });
+    console.log('[Server] User session management registered');
 
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
@@ -1120,6 +1132,22 @@ export class AmbassadorServer {
           });
         }
       }
+    });
+
+    // ==========================================================================
+    // USER AUTHENTICATION ROUTES (M21)
+    // ==========================================================================
+
+    // Register user authentication routes
+    const { registerAuthRoutes } = await import('./auth/routes.js');
+    await registerAuthRoutes(this.fastify, {
+      db: this.db!,
+    });
+
+    // Register user self-service routes
+    const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
+    await registerSelfServiceRoutes(this.fastify, {
+      db: this.db!,
     });
 
     console.log('[Router] All routes registered');

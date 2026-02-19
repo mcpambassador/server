@@ -23,7 +23,6 @@ import {
   listAuditEventsQuerySchema,
   getProfileParamsSchema,
   killSwitchParamsSchema,
-  createUserSchema,
   updateUserSchema,
   updateUserParamsSchema,
   listUsersQuerySchema,
@@ -54,6 +53,8 @@ import {
   compatInsert,
   compatUpdate,
 } from '@mcpambassador/core';
+import { validatePassword, hashPassword } from '../auth/password-policy.js';
+import { createUserSchema, resetPasswordSchema } from '../auth/schemas.js';
 
 /**
  * Admin routes plugin configuration
@@ -458,19 +459,47 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   });
 
   // ==========================================================================
-  // M18.1: POST /v1/admin/users
+  // M21: POST /v1/admin/users - Create user with authentication
   // ==========================================================================
   fastify.post('/v1/admin/users', async (request, reply) => {
     const body = createUserSchema.parse(request.body);
+
+    // Validate password
+    const validation = validatePassword(body.password);
+    if (!validation.valid) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: validation.errors[0] ?? 'Invalid password',
+        details: validation.errors,
+      });
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(body.password);
+
+    // Check for duplicate username
+    const existingUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.username, body.username),
+    });
+
+    if (existingUser) {
+      return reply.status(409).send({
+        error: 'Conflict',
+        message: 'Username already exists',
+      });
+    }
 
     const userId = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
     await compatInsert(db, users).values({
       user_id: userId,
+      username: body.username,
+      password_hash: passwordHash,
       display_name: body.display_name,
       email: body.email || null,
-      status: body.status || 'active',
+      is_admin: body.is_admin || false,
+      status: 'active',
       auth_source: 'local',
       created_at: nowIso,
       updated_at: nowIso,
@@ -488,14 +517,26 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       source_ip: request.ip || '127.0.0.1',
       action: 'user_create',
       metadata: {
+        username: body.username,
         display_name: body.display_name,
         email: body.email,
-        status: body.status || 'active',
+        is_admin: body.is_admin || false,
       },
     });
 
     const createdUser = await db.query.users.findFirst({
       where: (u, { eq }) => eq(u.user_id, userId),
+      columns: {
+        user_id: true,
+        username: true,
+        display_name: true,
+        email: true,
+        is_admin: true,
+        status: true,
+        auth_source: true,
+        created_at: true,
+        updated_at: true,
+      },
     });
 
     return reply.status(201).send(createdUser);
@@ -644,6 +685,174 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     });
 
     return reply.send(updatedUser);
+  });
+
+  // ==========================================================================
+  // M21: GET /v1/admin/users/:userId - Get user details
+  // ==========================================================================
+  fastify.get('/v1/admin/users/:userId', async (request, reply) => {
+    try {
+      const { userId } = updateUserParamsSchema.parse(request.params);
+      
+      const user = await db.query.users.findFirst({
+        where: (u, { eq }) => eq(u.user_id, userId),
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: 'User not found',
+        });
+      }
+
+      return reply.send({
+        user_id: user.user_id,
+        username: user.username,
+        display_name: user.display_name,
+        email: user.email,
+        is_admin: user.is_admin,
+        status: user.status,
+        auth_source: user.auth_source,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        last_login_at: user.last_login_at,
+      });
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid user ID format',
+        });
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // M21: DELETE /v1/admin/users/:userId - Deactivate user
+  // ==========================================================================
+  fastify.delete('/v1/admin/users/:userId', async (request, reply) => {
+    try {
+      const { userId } = updateUserParamsSchema.parse(request.params);
+      
+      const user = await db.query.users.findFirst({
+        where: (u, { eq }) => eq(u.user_id, userId),
+      });
+
+      if (!user) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: 'User not found',
+        });
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // Deactivate user
+      await compatUpdate(db, users)
+        .set({ status: 'deactivated', updated_at: nowIso })
+        .where(eq(users.user_id, userId));
+
+      // Expire all active sessions
+      await compatUpdate(db, user_sessions)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(user_sessions.user_id, userId),
+            or(
+              eq(user_sessions.status, 'active'),
+              eq(user_sessions.status, 'idle'),
+              eq(user_sessions.status, 'spinning_down')
+            )
+          )
+        );
+
+      // Terminate MCP instances
+      if (userPool) {
+        await userPool.terminateForUser(userId);
+      }
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'info',
+        client_id: undefined,
+        user_id: userId,
+        source_ip: request.ip || '127.0.0.1',
+        action: 'user_deactivated',
+        metadata: {},
+      });
+
+      return reply.send({
+        message: 'User successfully deactivated',
+        user_id: userId,
+      });
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid user ID format',
+        });
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // M21: POST /v1/admin/users/:userId/reset-password - Reset password
+  // ==========================================================================
+  fastify.post('/v1/admin/users/:userId/reset-password', async (request, reply) => {
+    const { userId } = updateUserParamsSchema.parse(request.params);
+    const { new_password } = resetPasswordSchema.parse(request.body);
+    
+    const user = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'User not found',
+      });
+    }
+
+    // Validate password
+    const validation = validatePassword(new_password);
+    if (!validation.valid) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: validation.errors[0] ?? 'Invalid password',
+        details: validation.errors,
+      });
+    }
+
+    // Hash and update password
+    const passwordHash = await hashPassword(new_password);
+    const nowIso = new Date().toISOString();
+
+    await compatUpdate(db, users)
+      .set({ password_hash: passwordHash, updated_at: nowIso })
+      .where(eq(users.user_id, userId));
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'password_reset',
+      metadata: {},
+    });
+
+    return reply.send({
+      message: 'Password successfully reset',
+      user_id: userId,
+    });
   });
 
   // ==========================================================================

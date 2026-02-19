@@ -11,6 +11,7 @@
 import { tool_profiles, users, groups, user_groups } from './index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
+import argon2 from 'argon2';
 
 /**
  * Generates ISO 8601 timestamp for current time
@@ -318,6 +319,16 @@ export async function seedDevData(db: any): Promise<void> {
     where: (group: any, { eq }: any) => eq(group.name, 'all-users'),
   });
 
+  // Hash dev passwords (DEV ONLY - never use these in production)
+  const ARGON2_OPTIONS = {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  };
+  const adminPasswordHash = await argon2.hash('admin123', ARGON2_OPTIONS);
+  const qaPasswordHash = await argon2.hash('test1234', ARGON2_OPTIONS);
+
   // 1. Create admin user
   const adminUserId = uuidv4();
   await db.insert(users).values({
@@ -325,7 +336,7 @@ export async function seedDevData(db: any): Promise<void> {
     username: 'admin',
     display_name: 'Administrator',
     email: 'admin@localhost',
-    password_hash: null, // Password set by bootstrap logic, not seed
+    password_hash: adminPasswordHash, // DEV ONLY: password is "admin123"
     is_admin: true,
     status: 'active',
     auth_source: 'local',
@@ -333,7 +344,7 @@ export async function seedDevData(db: any): Promise<void> {
     updated_at: timestamp,
     metadata: '{}',
   });
-  console.log(`[seed] Created admin user: ${adminUserId}`);
+  console.log(`[seed] Created admin user: ${adminUserId} (password: admin123)`);
 
   // 2. Create QA test user
   const qaUserId = uuidv4();
@@ -342,7 +353,7 @@ export async function seedDevData(db: any): Promise<void> {
     username: 'qa-tester',
     display_name: 'QA Test User',
     email: 'qa@localhost',
-    password_hash: null, // Password set by bootstrap logic
+    password_hash: qaPasswordHash, // DEV ONLY: password is "test1234"
     is_admin: false,
     status: 'active',
     auth_source: 'local',
@@ -350,7 +361,7 @@ export async function seedDevData(db: any): Promise<void> {
     updated_at: timestamp,
     metadata: '{}',
   });
-  console.log(`[seed] Created QA test user: ${qaUserId}`);
+  console.log(`[seed] Created QA test user: ${qaUserId} (password: test1234)`);
 
   // 3. Assign QA user to all-users group
   if (allUsersGroup) {
