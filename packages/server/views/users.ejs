@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Users</h1>
+      
+      <section>
+        <h2>Create User</h2>
+        <form method="POST" action="/admin/users/create">
+          <div class="grid">
+            <label>
+              Display Name
+              <input type="text" name="display_name" required placeholder="Alice Developer">
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" placeholder="alice@example.com (optional)">
+            </label>
+          </div>
+          <button type="submit">Create User</button>
+        </form>
+      </section>
+      
+      <section>
+        <h2>Registered Users</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Display Name</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (users.length === 0) { %>
+              <tr><td colspan="5">No users found</td></tr>
+            <% } else { %>
+              <% users.forEach(user => { %>
+                <tr>
+                  <td><%= user.display_name %></td>
+                  <td><%= user.email || 'N/A' %></td>
+                  <td>
+                    <% if (user.status === 'active') { %>
+                      <span class="badge badge-success"><%= user.status %></span>
+                    <% } else if (user.status === 'suspended') { %>
+                      <span class="badge badge-warning"><%= user.status %></span>
+                    <% } else { %>
+                      <span class="badge badge-error"><%= user.status %></span>
+                    <% } %>
+                  </td>
+                  <td><%= formatTimestamp(user.created_at) %></td>
+                  <td>
+                    <% if (user.status === 'active') { %>
+                      <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="suspended">
+                        <button type="submit" class="secondary">Suspend</button>
+                      </form>
+                    <% } else if (user.status === 'suspended') { %>
+                      <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="active">
+                        <button type="submit">Activate</button>
+                      </form>
+                      <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="deactivated">
+                        <button type="submit" class="secondary">Deactivate</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

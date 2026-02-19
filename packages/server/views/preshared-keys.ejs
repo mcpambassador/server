@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preshared Keys - MCP Ambassador</title>
+  <link rel="stylesheet" href="/vendor/pico.min.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <script src="/vendor/htmx.min.js"></script>
+</head>
+<body>
+  <div class="admin-layout">
+    <%- include('partials/nav') %>
+    
+    <main class="admin-content">
+      <%- include('partials/flash') %>
+      
+      <h1>Preshared Keys</h1>
+      
+      <% if (locals.generatedKey) { %>
+        <article style="background: #fff3cd; border: 2px solid #856404; padding: 1rem; margin-bottom: 2rem;">
+          <h3>⚠️ Copy this key now — it will NOT be shown again:</h3>
+          <code style="display: block; background: #f5f5f5; padding: 1rem; font-size: 1.1rem; word-break: break-all;"><%= generatedKey %></code>
+          <p style="margin-top: 0.5rem; color: #856404; font-weight: bold;">Store this key securely. It cannot be retrieved after you leave this page.</p>
+        </article>
+      <% } %>
+      
+      <section>
+        <h2>Create Preshared Key</h2>
+        <form method="POST" action="/admin/preshared-keys/create">
+          <div class="grid">
+            <label>
+              User
+              <select name="user_id" required>
+                <option value="">Select User</option>
+                <% users.forEach(user => { %>
+                  <option value="<%= user.user_id %>"><%= user.display_name %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label>
+              Profile
+              <select name="profile_id" required>
+                <option value="">Select Profile</option>
+                <% profiles.forEach(profile => { %>
+                  <option value="<%= profile.profile_id %>"><%= profile.name %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label>
+              Label
+              <input type="text" name="label" required placeholder="Alice - Developer Key">
+            </label>
+          </div>
+          <button type="submit">Create Key</button>
+        </form>
+      </section>
+      
+      <section>
+        <h2>Preshared Keys</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>User</th>
+              <th>Profile</th>
+              <th>Status</th>
+              <th>Prefix</th>
+              <th>Created</th>
+              <th>Last Used</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (keys.length === 0) { %>
+              <tr><td colspan="8">No preshared keys found</td></tr>
+            <% } else { %>
+              <% keys.forEach(key => { %>
+                <tr>
+                  <td><%= key.label %></td>
+                  <td><%= key.user_display_name %></td>
+                  <td><%= key.profile_name %></td>
+                  <td>
+                    <% if (key.status === 'active') { %>
+                      <span class="badge badge-success"><%= key.status %></span>
+                    <% } else if (key.status === 'suspended') { %>
+                      <span class="badge badge-warning"><%= key.status %></span>
+                    <% } else { %>
+                      <span class="badge badge-error"><%= key.status %></span>
+                    <% } %>
+                  </td>
+                  <td><code>amb_pk_<%= key.key_prefix %>...</code></td>
+                  <td><%= formatTimestamp(key.created_at) %></td>
+                  <td><%= key.last_used_at ? formatTimestamp(key.last_used_at) : 'Never' %></td>
+                  <td>
+                    <% if (key.status === 'active') { %>
+                      <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="suspended">
+                        <button type="submit" class="secondary">Suspend</button>
+                      </form>
+                      <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="revoked">
+                        <button type="submit" class="secondary">Revoke</button>
+                      </form>
+                    <% } else if (key.status === 'suspended') { %>
+                      <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="active">
+                        <button type="submit">Activate</button>
+                      </form>
+                      <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="status" value="revoked">
+                        <button type="submit" class="secondary">Revoke</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

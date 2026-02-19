@@ -109,3 +109,91 @@ export const listAuditEventsQuerySchema = z.object({
   client_id: z.string().uuid().optional(),
   event_type: z.string().optional(),
 });
+
+// ==========================================================================
+// USER SCHEMAS (M18)
+// ==========================================================================
+
+export const createUserSchema = z
+  .object({
+    display_name: z.string().min(1).max(256),
+    email: z.string().email().optional(),
+    status: z.enum(['active', 'suspended']).optional(),
+  })
+  .strict();
+
+export const updateUserSchema = z
+  .object({
+    display_name: z.string().min(1).max(256).optional(),
+    email: z.string().email().optional(),
+    status: z.enum(['active', 'suspended', 'deactivated']).optional(),
+  })
+  .strict();
+
+export const updateUserParamsSchema = z.object({
+  userId: z.string().uuid(),
+});
+
+export const listUsersQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  status: z.enum(['active', 'suspended', 'deactivated']).optional(),
+  sort: z
+    .enum(['display_name:asc', 'display_name:desc', 'created_at:asc', 'created_at:desc'])
+    .optional()
+    .default('display_name:asc'),
+});
+
+// ==========================================================================
+// PRESHARED KEY SCHEMAS (M18)
+// ==========================================================================
+
+export const createPresharedKeySchema = z
+  .object({
+    user_id: z.string().uuid(),
+    profile_id: z.string().uuid(),
+    label: z.string().min(1).max(256),
+    expires_at: z.string().datetime().optional(),
+  })
+  .strict();
+
+export const updatePresharedKeySchema = z
+  .object({
+    status: z.enum(['active', 'suspended', 'revoked']).optional(),
+    profile_id: z.string().uuid().optional(),
+  })
+  .strict();
+
+export const updatePresharedKeyParamsSchema = z.object({
+  keyId: z.string().uuid(),
+});
+
+export const listPresharedKeysQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  user_id: z.string().uuid().optional(),
+  status: z.enum(['active', 'suspended', 'revoked']).optional(),
+  sort: z
+    .enum(['created_at:asc', 'created_at:desc', 'label:asc', 'label:desc'])
+    .optional()
+    .default('created_at:desc'),
+});
+
+// ==========================================================================
+// SESSION SCHEMAS (M18)
+// ==========================================================================
+
+export const listSessionsQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  user_id: z.string().uuid().optional(),
+  status: z.enum(['active', 'idle', 'spinning_down', 'suspended', 'expired']).optional(),
+  sort: z
+    .enum(['last_activity_at:asc', 'last_activity_at:desc', 'created_at:asc', 'created_at:desc'])
+    .optional()
+    .default('last_activity_at:desc'),
+});
+
+export const deleteSessionParamsSchema = z.object({
+  sessionId: z.string().uuid(),
+});

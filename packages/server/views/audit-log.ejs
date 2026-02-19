@@ -29,6 +29,16 @@
             <input type="text" id="action" name="action" value="<%= filters.action || '' %>" placeholder="Filter by action">
           </label>
           
+          <label for="user_id">
+            User ID
+            <input type="text" id="user_id" name="user_id" value="<%= filters.user_id || '' %>" placeholder="Filter by user">
+          </label>
+          
+          <label for="session_id">
+            Session ID
+            <input type="text" id="session_id" name="session_id" value="<%= filters.session_id || '' %>" placeholder="Filter by session">
+          </label>
+          
           <div>
             <label>&nbsp;</label>
             <button type="submit">Filter</button>

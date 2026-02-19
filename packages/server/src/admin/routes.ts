@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
+import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { authenticateAdmin } from './middleware.js';
 import {
@@ -25,6 +26,16 @@ import {
   getProfileParamsSchema,
   updateClientStatusParamsSchema,
   killSwitchParamsSchema,
+  createUserSchema,
+  updateUserSchema,
+  updateUserParamsSchema,
+  listUsersQuerySchema,
+  createPresharedKeySchema,
+  updatePresharedKeySchema,
+  updatePresharedKeyParamsSchema,
+  listPresharedKeysQuerySchema,
+  listSessionsQuerySchema,
+  deleteSessionParamsSchema,
 } from './schemas.js';
 import { createPaginationEnvelope } from './pagination.js';
 import { queryAuditEvents } from './audit-reader.js';
@@ -37,6 +48,16 @@ import {
   getEffectiveProfile as getToolProfileEffective,
 } from '@mcpambassador/core';
 import { listClients, updateClientStatus, getClientById } from '@mcpambassador/core';
+import { eq, and, or, desc, asc } from 'drizzle-orm';
+import argon2 from 'argon2';
+import {
+  users,
+  preshared_keys,
+  user_sessions,
+  session_connections,
+  compatInsert,
+  compatUpdate,
+} from '@mcpambassador/core';
 
 /**
  * Admin routes plugin configuration
@@ -47,6 +68,7 @@ export interface AdminRoutesConfig {
   mcpManager: SharedMcpManager;
   dataDir: string;
   killSwitchManager: KillSwitchManager; // CR-M10-001: Shared kill switch manager
+  userPool: UserMcpPool | null; // M18: Per-user MCP pool for session termination
 }
 
 /**
@@ -57,7 +79,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   opts: AdminRoutesConfig,
   done
 ) => {
-  const { db, audit, mcpManager, dataDir, killSwitchManager } = opts;
+  const { db, audit, mcpManager, dataDir, killSwitchManager, userPool } = opts;
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -485,6 +507,605 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       healthy_connections: status.healthy_connections,
       total_tools: status.total_tools,
       connections: status.connections,
+    });
+  });
+
+  // ==========================================================================
+  // M18.1: POST /v1/admin/users
+  // ==========================================================================
+  fastify.post('/v1/admin/users', async (request, reply) => {
+    const body = createUserSchema.parse(request.body);
+
+    const userId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    await compatInsert(db, users).values({
+      user_id: userId,
+      display_name: body.display_name,
+      email: body.email || null,
+      status: body.status || 'active',
+      auth_source: 'local',
+      created_at: nowIso,
+      updated_at: nowIso,
+      metadata: '{}',
+    });
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'user_create',
+      metadata: {
+        display_name: body.display_name,
+        email: body.email,
+        status: body.status || 'active',
+      },
+    });
+
+    const createdUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
+
+    return reply.status(201).send(createdUser);
+  });
+
+  // ==========================================================================
+  // M18.2: GET /v1/admin/users
+  // ==========================================================================
+  fastify.get('/v1/admin/users', async (request, reply) => {
+    const query = listUsersQuerySchema.parse(request.query);
+    const limit = Math.min(query.limit || 20, 100);
+
+    // Build where conditions
+    const conditions: any[] = [];
+    if (query.status) {
+      conditions.push(eq(users.status, query.status));
+    }
+
+    // Query with filters
+    let userList = await db.query.users.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      limit: limit + 1, // Fetch one extra to detect has_more
+      orderBy: query.sort.includes('created_at')
+        ? query.sort === 'created_at:desc'
+          ? [desc(users.created_at)]
+          : [asc(users.created_at)]
+        : query.sort === 'display_name:desc'
+          ? [desc(users.display_name)]
+          : [asc(users.display_name)],
+    });
+
+    // Apply cursor filtering if provided
+    if (query.cursor) {
+      const cursorIndex = userList.findIndex(
+        u => u.user_id === query.cursor || u.created_at === query.cursor
+      );
+      if (cursorIndex >= 0) {
+        userList = userList.slice(cursorIndex + 1);
+      }
+    }
+
+    // Pagination
+    const hasMore = userList.length > limit;
+    const data = hasMore ? userList.slice(0, limit) : userList;
+    const nextCursor =
+      hasMore && data.length > 0
+        ? query.sort.includes('created_at')
+          ? data[data.length - 1]!.created_at
+          : data[data.length - 1]!.user_id
+        : null;
+
+    return reply.send(
+      createPaginationEnvelope(data, {
+        has_more: hasMore,
+        next_cursor: nextCursor,
+        total_count: data.length,
+      })
+    );
+  });
+
+  // ==========================================================================
+  // M18.3: PATCH /v1/admin/users/:userId
+  // ==========================================================================
+  fastify.patch('/v1/admin/users/:userId', async (request, reply) => {
+    const { userId } = updateUserParamsSchema.parse(request.params);
+    const body = updateUserSchema.parse(request.body);
+
+    // Check if user exists
+    const user = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'User not found',
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const updates: Record<string, unknown> = {
+      updated_at: nowIso,
+    };
+
+    if (body.display_name !== undefined) updates.display_name = body.display_name;
+    if (body.email !== undefined) updates.email = body.email;
+
+    const oldStatus = user.status;
+    const statusChanged = body.status !== undefined && body.status !== oldStatus;
+
+    if (body.status !== undefined) {
+      updates.status = body.status;
+    }
+
+    // If status changes to suspended or deactivated, expire all active sessions
+    if (statusChanged && (body.status === 'suspended' || body.status === 'deactivated')) {
+      // Update user
+      await compatUpdate(db, users)
+        .set(updates)
+        .where(eq(users.user_id, userId));
+
+      // Expire all active sessions for this user
+      await compatUpdate(db, user_sessions)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(user_sessions.user_id, userId),
+            or(
+              eq(user_sessions.status, 'active'),
+              eq(user_sessions.status, 'idle'),
+              eq(user_sessions.status, 'spinning_down')
+            )
+          )
+        );
+
+      // Terminate MCP instances (outside transaction)
+      if (userPool) {
+        await userPool.terminateForUser(userId);
+      }
+    } else {
+      // Normal update (no cascading)
+      await compatUpdate(db, users)
+        .set(updates)
+        .where(eq(users.user_id, userId));
+    }
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'user_update',
+      metadata: {
+        changes: Object.keys(updates).filter(k => k !== 'updated_at'),
+        old_status: oldStatus,
+        new_status: body.status,
+      },
+    });
+
+    const updatedUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
+
+    return reply.send(updatedUser);
+  });
+
+  // ==========================================================================
+  // M18.4: POST /v1/admin/preshared-keys
+  // ==========================================================================
+  fastify.post('/v1/admin/preshared-keys', async (request, reply) => {
+    const body = createPresharedKeySchema.parse(request.body);
+
+    // Verify user exists and is active
+    const userRecord = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, body.user_id),
+    });
+
+    if (!userRecord) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'User not found',
+      });
+    }
+
+    if (userRecord.status !== 'active') {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'User is not active',
+      });
+    }
+
+    // Verify profile exists
+    const profile = await db.query.tool_profiles.findFirst({
+      where: (p, { eq }) => eq(p.profile_id, body.profile_id),
+    });
+
+    if (!profile) {
+      return reply.status(400).send({
+        error: 'Bad Request',
+        message: 'Profile not found',
+      });
+    }
+
+    // Generate preshared key: amb_pk_ + 48 chars of base64url
+    const randomBytes = crypto.randomBytes(36); // 36 bytes → 48 base64 chars
+    const base64url = randomBytes
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    const presharedKey = `amb_pk_${base64url}`;
+
+    // Extract prefix: first 8 chars after amb_pk_
+    const keyPrefix = base64url.substring(0, 8);
+
+    // Hash with Argon2id
+    const keyHash = await argon2.hash(presharedKey, {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
+
+    const keyId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+
+    await compatInsert(db, preshared_keys).values({
+      key_id: keyId,
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      label: body.label,
+      user_id: body.user_id,
+      profile_id: body.profile_id,
+      status: 'active',
+      created_by: 'admin', // TODO: Get actual admin user_id from auth context
+      created_at: nowIso,
+      expires_at: body.expires_at || null,
+      metadata: '{}',
+    });
+
+    // Emit audit event (NEVER log the plaintext key!)
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: body.user_id,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'preshared_key_create',
+      metadata: {
+        key_id: keyId,
+        label: body.label,
+        user_id: body.user_id,
+        profile_id: body.profile_id,
+      },
+    });
+
+    const createdKey = await db.query.preshared_keys.findFirst({
+      where: (k, { eq }) => eq(k.key_id, keyId),
+    });
+
+    // Return key info WITH plaintext key (only time it's ever returned)
+    return reply.status(201).send({
+      key_id: createdKey!.key_id,
+      key_prefix: createdKey!.key_prefix,
+      label: createdKey!.label,
+      user_id: createdKey!.user_id,
+      profile_id: createdKey!.profile_id,
+      status: createdKey!.status,
+      created_at: createdKey!.created_at,
+      expires_at: createdKey!.expires_at,
+      plaintext_key: presharedKey, // ONLY returned here, never stored
+    });
+  });
+
+  // ==========================================================================
+  // M18.5: GET /v1/admin/preshared-keys
+  // ==========================================================================
+  fastify.get('/v1/admin/preshared-keys', async (request, reply) => {
+    const query = listPresharedKeysQuerySchema.parse(request.query);
+    const limit = Math.min(query.limit || 20, 100);
+
+    // Build where conditions
+    const conditions: any[] = [];
+    if (query.user_id) {
+      conditions.push(eq(preshared_keys.user_id, query.user_id));
+    }
+    if (query.status) {
+      conditions.push(eq(preshared_keys.status, query.status));
+    }
+
+    // Query with filters
+    let keyList = await db.query.preshared_keys.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      limit: limit + 1,
+      orderBy: query.sort.includes('created_at')
+        ? query.sort === 'created_at:desc'
+          ? [desc(preshared_keys.created_at)]
+          : [asc(preshared_keys.created_at)]
+        : query.sort === 'label:desc'
+          ? [desc(preshared_keys.label)]
+          : [asc(preshared_keys.label)],
+    });
+
+    // Apply cursor filtering if provided
+    if (query.cursor) {
+      const cursorIndex = keyList.findIndex(
+        k => k.key_id === query.cursor || k.created_at === query.cursor
+      );
+      if (cursorIndex >= 0) {
+        keyList = keyList.slice(cursorIndex + 1);
+      }
+    }
+
+    // Pagination
+    const hasMore = keyList.length > limit;
+    const data = hasMore ? keyList.slice(0, limit) : keyList;
+    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]!.key_id : null;
+
+    // Strip key_hash from response (never expose hashes)
+    const sanitizedData = data.map(k => {
+      const { key_hash, ...rest } = k;
+      return rest;
+    });
+
+    return reply.send(
+      createPaginationEnvelope(sanitizedData, {
+        has_more: hasMore,
+        next_cursor: nextCursor,
+        total_count: sanitizedData.length,
+      })
+    );
+  });
+
+  // ==========================================================================
+  // M18.6: PATCH /v1/admin/preshared-keys/:keyId
+  // ==========================================================================
+  fastify.patch('/v1/admin/preshared-keys/:keyId', async (request, reply) => {
+    const { keyId } = updatePresharedKeyParamsSchema.parse(request.params);
+    const body = updatePresharedKeySchema.parse(request.body);
+
+    // Check if key exists
+    const key = await db.query.preshared_keys.findFirst({
+      where: (k, { eq }) => eq(k.key_id, keyId),
+    });
+
+    if (!key) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Preshared key not found',
+      });
+    }
+
+    // If profile_id is being changed, verify it exists
+    if (body.profile_id !== undefined) {
+      const profile = await db.query.tool_profiles.findFirst({
+        where: (p, { eq }) => eq(p.profile_id, body.profile_id!),
+      });
+
+      if (!profile) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Profile not found',
+        });
+      }
+    }
+
+    const oldStatus = key.status;
+    const statusChanged = body.status !== undefined && body.status !== oldStatus;
+
+    const updates: Record<string, unknown> = {};
+    if (body.status !== undefined) updates.status = body.status;
+    if (body.profile_id !== undefined) updates.profile_id = body.profile_id;
+
+    // If status changes to revoked, expire all sessions for this key's user
+    if (statusChanged && body.status === 'revoked') {
+      // Update key
+      await compatUpdate(db, preshared_keys)
+        .set(updates)
+        .where(eq(preshared_keys.key_id, keyId));
+
+      // Expire all active sessions for this key's user
+      await compatUpdate(db, user_sessions)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(user_sessions.user_id, key.user_id),
+            or(
+              eq(user_sessions.status, 'active'),
+              eq(user_sessions.status, 'idle'),
+              eq(user_sessions.status, 'spinning_down')
+            )
+          )
+        );
+
+      // Terminate MCP instances (outside transaction)
+      if (userPool) {
+        await userPool.terminateForUser(key.user_id);
+      }
+    } else {
+      // Normal update
+      await compatUpdate(db, preshared_keys)
+        .set(updates)
+        .where(eq(preshared_keys.key_id, keyId));
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: key.user_id,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'preshared_key_update',
+      metadata: {
+        key_id: keyId,
+        changes: Object.keys(updates),
+        old_status: oldStatus,
+        new_status: body.status,
+      },
+    });
+
+    const updatedKey = await db.query.preshared_keys.findFirst({
+      where: (k, { eq }) => eq(k.key_id, keyId),
+    });
+
+    // Strip key_hash from response
+    const { key_hash, ...keyInfo } = updatedKey!;
+
+    return reply.send(keyInfo);
+  });
+
+  // ==========================================================================
+  // M18.7: GET /v1/admin/sessions
+  // ==========================================================================
+  fastify.get('/v1/admin/sessions', async (request, reply) => {
+    const query = listSessionsQuerySchema.parse(request.query);
+    const limit = Math.min(query.limit || 20, 100);
+
+    // Build where conditions
+    const conditions: any[] = [];
+    if (query.user_id) {
+      conditions.push(eq(user_sessions.user_id, query.user_id));
+    }
+    if (query.status) {
+      conditions.push(eq(user_sessions.status, query.status));
+    }
+
+    // Query with filters
+    let sessionList = await db.query.user_sessions.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      limit: limit + 1,
+      orderBy: query.sort.includes('last_activity_at')
+        ? query.sort === 'last_activity_at:desc'
+          ? [desc(user_sessions.last_activity_at)]
+          : [asc(user_sessions.last_activity_at)]
+        : query.sort === 'created_at:desc'
+          ? [desc(user_sessions.created_at)]
+          : [asc(user_sessions.created_at)],
+    });
+
+    // Apply cursor filtering if provided
+    if (query.cursor) {
+      const cursorIndex = sessionList.findIndex(
+        s => s.session_id === query.cursor || s.last_activity_at === query.cursor
+      );
+      if (cursorIndex >= 0) {
+        sessionList = sessionList.slice(cursorIndex + 1);
+      }
+    }
+
+    // Pagination
+    const hasMore = sessionList.length > limit;
+    const data = hasMore ? sessionList.slice(0, limit) : sessionList;
+    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]!.session_id : null;
+
+    // For each session, count connected connections
+    const sessionsWithConnections = await Promise.all(
+      data.map(async session => {
+        const connections = await db.query.session_connections.findMany({
+          where: (c, { eq, and }) =>
+            and(eq(c.session_id, session.session_id), eq(c.status, 'connected')),
+        });
+
+        // Strip sensitive fields
+        const { session_token_hash, token_nonce, ...sessionInfo } = session;
+
+        return {
+          ...sessionInfo,
+          connection_count: connections.length,
+        };
+      })
+    );
+
+    return reply.send(
+      createPaginationEnvelope(sessionsWithConnections, {
+        has_more: hasMore,
+        next_cursor: nextCursor,
+        total_count: sessionsWithConnections.length,
+      })
+    );
+  });
+
+  // ==========================================================================
+  // M18.8: DELETE /v1/admin/sessions/:sessionId
+  // ==========================================================================
+  fastify.delete('/v1/admin/sessions/:sessionId', async (request, reply) => {
+    const { sessionId } = deleteSessionParamsSchema.parse(request.params);
+
+    // Check if session exists
+    const session = await db.query.user_sessions.findFirst({
+      where: (s, { eq }) => eq(s.session_id, sessionId),
+    });
+
+    if (!session) {
+      return reply.status(404).send({
+        error: 'Not Found',
+        message: 'Session not found',
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // If already expired, return current state (idempotent)
+    if (session.status === 'expired') {
+      return reply.send({
+        session_id: sessionId,
+        status: 'expired',
+        terminated_at: nowIso,
+      });
+    }
+
+    // Expire the session and disconnect all connections
+    // Set session to expired
+    await compatUpdate(db, user_sessions)
+      .set({ status: 'expired' })
+      .where(eq(user_sessions.session_id, sessionId));
+
+    // Disconnect all connections
+    await compatUpdate(db, session_connections)
+      .set({ status: 'disconnected', disconnected_at: nowIso })
+      .where(eq(session_connections.session_id, sessionId));
+
+    // Terminate MCP instances for this user
+    if (userPool) {
+      await userPool.terminateForUser(session.user_id);
+    }
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: session.user_id,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'session_terminate',
+      metadata: {
+        session_id: sessionId,
+        old_status: session.status,
+      },
+    });
+
+    return reply.send({
+      session_id: sessionId,
+      status: 'expired',
+      terminated_at: nowIso,
     });
   });
 

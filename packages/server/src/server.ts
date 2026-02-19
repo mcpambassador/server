@@ -419,6 +419,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      userPool: this.userPool, // M18: Per-user MCP pool
     });
 
     // Register UI routes
@@ -429,6 +430,7 @@ export class AmbassadorServer {
       audit: this.audit!, // F-SEC-M10-004
       killSwitchManager: this.killSwitchManager, // CR-M10-001
       sessionStore: this.sessionStore, // F-SEC-M10-005
+      userPool: this.userPool, // M18: CR fix — cascade support in UI routes
     });
 
     // Register htmx fragment routes
@@ -1087,6 +1089,7 @@ export class AmbassadorServer {
         mcpManager: this.mcpManager,
         dataDir: this.config.dataDir,
         killSwitchManager: this.killSwitchManager, // CR-M10-001
+        userPool: this.userPool, // M18: Per-user MCP pool
       }
     );
 
