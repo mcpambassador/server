@@ -25,20 +25,20 @@ import { HttpMcpConnection } from './http-connection.js';
  *
  * Per Architecture §7.3 and dev-plan M6.3
  */
-export class DownstreamMcpManager {
+export class SharedMcpManager {
   private connections = new Map<string, StdioMcpConnection | HttpMcpConnection>();
   private toolToMcpMap = new Map<string, string>(); // tool_name -> mcp_name
   private aggregatedTools: AggregatedTool[] = [];
 
   constructor() {
-    console.log('[DownstreamMcpManager] Initialized');
+    console.log('[SharedMcpManager] Initialized');
   }
 
   /**
    * Initialize all downstream MCP connections from config
    */
   async initialize(configs: DownstreamMcpConfig[]): Promise<void> {
-    console.log(`[DownstreamMcpManager] Initializing ${configs.length} downstream MCPs...`);
+    console.log(`[SharedMcpManager] Initializing ${configs.length} downstream MCPs...`);
 
     const startPromises = configs.map(async config => {
       try {
@@ -52,13 +52,13 @@ export class DownstreamMcpManager {
 
           // Register connection event handlers
           connection.on('disconnect', () => {
-            console.log(`[DownstreamMcpManager] MCP ${config.name} disconnected`);
+            console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
           });
 
           connection.on('error', err => {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            console.error(`[DownstreamMcpManager] MCP ${config.name} error:`, err);
+            console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
           });
         } else if (config.transport === 'http' || config.transport === 'sse') {
           const connection = new HttpMcpConnection(config);
@@ -67,23 +67,23 @@ export class DownstreamMcpManager {
 
           // Register connection event handlers
           connection.on('disconnect', () => {
-            console.log(`[DownstreamMcpManager] MCP ${config.name} disconnected`);
+            console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
           });
 
           connection.on('error', err => {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            console.error(`[DownstreamMcpManager] MCP ${config.name} error:`, err);
+            console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
           });
         } else {
           console.warn(
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            `[DownstreamMcpManager] Unknown transport ${config.transport} for ${config.name}`
+            `[SharedMcpManager] Unknown transport ${config.transport} for ${config.name}`
           );
         }
       } catch (err) {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[DownstreamMcpManager] Failed to start ${config.name}:`, err);
+        console.error(`[SharedMcpManager] Failed to start ${config.name}:`, err);
         // Continue with other MCPs even if one fails
       }
     });
@@ -94,7 +94,7 @@ export class DownstreamMcpManager {
     await this.aggregateTools();
 
     console.log(
-      `[DownstreamMcpManager] Initialized ${this.connections.size} connections, ${this.aggregatedTools.length} tools`
+      `[SharedMcpManager] Initialized ${this.connections.size} connections, ${this.aggregatedTools.length} tools`
     );
   }
 
@@ -116,7 +116,7 @@ export class DownstreamMcpManager {
         // SEC-M9-05: Validate tool name
         if (!validateToolName(tool.name)) {
           console.warn(
-            `[DownstreamMcpManager] Skipping tool with invalid name from ${mcpName}: ${tool.name}`
+            `[SharedMcpManager] Skipping tool with invalid name from ${mcpName}: ${tool.name}`
           );
           continue;
         }
@@ -125,7 +125,7 @@ export class DownstreamMcpManager {
         if (this.toolToMcpMap.has(tool.name)) {
           const existingMcp = this.toolToMcpMap.get(tool.name);
           console.warn(
-            `[DownstreamMcpManager] Tool name conflict: ${tool.name} ` +
+            `[SharedMcpManager] Tool name conflict: ${tool.name} ` +
               `provided by both ${existingMcp} and ${mcpName}. ` +
               `Using ${existingMcp}.`
           );
@@ -150,7 +150,7 @@ export class DownstreamMcpManager {
     }
 
     console.log(
-      `[DownstreamMcpManager] Aggregated ${this.aggregatedTools.length} tools from ${this.connections.size} MCPs`
+      `[SharedMcpManager] Aggregated ${this.aggregatedTools.length} tools from ${this.connections.size} MCPs`
     );
   }
 
@@ -231,7 +231,7 @@ export class DownstreamMcpManager {
     const refreshPromises = Array.from(this.connections.values()).map(conn =>
       conn.refreshToolList().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[DownstreamMcpManager] Failed to refresh:`, err);
+        console.error(`[SharedMcpManager] Failed to refresh:`, err);
       })
     );
 
@@ -243,12 +243,12 @@ export class DownstreamMcpManager {
    * Shutdown all connections
    */
   async shutdown(): Promise<void> {
-    console.log('[DownstreamMcpManager] Shutting down all connections...');
+    console.log('[SharedMcpManager] Shutting down all connections...');
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[DownstreamMcpManager] Error stopping connection:`, err);
+        console.error(`[SharedMcpManager] Error stopping connection:`, err);
       })
     );
 
@@ -258,7 +258,7 @@ export class DownstreamMcpManager {
     this.toolToMcpMap.clear();
     this.aggregatedTools = [];
 
-    console.log('[DownstreamMcpManager] Shutdown complete');
+    console.log('[SharedMcpManager] Shutdown complete');
   }
 
   /**

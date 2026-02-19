@@ -14,7 +14,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
-import type { DownstreamMcpManager } from '../downstream/index.js';
+import type { SharedMcpManager } from '../downstream/index.js';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import type { BoundedSessionStore } from './session.js';
 import { authenticateAdminKey } from '@mcpambassador/core';
@@ -43,7 +43,7 @@ declare module 'fastify' {
 
 export interface UiRoutesOptions {
   db: DatabaseClient;
-  mcpManager: DownstreamMcpManager;
+  mcpManager: SharedMcpManager;
   dataDir: string;
   audit: AuditProvider; // F-SEC-M10-004
   killSwitchManager: KillSwitchManager; // CR-M10-001

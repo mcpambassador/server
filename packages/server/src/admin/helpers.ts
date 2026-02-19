@@ -43,14 +43,14 @@ import {
   getToolProfileById,
   queryAuditEvents,
 } from '@mcpambassador/core';
-import type { DownstreamMcpManager } from '../downstream/index.js';
+import type { SharedMcpManager } from '../downstream/index.js';
 
 /**
  * Get dashboard data (summary stats)
  */
 export async function getDashboardData(
   db: DatabaseClient,
-  mcpManager: DownstreamMcpManager
+  mcpManager: SharedMcpManager
 ): Promise<{
   clientCount: number;
   profileCount: number;

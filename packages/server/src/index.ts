@@ -9,7 +9,7 @@ export type { ServerConfig } from './server.js';
 export { initializeTls } from './tls.js';
 export type { TlsConfig, TlsCertificates } from './tls.js';
 
-export { DownstreamMcpManager } from './downstream/index.js';
+export { SharedMcpManager, DownstreamMcpManager } from './downstream/index.js';
 export type {
   DownstreamMcpConfig,
   ToolDescriptor,

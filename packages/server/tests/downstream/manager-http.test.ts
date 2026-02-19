@@ -1,23 +1,23 @@
 import { describe, it, beforeAll, expect } from 'vitest'
 import { makeMcpConfig, makeTool } from './helpers'
 
-let DownstreamMcpManager: any
+let SharedMcpManager: any
 let available = true
 
 beforeAll(async () => {
   try {
     const mod = await import('../../../src/downstream/manager')
-    DownstreamMcpManager = mod.DownstreamMcpManager
-    if (!DownstreamMcpManager) available = false
+    SharedMcpManager = mod.SharedMcpManager
+    if (!SharedMcpManager) available = false
   } catch (err) {
     available = false
   }
 })
 
-describe('DownstreamMcpManager mixed transports', () => {
+describe('SharedMcpManager mixed transports', () => {
   it('initializes http transport configs', async () => {
     if (!available) return expect(true).toBeTruthy()
-    const mgr = new DownstreamMcpManager()
+    const mgr = new SharedMcpManager()
     const configs = [
       makeMcpConfig({ name: 's1', transport: 'stdio' }),
       makeMcpConfig({ name: 'h1', transport: 'http', url: 'http://127.0.0.1' }),
@@ -34,7 +34,7 @@ describe('DownstreamMcpManager mixed transports', () => {
   it('aggregates tool catalogs across transports', async () => {
     if (!available) return expect(true).toBeTruthy()
     // If implementation exists, call aggregateTools and ensure result is an array
-    const mgr = new DownstreamMcpManager()
+    const mgr = new SharedMcpManager()
     if (typeof mgr.aggregateTools === 'function') {
       const agg = await mgr.aggregateTools()
       expect(Array.isArray(agg)).toBe(true)

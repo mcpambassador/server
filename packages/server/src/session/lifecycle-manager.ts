@@ -25,6 +25,7 @@ import {
   compatDelete,
   logger,
 } from '@mcpambassador/core';
+import type { UserMcpPool } from '../downstream/index.js';
 
 export interface SessionLifecycleConfig {
   /** How often to evaluate session state transitions (ms) */
@@ -39,12 +40,16 @@ export class SessionLifecycleManager {
   private evaluationTimer: NodeJS.Timeout | null = null;
   private sweepTimer: NodeJS.Timeout | null = null;
   private isRunning = false;
+  private userPool?: UserMcpPool; // M17: Per-user MCP pool for lifecycle management
 
   constructor(
     private db: DatabaseClient,
     private audit: AuditProvider,
-    private config: SessionLifecycleConfig
-  ) {}
+    private config: SessionLifecycleConfig,
+    userPool?: UserMcpPool
+  ) {
+    this.userPool = userPool;
+  }
 
   /**
    * Start periodic lifecycle evaluation and sweep
@@ -148,6 +153,17 @@ export class SessionLifecycleManager {
         `[SessionLifecycle] Session ${session.session_id} expired (${session.status} → expired)`
       );
 
+      // M17.3: Terminate per-user MCP connections on expiry
+      if (this.userPool && session.user_id) {
+        try {
+          await this.userPool.terminateForUser(session.user_id);
+          logger.info(`[SessionLifecycle] Terminated per-user MCPs for expired user ${session.user_id}`);
+        } catch (err) {
+          logger.error({ err, userId: session.user_id }, '[SessionLifecycle] Failed to terminate per-user MCPs on expiry');
+          // Continue with state transition
+        }
+      }
+
       await compatUpdate(this.db, user_sessions)
         .set({ status: 'expired' })
         .where(eq(user_sessions.session_id, session.session_id));
@@ -166,6 +182,7 @@ export class SessionLifecycleManager {
           previous_status: session.status,
           new_status: 'expired',
           expires_at: session.expires_at,
+          mcp_termination: this.userPool ? 'completed' : 'not_configured',
         },
       });
     }
@@ -290,7 +307,17 @@ export class SessionLifecycleManager {
     for (const session of spinningDownSessions) {
       logger.info(`[SessionLifecycle] Session ${session.session_id} transitioning to suspended`);
 
-      // TODO M17: Terminate MCP connections before transitioning
+      // M17.3: Terminate per-user MCP connections before transitioning
+      if (this.userPool && session.user_id) {
+        try {
+          await this.userPool.terminateForUser(session.user_id);
+          logger.info(`[SessionLifecycle] Terminated per-user MCPs for user ${session.user_id}`);
+        } catch (err) {
+          logger.error({ err, userId: session.user_id }, '[SessionLifecycle] Failed to terminate per-user MCPs');
+          // Continue with state transition even if termination fails
+        }
+      }
+
       await compatUpdate(this.db, user_sessions)
         .set({ status: 'suspended' })
         .where(eq(user_sessions.session_id, session.session_id));
@@ -308,7 +335,7 @@ export class SessionLifecycleManager {
         metadata: {
           previous_status: 'spinning_down',
           new_status: 'suspended',
-          note: 'MCP termination stub — will be wired in M17',
+          mcp_termination: this.userPool ? 'completed' : 'not_configured',
         },
       });
     }

@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
-import { DownstreamMcpManager, type DownstreamMcpConfig } from './downstream/index.js';
+import { SharedMcpManager, UserMcpPool, ToolRouter, type DownstreamMcpConfig } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
@@ -87,13 +87,19 @@ export interface ServerConfig {
   adminPort?: number;
   /** Enable admin UI (defaults to true) */
   adminUiEnabled?: boolean;
+  /** Max MCP instances per user (defaults to 10) - SEC-M17-005 */
+  maxMcpInstancesPerUser?: number;
+  /** Max total MCP instances system-wide (defaults to 100) - SEC-M17-005 */
+  maxTotalMcpInstances?: number;
 }
 
 export class AmbassadorServer {
   private fastify: FastifyInstance | null = null;
   private adminServer: FastifyInstance | null = null;
-  private mcpManager: DownstreamMcpManager;
-  private config: Required<ServerConfig> & { adminPort: number; adminUiEnabled: boolean };
+  private mcpManager: SharedMcpManager;
+  private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
+  private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
+  private config: Required<ServerConfig> & { adminPort: number; adminUiEnabled: boolean; maxMcpInstancesPerUser: number; maxTotalMcpInstances: number };
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
@@ -117,10 +123,13 @@ export class AmbassadorServer {
       trustProxy: config.trustProxy || false,
       adminPort: config.adminPort ?? 9443,
       adminUiEnabled: config.adminUiEnabled ?? true,
+      maxMcpInstancesPerUser: config.maxMcpInstancesPerUser ?? 10,
+      maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
     };
 
-    this.mcpManager = new DownstreamMcpManager();
+    this.mcpManager = new SharedMcpManager();
     this.killSwitchManager = new KillSwitchManager(); // CR-M10-001: Initialize shared manager
+    // CR-M17-001: UserMcpPool and ToolRouter are now initialized in initialize() where MCP configs are available
   }
 
   /**
@@ -233,21 +242,35 @@ export class AmbassadorServer {
     console.log('[Server] AAA providers initialized');
     console.log('[Server] Pipeline initialized (available for M6.5)');
 
-    // Initialize session lifecycle manager (M15)
-    const sessionConfig = {
-      evaluationIntervalMs: 60000, // 1 minute (TODO: read from config)
-      sweepIntervalMs: 900000, // 15 minutes
-      ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009
-    };
-    this.lifecycleManager = new SessionLifecycleManager(this.db, this.audit!, sessionConfig);
-    this.lifecycleManager.start();
-    console.log('[Server] Session lifecycle manager started');
-
     // Initialize downstream MCP connections
     console.log(
       `[Server] Initializing ${this.config.downstreamMcps.length} downstream MCP connections...`
     );
     await this.mcpManager.initialize(this.config.downstreamMcps);
+
+    // M17: Initialize per-user MCP pool with same configs
+    // SEC-M17-001: Must be created BEFORE SessionLifecycleManager
+    // SEC-M17-005: Use configurable limits instead of hardcoded values
+    console.log('[Server] Initializing per-user MCP pool...');
+    this.userPool = new UserMcpPool({
+      mcpConfigs: this.config.downstreamMcps,
+      maxInstancesPerUser: this.config.maxMcpInstancesPerUser,
+      maxTotalInstances: this.config.maxTotalMcpInstances,
+      healthCheckIntervalMs: 60000,
+    });
+    this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
+    console.log('[Server] Per-user MCP pool initialized');
+
+    // Initialize session lifecycle manager (M15)
+    // SEC-M17-001: Must be created AFTER UserMcpPool so it can receive valid reference
+    const sessionConfig = {
+      evaluationIntervalMs: 60000, // 1 minute (TODO: read from config)
+      sweepIntervalMs: 900000, // 15 minutes
+      ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009
+    };
+    this.lifecycleManager = new SessionLifecycleManager(this.db, this.audit!, sessionConfig, this.userPool);
+    this.lifecycleManager.start();
+    console.log('[Server] Session lifecycle manager started');
 
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
@@ -519,6 +542,21 @@ export class AmbassadorServer {
 
           // Build protocol-compliant response
           reply.status(201).send(result);
+
+          // M17.3: Spawn per-user MCP pool for this user
+          // Extract userId from session context (body contains session_id, need to look up)
+          const sessionRecord = await this.db!.query.user_sessions.findFirst({
+            where: (sessions, { eq }) => eq(sessions.session_id, result.session_id),
+          });
+
+          if (sessionRecord?.user_id) {
+            try {
+              await this.userPool.spawnForUser(sessionRecord.user_id);
+            } catch (err) {
+              // Log but don't fail registration — user just won't have per-user MCPs
+              this.fastify!.log.error({ err, userId: sessionRecord.user_id }, '[Server] Failed to spawn per-user MCPs');
+            }
+          }
         } catch (err) {
           if (err instanceof AmbassadorError) {
             reply.status(err.statusCode).send({
@@ -603,6 +641,16 @@ export class AmbassadorServer {
         // Reactivate if idle or suspended
         if (sessionRecord.status === 'idle' || sessionRecord.status === 'suspended') {
           updates.status = 'active';
+
+          // M17.3: Respawn per-user MCPs if session is being reactivated
+          const userId = sessionRecord.user_id;
+          if (userId && !this.userPool.hasActiveInstances(userId)) {
+            try {
+              await this.userPool.spawnForUser(userId);
+            } catch (err) {
+              this.fastify!.log.error({ err, userId }, '[Server] Failed to respawn per-user MCPs on reactivation');
+            }
+          }
         }
 
         await compatUpdate(this.db!, user_sessions)
@@ -806,8 +854,13 @@ export class AmbassadorServer {
           return;
         }
 
-        // Get aggregated tool catalog from downstream MCPs
-        const aggregatedTools = this.mcpManager.getToolCatalog();
+        // M17.4: Get aggregated tool catalog from tool router (shared + per-user)
+        // Fetch session record to get user_id
+        const sessionRecord = await this.db.query.user_sessions.findFirst({
+          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
+        });
+        const userId = sessionRecord?.user_id || '';
+        const aggregatedTools = this.toolRouter.getToolCatalog(userId);
 
         // Filter tools based on client's profile
         // Check each tool against allowed_tools (glob patterns) and denied_tools
@@ -931,17 +984,26 @@ export class AmbassadorServer {
           sourceIp,
         };
 
-        // Create router function for pipeline
+        // M17.5: Create router function for pipeline (use tool router)
+        // Extract userId from session
+        const sessionRec = await this.db!.query.user_sessions.findFirst({
+          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
+        });
+        const userId = sessionRec?.user_id || '';
+
         const router = async (toolName: string, args: Record<string, unknown>) => {
           const mcpRequest = {
             tool_name: toolName,
             arguments: args,
           };
 
-          const mcpResponse = await this.mcpManager.invokeTool(mcpRequest);
+          const mcpResponse = await this.toolRouter.invokeTool(userId, mcpRequest);
 
-          // Get MCP name from tool catalog
-          const tool = this.mcpManager.getToolDescriptor(toolName);
+          // CR-M17-003: Get MCP name from tool catalog with null check
+          const tool = this.toolRouter.getToolDescriptor(userId, toolName);
+          if (!tool) {
+            console.warn(`[/v1/tools/invoke] Tool descriptor not found for ${toolName}`);
+          }
 
           return {
             content: mcpResponse.content,
@@ -1224,6 +1286,10 @@ export class AmbassadorServer {
       console.log('[Server] Shutting down audit provider...');
       await this.audit.shutdown?.();
     }
+
+    // M17.3: Shutdown per-user MCP pool first
+    console.log('[Server] Shutting down per-user MCP pool...');
+    await this.userPool.shutdown();
 
     // Shutdown MCP connections
     await this.mcpManager.shutdown();

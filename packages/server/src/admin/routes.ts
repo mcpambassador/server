@@ -11,7 +11,7 @@
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
-import type { DownstreamMcpManager } from '../downstream/index.js';
+import type { SharedMcpManager } from '../downstream/index.js';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { authenticateAdmin } from './middleware.js';
 import {
@@ -44,7 +44,7 @@ import { listClients, updateClientStatus, getClientById } from '@mcpambassador/c
 export interface AdminRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
-  mcpManager: DownstreamMcpManager;
+  mcpManager: SharedMcpManager;
   dataDir: string;
   killSwitchManager: KillSwitchManager; // CR-M10-001: Shared kill switch manager
 }
