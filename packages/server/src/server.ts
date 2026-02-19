@@ -215,6 +215,13 @@ export class AmbassadorServer {
     // Seed dev data (users, profiles, client keys) in development/test
     await seedDevData(this.db as any);
 
+    // M23.5: Import YAML downstream MCPs to catalog on first boot
+    const { importYamlMcps } = await import('./services/mcp-import.js');
+    const importResult = await importYamlMcps(this.db!, this.config.downstreamMcps);
+    if (importResult.imported > 0) {
+      console.log(`[Server] Imported ${importResult.imported} YAML MCPs to catalog`);
+    }
+
     // Bootstrap admin key on first boot
     await this.bootstrapAdminKey();
     
@@ -1147,6 +1154,12 @@ export class AmbassadorServer {
     // Register user self-service routes
     const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
     await registerSelfServiceRoutes(this.fastify, {
+      db: this.db!,
+    });
+
+    // M23.4: Register marketplace routes
+    const { registerMarketplaceRoutes } = await import('./routes/marketplace.js');
+    await registerMarketplaceRoutes(this.fastify, {
       db: this.db!,
     });
 

@@ -55,6 +55,8 @@ import {
 } from '@mcpambassador/core';
 import { validatePassword, hashPassword } from '../auth/password-policy.js';
 import { createUserSchema, resetPasswordSchema } from '../auth/schemas.js';
+import { registerAdminGroupRoutes } from './group-routes.js';
+import { registerAdminMcpRoutes } from './mcp-routes.js';
 
 /**
  * Admin routes plugin configuration
@@ -1324,6 +1326,16 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       });
     }
   });
+
+  // ==========================================================================
+  // M22: Register group management routes
+  // ==========================================================================
+  fastify.register(registerAdminGroupRoutes, { db, audit });
+
+  // ==========================================================================
+  // M23: Register MCP catalog management routes
+  // ==========================================================================
+  fastify.register(registerAdminMcpRoutes, { db, audit });
 
   done();
 };

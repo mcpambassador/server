@@ -12,6 +12,7 @@ import { users, type User, compatInsert, compatUpdate } from '@mcpambassador/cor
 import type { DatabaseClient } from '@mcpambassador/core';
 import { hashPassword, verifyPassword } from './password-policy.js';
 import { v4 as uuidv4 } from 'uuid';
+import { getGroupByName, addUserToGroup } from '@mcpambassador/core';
 
 /**
  * Pre-computed dummy hash for timing attack mitigation
@@ -115,6 +116,21 @@ export async function createUser(
 
   if (!user) {
     throw new Error('Failed to create user');
+  }
+
+  // M22.4: Auto-assign new user to "all-users" group
+  try {
+    const allUsersGroup = await getGroupByName(db, 'all-users');
+    if (allUsersGroup) {
+      await addUserToGroup(db, {
+        user_id: userId,
+        group_id: allUsersGroup.group_id,
+        assigned_by: data.created_by || 'system',
+      });
+    }
+  } catch (err) {
+    // Log error but don't fail user creation if group assignment fails
+    console.error('[user-auth] Failed to assign user to all-users group:', err);
   }
 
   return user;
