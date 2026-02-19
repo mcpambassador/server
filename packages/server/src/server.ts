@@ -3,7 +3,7 @@
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
 import { SharedMcpManager, UserMcpPool, ToolRouter, type DownstreamMcpConfig } from './downstream/index.js';
@@ -37,6 +37,7 @@ import {
 import {
   EphemeralAuthProvider,
   getOrCreateHmacSecret,
+  persistHmacSecret,
   registerSession,
   type RegistrationRequest,
   type SessionRegConfig,
@@ -1314,9 +1315,14 @@ export class AmbassadorServer {
     // 1. Generate new HMAC secret (same method as startup)
     const newSecret = crypto.randomBytes(64);
     
-    // 2. Count active sessions before invalidation
+    // 2. Count all non-expired sessions before invalidation
+    // SEC-M19-002: Must expire active, idle, AND spinning_down sessions
     const activeSessions = await this.db!.query.user_sessions.findMany({
-      where: (s, { eq }) => eq(s.status, 'active'),
+      where: (s, { or, eq }) => or(
+        eq(s.status, 'active'),
+        eq(s.status, 'idle'),
+        eq(s.status, 'spinning_down')
+      ),
     });
     const sessionCount = activeSessions.length;
     
@@ -1324,10 +1330,16 @@ export class AmbassadorServer {
     await compatTransaction(this.db!, async () => {
       const nowIso = new Date().toISOString();
       
-      // Batch invalidate all active sessions (single UPDATE, not per-row loop)
+      // Batch invalidate all active/idle/spinning_down sessions
       await compatUpdate(this.db!, user_sessions)
         .set({ status: 'expired' })
-        .where(eq(user_sessions.status, 'active'));
+        .where(
+          or(
+            eq(user_sessions.status, 'active'),
+            eq(user_sessions.status, 'idle'),
+            eq(user_sessions.status, 'spinning_down')
+          )
+        );
       
       // Batch disconnect all connections
       await compatUpdate(this.db!, session_connections)
@@ -1344,6 +1356,9 @@ export class AmbassadorServer {
     
     // 5. Update in-memory HMAC secret reference
     this.hmacSecret = newSecret;
+    
+    // 6. SEC-M19-001: Persist new secret to disk so it survives restarts
+    persistHmacSecret(this.config.dataDir, newSecret);
     
     console.log(`[Server] HMAC secret rotated, ${sessionCount} sessions invalidated`);
     return sessionCount;

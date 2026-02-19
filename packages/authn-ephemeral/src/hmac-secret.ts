@@ -72,3 +72,22 @@ export function getOrCreateHmacSecret(dataDir: string): Buffer {
   logger.info('[authn-ephemeral] HMAC secret written to file');
   return newSecret;
 }
+
+/**
+ * Persist an HMAC secret to the data directory.
+ * Used by HMAC rotation to ensure the new secret survives server restarts.
+ *
+ * SEC-M19-001: Rotation must persist to disk, not just update in-memory.
+ *
+ * @param dataDir Data directory path
+ * @param secret HMAC secret as Buffer (64 bytes)
+ */
+export function persistHmacSecret(dataDir: string, secret: Buffer): void {
+  if (secret.length !== HMAC_SECRET_BYTES) {
+    throw new Error(`HMAC secret must be ${HMAC_SECRET_BYTES} bytes, got ${secret.length}`);
+  }
+  const secretPath = join(dataDir, HMAC_SECRET_FILENAME);
+  mkdirSync(dirname(secretPath), { recursive: true });
+  writeFileSync(secretPath, secret, { mode: 0o600 });
+  logger.info('[authn-ephemeral] HMAC secret persisted to file after rotation');
+}

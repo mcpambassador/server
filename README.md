@@ -10,7 +10,7 @@ This is a **pnpm monorepo** containing five packages:
 |---|---|---|
 | `@mcpambassador/protocol` | Type-only API contract (client ↔ server) | None (zero runtime deps) |
 | `@mcpambassador/core` | SPI interfaces, database, pipeline | protocol, drizzle, pino, zod |
-| `@mcpambassador/authn-apikey` | API Key authentication provider | core |
+| `@mcpambassador/authn-ephemeral` | Preshared key + ephemeral session auth | core |
 | `@mcpambassador/authz-local` | Local RBAC authorization provider | core |
 | `@mcpambassador/audit-file` | File-based audit provider (JSONL) | core |
 
@@ -50,7 +50,7 @@ mcpambassador_server/
 ├── packages/
 │   ├── protocol/         ← API types (published to npm)
 │   ├── core/             ← Database, SPI, pipeline
-│   ├── authn-apikey/     ← API Key authentication
+│   ├── authn-ephemeral/  ← Preshared key + ephemeral session auth
 │   ├── authz-local/      ← Local RBAC
 │   └── audit-file/       ← JSONL audit logger
 ├── pnpm-workspace.yaml   ← Workspace configuration

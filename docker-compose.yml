@@ -52,6 +52,11 @@ services:
       # Production mode (override with NODE_ENV env var for dev/test)
       NODE_ENV: ${NODE_ENV:-production}
       
+      # Admin authentication (optional - for testing/dev)
+      # Leave unset for production: admin key will be auto-generated on first boot
+      # Generate with: node -e "console.log('amb_ak_' + require('crypto').randomBytes(32).toString('base64url'))"
+      # AMBASSADOR_ADMIN_KEY: ${AMBASSADOR_ADMIN_KEY:-}
+      
       # Downstream MCP API keys (ADR-009)
       ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
