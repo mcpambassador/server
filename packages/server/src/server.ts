@@ -1163,6 +1163,10 @@ export class AmbassadorServer {
       db: this.db!,
     });
 
+    // M24.10: Register SPA handler (must be last to avoid intercepting API routes)
+    const { registerSpaHandler } = await import('./spa-handler.js');
+    await registerSpaHandler(this.fastify);
+
     console.log('[Router] All routes registered');
   }
 

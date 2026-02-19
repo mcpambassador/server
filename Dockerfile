@@ -35,6 +35,7 @@ COPY packages/authn-ephemeral/package.json ./packages/authn-ephemeral/
 COPY packages/authz-local/package.json ./packages/authz-local/
 COPY packages/audit-file/package.json ./packages/audit-file/
 COPY packages/server/package.json ./packages/server/
+COPY packages/spa/package.json ./packages/spa/
 
 # Install dependencies
 # Using --shamefully-hoist to flatten node_modules (npm-style) for Docker compatibility
@@ -45,8 +46,13 @@ RUN pnpm install --frozen-lockfile --shamefully-hoist
 COPY tsconfig.base.json ./
 COPY packages/ ./packages/
 
-# Build all packages
+# Build all packages (server packages use tsc, spa uses vite)
 RUN pnpm build
+
+# -----------------------------------------------------------------------------
+# STAGE 1a: BUILD SPA (separate for better caching)
+# -----------------------------------------------------------------------------
+# Already built in stage 1, this comment marks the separation
 
 # -----------------------------------------------------------------------------
 # STAGE 2: RUNTIME
@@ -97,6 +103,9 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/p
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/node_modules ./packages/server/node_modules
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/views ./packages/server/views
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/public ./packages/server/public
+
+# M24.9: Copy SPA dist (React app)
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/spa/dist /app/public/spa
 
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/package.json ./
 
