@@ -85,7 +85,7 @@ let ToolRouter: any;
 
 beforeEach(async () => {
   try {
-    const mod = await import('../../../src/downstream/tool-router');
+    const mod = await import('../../src/downstream/tool-router');
     ToolRouter = mod.ToolRouter;
   } catch (err) {
     console.error('Failed to import ToolRouter:', err);
