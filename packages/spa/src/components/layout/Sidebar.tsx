@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Store,
@@ -10,6 +10,7 @@ import {
   ScrollText,
   UserCircle,
   UserPlus,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ const userNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
   { title: 'Marketplace', href: '/app/marketplace', icon: Store },
   { title: 'My Clients', href: '/app/clients', icon: UserCircle },
-  { title: 'My Subscriptions', href: '/app/subscriptions', icon: Package },
+  { title: 'Credentials', href: '/app/credentials', icon: KeyRound },
 ];
 
 const adminNavItems: NavItem[] = [

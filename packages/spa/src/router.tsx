@@ -5,7 +5,11 @@ import { AdminRoute } from '@/components/auth/AdminRoute';
 import { Login } from '@/pages/Login';
 import { Dashboard } from '@/pages/Dashboard';
 import { Marketplace } from '@/pages/Marketplace';
+import { McpDetail } from '@/pages/McpDetail';
 import { Clients } from '@/pages/Clients';
+import { ClientDetail } from '@/pages/ClientDetail';
+import { Credentials } from '@/pages/Credentials';
+import { Profile } from '@/pages/Profile';
 import { Subscriptions } from '@/pages/Subscriptions';
 import { UsersAdmin } from '@/pages/admin/Users';
 import { GroupsAdmin } from '@/pages/admin/Groups';
@@ -38,8 +42,24 @@ export const router = createBrowserRouter([
         element: <Marketplace />,
       },
       {
+        path: 'marketplace/:mcpId',
+        element: <McpDetail />,
+      },
+      {
         path: 'clients',
         element: <Clients />,
+      },
+      {
+        path: 'clients/:clientId',
+        element: <ClientDetail />,
+      },
+      {
+        path: 'credentials',
+        element: <Credentials />,
+      },
+      {
+        path: 'profile',
+        element: <Profile />,
       },
       {
         path: 'subscriptions',

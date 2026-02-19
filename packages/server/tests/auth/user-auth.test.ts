@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { initializeDatabase, closeDatabase, runMigrations, type DatabaseClient } from '@mcpambassador/core';
+import { initializeDatabase, closeDatabase, runMigrations, users, compatInsert, type DatabaseClient } from '@mcpambassador/core';
 import {
   authenticateUser,
   createUser,
@@ -103,7 +103,7 @@ describe('User Auth Service', () => {
     it('should reject user with null password_hash', async () => {
       // Manually insert user with null password_hash
       const userId = 'test-no-pass-' + Date.now();
-      await db.insert((await import('@mcpambassador/core')).users).values({
+      await compatInsert(db, users).values({
         user_id: userId,
         username: 'nopwduser',
         display_name: 'No Password User',

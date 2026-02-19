@@ -89,6 +89,14 @@ export const apiClient = {
     });
   },
 
+  put<T>(url: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return request<T>(url, {
+      ...options,
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
   delete<T>(url: string, options?: RequestOptions): Promise<T> {
     return request<T>(url, { ...options, method: 'DELETE' });
   },

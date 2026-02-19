@@ -1,0 +1,323 @@
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Plus, Trash2, Settings } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { DataTable, type ColumnDef } from '@/components/data/DataTable';
+import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
+import { useMarketplace } from '@/api/hooks/use-marketplace';
+import type { Subscription } from '@/api/types';
+
+export function ClientDetail() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const { data: client, isLoading: clientLoading } = useClient(clientId!);
+  const { data: subscriptions, isLoading: subsLoading } = useClientSubscriptions(clientId!);
+  const { data: marketplace } = useMarketplace();
+  const unsubscribe = useUnsubscribe();
+  const updateSubscription = useUpdateSubscription();
+
+  const [unsubscribeDialogOpen, setUnsubscribeDialogOpen] = useState(false);
+  const [subscriptionToDelete, setSubscriptionToDelete] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [subscriptionToEdit, setSubscriptionToEdit] = useState<Subscription | null>(null);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+
+  const handleUnsubscribe = async () => {
+    if (subscriptionToDelete && clientId) {
+      try {
+        await unsubscribe.mutateAsync({
+          clientId,
+          subscriptionId: subscriptionToDelete,
+        });
+        setUnsubscribeDialogOpen(false);
+        setSubscriptionToDelete(null);
+      } catch (error) {
+        console.error('Failed to unsubscribe:', error);
+      }
+    }
+  };
+
+  const handleEditTools = (subscription: Subscription) => {
+    const mcp = marketplace?.data.find(m => m.id === subscription.mcpId);
+    setSubscriptionToEdit(subscription);
+    setSelectedTools(subscription.selectedTools ?? mcp?.tools.map(t => t.name) ?? []);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveTools = async () => {
+    if (subscriptionToEdit && clientId) {
+      try {
+        await updateSubscription.mutateAsync({
+          clientId,
+          subscriptionId: subscriptionToEdit.id,
+          data: { selected_tools: selectedTools },
+        });
+        setEditDialogOpen(false);
+        setSubscriptionToEdit(null);
+      } catch (error) {
+        console.error('Failed to update subscription:', error);
+      }
+    }
+  };
+
+  const columns: ColumnDef<Subscription>[] = [
+    {
+      header: 'MCP Name',
+      accessor: 'mcpName',
+      cell: (sub) => (
+        <Link
+          to={`/app/marketplace/${sub.mcpId}`}
+          className="font-medium hover:underline"
+        >
+          {sub.mcpName}
+        </Link>
+      ),
+    },
+    {
+      header: 'Tools',
+      accessor: 'selectedTools',
+      cell: (sub) => {
+        const mcp = marketplace?.data.find(m => m.id === sub.mcpId);
+        const totalTools = mcp?.tools.length ?? 0;
+        const selectedCount = sub.selectedTools?.length ?? totalTools;
+        return (
+          <span className="text-sm text-muted-foreground">
+            {selectedCount} / {totalTools}
+          </span>
+        );
+      },
+    },
+    {
+      header: 'Status',
+      accessor: 'status',
+      cell: (sub) => (
+        <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
+          {sub.status}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Created',
+      accessor: 'createdAt',
+      cell: (sub) => new Date(sub.createdAt).toLocaleDateString(),
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      cell: (sub) => (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleEditTools(sub)}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setSubscriptionToDelete(sub.id);
+              setUnsubscribeDialogOpen(true);
+            }}
+            disabled={unsubscribe.isPending}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  if (clientLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!client) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Client Not Found</CardTitle>
+          <CardDescription>
+            The requested client could not be found.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link to="/app/clients">Back to Clients</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild>
+          <Link to="/app/clients">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight">{client.clientName}</h1>
+          <p className="text-muted-foreground">{client.keyPrefix}</p>
+        </div>
+        <Badge variant={
+          client.status === 'active' ? 'default' :
+          client.status === 'suspended' ? 'secondary' : 'destructive'
+        }>
+          {client.status}
+        </Badge>
+      </div>
+
+      {/* Client Info Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Client Details</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Created</p>
+            <p className="text-lg">{new Date(client.createdAt).toLocaleString()}</p>
+          </div>
+          {client.expiresAt && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Expires</p>
+              <p className="text-lg">{new Date(client.expiresAt).toLocaleString()}</p>
+            </div>
+          )}
+          {client.lastUsedAt && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Last Used</p>
+              <p className="text-lg">{new Date(client.lastUsedAt).toLocaleString()}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Subscriptions */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Subscriptions</h2>
+            <p className="text-muted-foreground">
+              MCPs this client is subscribed to
+            </p>
+          </div>
+          <Button asChild>
+            <Link to="/app/marketplace">
+              <Plus className="mr-2 h-4 w-4" />
+              Subscribe to MCP
+            </Link>
+          </Button>
+        </div>
+
+        <Card className="p-6">
+          <DataTable
+            columns={columns}
+            data={subscriptions ?? []}
+            isLoading={subsLoading}
+            emptyMessage="No subscriptions yet. Browse the marketplace to subscribe to MCPs."
+          />
+        </Card>
+      </div>
+
+      {/* Unsubscribe Confirmation Dialog */}
+      <AlertDialog open={unsubscribeDialogOpen} onOpenChange={setUnsubscribeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsubscribe from MCP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove access to this MCP for this client. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSubscriptionToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUnsubscribe}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Unsubscribe
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Tools Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Tools</DialogTitle>
+            <DialogDescription>
+              Choose which tools this client can access from {subscriptionToEdit?.mcpName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto space-y-3">
+            {marketplace?.data
+              .find(m => m.id === subscriptionToEdit?.mcpId)
+              ?.tools.map((tool) => (
+                <div key={tool.name} className="flex items-start gap-3">
+                  <Checkbox
+                    id={tool.name}
+                    checked={selectedTools.includes(tool.name)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedTools([...selectedTools, tool.name]);
+                      } else {
+                        setSelectedTools(selectedTools.filter(t => t !== tool.name));
+                      }
+                    }}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor={tool.name} className="font-medium cursor-pointer">
+                      {tool.name}
+                    </Label>
+                    {tool.description && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {tool.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveTools}
+              disabled={selectedTools.length === 0 || updateSubscription.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

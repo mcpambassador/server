@@ -11,7 +11,7 @@ interface ThemeStore {
 
 export const useTheme = create<ThemeStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       theme: 'system',
       resolvedTheme: 'light',
       setTheme: (theme) => {
@@ -47,7 +47,7 @@ function applyTheme(theme: Theme) {
 
 // Listen for system theme changes
 if (typeof window !== 'undefined') {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     const currentTheme = useTheme.getState().theme;
     if (currentTheme === 'system') {
       applyTheme('system');

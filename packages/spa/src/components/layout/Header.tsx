@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useSidebar } from '@/stores/sidebar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 
@@ -22,7 +20,6 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { collapsed } = useSidebar();
   
   const { data: session } = useQuery({
     queryKey: ['session'],
@@ -84,7 +81,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onClick={() => navigate('/app/profile')}>
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
