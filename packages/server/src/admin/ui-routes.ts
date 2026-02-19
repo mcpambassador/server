@@ -89,7 +89,7 @@ function extractFlash(request: FastifyRequest): { type: string; message: string 
  */
 async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (!isAuthenticated(request)) {
-    await reply.redirect(302, '/admin/login');
+    await reply.redirect('/admin/login', 302);
   }
 }
 
@@ -121,7 +121,7 @@ export async function registerUiRoutes(
   fastify.get('/admin/login', (request, reply) => {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated(request)) {
-      return reply.redirect(302, '/admin/dashboard');
+      return reply.redirect('/admin/dashboard', 302);
     }
     const flash = extractFlash(request);
 
@@ -163,7 +163,7 @@ export async function registerUiRoutes(
         type: 'error',
         message: `Too many failed login attempts. Try again in ${retryAfter} seconds.`,
       };
-      return reply.redirect(302, '/admin/login');
+      return reply.redirect('/admin/login', 302);
     }
 
     // F-SEC-M10-006: Apply progressive delay before authentication attempt
@@ -190,7 +190,7 @@ export async function registerUiRoutes(
       });
 
       request.session.flash = { type: 'error', message: 'Admin key is required' };
-      return reply.redirect(302, '/admin/login');
+      return reply.redirect('/admin/login', 302);
     }
 
     // Validate admin key
@@ -213,7 +213,7 @@ export async function registerUiRoutes(
       });
 
       request.session.flash = { type: 'error', message: 'Invalid admin key' };
-      return reply.redirect(302, '/admin/login');
+      return reply.redirect('/admin/login', 302);
     }
 
     // F-SEC-M10-003: Session fixation prevention
@@ -252,7 +252,7 @@ export async function registerUiRoutes(
       metadata: {},
     });
 
-    return reply.redirect(302, '/admin/dashboard');
+    return reply.redirect('/admin/dashboard', 302);
   });
 
   /**
@@ -260,7 +260,7 @@ export async function registerUiRoutes(
    */
   fastify.post('/admin/logout', async (request, reply) => {
     await request.session.destroy();
-    return reply.redirect(302, '/admin/login');
+    return reply.redirect('/admin/login', 302);
   });
 
   /**
@@ -268,16 +268,16 @@ export async function registerUiRoutes(
    */
   fastify.get('/admin', (request, reply) => {
     if (isAuthenticated(request)) {
-      return reply.redirect(302, '/admin/dashboard');
+      return reply.redirect('/admin/dashboard', 302);
     }
-    return reply.redirect(302, '/admin/login');
+    return reply.redirect('/admin/login', 302);
   });
 
   fastify.get('/admin/', (request, reply) => {
     if (isAuthenticated(request)) {
-      return reply.redirect(302, '/admin/dashboard');
+      return reply.redirect('/admin/dashboard', 302);
     }
-    return reply.redirect(302, '/admin/login');
+    return reply.redirect('/admin/login', 302);
   });
 
   // ==========================================================================
@@ -353,7 +353,7 @@ export async function registerUiRoutes(
 
     if (!profile) {
       request.session.flash = { type: 'error', message: 'Profile not found' };
-      return reply.redirect(302, '/admin/profiles');
+      return reply.redirect('/admin/profiles', 302);
     }
 
     const flash = request.session.flash;
@@ -471,7 +471,7 @@ export async function registerUiRoutes(
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect(302, '/admin/users');
+        return reply.redirect('/admin/users', 302);
       }
 
       const { display_name, email } = request.body;
@@ -479,7 +479,7 @@ export async function registerUiRoutes(
       // Validate input
       if (!display_name || display_name.trim().length === 0) {
         request.session.flash = { type: 'error', message: 'Display name is required' };
-        return reply.redirect(302, '/admin/users');
+        return reply.redirect('/admin/users', 302);
       }
 
       try {
@@ -522,7 +522,7 @@ export async function registerUiRoutes(
         };
       }
 
-      return reply.redirect(302, '/admin/users');
+      return reply.redirect('/admin/users', 302);
     }
   );
 
@@ -536,7 +536,7 @@ export async function registerUiRoutes(
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect(302, '/admin/users');
+        return reply.redirect('/admin/users', 302);
       }
 
       const { userId } = request.params;
@@ -545,7 +545,7 @@ export async function registerUiRoutes(
       // Validate status
       if (!['active', 'suspended', 'deactivated'].includes(status)) {
         request.session.flash = { type: 'error', message: 'Invalid status' };
-        return reply.redirect(302, '/admin/users');
+        return reply.redirect('/admin/users', 302);
       }
 
       try {
@@ -606,7 +606,7 @@ export async function registerUiRoutes(
         };
       }
 
-      return reply.redirect(302, '/admin/users');
+      return reply.redirect('/admin/users', 302);
     }
   );
 
@@ -647,7 +647,7 @@ export async function registerUiRoutes(
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect(302, '/admin/preshared-keys');
+        return reply.redirect('/admin/preshared-keys', 302);
       }
 
       const { user_id, profile_id, label } = request.body;
@@ -655,7 +655,7 @@ export async function registerUiRoutes(
       // Validate input
       if (!user_id || !profile_id || !label || label.trim().length === 0) {
         request.session.flash = { type: 'error', message: 'All fields are required' };
-        return reply.redirect(302, '/admin/preshared-keys');
+        return reply.redirect('/admin/preshared-keys', 302);
       }
 
       try {
@@ -721,7 +721,7 @@ export async function registerUiRoutes(
         };
       }
 
-      return reply.redirect(302, '/admin/preshared-keys');
+      return reply.redirect('/admin/preshared-keys', 302);
     }
   );
 
@@ -735,7 +735,7 @@ export async function registerUiRoutes(
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect(302, '/admin/preshared-keys');
+        return reply.redirect('/admin/preshared-keys', 302);
       }
 
       const { keyId } = request.params;
@@ -744,7 +744,7 @@ export async function registerUiRoutes(
       // Validate status
       if (!['active', 'suspended', 'revoked'].includes(status)) {
         request.session.flash = { type: 'error', message: 'Invalid status' };
-        return reply.redirect(302, '/admin/preshared-keys');
+        return reply.redirect('/admin/preshared-keys', 302);
       }
 
       try {
@@ -812,7 +812,7 @@ export async function registerUiRoutes(
         };
       }
 
-      return reply.redirect(302, '/admin/preshared-keys');
+      return reply.redirect('/admin/preshared-keys', 302);
     }
   );
 
@@ -844,7 +844,7 @@ export async function registerUiRoutes(
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect(302, '/admin/sessions');
+        return reply.redirect('/admin/sessions', 302);
       }
 
       const { sessionId } = request.params;
@@ -902,7 +902,7 @@ export async function registerUiRoutes(
         };
       }
 
-      return reply.redirect(302, '/admin/sessions');
+      return reply.redirect('/admin/sessions', 302);
     }
   );
 

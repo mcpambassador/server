@@ -133,14 +133,14 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     if (statusCode === 409) {
       return reply.status(409).send({
         error: 'Conflict',
-        message: error.message || 'Resource conflict',
+        message: error instanceof Error ? error.message : 'Resource conflict',
       });
     }
 
     if (statusCode === 400) {
       return reply.status(400).send({
         error: 'Bad Request',
-        message: error.message || 'Invalid request',
+        message: error instanceof Error ? error.message : 'Invalid request',
       });
     }
 
