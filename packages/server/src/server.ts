@@ -859,7 +859,19 @@ export class AmbassadorServer {
         const sessionRecord = await this.db.query.user_sessions.findFirst({
           where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
         });
-        const userId = sessionRecord?.user_id || '';
+        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
+        if (!sessionRecord) {
+          this.fastify!.log.warn(
+            { sessionId: session.session_id },
+            '[Server] Session record not found for authenticated session'
+          );
+          reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
+          });
+          return;
+        }
+        const userId = sessionRecord.user_id ?? '';
         const aggregatedTools = this.toolRouter.getToolCatalog(userId);
 
         // Filter tools based on client's profile
@@ -989,7 +1001,19 @@ export class AmbassadorServer {
         const sessionRec = await this.db!.query.user_sessions.findFirst({
           where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
         });
-        const userId = sessionRec?.user_id || '';
+        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
+        if (!sessionRec) {
+          this.fastify!.log.warn(
+            { sessionId: session.session_id },
+            '[Server] Session record not found for authenticated session'
+          );
+          reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
+          });
+          return;
+        }
+        const userId = sessionRec.user_id ?? '';
 
         const router = async (toolName: string, args: Record<string, unknown>) => {
           const mcpRequest = {

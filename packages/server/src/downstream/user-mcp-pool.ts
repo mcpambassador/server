@@ -70,6 +70,7 @@ export class UserMcpPool {
   private config: UserMcpPoolConfig;
   private userInstances = new Map<string, UserInstanceSet>();
   private spawningUsers = new Set<string>(); // Lock to prevent concurrent spawn races
+  private systemSpawnLock: Promise<void> = Promise.resolve(); // SEC-M17-003: System-wide spawn mutex
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(config: UserMcpPoolConfig) {
@@ -119,8 +120,17 @@ export class UserMcpPool {
     // Acquire spawn lock
     this.spawningUsers.add(userId);
 
+    // SEC-M17-003: Acquire system-wide spawn lock to prevent TOCTOU race in resource limits
+    // Serialize the critical section: enforceResourceLimits + spawn
+    let releaseLock: () => void = () => {}; // Default no-op ensures always callable
+    const previousLock = this.systemSpawnLock;
+    this.systemSpawnLock = new Promise<void>(resolve => {
+      releaseLock = resolve;
+    });
+    await previousLock;
+
     try {
-      // M17.6: Check resource limits
+      // M17.6: Check resource limits (now under system-wide lock)
       await this.enforceResourceLimits(userId);
 
       console.log(`[UserMcpPool] Spawning MCP instances for user ${userId}...`);
@@ -202,8 +212,9 @@ export class UserMcpPool {
       }
       throw err;
     } finally {
-      // Release spawn lock
+      // Release spawn locks
       this.spawningUsers.delete(userId);
+      releaseLock(); // SEC-M17-003: Release system-wide lock
     }
   }
 
