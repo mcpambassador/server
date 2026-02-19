@@ -27,7 +27,7 @@ import {
   compatUpdate,
   compatInsert,
 } from '@mcpambassador/core';
-import { validatePresharedKey, generateSessionToken } from './token.js';
+import { validateClientKey, generateSessionToken } from './token.js';
 import type { RegistrationRequest, RegistrationResponse } from './types.js';
 
 /**
@@ -124,7 +124,7 @@ export async function registerSession(
 
   try {
     // 2. Validate preshared key
-    const validatedKey = await validatePresharedKey(db, body.preshared_key);
+    const validatedKey = await validateClientKey(db, body.preshared_key);
 
     // 3. Check for existing active session for this user
     const existingSession = await db.query.user_sessions.findFirst({

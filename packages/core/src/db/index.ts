@@ -3,13 +3,7 @@
  *
  * Exports all database client setup and repository functions.
  *
- * Usage:
- * ```typescript
- * import { initializeDatabase, registerClient, createToolProfile } from './db';
- *
- * const db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: './data/ambassador.db' });
- * const client = await registerClient(db, { ... }, apiKey);
- * ```
+ * @see Architecture §3 Data Model
  */
 
 // Database client setup
@@ -24,25 +18,10 @@ export {
 } from './client.js';
 
 // Seed functions
-export { seedDatabase, seedDevPresharedKeys } from '../schema/seed.js';
+export { seedDatabase, seedDevData } from '../schema/seed.js';
 
 // Compatibility layer for Drizzle ORM queries
 export { compatInsert, compatSelect, compatUpdate, compatDelete, compatTransaction } from './compat.js';
-
-// Client repository
-export {
-  registerClient,
-  authenticateClient,
-  getClientById,
-  listClients,
-  updateClientStatus,
-  updateLastSeen,
-  rotateClientApiKey,
-  updateClientMetadata,
-  deleteClient,
-  countClientsByStatus,
-  sanitizeFriendlyName,
-} from './repositories/clients.js';
 
 // Tool profile repository
 export {
@@ -81,6 +60,56 @@ export {
   getAuditStatistics,
 } from './repositories/audit-events.js';
 
+// Group repository
+export {
+  createGroup,
+  getGroupById,
+  getGroupByName,
+  listGroups,
+  updateGroup,
+  deleteGroup,
+  addUserToGroup,
+  removeUserFromGroup,
+  listGroupMembers,
+  listUserGroups,
+} from './repositories/groups.js';
+
+// MCP catalog repository
+export {
+  createMcpEntry,
+  getMcpEntryById,
+  getMcpEntryByName,
+  listMcpEntries,
+  updateMcpEntry,
+  deleteMcpEntry,
+  publishMcpEntry,
+  updateValidationStatus,
+  grantGroupAccess,
+  revokeGroupAccess,
+  listGroupsForMcp,
+  listMcpsForGroup,
+} from './repositories/mcp-catalog.js';
+
+// Subscription repository
+export {
+  createSubscription,
+  getSubscription,
+  listSubscriptionsForClient,
+  listSubscriptionsForMcp,
+  updateSubscription,
+  removeSubscription,
+} from './repositories/subscriptions.js';
+
+// User credential repository
+export {
+  storeCredential,
+  getCredential,
+  listCredentialsForUser,
+  updateCredential,
+  deleteCredential,
+  deleteCredentialsForMcp,
+} from './repositories/user-credentials.js';
+
 // Re-export schema types for convenience
 export type {
   Client,
@@ -91,6 +120,18 @@ export type {
   NewAdminKey,
   AuditEvent,
   NewAuditEvent,
+  Group,
+  NewGroup,
+  UserGroup,
+  NewUserGroup,
+  McpCatalogEntry,
+  NewMcpCatalogEntry,
+  McpGroupAccess,
+  NewMcpGroupAccess,
+  ClientMcpSubscription,
+  NewClientMcpSubscription,
+  UserMcpCredential,
+  NewUserMcpCredential,
   ClientMetadata,
   RateLimits,
   TimeWindow,

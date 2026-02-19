@@ -23,10 +23,10 @@ export interface RegistrationResponse {
 }
 
 /**
- * Validated preshared key result
+ * Validated client key result
  */
-export interface ValidatedPresharedKey {
-  key_id: string;
+export interface ValidatedClient {
+  client_id: string;
   user_id: string;
   profile_id: string;
 }

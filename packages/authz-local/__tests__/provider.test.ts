@@ -15,11 +15,65 @@ import type { SessionContext, AuthzRequest } from '@mcpambassador/core';
 import {
   initializeDatabase,
   runMigrations,
-  registerClient,
   createToolProfile,
   closeDatabase,
+  compatInsert,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { users, clients } from '@mcpambassador/core';
+import { randomUUID } from 'node:crypto';
+
+/**
+ * Helper: insert a test user and return its user_id
+ */
+async function insertTestUser(
+  db: DatabaseClient,
+  overrides: Partial<{ user_id: string; username: string; status: string }> = {}
+): Promise<string> {
+  const now = new Date().toISOString();
+  const user_id = overrides.user_id ?? randomUUID();
+  await compatInsert(db, users).values({
+    user_id,
+    username: overrides.username ?? `testuser-${user_id.slice(0, 8)}`,
+    display_name: 'Test User',
+    is_admin: false,
+    status: overrides.status ?? 'active',
+    auth_source: 'local',
+    created_at: now,
+    updated_at: now,
+    metadata: '{}',
+  });
+  return user_id;
+}
+
+/**
+ * Helper: insert a test client (replaces the old registerClient helper)
+ */
+async function insertTestClient(
+  db: DatabaseClient,
+  opts: {
+    user_id: string;
+    profile_id: string | null;
+    client_name?: string;
+    status?: 'active' | 'suspended' | 'revoked';
+  }
+): Promise<{ client_id: string }> {
+  const now = new Date().toISOString();
+  const client_id = randomUUID();
+  await compatInsert(db, clients).values({
+    client_id,
+    client_name: opts.client_name ?? 'test-client',
+    key_prefix: 'amb_pk_t',
+    key_hash: '$argon2id$v=19$m=65536,t=3,p=4$dummysalt$dummyhash',
+    user_id: opts.user_id,
+    profile_id: opts.profile_id,
+    status: opts.status ?? 'active',
+    created_by: opts.user_id,
+    created_at: now,
+    metadata: '{}',
+  });
+  return { client_id };
+}
 
 describe('LocalRbacProvider', () => {
   let db: DatabaseClient;
@@ -49,17 +103,17 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      // Create client with this profile
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      // Create user + client
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
       });
 
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -87,16 +141,16 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
       });
 
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -123,16 +177,16 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify(['github.delete_*']), // But deny deletions
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
       });
 
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -169,10 +223,9 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
         status: 'suspended',
       });
@@ -180,6 +233,7 @@ describe('LocalRbacProvider', () => {
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -207,10 +261,9 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
         status: 'revoked',
       });
@@ -218,6 +271,7 @@ describe('LocalRbacProvider', () => {
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -247,16 +301,16 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
       });
 
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -288,16 +342,16 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify(['github.delete_*']),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
       });
 
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},
@@ -325,10 +379,9 @@ describe('LocalRbacProvider', () => {
         denied_tools: JSON.stringify([]),
       });
 
-      const client = await registerClient(db, {
-        friendly_name: 'test-client',
-        host_tool: 'vscode',
-        auth_method: 'api_key',
+      const user_id = await insertTestUser(db);
+      const client = await insertTestClient(db, {
+        user_id,
         profile_id: profile.profile_id,
         status: 'suspended',
       });
@@ -336,6 +389,7 @@ describe('LocalRbacProvider', () => {
       const session: SessionContext = {
         session_id: 'session-123',
         client_id: client.client_id,
+        user_id,
         auth_method: 'api_key',
         groups: [],
         attributes: {},

@@ -22,9 +22,9 @@ import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, preshared_keys, compatUpdate, AmbassadorError } from '@mcpambassador/core';
+import { logger, clients, compatUpdate, AmbassadorError } from '@mcpambassador/core';
 import type {
-  ValidatedPresharedKey,
+  ValidatedClient,
   GeneratedSessionToken,
   VerifiedSession,
 } from './types.js';
@@ -50,25 +50,25 @@ const TOKEN_NONCE_BYTES = 32;
 const FAILED_LOOKUP_DELAY_MS = { min: 0, max: 200 };
 
 /**
- * Validate preshared key format and authenticate
+ * Validate client preshared key format and authenticate
  *
  * Steps:
  * 1. Validate format: amb_pk_{48 base64url chars}
  * 2. Extract prefix: first 8 chars AFTER "amb_pk_" (SR-M13-003)
- * 3. Query preshared_keys WHERE key_prefix = ? AND status = 'active'
+ * 3. Query clients WHERE key_prefix = ? AND status = 'active'
  * 4. Argon2.verify() against matched records (early exit on first match)
  * 5. On no match: add random delay to normalize timing
  * 6. Update last_used_at on successful match
  *
  * @param db Database client
  * @param rawKey Raw preshared key from request
- * @returns Validated key info { key_id, user_id, profile_id }
+ * @returns Validated key info { client_id, user_id, profile_id }
  * @throws Error if key invalid or not found
  */
-export async function validatePresharedKey(
+export async function validateClientKey(
   db: DatabaseClient,
   rawKey: string
-): Promise<ValidatedPresharedKey> {
+): Promise<ValidatedClient> {
   const startTime = Date.now();
 
   // 1. Validate format
@@ -87,7 +87,7 @@ export async function validatePresharedKey(
   const keyPrefix = keyBody.slice(0, 8);
 
   // 3. Query active, non-expired keys with matching prefix
-  const candidates = await db.query.preshared_keys.findMany({
+  const candidates = await db.query.clients.findMany({
     where: (keys, { eq, and }) =>
       and(eq(keys.key_prefix, keyPrefix), eq(keys.status, 'active')),
   });
@@ -109,17 +109,23 @@ export async function validatePresharedKey(
     try {
       const isValid = await argon2.verify(candidate.key_hash, rawKey, ARGON2_OPTIONS);
       if (isValid) {
+        // Reject clients without a profile
+        if (!candidate.profile_id) {
+          logger.warn(`[authn-ephemeral] Client ${candidate.client_id} has no profile_id assigned`);
+          throw new AmbassadorError('Client has no assigned profile', 'invalid_credentials', 401);
+        }
+
         // Update last_used_at
         const now = new Date().toISOString();
-        await compatUpdate(db, preshared_keys)
+        await compatUpdate(db, clients)
           .set({ last_used_at: now })
-          .where(eq(preshared_keys.key_id, candidate.key_id));
+          .where(eq(clients.client_id, candidate.client_id));
 
         const elapsed = Date.now() - startTime;
-        logger.debug(`[authn-ephemeral] Preshared key validated in ${elapsed}ms`);
+        logger.debug(`[authn-ephemeral] Client key validated in ${elapsed}ms`);
 
         return {
-          key_id: candidate.key_id,
+          client_id: candidate.client_id,
           user_id: candidate.user_id,
           profile_id: candidate.profile_id,
         };

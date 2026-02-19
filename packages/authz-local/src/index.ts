@@ -19,7 +19,7 @@ import type {
   AuthzRequest,
   ProviderHealth,
 } from '@mcpambassador/core';
-import { getEffectiveProfile, getClientById, type DatabaseClient } from '@mcpambassador/core';
+import { getEffectiveProfile, type DatabaseClient } from '@mcpambassador/core';
 import type { ToolDescriptor } from '@mcpambassador/protocol';
 
 /**
@@ -114,7 +114,9 @@ export class LocalRbacProvider implements AuthorizationProvider {
       }
     } else {
       // Legacy path: client-based auth requires client lookup
-      const client = await getClientById(this.db, session.client_id);
+      const client = await this.db.query.clients.findFirst({
+        where: (c, { eq }) => eq(c.client_id, session.client_id),
+      });
       if (!client) {
         return {
           decision: 'deny',
@@ -141,6 +143,13 @@ export class LocalRbacProvider implements AuthorizationProvider {
       }
 
       // Get effective profile from client's profile_id
+      if (!client.profile_id) {
+        return {
+          decision: 'deny',
+          reason: 'Client has no assigned profile',
+          policy_id: 'system_default',
+        };
+      }
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {
@@ -211,7 +220,9 @@ export class LocalRbacProvider implements AuthorizationProvider {
       }
     } else {
       // Legacy path: client-based auth requires client lookup
-      const client = await getClientById(this.db, session.client_id);
+      const client = await this.db.query.clients.findFirst({
+        where: (c, { eq }) => eq(c.client_id, session.client_id),
+      });
       if (!client) {
         console.warn(`[authz:local] Client not found for session ${session.session_id}`);
         return [];
@@ -225,6 +236,10 @@ export class LocalRbacProvider implements AuthorizationProvider {
       }
 
       // Get effective profile from client's profile_id
+      if (!client.profile_id) {
+        console.warn(`[authz:local] Client ${client.client_id} has no assigned profile`);
+        return [];
+      }
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {

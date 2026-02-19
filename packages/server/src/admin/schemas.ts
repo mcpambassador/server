@@ -63,41 +63,6 @@ export const killSwitchParamsSchema = z.object({
 });
 
 // ==========================================================================
-// CLIENT SCHEMAS
-// ==========================================================================
-
-export const clientStatusSchema = z
-  .object({
-    status: z.enum(['active', 'suspended', 'revoked']),
-  })
-  .strict();
-
-export const updateClientStatusParamsSchema = z.object({
-  clientId: z.string().uuid(),
-});
-
-export const listClientsQuerySchema = z.object({
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(['active', 'suspended', 'revoked']).optional(),
-  host_tool: z
-    .enum([
-      'vscode',
-      'claude-desktop',
-      'claude-code',
-      'opencode',
-      'gemini-cli',
-      'chatgpt',
-      'custom',
-    ])
-    .optional(),
-  sort: z
-    .enum(['last_seen_at:asc', 'last_seen_at:desc', 'created_at:asc', 'created_at:desc'])
-    .optional()
-    .default('last_seen_at:desc'),
-});
-
-// ==========================================================================
 // AUDIT SCHEMAS
 // ==========================================================================
 
@@ -145,36 +110,36 @@ export const listUsersQuerySchema = z.object({
 });
 
 // ==========================================================================
-// PRESHARED KEY SCHEMAS (M18)
+// CLIENT SCHEMAS (M18)
 // ==========================================================================
 
-export const createPresharedKeySchema = z
+export const createClientSchema = z
   .object({
     user_id: z.string().uuid(),
     profile_id: z.string().uuid(),
-    label: z.string().min(1).max(256),
+    client_name: z.string().min(1).max(256),
     expires_at: z.string().datetime().optional(),
   })
   .strict();
 
-export const updatePresharedKeySchema = z
+export const updateClientSchema = z
   .object({
     status: z.enum(['active', 'suspended', 'revoked']).optional(),
     profile_id: z.string().uuid().optional(),
   })
   .strict();
 
-export const updatePresharedKeyParamsSchema = z.object({
-  keyId: z.string().uuid(),
+export const updateClientParamsSchema = z.object({
+  clientId: z.string().uuid(),
 });
 
-export const listPresharedKeysQuerySchema = z.object({
+export const listClientKeysQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   user_id: z.string().uuid().optional(),
   status: z.enum(['active', 'suspended', 'revoked']).optional(),
   sort: z
-    .enum(['created_at:asc', 'created_at:desc', 'label:asc', 'label:desc'])
+    .enum(['created_at:asc', 'created_at:desc', 'client_name:asc', 'client_name:desc'])
     .optional()
     .default('created_at:desc'),
 });

@@ -16,8 +16,6 @@
  * @see ADR-006 Admin Authentication Model
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
@@ -39,8 +37,15 @@ export const users = sqliteTable(
     user_id: text('user_id').primaryKey().notNull(), // UUIDv4
 
     // Identity
+    username: text('username').notNull().unique(), // Unique login identifier
     display_name: text('display_name').notNull(), // Human-readable name
     email: text('email'), // Nullable — not required for Community/local users
+
+    // Authentication
+    password_hash: text('password_hash'), // Argon2id hash, nullable (NULL for preshared-key-only users)
+
+    // Authorization
+    is_admin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
 
     // Lifecycle
     status: text('status', {
@@ -67,8 +72,9 @@ export const users = sqliteTable(
     // Extensibility
     metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
   },
-  table => ({
+  (table) => ({
     // Indexes
+    usernameIdx: uniqueIndex('unique_users_username').on(table.username),
     emailIdx: index('idx_users_email').on(table.email),
     statusIdx: index('idx_users_status').on(table.status),
     authSourceIdx: index('idx_users_auth_source').on(table.auth_source),
@@ -76,41 +82,35 @@ export const users = sqliteTable(
 );
 
 /**
- * preshared_keys table
+ * clients table
  *
- * Stores preshared keys for Phase 3 ephemeral session authentication.
+ * Stores preshared keys (renamed from preshared_keys) for Phase 3 ephemeral session authentication.
  * Each key is bound to a user and tool profile. Keys are provisioned by admins
  * and used by clients to establish ephemeral sessions.
  *
  * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
  * @see SEC-V2-001 Preshared Key Format and Lookup
  */
-export const preshared_keys = sqliteTable(
-  'preshared_keys',
+export const clients = sqliteTable(
+  'clients',
   {
     // Primary key
-    key_id: text('key_id').primaryKey().notNull(), // UUIDv4
+    client_id: text('client_id').primaryKey().notNull(), // UUIDv4
+
+    // Identity
+    client_name: text('client_name').notNull(), // Human-readable name, formerly "label"
 
     // Key material
     key_prefix: text('key_prefix').notNull(), // First 8 chars of raw key for O(1) lookup
     key_hash: text('key_hash').notNull(), // Argon2id output string
 
-    // Identity
-    label: text('label').notNull(), // Human-readable label, e.g., "Alice - Developer"
+    // User reference
     user_id: text('user_id')
       .notNull()
-      .references(() => users.user_id, {
-        onDelete: 'cascade',
-        onUpdate: 'cascade',
-      }),
+      .references(() => users.user_id, { onDelete: 'cascade' }),
 
     // Authorization
-    profile_id: text('profile_id')
-      .notNull()
-      .references(() => tool_profiles.profile_id, {
-        onDelete: 'restrict',
-        onUpdate: 'cascade',
-      }),
+    profile_id: text('profile_id').references(() => tool_profiles.profile_id),
 
     // Lifecycle
     status: text('status', {
@@ -118,7 +118,7 @@ export const preshared_keys = sqliteTable(
     })
       .notNull()
       .default('active'),
-    created_by: text('created_by').notNull(), // Admin user_id who provisioned this key
+    created_by: text('created_by'), // Admin user_id who created it
     created_at: text('created_at').notNull(), // ISO 8601
     expires_at: text('expires_at'), // Optional key-level expiry, ISO 8601
     last_used_at: text('last_used_at'), // ISO 8601, nullable
@@ -126,12 +126,11 @@ export const preshared_keys = sqliteTable(
     // Extensibility
     metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
   },
-  table => ({
+  (table) => ({
     // Indexes
-    keyPrefixIdx: index('idx_preshared_keys_key_prefix').on(table.key_prefix),
-    userIdIdx: index('idx_preshared_keys_user_id').on(table.user_id),
-    statusIdx: index('idx_preshared_keys_status').on(table.status),
-    keyHashUnique: uniqueIndex('unique_preshared_keys_key_hash').on(table.key_hash),
+    keyPrefixIdx: index('idx_clients_key_prefix').on(table.key_prefix),
+    userIdIdx: index('idx_clients_user_id').on(table.user_id),
+    statusIdx: index('idx_clients_status').on(table.status),
   })
 );
 
@@ -190,7 +189,7 @@ export const user_sessions = sqliteTable(
     // Extensibility
     metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
   },
-  table => ({
+  (table) => ({
     // Indexes
     userStatusIdx: index('idx_user_sessions_user_status').on(table.user_id, table.status),
     statusIdx: index('idx_user_sessions_status').on(table.status),
@@ -249,89 +248,10 @@ export const session_connections = sqliteTable(
       .notNull()
       .default('connected'),
   },
-  table => ({
+  (table) => ({
     // Indexes
     sessionIdIdx: index('idx_session_connections_session_id').on(table.session_id),
     statusIdx: index('idx_session_connections_status').on(table.status),
-  })
-);
-
-/**
- * clients table
- *
- * **DEPRECATED (M19.3)**: This table was used for API key-based client registration.
- * The project has migrated to ephemeral sessions tracked in `session_connections` table.
- * This table is retained for:
- * - Historical data (admin UI shows legacy clients)
- * - Admin API compatibility (read-only operations)
- * - Future migration to remove after confirming no dependencies
- *
- * **DO NOT USE FOR NEW FEATURES**. Use `session_connections` for active connection tracking.
- *
- * Originally: Stores registered Ambassador Clients. Each client represents an installation
- * on a developer workstation (VS Code, Claude Desktop, etc.).
- *
- * @deprecated Use session_connections table for new authentication flows
- * @see Architecture §3.2 ClientRecord (legacy)
- * @see ADR-011 Ephemeral Sessions Identity Model
- */
-export const clients = sqliteTable(
-  'clients',
-  {
-    // Primary key
-    client_id: text('client_id').primaryKey().notNull(), // UUIDv4
-
-    // Identity
-    friendly_name: text('friendly_name').notNull(), // max 128 chars, sanitized [a-zA-Z0-9 _.-]
-    host_tool: text('host_tool', {
-      enum: [
-        'vscode',
-        'claude-desktop',
-        'claude-code',
-        'opencode',
-        'gemini-cli',
-        'chatgpt',
-        'custom',
-      ],
-    }).notNull(),
-    machine_fingerprint: text('machine_fingerprint'), // SHA-256 hex, nullable
-    owner_user_id: text('owner_user_id').references(() => users.user_id, {
-      onDelete: 'set null',
-      onUpdate: 'cascade',
-    }), // FK to users table, null in Community
-
-    // Authentication
-    auth_method: text('auth_method', {
-      enum: ['api_key', 'jwt', 'oidc', 'saml', 'mtls'],
-    }).notNull(),
-    api_key_hash: text('api_key_hash'), // argon2id hash, only for api_key auth_method
-
-    // Authorization
-    profile_id: text('profile_id')
-      .notNull()
-      .references(() => tool_profiles.profile_id, {
-        onDelete: 'restrict', // Cannot delete a profile if clients reference it
-        onUpdate: 'cascade',
-      }),
-
-    // Lifecycle
-    status: text('status', {
-      enum: ['active', 'suspended', 'revoked'],
-    })
-      .notNull()
-      .default('active'),
-    created_at: text('created_at').notNull(), // ISO 8601
-    last_seen_at: text('last_seen_at').notNull(), // ISO 8601, updated on every auth
-
-    // Extensibility
-    metadata: text('metadata').notNull().default('{}'), // JSON object serialized to TEXT
-  },
-  table => ({
-    // Indexes for common query patterns (dashboard list views)
-    statusIdx: index('idx_clients_status').on(table.status),
-    profileIdx: index('idx_clients_profile_id').on(table.profile_id),
-    lastSeenIdx: index('idx_clients_last_seen_at').on(table.last_seen_at),
-    hostToolIdx: index('idx_clients_host_tool').on(table.host_tool),
   })
 );
 
@@ -364,6 +284,7 @@ export const tool_profiles = sqliteTable(
       .default('{"requests_per_minute":60,"requests_per_hour":1000,"max_concurrent":5}'), // JSON object
 
     // Inheritance (max depth 5, cycles rejected at save time)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     inherited_from: text('inherited_from').references((): any => tool_profiles.profile_id, {
       onDelete: 'set null', // If parent deleted, child loses inheritance (doesn't cascade delete)
       onUpdate: 'cascade',
@@ -377,7 +298,7 @@ export const tool_profiles = sqliteTable(
     created_at: text('created_at').notNull(),
     updated_at: text('updated_at').notNull(),
   },
-  table => ({
+  (table) => ({
     // Index for dashboard list view
     nameIdx: index('idx_tool_profiles_name').on(table.name),
   })
@@ -409,7 +330,7 @@ export const admin_keys = sqliteTable(
     rotated_at: text('rotated_at'), // Timestamp of last rotation, null if never rotated
     is_active: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Only one active key
   },
-  table => ({
+  (table) => ({
     // Index for active key lookup
     activeIdx: index('idx_admin_keys_is_active').on(table.is_active),
   })
@@ -485,7 +406,7 @@ export const audit_events = sqliteTable(
     ambassador_node: text('ambassador_node'), // Server hostname for multi-node deployments
     metadata: text('metadata').default('{}'), // JSON object for extensibility
   },
-  table => ({
+  (table) => ({
     // Indexes for common query patterns (audit log viewer)
     timestampIdx: index('idx_audit_events_timestamp').on(table.timestamp),
     clientIdIdx: index('idx_audit_events_client_id').on(table.client_id),
@@ -500,110 +421,298 @@ export const audit_events = sqliteTable(
 );
 
 /**
+ * groups table
+ *
+ * Stores user groups for Phase 4 group-based access control.
+ * Groups are used to simplify MCP access management by assigning users to groups
+ * and granting MCP access at the group level.
+ */
+export const groups = sqliteTable(
+  'groups',
+  {
+    group_id: text('group_id').primaryKey().notNull(),
+    name: text('name').notNull().unique(),
+    description: text('description').notNull().default(''),
+    status: text('status', {
+      enum: ['active', 'suspended'],
+    })
+      .notNull()
+      .default('active'),
+    created_by: text('created_by').notNull(),
+    created_at: text('created_at').notNull(),
+    updated_at: text('updated_at').notNull(),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex('unique_groups_name').on(table.name),
+    statusIdx: index('idx_groups_status').on(table.status),
+  })
+);
+
+/**
+ * user_groups table
+ *
+ * Many-to-many join table for users and groups.
+ * Tracks which users belong to which groups.
+ */
+export const user_groups = sqliteTable(
+  'user_groups',
+  {
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    group_id: text('group_id')
+      .notNull()
+      .references(() => groups.group_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    assigned_at: text('assigned_at').notNull(),
+    assigned_by: text('assigned_by').notNull(),
+  },
+  (table) => ({
+    pk: uniqueIndex('unique_user_groups').on(table.user_id, table.group_id),
+    groupIdx: index('idx_user_groups_group_id').on(table.group_id),
+  })
+);
+
+/**
+ * mcp_catalog table
+ *
+ * Stores the central catalog of MCPs available in the Ambassador instance.
+ * Each entry represents a configured MCP server that can be made available
+ * to users based on group membership and access control policies.
+ */
+export const mcp_catalog = sqliteTable(
+  'mcp_catalog',
+  {
+    mcp_id: text('mcp_id').primaryKey().notNull(),
+    name: text('name').notNull().unique(),
+    display_name: text('display_name').notNull(),
+    description: text('description').notNull().default(''),
+    icon_url: text('icon_url'),
+    transport_type: text('transport_type', {
+      enum: ['stdio', 'http', 'sse'],
+    }).notNull(),
+    config: text('config').notNull().default('{}'),
+    isolation_mode: text('isolation_mode', {
+      enum: ['shared', 'per_user'],
+    })
+      .notNull()
+      .default('shared'),
+    requires_user_credentials: integer('requires_user_credentials', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    credential_schema: text('credential_schema').notNull().default('{}'),
+    tool_catalog: text('tool_catalog').notNull().default('[]'),
+    tool_count: integer('tool_count').notNull().default(0),
+    status: text('status', {
+      enum: ['draft', 'published', 'archived'],
+    })
+      .notNull()
+      .default('draft'),
+    published_by: text('published_by'),
+    published_at: text('published_at'),
+    validation_status: text('validation_status', {
+      enum: ['pending', 'valid', 'invalid'],
+    })
+      .notNull()
+      .default('pending'),
+    validation_result: text('validation_result').notNull().default('{}'),
+    last_validated_at: text('last_validated_at'),
+    created_at: text('created_at').notNull(),
+    updated_at: text('updated_at').notNull(),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex('unique_mcp_catalog_name').on(table.name),
+    statusIdx: index('idx_mcp_catalog_status').on(table.status),
+    isolationIdx: index('idx_mcp_catalog_isolation_mode').on(table.isolation_mode),
+  })
+);
+
+/**
+ * mcp_group_access table
+ *
+ * Many-to-many join table for MCPs and groups.
+ * Defines which groups have access to which MCPs.
+ */
+export const mcp_group_access = sqliteTable(
+  'mcp_group_access',
+  {
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    group_id: text('group_id')
+      .notNull()
+      .references(() => groups.group_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    assigned_at: text('assigned_at').notNull(),
+    assigned_by: text('assigned_by').notNull(),
+  },
+  (table) => ({
+    pk: uniqueIndex('unique_mcp_group_access').on(table.mcp_id, table.group_id),
+    groupIdx: index('idx_mcp_group_access_group_id').on(table.group_id),
+  })
+);
+
+/**
+ * client_mcp_subscriptions table
+ *
+ * Tracks which MCPs each client (preshared key) subscribes to.
+ * Clients can selectively enable/disable MCPs and choose specific tools from each MCP.
+ */
+export const client_mcp_subscriptions = sqliteTable(
+  'client_mcp_subscriptions',
+  {
+    subscription_id: text('subscription_id').primaryKey().notNull(),
+    client_id: text('client_id')
+      .notNull()
+      .references(() => clients.client_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    selected_tools: text('selected_tools').notNull().default('[]'),
+    status: text('status', {
+      enum: ['active', 'paused', 'removed'],
+    })
+      .notNull()
+      .default('active'),
+    subscribed_at: text('subscribed_at').notNull(),
+    updated_at: text('updated_at').notNull(),
+  },
+  (table) => ({
+    keyMcpIdx: uniqueIndex('unique_client_mcp_sub').on(table.client_id, table.mcp_id),
+    clientIdx: index('idx_client_mcp_sub_client_id').on(table.client_id),
+    mcpIdx: index('idx_client_mcp_sub_mcp_id').on(table.mcp_id),
+    statusIdx: index('idx_client_mcp_sub_status').on(table.status),
+  })
+);
+
+/**
+ * user_mcp_credentials table
+ *
+ * Stores encrypted per-user credentials for MCPs that require user-specific authentication.
+ * Used with per-user isolation mode MCPs (GitHub, Jira, etc.).
+ */
+export const user_mcp_credentials = sqliteTable(
+  'user_mcp_credentials',
+  {
+    credential_id: text('credential_id').primaryKey().notNull(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    encrypted_credentials: text('encrypted_credentials').notNull(),
+    encryption_iv: text('encryption_iv').notNull(),
+    created_at: text('created_at').notNull(),
+    updated_at: text('updated_at').notNull(),
+  },
+  (table) => ({
+    userMcpIdx: uniqueIndex('unique_user_mcp_cred').on(table.user_id, table.mcp_id),
+    userIdx: index('idx_user_mcp_cred_user_id').on(table.user_id),
+    mcpIdx: index('idx_user_mcp_cred_mcp_id').on(table.mcp_id),
+  })
+);
+
+/**
  * Drizzle relations (for ORM query joins)
  */
-export const usersRelations = relations(users, ({ many }: { many: any }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   clients: many(clients),
-  presharedKeys: many(preshared_keys),
-  sessions: many(user_sessions),
+  user_sessions: many(user_sessions),
+  user_groups: many(user_groups),
+  user_mcp_credentials: many(user_mcp_credentials),
 }));
 
-export const presharedKeysRelations = relations(preshared_keys, ({ one }: { one: any }) => ({
-  user: one(users, {
-    fields: [preshared_keys.user_id],
-    references: [users.user_id],
-  }),
-  profile: one(tool_profiles, {
-    fields: [preshared_keys.profile_id],
-    references: [tool_profiles.profile_id],
-  }),
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+  user: one(users, { fields: [clients.user_id], references: [users.user_id] }),
+  profile: one(tool_profiles, { fields: [clients.profile_id], references: [tool_profiles.profile_id] }),
+  subscriptions: many(client_mcp_subscriptions),
 }));
 
-export const userSessionsRelations = relations(
-  user_sessions,
-  ({ one, many }: { one: any; many: any }) => ({
-    user: one(users, {
-      fields: [user_sessions.user_id],
-      references: [users.user_id],
-    }),
-    profile: one(tool_profiles, {
-      fields: [user_sessions.profile_id],
-      references: [tool_profiles.profile_id],
-    }),
-    connections: many(session_connections),
-  })
-);
-
-export const sessionConnectionsRelations = relations(
-  session_connections,
-  ({ one }: { one: any }) => ({
-    session: one(user_sessions, {
-      fields: [session_connections.session_id],
-      references: [user_sessions.session_id],
-    }),
-  })
-);
-
-export const clientsRelations = relations(clients, ({ one }: { one: any }) => ({
-  profile: one(tool_profiles, {
-    fields: [clients.profile_id],
-    references: [tool_profiles.profile_id],
-  }),
-  owner: one(users, {
-    fields: [clients.owner_user_id],
-    references: [users.user_id],
-  }),
+export const userSessionsRelations = relations(user_sessions, ({ one, many }) => ({
+  user: one(users, { fields: [user_sessions.user_id], references: [users.user_id] }),
+  profile: one(tool_profiles, { fields: [user_sessions.profile_id], references: [tool_profiles.profile_id] }),
+  connections: many(session_connections),
 }));
 
-export const toolProfilesRelations = relations(
-  tool_profiles,
-  ({ one, many }: { one: any; many: any }) => ({
-    parent: one(tool_profiles, {
-      fields: [tool_profiles.inherited_from],
-      references: [tool_profiles.profile_id],
-      relationName: 'inheritance',
-    }),
-    children: many(tool_profiles, {
-      relationName: 'inheritance',
-    }),
-    clients: many(clients),
-    presharedKeys: many(preshared_keys),
-    sessions: many(user_sessions),
-  })
-);
+export const sessionConnectionsRelations = relations(session_connections, ({ one }) => ({
+  session: one(user_sessions, { fields: [session_connections.session_id], references: [user_sessions.session_id] }),
+}));
+
+export const toolProfilesRelations = relations(tool_profiles, ({ one, many }) => ({
+  parent: one(tool_profiles, { fields: [tool_profiles.inherited_from], references: [tool_profiles.profile_id], relationName: 'profile_inheritance' }),
+  children: many(tool_profiles, { relationName: 'profile_inheritance' }),
+  clients: many(clients),
+  user_sessions: many(user_sessions),
+}));
+
+export const groupsRelations = relations(groups, ({ many }) => ({
+  user_groups: many(user_groups),
+  mcp_group_access: many(mcp_group_access),
+}));
+
+export const userGroupsRelations = relations(user_groups, ({ one }) => ({
+  user: one(users, { fields: [user_groups.user_id], references: [users.user_id] }),
+  group: one(groups, { fields: [user_groups.group_id], references: [groups.group_id] }),
+}));
+
+export const mcpCatalogRelations = relations(mcp_catalog, ({ many }) => ({
+  mcp_group_access: many(mcp_group_access),
+  subscriptions: many(client_mcp_subscriptions),
+  user_credentials: many(user_mcp_credentials),
+}));
+
+export const mcpGroupAccessRelations = relations(mcp_group_access, ({ one }) => ({
+  mcp: one(mcp_catalog, { fields: [mcp_group_access.mcp_id], references: [mcp_catalog.mcp_id] }),
+  group: one(groups, { fields: [mcp_group_access.group_id], references: [groups.group_id] }),
+}));
+
+export const clientMcpSubscriptionsRelations = relations(client_mcp_subscriptions, ({ one }) => ({
+  client: one(clients, { fields: [client_mcp_subscriptions.client_id], references: [clients.client_id] }),
+  mcp: one(mcp_catalog, { fields: [client_mcp_subscriptions.mcp_id], references: [mcp_catalog.mcp_id] }),
+}));
+
+export const userMcpCredentialsRelations = relations(user_mcp_credentials, ({ one }) => ({
+  user: one(users, { fields: [user_mcp_credentials.user_id], references: [users.user_id] }),
+  mcp: one(mcp_catalog, { fields: [user_mcp_credentials.mcp_id], references: [mcp_catalog.mcp_id] }),
+}));
 
 /**
  * TypeScript types derived from schema (for application code)
  */
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
-
-export type ToolProfile = typeof tool_profiles.$inferSelect;
-export type NewToolProfile = typeof tool_profiles.$inferInsert;
-
-export type AdminKey = typeof admin_keys.$inferSelect;
-export type NewAdminKey = typeof admin_keys.$inferInsert;
-
-export type AuditEvent = typeof audit_events.$inferSelect;
-export type NewAuditEvent = typeof audit_events.$inferInsert;
-
-export type PresharedKey = typeof preshared_keys.$inferSelect;
-export type NewPresharedKey = typeof preshared_keys.$inferInsert;
-
 export type UserSession = typeof user_sessions.$inferSelect;
 export type NewUserSession = typeof user_sessions.$inferInsert;
-
 export type SessionConnection = typeof session_connections.$inferSelect;
 export type NewSessionConnection = typeof session_connections.$inferInsert;
+export type ToolProfile = typeof tool_profiles.$inferSelect;
+export type NewToolProfile = typeof tool_profiles.$inferInsert;
+export type AdminKey = typeof admin_keys.$inferSelect;
+export type NewAdminKey = typeof admin_keys.$inferInsert;
+export type AuditEvent = typeof audit_events.$inferSelect;
+export type NewAuditEvent = typeof audit_events.$inferInsert;
+export type Group = typeof groups.$inferSelect;
+export type NewGroup = typeof groups.$inferInsert;
+export type UserGroup = typeof user_groups.$inferSelect;
+export type NewUserGroup = typeof user_groups.$inferInsert;
+export type McpCatalogEntry = typeof mcp_catalog.$inferSelect;
+export type NewMcpCatalogEntry = typeof mcp_catalog.$inferInsert;
+export type McpGroupAccess = typeof mcp_group_access.$inferSelect;
+export type NewMcpGroupAccess = typeof mcp_group_access.$inferInsert;
+export type ClientMcpSubscription = typeof client_mcp_subscriptions.$inferSelect;
+export type NewClientMcpSubscription = typeof client_mcp_subscriptions.$inferInsert;
+export type UserMcpCredential = typeof user_mcp_credentials.$inferSelect;
+export type NewUserMcpCredential = typeof user_mcp_credentials.$inferInsert;
 
 /**
  * JSON-typed interfaces for metadata fields
  */
 export interface ClientMetadata {
-  [key: string]: string | number | boolean;
+  os?: string;
+  ide_version?: string;
+  extension_version?: string;
+  [key: string]: unknown;
 }
 
 export interface RateLimits {
@@ -613,21 +722,22 @@ export interface RateLimits {
 }
 
 export interface TimeWindow {
-  days: string[]; // ["mon","tue","wed","thu","fri"]
-  start_utc: string; // "08:00"
-  end_utc: string; // "18:00"
+  days: string[];
+  start_utc: string;
+  end_utc: string;
 }
 
 export interface AuditRequestSummary {
-  [key: string]: unknown;
+  method: string;
+  tool_name?: string;
+  arguments_hash?: string;
 }
 
 export interface AuditResponseSummary {
-  status: 'success' | 'error';
-  duration_ms: number;
-  result_size?: number;
-  error_code?: string;
+  status: string;
+  duration_ms?: number;
+  error?: string;
 }
 
 // Re-export seed functions
-export { seedDatabase, seedDevPresharedKeys } from './seed.js';
+export { seedDatabase, seedDevData } from './seed.js';

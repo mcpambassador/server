@@ -1,18 +1,14 @@
 /**
  * MCP Ambassador - Seed Data
  *
- * Default Tool Profiles and reference data for Phase 1 deployment.
- * These profiles are inserted on first server boot.
+ * Default Tool Profiles, groups, and reference data for deployment.
+ * These are inserted on first server boot.
  *
  * @see Architecture §10.2 Tool Profile Examples
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console */
-
-import { tool_profiles, users } from './index.js';
-
+import { tool_profiles, users, groups, user_groups } from './index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 
@@ -226,25 +222,55 @@ export const builtInAdminRoles = {
 } as const;
 
 /**
- * Seed function - inserts default profiles if none exist
+ * Seed function - inserts default profiles and groups if none exist
  *
- * Called by server bootstrap on first run. Idempotent (checks if profiles exist).
+ * Called by server bootstrap on first run. Idempotent (checks if data exists).
  *
  * @param db Drizzle database instance
  */
 export async function seedDatabase(db: any): Promise<void> {
+  const timestamp = now();
+
   // Check if profiles already exist
   const existingProfiles = await db.query.tool_profiles.findMany({ limit: 1 });
 
-  if (existingProfiles.length > 0) {
-    console.log('[seed] Profiles already exist, skipping seed');
-    return;
+  if (existingProfiles.length === 0) {
+    console.log(`[seed] Inserting ${defaultProfiles.length} default Tool Profiles...`);
+
+    for (const profile of defaultProfiles) {
+      await db.insert(tool_profiles).values(profile);
+    }
+
+    console.log('[seed] Tool profiles created');
+  } else {
+    console.log('[seed] Profiles already exist, skipping profile seed');
   }
 
-  console.log(`[seed] Inserting ${defaultProfiles.length} default Tool Profiles...`);
+  // Check if groups table exists and create default all-users group
+  try {
+    const existingGroups = await db.query.groups.findFirst({
+      where: (group: any, { eq }: any) => eq(group.name, 'all-users'),
+    });
 
-  for (const profile of defaultProfiles) {
-    await db.insert(tool_profiles).values(profile);
+    if (!existingGroups) {
+      console.log('[seed] Creating default all-users group...');
+
+      await db.insert(groups).values({
+        group_id: uuidv4(),
+        name: 'all-users',
+        description: 'Default group that all new users are automatically assigned to.',
+        status: 'active',
+        created_by: 'system',
+        created_at: timestamp,
+        updated_at: timestamp,
+      });
+
+      console.log('[seed] Default all-users group created');
+    } else {
+      console.log('[seed] all-users group already exists');
+    }
+  } catch (error) {
+    console.log('[seed] Groups table not yet available, skipping group seed');
   }
 
   console.log('[seed] Seed complete');
@@ -259,12 +285,12 @@ export function getDefaultProfileId(name: string): string | null {
 }
 
 /**
- * Seeds dev/test preshared key data
+ * Seeds dev/test data (users and group assignments)
  * Only runs in NODE_ENV=development or NODE_ENV=test
  */
-export async function seedDevPresharedKeys(db: any): Promise<void> {
+export async function seedDevData(db: any): Promise<void> {
   if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
-    console.log('[seed] Skipping dev preshared key seed (not development/test environment)');
+    console.log('[seed] Skipping dev data seed (not development/test environment)');
     return;
   }
 
@@ -275,7 +301,6 @@ export async function seedDevPresharedKeys(db: any): Promise<void> {
     return;
   }
 
-  const devUserId = uuidv4();
   const timestamp = now();
 
   // Find the all-tools profile
@@ -284,27 +309,73 @@ export async function seedDevPresharedKeys(db: any): Promise<void> {
   });
 
   if (!allToolsProfile) {
-    console.log('[seed] Warning: all-tools profile not found, skipping dev preshared key seed');
+    console.log('[seed] Warning: all-tools profile not found, skipping dev data seed');
     return;
   }
 
-  // Insert dev user
+  // Find or create the all-users group
+  let allUsersGroup = await db.query.groups.findFirst({
+    where: (group: any, { eq }: any) => eq(group.name, 'all-users'),
+  });
+
+  // 1. Create admin user
+  const adminUserId = uuidv4();
   await db.insert(users).values({
-    user_id: devUserId,
-    display_name: 'Dev User',
-    email: 'dev@localhost',
+    user_id: adminUserId,
+    username: 'admin',
+    display_name: 'Administrator',
+    email: 'admin@localhost',
+    password_hash: null, // Password set by bootstrap logic, not seed
+    is_admin: true,
     status: 'active',
-    auth_source: 'preshared_key',
+    auth_source: 'local',
     created_at: timestamp,
     updated_at: timestamp,
     metadata: '{}',
   });
+  console.log(`[seed] Created admin user: ${adminUserId}`);
 
-  // NOTE: The actual preshared key hash and prefix are generated at server startup
-  // when the server detects no preshared keys exist and the dev seed flag is set.
-  // This seed only creates the user entry. The preshared key record is created
-  // by the server's bootstrap logic (similar to admin key first-boot generation).
-  // This avoids hardcoding Argon2id hashes in seed data.
-  console.log(`[seed] Created dev user: ${devUserId}`);
-  console.log('[seed] Dev preshared key will be generated on first server boot');
+  // 2. Create QA test user
+  const qaUserId = uuidv4();
+  await db.insert(users).values({
+    user_id: qaUserId,
+    username: 'qa-tester',
+    display_name: 'QA Test User',
+    email: 'qa@localhost',
+    password_hash: null, // Password set by bootstrap logic
+    is_admin: false,
+    status: 'active',
+    auth_source: 'local',
+    created_at: timestamp,
+    updated_at: timestamp,
+    metadata: '{}',
+  });
+  console.log(`[seed] Created QA test user: ${qaUserId}`);
+
+  // 3. Assign QA user to all-users group
+  if (allUsersGroup) {
+    await db.insert(user_groups).values({
+      user_id: qaUserId,
+      group_id: allUsersGroup.group_id,
+      assigned_at: timestamp,
+      assigned_by: 'system',
+    });
+    console.log(`[seed] Assigned QA user to all-users group`);
+  }
+
+  // 4. Assign admin to all-users group
+  if (allUsersGroup) {
+    await db.insert(user_groups).values({
+      user_id: adminUserId,
+      group_id: allUsersGroup.group_id,
+      assigned_at: timestamp,
+      assigned_by: 'system',
+    });
+    console.log(`[seed] Assigned admin user to all-users group`);
+  }
+
+  // NOTE: Preshared keys (clients) are created during server bootstrap,
+  // not here. The server's bootstrap logic generates the actual key material
+  // and Argon2id hashes. This seed only creates the user entries.
+  console.log('[seed] Dev data seed complete. Client keys will be generated on first server boot.');
 }

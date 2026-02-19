@@ -1,3 +1,2 @@
 packages:
   - 'packages/*'
-  - '!packages/authn-apikey'  # Legacy API key auth - excluded from build (M19.1)

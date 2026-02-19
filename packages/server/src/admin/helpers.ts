@@ -24,11 +24,16 @@ export interface AuditEventSummary {
 }
 
 export interface ClientSummary {
-  id?: string;
-  name?: string;
-  profile_name?: string;
-  status?: string;
-  created_at?: string | number;
+  client_id: string;
+  key_prefix: string;
+  client_name: string;
+  user_id: string;
+  user_display_name: string;
+  profile_id: string | null;
+  profile_name: string;
+  status: string;
+  created_at: string;
+  last_used_at?: string | null;
 }
 
 export interface ProfileSummary {
@@ -46,18 +51,6 @@ export interface UserSummary {
   created_at: string;
 }
 
-export interface PresharedKeySummary {
-  key_id: string;
-  key_prefix: string;
-  label: string;
-  user_id: string;
-  user_display_name: string;
-  profile_id: string;
-  profile_name: string;
-  status: string;
-  created_at: string;
-  last_used_at?: string | null;
-}
 
 export interface SessionSummary {
   session_id: string;
@@ -71,7 +64,6 @@ export interface SessionSummary {
 }
 
 import {
-  listClients,
   listToolProfiles,
   getToolProfileById,
   queryAuditEvents,
@@ -111,28 +103,37 @@ export async function getDashboardData(
 }
 
 /**
- * Get all clients
+ * Get all clients with user and profile names
  */
-export async function getClients(
-  db: DatabaseClient,
-  page = 1,
-  limit = 20
-): Promise<{
-  clients: ClientSummary[];
-  page: number;
-  limit: number;
-  hasMore: boolean;
-}> {
-  // For Phase 1, just get first page of clients
-  // Phase 2 will implement proper cursor-based pagination
-  const clientsData = await listClients(db, undefined, { limit });
+export async function getClients(db: DatabaseClient): Promise<ClientSummary[]> {
+  const keysResult = await db.query.clients.findMany({
+    orderBy: (keys, { desc }) => [desc(keys.created_at)],
+    with: {
+      user: {
+        columns: {
+          display_name: true,
+        },
+      },
+      profile: {
+        columns: {
+          name: true,
+        },
+      },
+    },
+  });
 
-  return {
-    clients: clientsData.clients || [],
-    page,
-    limit,
-    hasMore: clientsData.has_more ?? false,
-  };
+  return keysResult.map(key => ({
+    client_id: key.client_id,
+    key_prefix: key.key_prefix,
+    client_name: key.client_name,
+    user_id: key.user_id,
+    user_display_name: (key.user as any).display_name as string,
+    profile_id: key.profile_id,
+    profile_name: (key.profile as any).name as string,
+    status: key.status,
+    created_at: key.created_at,
+    last_used_at: key.last_used_at,
+  }));
 }
 
 /**
@@ -213,40 +214,6 @@ export async function getUsers(db: DatabaseClient): Promise<UserSummary[]> {
     orderBy: (users, { asc }) => [asc(users.display_name)],
   });
   return usersResult as UserSummary[];
-}
-
-/**
- * Get all preshared keys with user and profile names
- */
-export async function getPresharedKeys(db: DatabaseClient): Promise<PresharedKeySummary[]> {
-  const keysResult = await db.query.preshared_keys.findMany({
-    orderBy: (keys, { desc }) => [desc(keys.created_at)],
-    with: {
-      user: {
-        columns: {
-          display_name: true,
-        },
-      },
-      profile: {
-        columns: {
-          name: true,
-        },
-      },
-    },
-  });
-
-  return keysResult.map(key => ({
-    key_id: key.key_id,
-    key_prefix: key.key_prefix,
-    label: key.label,
-    user_id: key.user_id,
-    user_display_name: (key.user as any).display_name as string,
-    profile_id: key.profile_id,
-    profile_name: (key.profile as any).name as string,
-    status: key.status,
-    created_at: key.created_at,
-    last_used_at: key.last_used_at,
-  }));
 }
 
 /**

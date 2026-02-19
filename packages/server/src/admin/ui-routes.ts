@@ -20,7 +20,7 @@ import type { BoundedSessionStore } from './session.js';
 import {
   authenticateAdminKey,
   users,
-  preshared_keys,
+  clients,
   user_sessions,
   session_connections,
   compatInsert,
@@ -38,7 +38,6 @@ import {
   getKillSwitches,
   getAuditLog,
   getUsers,
-  getPresharedKeys,
   getSessions,
   formatTimestamp,
 } from './helpers.js';
@@ -304,26 +303,6 @@ export async function registerUiRoutes(
       title: 'Dashboard',
       formatTimestamp,
       csrfToken: request.session.csrfToken, // SEC-M18-001
-    });
-  });
-
-  /**
-   * GET /admin/clients - Client management
-   */
-  fastify.get('/admin/clients', { preHandler: requireAuth }, async (request, reply) => {
-    const query = request.query as { page?: string };
-    const page = parseInt(query.page || '1', 10);
-
-    const data = await getClients(db, page);
-
-    const flash = request.session.flash;
-    delete request.session.flash;
-
-    return reply.view('clients', {
-      ...data,
-      flash,
-      title: 'Clients',
-      formatTimestamp,
     });
   });
 
@@ -611,10 +590,10 @@ export async function registerUiRoutes(
   );
 
   /**
-   * GET /admin/preshared-keys - Preshared key management
+   * GET /admin/clients - Client key management (preshared keys)
    */
-  fastify.get('/admin/preshared-keys', { preHandler: requireAuth }, async (request, reply) => {
-    const keys = await getPresharedKeys(db);
+  fastify.get('/admin/clients', { preHandler: requireAuth }, async (request, reply) => {
+    const keys = await getClients(db);
     const usersData = await getUsers(db);
     const profilesData = await getProfiles(db);
 
@@ -625,37 +604,37 @@ export async function registerUiRoutes(
     const flash = request.session.flash;
     delete request.session.flash;
 
-    return reply.view('preshared-keys', {
+    return reply.view('clients', {
       keys,
       users: usersData,
       profiles: profilesData,
       generatedKey,
       flash,
-      title: 'Preshared Keys',
+      title: 'Client Keys',
       formatTimestamp,
       csrfToken: request.session.csrfToken, // SEC-M18-001
     });
   });
 
   /**
-   * POST /admin/preshared-keys/create - Create new preshared key
+   * POST /admin/clients/create - Create new client key
    */
-  fastify.post<{ Body: { user_id: string; profile_id: string; label: string; _csrf?: string } }>(
-    '/admin/preshared-keys/create',
+  fastify.post<{ Body: { user_id: string; profile_id: string; client_name: string; _csrf?: string } }>(
+    '/admin/clients/create',
     { preHandler: requireAuth },
     async (request, reply) => {
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect('/admin/preshared-keys', 302);
+        return reply.redirect('/admin/clients', 302);
       }
 
-      const { user_id, profile_id, label } = request.body;
+      const { user_id, profile_id, client_name } = request.body;
 
       // Validate input
-      if (!user_id || !profile_id || !label || label.trim().length === 0) {
+      if (!user_id || !profile_id || !client_name || client_name.trim().length === 0) {
         request.session.flash = { type: 'error', message: 'All fields are required' };
-        return reply.redirect('/admin/preshared-keys', 302);
+        return reply.redirect('/admin/clients', 302);
       }
 
       try {
@@ -679,14 +658,14 @@ export async function registerUiRoutes(
         });
 
         // Insert key
-        const keyId = crypto.randomUUID();
+        const clientId = crypto.randomUUID();
         const now = new Date().toISOString();
 
-        await compatInsert(db, preshared_keys).values({
-          key_id: keyId,
+        await compatInsert(db, clients).values({
+          client_id: clientId,
           key_prefix: keyPrefix,
           key_hash: keyHash,
-          label: label.trim(),
+          client_name: client_name.trim(),
           user_id,
           profile_id,
           status: 'active',
@@ -703,48 +682,48 @@ export async function registerUiRoutes(
           client_id: undefined,
           user_id: user_id,
           source_ip: request.ip || '127.0.0.1',
-          action: 'preshared_key_create',
-          metadata: { key_id: keyId, label: label.trim(), key_prefix: keyPrefix },
+          action: 'client_create',
+          metadata: { client_id: clientId, client_name: client_name.trim(), key_prefix: keyPrefix },
         });
 
         // Store generated key in session for one-time display
         request.session.generatedKey = plainKey;
         request.session.flash = {
           type: 'success',
-          message: 'Preshared key created successfully',
+          message: 'Client key created successfully',
         };
       } catch (error) {
-        fastify.log.error(error, 'Failed to create preshared key');
+        fastify.log.error(error, 'Failed to create client key');
         request.session.flash = {
           type: 'error',
-          message: 'Failed to create preshared key. Please try again.',
+          message: 'Failed to create client key. Please try again.',
         };
       }
 
-      return reply.redirect('/admin/preshared-keys', 302);
+      return reply.redirect('/admin/clients', 302);
     }
   );
 
   /**
-   * POST /admin/preshared-keys/:keyId/status - Update preshared key status
+   * POST /admin/clients/:clientId/status - Update client key status
    */
-  fastify.post<{ Params: { keyId: string }; Body: { status: string; _csrf?: string } }>(
-    '/admin/preshared-keys/:keyId/status',
+  fastify.post<{ Params: { clientId: string }; Body: { status: string; _csrf?: string } }>(
+    '/admin/clients/:clientId/status',
     { preHandler: requireAuth },
     async (request, reply) => {
       // SEC-M18-001: Validate CSRF token
       if (request.body._csrf !== request.session.csrfToken) {
         request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
-        return reply.redirect('/admin/preshared-keys', 302);
+        return reply.redirect('/admin/clients', 302);
       }
 
-      const { keyId } = request.params;
+      const { clientId } = request.params;
       const { status } = request.body;
 
       // Validate status
       if (!['active', 'suspended', 'revoked'].includes(status)) {
         request.session.flash = { type: 'error', message: 'Invalid status' };
-        return reply.redirect('/admin/preshared-keys', 302);
+        return reply.redirect('/admin/clients', 302);
       }
 
       try {
@@ -752,13 +731,13 @@ export async function registerUiRoutes(
         let cascadeUserId: string | undefined;
         await compatTransaction(db, async () => {
           // Update key status
-          await compatUpdate(db, preshared_keys).set({ status }).where(eq(preshared_keys.key_id, keyId));
+          await compatUpdate(db, clients).set({ status }).where(eq(clients.client_id, clientId));
 
           // CR fix: If revoking, cascade — expire user's sessions
           if (status === 'revoked') {
             // Look up key to get user_id
-            const key = await db.query.preshared_keys.findFirst({
-              where: (k, { eq: eq2 }) => eq2(k.key_id, keyId),
+            const key = await db.query.clients.findFirst({
+              where: (k, { eq: eq2 }) => eq2(k.client_id, clientId),
             });
 
             if (key) {
@@ -796,23 +775,23 @@ export async function registerUiRoutes(
           client_id: undefined,
           user_id: undefined,
           source_ip: request.ip || '127.0.0.1',
-          action: 'preshared_key_update',
-          metadata: { key_id: keyId, new_status: status },
+          action: 'client_update',
+          metadata: { client_id: clientId, new_status: status },
         });
 
         request.session.flash = {
           type: 'success',
-          message: `Key status updated to ${status}`,
+          message: `Client key status updated to ${status}`,
         };
       } catch (error) {
-        fastify.log.error(error, 'Failed to update key status');
+        fastify.log.error(error, 'Failed to update client key status');
         request.session.flash = {
           type: 'error',
-          message: 'Failed to update key status. Please try again.',
+          message: 'Failed to update client key status. Please try again.',
         };
       }
 
-      return reply.redirect('/admin/preshared-keys', 302);
+      return reply.redirect('/admin/clients', 302);
     }
   );
 

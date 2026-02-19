@@ -19,21 +19,18 @@ import {
   createProfileSchema,
   updateProfileSchema,
   killSwitchSchema,
-  clientStatusSchema,
   listProfilesQuerySchema,
-  listClientsQuerySchema,
   listAuditEventsQuerySchema,
   getProfileParamsSchema,
-  updateClientStatusParamsSchema,
   killSwitchParamsSchema,
   createUserSchema,
   updateUserSchema,
   updateUserParamsSchema,
   listUsersQuerySchema,
-  createPresharedKeySchema,
-  updatePresharedKeySchema,
-  updatePresharedKeyParamsSchema,
-  listPresharedKeysQuerySchema,
+  createClientSchema,
+  updateClientSchema,
+  updateClientParamsSchema,
+  listClientKeysQuerySchema,
   listSessionsQuerySchema,
   deleteSessionParamsSchema,
 } from './schemas.js';
@@ -47,12 +44,11 @@ import {
   deleteToolProfile,
   getEffectiveProfile as getToolProfileEffective,
 } from '@mcpambassador/core';
-import { listClients, updateClientStatus, getClientById } from '@mcpambassador/core';
 import { eq, and, or, desc, asc } from 'drizzle-orm';
 import argon2 from 'argon2';
 import {
   users,
-  preshared_keys,
+  clients,
   user_sessions,
   session_connections,
   compatInsert,
@@ -355,11 +351,10 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     }
 
     // Check if any clients reference this profile
-    const { clients: referencingClients } = await listClients(
-      db,
-      { profile_id: profileId },
-      { limit: 1 }
-    );
+    const referencingClients = await db.query.clients.findMany({
+      where: (c, { eq: eqOp }) => eqOp(c.profile_id, profileId),
+      limit: 1,
+    });
 
     if (referencingClients.length > 0) {
       return reply.status(409).send({
@@ -424,43 +419,6 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   });
 
   // ==========================================================================
-  // M8.9: PATCH /v1/clients/:clientId/status
-  // ==========================================================================
-  fastify.patch('/v1/clients/:clientId/status', async (request, reply) => {
-    const { clientId } = updateClientStatusParamsSchema.parse(request.params);
-    const body = clientStatusSchema.parse(request.body);
-
-    const client = await getClientById(db, clientId);
-    if (!client) {
-      return reply.status(404).send({
-        error: 'Not Found',
-        message: 'Client not found',
-      });
-    }
-
-    await updateClientStatus(db, clientId, body.status);
-
-    // Emit audit event
-    await audit.emit({
-      event_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      event_type: 'admin_action',
-      severity: 'info',
-      client_id: clientId,
-      user_id: undefined,
-      source_ip: '127.0.0.1',
-      action: 'client_status_change',
-      metadata: {
-        old_status: client.status,
-        new_status: body.status,
-      },
-    });
-
-    const updatedClient = await getClientById(db, clientId);
-    return reply.send(updatedClient);
-  });
-
-  // ==========================================================================
   // M8.10: GET /v1/audit/events
   // ==========================================================================
   fastify.get('/v1/audit/events', async (request, reply) => {
@@ -481,34 +439,6 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         has_more,
         next_cursor,
         total_count: events.length,
-      })
-    );
-  });
-
-  // ==========================================================================
-  // M8.11: GET /v1/admin/clients
-  // ==========================================================================
-  fastify.get('/v1/admin/clients', async (request, reply) => {
-    const query = listClientsQuerySchema.parse(request.query);
-    const limit = Math.min(query.limit || 20, 100);
-
-    const { clients, has_more, next_cursor } = await listClients(
-      db,
-      {
-        status: query.status,
-        host_tool: query.host_tool,
-      },
-      {
-        limit,
-        cursor: query.cursor,
-      }
-    );
-
-    return reply.send(
-      createPaginationEnvelope(clients, {
-        has_more,
-        next_cursor: next_cursor || null,
-        total_count: clients.length,
       })
     );
   });
@@ -717,10 +647,10 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   });
 
   // ==========================================================================
-  // M18.4: POST /v1/admin/preshared-keys
+  // M18.4: POST /v1/admin/clients
   // ==========================================================================
-  fastify.post('/v1/admin/preshared-keys', async (request, reply) => {
-    const body = createPresharedKeySchema.parse(request.body);
+  fastify.post('/v1/admin/clients', async (request, reply) => {
+    const body = createClientSchema.parse(request.body);
 
     // Verify user exists and is active
     const userRecord = await db.query.users.findFirst({
@@ -760,27 +690,27 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=/g, '');
-    const presharedKey = `amb_pk_${base64url}`;
+    const clientKey = `amb_pk_${base64url}`;
 
     // Extract prefix: first 8 chars after amb_pk_
     const keyPrefix = base64url.substring(0, 8);
 
     // Hash with Argon2id
-    const keyHash = await argon2.hash(presharedKey, {
+    const keyHash = await argon2.hash(clientKey, {
       type: argon2.argon2id,
       memoryCost: 19456,
       timeCost: 2,
       parallelism: 1,
     });
 
-    const keyId = crypto.randomUUID();
+    const clientId = crypto.randomUUID();
     const nowIso = new Date().toISOString();
 
-    await compatInsert(db, preshared_keys).values({
-      key_id: keyId,
+    await compatInsert(db, clients).values({
+      client_id: clientId,
       key_prefix: keyPrefix,
       key_hash: keyHash,
-      label: body.label,
+      client_name: body.client_name,
       user_id: body.user_id,
       profile_id: body.profile_id,
       status: 'active',
@@ -799,66 +729,66 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       client_id: undefined,
       user_id: body.user_id,
       source_ip: request.ip || '127.0.0.1',
-      action: 'preshared_key_create',
+      action: 'client_create',
       metadata: {
-        key_id: keyId,
-        label: body.label,
+        client_id: clientId,
+        client_name: body.client_name,
         user_id: body.user_id,
         profile_id: body.profile_id,
       },
     });
 
-    const createdKey = await db.query.preshared_keys.findFirst({
-      where: (k, { eq }) => eq(k.key_id, keyId),
+    const createdKey = await db.query.clients.findFirst({
+      where: (k, { eq }) => eq(k.client_id, clientId),
     });
 
     // Return key info WITH plaintext key (only time it's ever returned)
     return reply.status(201).send({
-      key_id: createdKey!.key_id,
+      client_id: createdKey!.client_id,
       key_prefix: createdKey!.key_prefix,
-      label: createdKey!.label,
+      client_name: createdKey!.client_name,
       user_id: createdKey!.user_id,
       profile_id: createdKey!.profile_id,
       status: createdKey!.status,
       created_at: createdKey!.created_at,
       expires_at: createdKey!.expires_at,
-      plaintext_key: presharedKey, // ONLY returned here, never stored
+      plaintext_key: clientKey, // ONLY returned here, never stored
     });
   });
 
   // ==========================================================================
-  // M18.5: GET /v1/admin/preshared-keys
+  // M18.5: GET /v1/admin/clients
   // ==========================================================================
-  fastify.get('/v1/admin/preshared-keys', async (request, reply) => {
-    const query = listPresharedKeysQuerySchema.parse(request.query);
+  fastify.get('/v1/admin/clients', async (request, reply) => {
+    const query = listClientKeysQuerySchema.parse(request.query);
     const limit = Math.min(query.limit || 20, 100);
 
     // Build where conditions
     const conditions: any[] = [];
     if (query.user_id) {
-      conditions.push(eq(preshared_keys.user_id, query.user_id));
+      conditions.push(eq(clients.user_id, query.user_id));
     }
     if (query.status) {
-      conditions.push(eq(preshared_keys.status, query.status));
+      conditions.push(eq(clients.status, query.status));
     }
 
     // Query with filters
-    let keyList = await db.query.preshared_keys.findMany({
+    let keyList = await db.query.clients.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
       limit: limit + 1,
       orderBy: query.sort.includes('created_at')
         ? query.sort === 'created_at:desc'
-          ? [desc(preshared_keys.created_at)]
-          : [asc(preshared_keys.created_at)]
-        : query.sort === 'label:desc'
-          ? [desc(preshared_keys.label)]
-          : [asc(preshared_keys.label)],
+          ? [desc(clients.created_at)]
+          : [asc(clients.created_at)]
+        : query.sort === 'client_name:desc'
+          ? [desc(clients.client_name)]
+          : [asc(clients.client_name)],
     });
 
     // Apply cursor filtering if provided
     if (query.cursor) {
       const cursorIndex = keyList.findIndex(
-        k => k.key_id === query.cursor || k.created_at === query.cursor
+        k => k.client_id === query.cursor || k.created_at === query.cursor
       );
       if (cursorIndex >= 0) {
         keyList = keyList.slice(cursorIndex + 1);
@@ -868,7 +798,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     // Pagination
     const hasMore = keyList.length > limit;
     const data = hasMore ? keyList.slice(0, limit) : keyList;
-    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]!.key_id : null;
+    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]!.client_id : null;
 
     // Strip key_hash from response (never expose hashes)
     const sanitizedData = data.map(k => {
@@ -886,21 +816,21 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   });
 
   // ==========================================================================
-  // M18.6: PATCH /v1/admin/preshared-keys/:keyId
+  // M18.6: PATCH /v1/admin/clients/:clientId
   // ==========================================================================
-  fastify.patch('/v1/admin/preshared-keys/:keyId', async (request, reply) => {
-    const { keyId } = updatePresharedKeyParamsSchema.parse(request.params);
-    const body = updatePresharedKeySchema.parse(request.body);
+  fastify.patch('/v1/admin/clients/:clientId', async (request, reply) => {
+    const { clientId } = updateClientParamsSchema.parse(request.params);
+    const body = updateClientSchema.parse(request.body);
 
     // Check if key exists
-    const key = await db.query.preshared_keys.findFirst({
-      where: (k, { eq }) => eq(k.key_id, keyId),
+    const key = await db.query.clients.findFirst({
+      where: (k, { eq }) => eq(k.client_id, clientId),
     });
 
     if (!key) {
       return reply.status(404).send({
         error: 'Not Found',
-        message: 'Preshared key not found',
+        message: 'Client key not found',
       });
     }
 
@@ -928,9 +858,9 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     // If status changes to revoked, expire all sessions for this key's user
     if (statusChanged && body.status === 'revoked') {
       // Update key
-      await compatUpdate(db, preshared_keys)
+      await compatUpdate(db, clients)
         .set(updates)
-        .where(eq(preshared_keys.key_id, keyId));
+        .where(eq(clients.client_id, clientId));
 
       // Expire all active sessions for this key's user
       await compatUpdate(db, user_sessions)
@@ -952,9 +882,9 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       }
     } else {
       // Normal update
-      await compatUpdate(db, preshared_keys)
+      await compatUpdate(db, clients)
         .set(updates)
-        .where(eq(preshared_keys.key_id, keyId));
+        .where(eq(clients.client_id, clientId));
     }
 
     const nowIso = new Date().toISOString();
@@ -968,17 +898,17 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       client_id: undefined,
       user_id: key.user_id,
       source_ip: request.ip || '127.0.0.1',
-      action: 'preshared_key_update',
+      action: 'client_update',
       metadata: {
-        key_id: keyId,
+        client_id: clientId,
         changes: Object.keys(updates),
         old_status: oldStatus,
         new_status: body.status,
       },
     });
 
-    const updatedKey = await db.query.preshared_keys.findFirst({
-      where: (k, { eq }) => eq(k.key_id, keyId),
+    const updatedKey = await db.query.clients.findFirst({
+      where: (k, { eq }) => eq(k.client_id, clientId),
     });
 
     // Strip key_hash from response

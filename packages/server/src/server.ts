@@ -28,11 +28,11 @@ import {
   AmbassadorError,
   user_sessions,
   session_connections,
-  preshared_keys,
+  clients,
   compatUpdate,
   compatInsert,
   compatTransaction,
-  seedDevPresharedKeys,
+  seedDevData,
 } from '@mcpambassador/core';
 import {
   EphemeralAuthProvider,
@@ -210,14 +210,14 @@ export class AmbassadorServer {
       seedOnInit: true,
     });
 
-    // Seed dev preshared keys in development/test
-    await seedDevPresharedKeys(this.db as any);
+    // Seed dev data (users, profiles, client keys) in development/test
+    await seedDevData(this.db as any);
 
     // Bootstrap admin key on first boot
     await this.bootstrapAdminKey();
     
-    // Bootstrap dev preshared key on first boot (dev/test only)
-    await this.bootstrapDevPresharedKey();
+    // Bootstrap dev client key on first boot (dev/test only)
+    await this.bootstrapDevClient();
 
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
@@ -1206,10 +1206,10 @@ export class AmbassadorServer {
   }
 
   /**
-   * Bootstrap Dev Preshared Key (M14.3)
+   * Bootstrap Dev Client Key (M14.3)
    * 
-   * On first boot in development/test environments, if no preshared keys exist
-   * and a dev user exists (from seedDevPresharedKeys), generates a random
+   * On first boot in development/test environments, if no client keys exist
+   * and a dev user exists (from seedDevData), generates a random
    * preshared key and prints it to stdout.
    * 
    * The key is only shown once — store it securely for testing.
@@ -1218,18 +1218,18 @@ export class AmbassadorServer {
    * 
    * @see Architecture §14.3 Preshared Key Bootstrap
    */
-  private async bootstrapDevPresharedKey(): Promise<void> {
+  private async bootstrapDevClient(): Promise<void> {
     // Only run in dev/test environments
     const nodeEnv = process.env.NODE_ENV;
     if (nodeEnv !== 'development' && nodeEnv !== 'test' && nodeEnv !== undefined) {
-      console.log('[Server] Skipping dev preshared key bootstrap (not dev/test environment)');
+      console.log('[Server] Skipping dev client key bootstrap (not dev/test environment)');
       return;
     }
 
-    // Check if any preshared keys already exist
-    const existingKeys = await this.db!.query.preshared_keys.findMany({ limit: 1 });
+    // Check if any client keys already exist
+    const existingKeys = await this.db!.query.clients.findMany({ limit: 1 });
     if (existingKeys.length > 0) {
-      console.log('[Server] Preshared keys already exist, skipping dev bootstrap');
+      console.log('[Server] Client keys already exist, skipping dev bootstrap');
       return;
     }
 
@@ -1239,7 +1239,7 @@ export class AmbassadorServer {
     });
 
     if (!devUser) {
-      console.log('[Server] No dev user found, skipping dev preshared key bootstrap');
+      console.log('[Server] No dev user found, skipping dev client key bootstrap');
       return;
     }
 
@@ -1249,12 +1249,12 @@ export class AmbassadorServer {
     });
 
     if (!allToolsProfile) {
-      console.log('[Server] Warning: all-tools profile not found, skipping dev preshared key bootstrap');
+      console.log('[Server] Warning: all-tools profile not found, skipping dev client key bootstrap');
       return;
     }
 
     // First boot in dev/test — generate dev preshared key
-    console.log('[Server] First boot detected (dev/test) — generating dev preshared key...');
+    console.log('[Server] First boot detected (dev/test) — generating dev client key...');
 
     // Generate random preshared key: amb_pk_ + 48 chars of base64url
     const randomBytes = crypto.randomBytes(36); // 36 bytes → 48 base64 chars
@@ -1263,26 +1263,26 @@ export class AmbassadorServer {
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
       .replace(/=/g, '');
-    const presharedKey = `amb_pk_${base64url}`;
+    const clientKey = `amb_pk_${base64url}`;
 
     // Extract prefix: first 8 chars after amb_pk_
     const keyPrefix = base64url.substring(0, 8);
 
     // Hash with Argon2id
-    const keyHash = await argon2.hash(presharedKey, {
+    const keyHash = await argon2.hash(clientKey, {
       type: argon2.argon2id,
       memoryCost: 19456,
       timeCost: 2,
       parallelism: 1,
     });
 
-    // Insert into preshared_keys table
+    // Insert into clients table
     const nowIso = new Date().toISOString();
-    await compatInsert(this.db!, preshared_keys).values({
-      key_id: crypto.randomUUID(),
+    await compatInsert(this.db!, clients).values({
+      client_id: crypto.randomUUID(),
       key_prefix: keyPrefix,
       key_hash: keyHash,
-      label: 'dev-bootstrap-key',
+      client_name: 'dev-bootstrap-key',
       user_id: devUser.user_id,
       profile_id: allToolsProfile.profile_id,
       status: 'active',
@@ -1292,7 +1292,7 @@ export class AmbassadorServer {
 
     // Print to stdout ONLY
     console.log('');
-    console.log('[Server] Dev preshared key: ' + presharedKey);
+    console.log('[Server] Dev client key: ' + clientKey);
     console.log('[Server] ⚠  Dev only — NOT for production');
     console.log('');
   }

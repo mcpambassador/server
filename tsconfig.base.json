@@ -37,7 +37,6 @@
     "paths": {
       "@mcpambassador/protocol": ["./packages/protocol/src"],
       "@mcpambassador/core": ["./packages/core/src"],
-      "@mcpambassador/authn-apikey": ["./packages/authn-apikey/src"],
       "@mcpambassador/authz-local": ["./packages/authz-local/src"],
       "@mcpambassador/audit-file": ["./packages/audit-file/src"],
       "@mcpambassador/server": ["./packages/server/src"]
