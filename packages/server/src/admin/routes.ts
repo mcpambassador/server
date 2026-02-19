@@ -69,6 +69,7 @@ export interface AdminRoutesConfig {
   dataDir: string;
   killSwitchManager: KillSwitchManager; // CR-M10-001: Shared kill switch manager
   userPool: UserMcpPool | null; // M18: Per-user MCP pool for session termination
+  rotateHmacSecret: () => Promise<number>; // M19.2a: HMAC secret rotation callback
 }
 
 /**
@@ -79,7 +80,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   opts: AdminRoutesConfig,
   done
 ) => {
-  const { db, audit, mcpManager, dataDir, killSwitchManager, userPool } = opts;
+  const { db, audit, mcpManager, dataDir, killSwitchManager, userPool, rotateHmacSecret } = opts;
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -249,15 +250,24 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
       return reply.status(201).send(profile);
     } catch (error) {
+      // SEC-M19-012: Sanitize validation error messages
       if (error instanceof Error) {
-        if (
-          error.message.includes('cycle') ||
-          error.message.includes('depth') ||
-          error.message.includes('Parent profile not found')
-        ) {
+        if (error.message.includes('cycle')) {
           return reply.status(400).send({
             error: 'Bad Request',
-            message: error.message,
+            message: 'Profile inheritance cycle detected',
+          });
+        }
+        if (error.message.includes('depth')) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Profile inheritance depth limit exceeded',
+          });
+        }
+        if (error.message.includes('Parent profile not found')) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Parent profile not found',
           });
         }
       }
@@ -311,11 +321,18 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
       return reply.send(updatedProfile);
     } catch (error) {
+      // SEC-M19-012: Sanitize validation error messages
       if (error instanceof Error) {
-        if (error.message.includes('cycle') || error.message.includes('depth')) {
+        if (error.message.includes('cycle')) {
           return reply.status(400).send({
             error: 'Bad Request',
-            message: error.message,
+            message: 'Profile inheritance cycle detected',
+          });
+        }
+        if (error.message.includes('depth')) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: 'Profile inheritance depth limit exceeded',
           });
         }
       }
@@ -1107,6 +1124,62 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
       status: 'expired',
       terminated_at: nowIso,
     });
+  });
+
+  // ==========================================================================
+  // M19.2a: POST /v1/admin/rotate-hmac-secret
+  // ==========================================================================
+  fastify.post('/v1/admin/rotate-hmac-secret', async (request, reply) => {
+    const sourceIp = request.ip || '127.0.0.1';
+    const nowIso = new Date().toISOString();
+
+    try {
+      // Call the rotation method (returns count of invalidated sessions)
+      const sessionsInvalidated = await rotateHmacSecret();
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'critical',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'hmac_secret_rotated',
+        metadata: {
+          sessions_invalidated: sessionsInvalidated,
+          actor: 'admin',
+        },
+      });
+
+      return reply.send({
+        success: true,
+        sessionsInvalidated,
+        message: 'HMAC secret rotated. All sessions invalidated.',
+      });
+    } catch (err) {
+      // Emit audit event for failure
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'error',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'hmac_secret_rotation_failed',
+        metadata: {
+          error: err instanceof Error ? err.message : 'Unknown error',
+          actor: 'admin',
+        },
+      });
+
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: err instanceof Error ? err.message : 'Failed to rotate HMAC secret',
+      });
+    }
   });
 
   done();

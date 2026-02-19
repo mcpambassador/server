@@ -25,6 +25,7 @@ import {
   session_connections,
   compatInsert,
   compatUpdate,
+  compatTransaction,
 } from '@mcpambassador/core';
 import { LoginRateLimiter } from './session.js';
 import crypto from 'node:crypto';
@@ -51,6 +52,7 @@ declare module 'fastify' {
       message: string;
     };
     generatedKey?: string;
+    csrfToken?: string; // SEC-M18-001: CSRF protection
   }
 }
 
@@ -100,6 +102,14 @@ export async function registerUiRoutes(
 ): Promise<void> {
   const { db, mcpManager, userPool, audit } = opts;
   const rateLimiter = new LoginRateLimiter();
+
+  // SEC-M18-007: Content-Security-Policy headers for admin UI
+  fastify.addHook('onSend', async (_request, reply) => {
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    );
+  });
 
   // ==========================================================================
   // PUBLIC ROUTES
@@ -220,6 +230,10 @@ export async function registerUiRoutes(
     // Set new authenticated session data
     request.session.isAdmin = true;
     request.session.flash = { type: 'success', message: 'Login successful' };
+    
+    // SEC-M18-001: Generate CSRF token for this admin session
+    request.session.csrfToken = crypto.randomBytes(32).toString('hex');
+    
     await request.session.save();
 
     // Success - reset rate limit
@@ -289,6 +303,7 @@ export async function registerUiRoutes(
       flash,
       title: 'Dashboard',
       formatTimestamp,
+      csrfToken: request.session.csrfToken, // SEC-M18-001
     });
   });
 
@@ -442,16 +457,23 @@ export async function registerUiRoutes(
       flash,
       title: 'Users',
       formatTimestamp,
+      csrfToken: request.session.csrfToken, // SEC-M18-001
     });
   });
 
   /**
    * POST /admin/users/create - Create new user
    */
-  fastify.post<{ Body: { display_name: string; email?: string } }>(
+  fastify.post<{ Body: { display_name: string; email?: string; _csrf?: string } }>(
     '/admin/users/create',
     { preHandler: requireAuth },
     async (request, reply) => {
+      // SEC-M18-001: Validate CSRF token
+      if (request.body._csrf !== request.session.csrfToken) {
+        request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
+        return reply.redirect(302, '/admin/users');
+      }
+
       const { display_name, email } = request.body;
 
       // Validate input
@@ -507,10 +529,16 @@ export async function registerUiRoutes(
   /**
    * POST /admin/users/:userId/status - Update user status
    */
-  fastify.post<{ Params: { userId: string }; Body: { status: string } }>(
+  fastify.post<{ Params: { userId: string }; Body: { status: string; _csrf?: string } }>(
     '/admin/users/:userId/status',
     { preHandler: requireAuth },
     async (request, reply) => {
+      // SEC-M18-001: Validate CSRF token
+      if (request.body._csrf !== request.session.csrfToken) {
+        request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
+        return reply.redirect(302, '/admin/users');
+      }
+
       const { userId } = request.params;
       const { status } = request.body;
 
@@ -521,28 +549,36 @@ export async function registerUiRoutes(
       }
 
       try {
-        // Update user status
-        await compatUpdate(db, users)
-          .set({ status, updated_at: new Date().toISOString() })
-          .where(eq(users.user_id, userId));
+        // SEC-M18-004: Cascade operations wrapped in transaction for atomicity
+        await compatTransaction(db, async () => {
+          // Update user status
+          await compatUpdate(db, users)
+            .set({ status, updated_at: new Date().toISOString() })
+            .where(eq(users.user_id, userId));
 
-        // CR fix: Cascade — if suspending/deactivating, expire sessions + terminate MCPs
-        if (status === 'suspended' || status === 'deactivated') {
-          await compatUpdate(db, user_sessions)
-            .set({ status: 'expired' })
-            .where(
-              and(
-                eq(user_sessions.user_id, userId),
-                or(
-                  eq(user_sessions.status, 'active'),
-                  eq(user_sessions.status, 'idle'),
-                  eq(user_sessions.status, 'spinning_down')
+          // CR fix: Cascade — if suspending/deactivating, expire sessions + terminate MCPs
+          if (status === 'suspended' || status === 'deactivated') {
+            await compatUpdate(db, user_sessions)
+              .set({ status: 'expired' })
+              .where(
+                and(
+                  eq(user_sessions.user_id, userId),
+                  or(
+                    eq(user_sessions.status, 'active'),
+                    eq(user_sessions.status, 'idle'),
+                    eq(user_sessions.status, 'spinning_down')
+                  )
                 )
-              )
-            );
+              );
+          }
+        });
 
-          if (userPool) {
+        // MCP termination outside transaction (non-DB side effect)
+        if ((status === 'suspended' || status === 'deactivated') && userPool) {
+          try {
             await userPool.terminateForUser(userId);
+          } catch (err) {
+            console.warn(`[admin] Failed to terminate MCP instances for user ${userId}:`, err);
           }
         }
 
@@ -597,16 +633,23 @@ export async function registerUiRoutes(
       flash,
       title: 'Preshared Keys',
       formatTimestamp,
+      csrfToken: request.session.csrfToken, // SEC-M18-001
     });
   });
 
   /**
    * POST /admin/preshared-keys/create - Create new preshared key
    */
-  fastify.post<{ Body: { user_id: string; profile_id: string; label: string } }>(
+  fastify.post<{ Body: { user_id: string; profile_id: string; label: string; _csrf?: string } }>(
     '/admin/preshared-keys/create',
     { preHandler: requireAuth },
     async (request, reply) => {
+      // SEC-M18-001: Validate CSRF token
+      if (request.body._csrf !== request.session.csrfToken) {
+        request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
+        return reply.redirect(302, '/admin/preshared-keys');
+      }
+
       const { user_id, profile_id, label } = request.body;
 
       // Validate input
@@ -685,10 +728,16 @@ export async function registerUiRoutes(
   /**
    * POST /admin/preshared-keys/:keyId/status - Update preshared key status
    */
-  fastify.post<{ Params: { keyId: string }; Body: { status: string } }>(
+  fastify.post<{ Params: { keyId: string }; Body: { status: string; _csrf?: string } }>(
     '/admin/preshared-keys/:keyId/status',
     { preHandler: requireAuth },
     async (request, reply) => {
+      // SEC-M18-001: Validate CSRF token
+      if (request.body._csrf !== request.session.csrfToken) {
+        request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
+        return reply.redirect(302, '/admin/preshared-keys');
+      }
+
       const { keyId } = request.params;
       const { status } = request.body;
 
@@ -699,33 +748,43 @@ export async function registerUiRoutes(
       }
 
       try {
-        // Update key status
-        await compatUpdate(db, preshared_keys).set({ status }).where(eq(preshared_keys.key_id, keyId));
+        // SEC-M18-004: Cascade operations wrapped in transaction for atomicity
+        let cascadeUserId: string | undefined;
+        await compatTransaction(db, async () => {
+          // Update key status
+          await compatUpdate(db, preshared_keys).set({ status }).where(eq(preshared_keys.key_id, keyId));
 
-        // CR fix: If revoking, cascade — expire user's sessions + terminate MCPs
-        if (status === 'revoked') {
-          // Look up key to get user_id
-          const key = await db.query.preshared_keys.findFirst({
-            where: (k, { eq: eq2 }) => eq2(k.key_id, keyId),
-          });
+          // CR fix: If revoking, cascade — expire user's sessions
+          if (status === 'revoked') {
+            // Look up key to get user_id
+            const key = await db.query.preshared_keys.findFirst({
+              where: (k, { eq: eq2 }) => eq2(k.key_id, keyId),
+            });
 
-          if (key) {
-            await compatUpdate(db, user_sessions)
-              .set({ status: 'expired' })
-              .where(
-                and(
-                  eq(user_sessions.user_id, key.user_id),
-                  or(
-                    eq(user_sessions.status, 'active'),
-                    eq(user_sessions.status, 'idle'),
-                    eq(user_sessions.status, 'spinning_down')
+            if (key) {
+              cascadeUserId = key.user_id;
+              await compatUpdate(db, user_sessions)
+                .set({ status: 'expired' })
+                .where(
+                  and(
+                    eq(user_sessions.user_id, key.user_id),
+                    or(
+                      eq(user_sessions.status, 'active'),
+                      eq(user_sessions.status, 'idle'),
+                      eq(user_sessions.status, 'spinning_down')
+                    )
                   )
-                )
-              );
-
-            if (userPool) {
-              await userPool.terminateForUser(key.user_id);
+                );
             }
+          }
+        });
+
+        // MCP termination outside transaction (non-DB side effect)
+        if (cascadeUserId && userPool) {
+          try {
+            await userPool.terminateForUser(cascadeUserId);
+          } catch (err) {
+            console.warn(`[admin] Failed to terminate MCP instances for user ${cascadeUserId}:`, err);
           }
         }
 
@@ -771,38 +830,52 @@ export async function registerUiRoutes(
       flash,
       title: 'Active Sessions',
       formatTimestamp,
+      csrfToken: request.session.csrfToken, // SEC-M18-001
     });
   });
 
   /**
    * POST /admin/sessions/:sessionId/terminate - Force-terminate session
    */
-  fastify.post<{ Params: { sessionId: string } }>(
+  fastify.post<{ Params: { sessionId: string }; Body: { _csrf?: string } }>(
     '/admin/sessions/:sessionId/terminate',
     { preHandler: requireAuth },
     async (request, reply) => {
+      // SEC-M18-001: Validate CSRF token
+      if (request.body._csrf !== request.session.csrfToken) {
+        request.session.flash = { type: 'error', message: 'Invalid CSRF token' };
+        return reply.redirect(302, '/admin/sessions');
+      }
+
       const { sessionId } = request.params;
 
       try {
+        // SEC-M18-004: Cascade operations wrapped in transaction for atomicity
         // Look up session to get user_id for MCP termination
         const session = await db.query.user_sessions.findFirst({
           where: (s, { eq: eq2 }) => eq2(s.session_id, sessionId),
         });
 
-        // Expire the session
-        await compatUpdate(db, user_sessions)
-          .set({ status: 'expired' })
-          .where(eq(user_sessions.session_id, sessionId));
+        await compatTransaction(db, async () => {
+          // Expire the session
+          await compatUpdate(db, user_sessions)
+            .set({ status: 'expired' })
+            .where(eq(user_sessions.session_id, sessionId));
 
-        // CR fix: Disconnect all connections
-        const nowIso = new Date().toISOString();
-        await compatUpdate(db, session_connections)
-          .set({ status: 'disconnected', disconnected_at: nowIso })
-          .where(eq(session_connections.session_id, sessionId));
+          // CR fix: Disconnect all connections
+          const nowIso = new Date().toISOString();
+          await compatUpdate(db, session_connections)
+            .set({ status: 'disconnected', disconnected_at: nowIso })
+            .where(eq(session_connections.session_id, sessionId));
+        });
 
-        // CR fix: Terminate MCP instances for this user
+        // CR fix: Terminate MCP instances for this user (outside transaction — non-DB side effect)
         if (session && userPool) {
-          await userPool.terminateForUser(session.user_id);
+          try {
+            await userPool.terminateForUser(session.user_id);
+          } catch (err) {
+            console.warn(`[admin] Failed to terminate MCP instances for user ${session.user_id}:`, err);
+          }
         }
 
         await audit.emit({

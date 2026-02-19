@@ -28,6 +28,7 @@
       <section>
         <h2>Create Preshared Key</h2>
         <form method="POST" action="/admin/preshared-keys/create">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="grid">
             <label>
               User
@@ -95,19 +96,23 @@
                   <td>
                     <% if (key.status === 'active') { %>
                       <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="suspended">
                         <button type="submit" class="secondary">Suspend</button>
                       </form>
                       <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="revoked">
                         <button type="submit" class="secondary">Revoke</button>
                       </form>
                     <% } else if (key.status === 'suspended') { %>
                       <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="active">
                         <button type="submit">Activate</button>
                       </form>
                       <form method="POST" action="/admin/preshared-keys/<%= key.key_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="revoked">
                         <button type="submit" class="secondary">Revoke</button>
                       </form>

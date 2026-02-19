@@ -10,6 +10,7 @@ export interface TestServerHandle {
   fastify: FastifyInstance;
   adminKey: string;
   dataDir: string;
+  db: DatabaseClient; // M19.2a: Expose database for test assertions
   stop: () => Promise<void>;
 }
 
@@ -37,6 +38,7 @@ export async function startTestServer(): Promise<TestServerHandle> {
     fastify: server.getServer(),
     adminKey: admin_key,
     dataDir: tmp,
+    db: (server as any).db, // M19.2a: Expose database for test assertions
     stop: async () => {
       try {
         await server.stop();

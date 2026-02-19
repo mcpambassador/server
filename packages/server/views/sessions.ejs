@@ -57,6 +57,7 @@
                   <td><%= formatTimestamp(session.expires_at) %></td>
                   <td>
                     <form method="POST" action="/admin/sessions/<%= session.session_id %>/terminate" style="display: inline;">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <button type="submit" class="secondary">Terminate</button>
                     </form>
                   </td>

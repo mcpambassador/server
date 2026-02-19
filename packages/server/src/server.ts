@@ -31,6 +31,7 @@ import {
   preshared_keys,
   compatUpdate,
   compatInsert,
+  compatTransaction,
   seedDevPresharedKeys,
 } from '@mcpambassador/core';
 import {
@@ -420,6 +421,7 @@ export class AmbassadorServer {
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
       userPool: this.userPool, // M18: Per-user MCP pool
+      rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
     });
 
     // Register UI routes
@@ -1090,6 +1092,7 @@ export class AmbassadorServer {
         dataDir: this.config.dataDir,
         killSwitchManager: this.killSwitchManager, // CR-M10-001
         userPool: this.userPool, // M18: Per-user MCP pool
+        rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       }
     );
 
@@ -1293,6 +1296,57 @@ export class AmbassadorServer {
     console.log('[Server] Dev preshared key: ' + presharedKey);
     console.log('[Server] ⚠  Dev only — NOT for production');
     console.log('');
+  }
+
+  /**
+   * Rotate HMAC secret (M19.2a)
+   * 
+   * Generates a new HMAC secret, updates the auth provider, and invalidates
+   * all active sessions (since tokens signed with old secret are invalid).
+   * 
+   * This is a manual emergency operation for security incidents.
+   * 
+   * @returns Count of invalidated sessions
+   */
+  async rotateHmacSecret(): Promise<number> {
+    console.log('[Server] Rotating HMAC secret...');
+    
+    // 1. Generate new HMAC secret (same method as startup)
+    const newSecret = crypto.randomBytes(64);
+    
+    // 2. Count active sessions before invalidation
+    const activeSessions = await this.db!.query.user_sessions.findMany({
+      where: (s, { eq }) => eq(s.status, 'active'),
+    });
+    const sessionCount = activeSessions.length;
+    
+    // 3. Atomic invalidation: batch update all sessions + connections in transaction
+    await compatTransaction(this.db!, async () => {
+      const nowIso = new Date().toISOString();
+      
+      // Batch invalidate all active sessions (single UPDATE, not per-row loop)
+      await compatUpdate(this.db!, user_sessions)
+        .set({ status: 'expired' })
+        .where(eq(user_sessions.status, 'active'));
+      
+      // Batch disconnect all connections
+      await compatUpdate(this.db!, session_connections)
+        .set({ status: 'disconnected', disconnected_at: nowIso })
+        .where(eq(session_connections.status, 'connected'));
+    });
+    
+    // 4. Update auth provider with new secret (after DB commit)
+    if (this.authn && 'updateHmacSecret' in this.authn) {
+      (this.authn as any).updateHmacSecret(newSecret);
+    } else {
+      throw new Error('Auth provider does not support HMAC secret rotation');
+    }
+    
+    // 5. Update in-memory HMAC secret reference
+    this.hmacSecret = newSecret;
+    
+    console.log(`[Server] HMAC secret rotated, ${sessionCount} sessions invalidated`);
+    return sessionCount;
   }
 
   /**

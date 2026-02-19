@@ -42,7 +42,7 @@ export class ProviderRegistry {
    * Load and initialize a provider from a package
    *
    * @param type Provider type
-   * @param packageName NPM package name (e.g., '@mcpambassador/authn-apikey')
+   * @param packageName NPM package name (e.g., '@mcpambassador/authn-ephemeral')
    * @param config Provider-specific configuration
    * @returns Initialized provider instance
    */

@@ -33,7 +33,6 @@
     "@fastify/static": "^7.0.4",
     "@fastify/view": "^9.1.0",
     "@mcpambassador/audit-file": "workspace:*",
-    "@mcpambassador/authn-apikey": "workspace:*",
     "@mcpambassador/authn-ephemeral": "workspace:*",
     "@mcpambassador/authz-local": "workspace:*",
     "@mcpambassador/core": "workspace:*",

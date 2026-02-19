@@ -27,7 +27,7 @@ export {
 export { seedDatabase, seedDevPresharedKeys } from '../schema/seed.js';
 
 // Compatibility layer for Drizzle ORM queries
-export { compatInsert, compatSelect, compatUpdate, compatDelete } from './compat.js';
+export { compatInsert, compatSelect, compatUpdate, compatDelete, compatTransaction } from './compat.js';
 
 // Client repository
 export {

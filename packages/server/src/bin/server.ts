@@ -190,6 +190,32 @@ async function loadDownstreamMcpConfig(configPath: string): Promise<DownstreamMc
   return resolved;
 }
 
+/**
+ * Load user_pool config from YAML file
+ * SEC-M17-005: Support configurable per-user MCP pool limits
+ */
+function loadUserPoolConfig(configPath: string): { maxInstancesPerUser?: number; maxTotalInstances?: number } {
+  const fileContent = fs.readFileSync(configPath, 'utf-8');
+  const rawConfig = yaml.parse(fileContent);
+
+  if (!rawConfig || typeof rawConfig !== 'object') {
+    return {};
+  }
+
+  const userPoolConfig = (rawConfig as Record<string, unknown>).user_pool;
+  
+  if (!userPoolConfig || typeof userPoolConfig !== 'object') {
+    return {};
+  }
+
+  const config = userPoolConfig as Record<string, unknown>;
+  
+  return {
+    maxInstancesPerUser: typeof config.max_instances_per_user === 'number' ? config.max_instances_per_user : undefined,
+    maxTotalInstances: typeof config.max_total_instances === 'number' ? config.max_total_instances : undefined,
+  };
+}
+
 async function main() {
   const args = parseArgs();
 
@@ -197,6 +223,7 @@ async function main() {
 
   // Try to load downstream MCP configuration
   let downstreamMcps: DownstreamMcpConfig[] = [];
+  let userPoolConfig: { maxInstancesPerUser?: number; maxTotalInstances?: number } = {};
   const configFile = findConfigFile(dataDir);
 
   if (configFile) {
@@ -204,6 +231,12 @@ async function main() {
       console.log('[Server] Loading downstream MCP configuration...');
       downstreamMcps = await loadDownstreamMcpConfig(configFile);
       console.log(`[Server] Loaded ${downstreamMcps.length} downstream MCP(s) from config`);
+      
+      // SEC-M17-005: Load user_pool config
+      userPoolConfig = loadUserPoolConfig(configFile);
+      if (userPoolConfig.maxInstancesPerUser || userPoolConfig.maxTotalInstances) {
+        console.log('[Server] Loaded user_pool config:', userPoolConfig);
+      }
     } catch (err) {
       console.error('[Server] Failed to load config file:', err);
       console.warn('[Server] Starting without downstream MCPs');
@@ -223,6 +256,8 @@ async function main() {
     serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
     logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
     downstreamMcps,
+    maxMcpInstancesPerUser: userPoolConfig.maxInstancesPerUser, // SEC-M17-005
+    maxTotalMcpInstances: userPoolConfig.maxTotalInstances, // SEC-M17-005
   });
 
   // Handle shutdown signals

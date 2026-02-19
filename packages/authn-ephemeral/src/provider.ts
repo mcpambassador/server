@@ -99,12 +99,13 @@ export class EphemeralAuthProvider implements AuthenticationProvider {
         session,
       };
     } catch (err) {
+      // SEC-M19-012: Don't leak error details (timing safety)
       logger.debug(`[authn-ephemeral] Authentication failed: ${err}`);
       return {
         success: false,
         error: {
           code: 'invalid_token',
-          message: err instanceof Error ? err.message : 'Invalid session token',
+          message: 'Invalid session token',
           provider: this.id,
         },
       };
@@ -123,9 +124,11 @@ export class EphemeralAuthProvider implements AuthenticationProvider {
         last_checked: new Date().toISOString(),
       };
     } catch (err) {
+      // SEC-M19-012: Don't leak database connection errors
+      logger.error({ err }, '[authn-ephemeral] Health check failed');
       return {
         status: 'unhealthy',
-        message: err instanceof Error ? err.message : 'Unknown error',
+        message: 'Health check failed',
         last_checked: new Date().toISOString(),
       };
     }
@@ -136,5 +139,21 @@ export class EphemeralAuthProvider implements AuthenticationProvider {
    */
   async shutdown(): Promise<void> {
     logger.info('[authn-ephemeral] Provider shutdown');
+  }
+
+  /**
+   * Update HMAC secret (for rotation)
+   * 
+   * This method replaces the current HMAC secret with a new one.
+   * All tokens signed with the old secret will become invalid.
+   * 
+   * @param newSecret New HMAC secret (64 bytes)
+   */
+  updateHmacSecret(newSecret: Buffer): void {
+    if (newSecret.length !== 64) {
+      throw new Error('HMAC secret must be exactly 64 bytes');
+    }
+    this.hmacSecret = newSecret;
+    logger.info('[authn-ephemeral] HMAC secret updated');
   }
 }

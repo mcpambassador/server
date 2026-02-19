@@ -56,34 +56,6 @@ importers:
         specifier: ^1.2.1
         version: 1.6.1(@types/node@20.19.33)
 
-  packages/authn-apikey:
-    dependencies:
-      '@mcpambassador/core':
-        specifier: workspace:*
-        version: link:../core
-      '@mcpambassador/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      argon2:
-        specifier: ^0.31.2
-        version: 0.31.2
-      drizzle-orm:
-        specifier: ^0.29.3
-        version: 0.29.5(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)
-      uuid:
-        specifier: ^9.0.0
-        version: 9.0.1
-    devDependencies:
-      '@types/uuid':
-        specifier: ^9.0.7
-        version: 9.0.8
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
-      vitest:
-        specifier: ^1.2.1
-        version: 1.6.1(@types/node@20.19.33)
-
   packages/authn-ephemeral:
     dependencies:
       '@mcpambassador/core':
@@ -206,9 +178,6 @@ importers:
       '@mcpambassador/audit-file':
         specifier: workspace:*
         version: link:../audit-file
-      '@mcpambassador/authn-apikey':
-        specifier: workspace:*
-        version: link:../authn-apikey
       '@mcpambassador/authn-ephemeral':
         specifier: workspace:*
         version: link:../authn-ephemeral

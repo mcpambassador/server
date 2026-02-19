@@ -1,11 +1,21 @@
 /**
  * Client Repository
  *
- * Data access layer for registered Ambassador Clients.
+ * **DEPRECATED (M19.3)**: This repository was used for API key-based client registration.
+ * The project has migrated to ephemeral sessions. Use session-related repositories instead.
+ *
+ * Data access layer for registered Ambassador Clients (legacy).
  * Handles client registration, authentication, lifecycle management.
  *
- * @see Architecture §3.2 ClientRecord
- * @see schema/index.ts clients table
+ * Retained for:
+ * - Admin UI display of legacy clients (read operations)
+ * - Admin API backward compatibility
+ * - Historical data access
+ *
+ * @deprecated Use session repositories for new features
+ * @see Architecture §3.2 ClientRecord (legacy)
+ * @see ADR-011 Ephemeral Sessions Identity Model
+ * @see schema/index.ts clients table (deprecated)
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */

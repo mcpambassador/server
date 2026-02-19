@@ -75,7 +75,7 @@ const ProvidersConfigSchema = z.object({
   allowed_packages: z
     .array(z.string())
     .default([
-      '@mcpambassador/authn-apikey',
+      '@mcpambassador/authn-ephemeral',
       '@mcpambassador/authz-local',
       '@mcpambassador/audit-file',
     ]),
@@ -109,6 +109,19 @@ const SessionConfigSchema = z
   })
   .optional();
 
+// ===== §18 Per-User MCP Pool Configuration (SEC-M17-005) =====
+
+const UserPoolConfigSchema = z
+  .object({
+    /** Max MCP instances per user (default: 10) */
+    max_instances_per_user: z.number().int().min(1).max(1000).default(10),
+    /** Max total MCP instances system-wide (default: 100) */
+    max_total_instances: z.number().int().min(1).max(10000).default(100),
+    /** Health check interval in milliseconds (default: 60000) */
+    health_check_interval_ms: z.number().int().min(1000).max(600000).default(60000),
+  })
+  .optional();
+
 // ===== §11.4 Audit Buffer Configuration =====
 
 const BufferConfigSchema = z.object({
@@ -136,6 +149,7 @@ export const AmbassadorConfigSchema = z.object({
   providers: ProvidersConfigSchema.optional(),
   buffer: BufferConfigSchema.optional(),
   session: SessionConfigSchema,
+  user_pool: UserPoolConfigSchema, // SEC-M17-005: Per-user MCP pool limits
 });
 
 // ===== Infer TypeScript type from schema =====

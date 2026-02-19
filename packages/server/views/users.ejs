@@ -20,6 +20,7 @@
       <section>
         <h2>Create User</h2>
         <form method="POST" action="/admin/users/create">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="grid">
             <label>
               Display Name
@@ -67,15 +68,18 @@
                   <td>
                     <% if (user.status === 'active') { %>
                       <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="suspended">
                         <button type="submit" class="secondary">Suspend</button>
                       </form>
                     <% } else if (user.status === 'suspended') { %>
                       <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="active">
                         <button type="submit">Activate</button>
                       </form>
                       <form method="POST" action="/admin/users/<%= user.user_id %>/status" style="display: inline;">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                         <input type="hidden" name="status" value="deactivated">
                         <button type="submit" class="secondary">Deactivate</button>
                       </form>

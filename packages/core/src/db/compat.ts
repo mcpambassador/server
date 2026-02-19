@@ -108,3 +108,50 @@ export async function compatExecute(db: DatabaseClient, sql: string): Promise<an
     throw new Error('SQLite prepare() method not available');
   }
 }
+
+/**
+ * Execute a callback within a database transaction.
+ *
+ * Uses BEGIN IMMEDIATE / COMMIT / ROLLBACK for both SQLite and PostgreSQL.
+ * SQLite: BEGIN IMMEDIATE acquires a write lock immediately, preventing SQLITE_BUSY
+ * during the transaction body.
+ * PostgreSQL: Uses standard BEGIN / COMMIT / ROLLBACK.
+ *
+ * Resolves SEC-M18-004: cascade operations now run atomically.
+ *
+ * @param db Database client
+ * @param fn Async callback containing the transactional operations
+ * @returns Result of the callback
+ */
+export async function compatTransaction<T>(
+  db: DatabaseClient,
+  fn: () => Promise<T>
+): Promise<T> {
+  if (isPostgres(db)) {
+    await (db as any).execute('BEGIN');
+  } else {
+    const client = (db as any).$client;
+    if (client && typeof client.prepare === 'function') {
+      client.prepare('BEGIN IMMEDIATE').run();
+    } else {
+      throw new Error('SQLite prepare() method not available');
+    }
+  }
+
+  try {
+    const result = await fn();
+    if (isPostgres(db)) {
+      await (db as any).execute('COMMIT');
+    } else {
+      (db as any).$client.prepare('COMMIT').run();
+    }
+    return result;
+  } catch (err) {
+    if (isPostgres(db)) {
+      await (db as any).execute('ROLLBACK');
+    } else {
+      (db as any).$client.prepare('ROLLBACK').run();
+    }
+    throw err;
+  }
+}

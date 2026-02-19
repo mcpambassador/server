@@ -259,10 +259,21 @@ export const session_connections = sqliteTable(
 /**
  * clients table
  *
- * Stores registered Ambassador Clients. Each client represents an installation
+ * **DEPRECATED (M19.3)**: This table was used for API key-based client registration.
+ * The project has migrated to ephemeral sessions tracked in `session_connections` table.
+ * This table is retained for:
+ * - Historical data (admin UI shows legacy clients)
+ * - Admin API compatibility (read-only operations)
+ * - Future migration to remove after confirming no dependencies
+ *
+ * **DO NOT USE FOR NEW FEATURES**. Use `session_connections` for active connection tracking.
+ *
+ * Originally: Stores registered Ambassador Clients. Each client represents an installation
  * on a developer workstation (VS Code, Claude Desktop, etc.).
  *
- * @see Architecture §3.2 ClientRecord
+ * @deprecated Use session_connections table for new authentication flows
+ * @see Architecture §3.2 ClientRecord (legacy)
+ * @see ADR-011 Ephemeral Sessions Identity Model
  */
 export const clients = sqliteTable(
   'clients',

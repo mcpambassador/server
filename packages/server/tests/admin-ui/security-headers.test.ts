@@ -19,10 +19,12 @@ describe('Admin UI security headers', () => {
       const resp = await handle.fastify.inject({ method: 'GET', url: p })
       expect(resp.headers['content-security-policy'] || resp.headers['Content-Security-Policy']).toBeDefined()
       const csp = (resp.headers['content-security-policy'] || resp.headers['Content-Security-Policy']) as string
-      expect(csp).toContain("default-src 'none'")
+      // SEC-M18-007: Updated CSP to allow 'self' resources for admin UI functionality
+      expect(csp).toContain("default-src 'self'")
       expect(csp).toContain("script-src 'self'")
       expect(csp).toContain("style-src 'self'")
-      expect(csp).toContain('frame-ancestors')
+      expect(csp).toContain("frame-ancestors 'none'")
+      expect(csp).toContain("form-action 'self'")
     }
   })
 

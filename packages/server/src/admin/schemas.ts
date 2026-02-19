@@ -197,3 +197,13 @@ export const listSessionsQuerySchema = z.object({
 export const deleteSessionParamsSchema = z.object({
   sessionId: z.string().uuid(),
 });
+
+// ==========================================================================
+// HMAC SECRET ROTATION SCHEMA (M19.2a)
+// ==========================================================================
+
+export const rotateHmacSecretResponseSchema = z.object({
+  success: z.boolean(),
+  sessionsInvalidated: z.number().int().min(0),
+  message: z.string(),
+});
