@@ -75,7 +75,14 @@ export async function registerAuthRoutes(
       // Reset rate limit on success
       rateLimiter.reset(sourceIp);
 
-      // Clear any existing session data
+      // H-2: Session fixation prevention
+      // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
+      // nullify the request.session object, making it impossible to set properties afterward.
+      // As a workaround, we manually clear existing session data to prevent data leakage.
+      // LIMITATION: This does not regenerate the session ID, which is less secure than proper
+      // session regeneration. Consider upgrading @fastify/session when a fixed version is available.
+
+      // Clear any existing session data (prevents data leakage from previous sessions)
       if (request.session.userId) {
         delete request.session.userId;
       }
@@ -89,7 +96,7 @@ export async function registerAuthRoutes(
         delete request.session.displayName;
       }
 
-      // Set session data
+      // Set new authenticated session data
       request.session.userId = user.user_id;
       request.session.username = user.username;
       request.session.isAdmin = user.is_admin;
@@ -106,10 +113,11 @@ export async function registerAuthRoutes(
       });
     } catch (err) {
       if (err instanceof ZodError) {
+        // M-3: Do not expose validation errors on login endpoint
+        // Return generic message to prevent information leakage
         return reply.status(400).send({
           error: 'Bad Request',
-          message: 'Invalid request body',
-          details: err.errors,
+          message: 'Invalid credentials',
         });
       }
 

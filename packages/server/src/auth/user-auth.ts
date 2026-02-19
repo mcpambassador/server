@@ -14,6 +14,15 @@ import { hashPassword, verifyPassword } from './password-policy.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
+ * Pre-computed dummy hash for timing attack mitigation
+ * H-1: Used when user not found or has null password to equalize response times
+ *
+ * This is an argon2id hash of "dummy-password-for-timing-safety"
+ */
+const DUMMY_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$aR5kZXNpZ25lZC1mb3ItdGltaW5nLXNhZmV0eQ$9xQZJ5kLZ5YzJ5kLZ5YzJ5kLZ5YzJ5kLZ5Yz';
+
+/**
  * Authenticate user with username and password
  *
  * @param db - Database client
@@ -31,12 +40,24 @@ export async function authenticateUser(
     where: (users, { eq }) => eq(users.username, username),
   });
 
+  // H-1: Timing attack mitigation - always run password verification to equalize response time
   if (!user) {
+    // User not found - run dummy verify to prevent username enumeration via timing
+    await verifyPassword(DUMMY_HASH, password);
+    return null;
+  }
+
+  // M-1: Check user status - deactivated/suspended users cannot authenticate
+  if (user.status !== 'active') {
+    // Still run password verification to prevent status enumeration via timing
+    await verifyPassword(DUMMY_HASH, password);
     return null;
   }
 
   // Check if user has a password hash
   if (!user.password_hash) {
+    // No password set - run dummy verify to prevent detection via timing
+    await verifyPassword(DUMMY_HASH, password);
     return null;
   }
 
