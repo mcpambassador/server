@@ -22,10 +22,12 @@ import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import type { Subscription } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
   const { data: client, isLoading: clientLoading } = useClient(clientId!);
+  usePageTitle(client?.clientName || 'Client Details');
   const { data: subscriptions, isLoading: subsLoading } = useClientSubscriptions(clientId!);
   const { data: marketplace } = useMarketplace();
   const unsubscribe = useUnsubscribe();

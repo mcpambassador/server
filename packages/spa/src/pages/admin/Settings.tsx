@@ -17,8 +17,10 @@ import {
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useDownstream, useAdminSessions, useKillSession, useRotateHmac, useRotateCredentialKey } from '@/api/hooks/use-admin';
 import type { Session } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Settings() {
+  usePageTitle('Admin - Settings');
   const { data: downstream } = useDownstream();
   const { data: sessions, isLoading: sessionsLoading } = useAdminSessions();
   const killSession = useKillSession();

@@ -10,10 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
 
 export function McpWizard() {
+  usePageTitle('Admin - Create MCP');
   const navigate = useNavigate();
   const createMcp = useCreateMcp();
   const validateMcp = useValidateMcp();

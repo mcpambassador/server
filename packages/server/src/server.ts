@@ -9,7 +9,6 @@ import { initializeTls } from './tls.js';
 import { SharedMcpManager, UserMcpPool, ToolRouter, type DownstreamMcpConfig } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
-import { fileURLToPath } from 'node:url';
 import {
   initializeDatabase,
   runMigrations,
@@ -120,7 +119,7 @@ export class AmbassadorServer {
   constructor(config: ServerConfig) {
     this.config = {
       host: config.host || '0.0.0.0',
-      port: config.port || 8443,
+      port: config.port ?? 8443,
       dataDir: config.dataDir,
       serverName: config.serverName || 'localhost',
       logLevel: config.logLevel || 'info',
@@ -325,33 +324,27 @@ export class AmbassadorServer {
   }
 
   /**
-   * Initialize admin UI server (M10)
+   * Initialize admin server (M10, M29.5)
    * 
    * Creates separate Fastify instance on adminPort with:
    * - Session management
-   * - EJS view rendering
-   * - Static file serving
-   * - UI and htmx routes
+   * - REST API routes
    * - Security headers
+   * - Legacy path redirects to SPA (M29.6)
    * 
-   * @see ADR-007 Admin UI Technology Selection (EJS + htmx)
+   * Note: EJS-based admin UI removed in M29.5. Admin UI is now the React SPA.
+   * 
    * @see ADR-008 Admin UI Routing (Dedicated Port 9443)
    */
   private async initializeAdminServer(tlsCerts: { key: string; cert: string; ca: string }): Promise<void> {
-    console.log('[Admin] Initializing admin UI server...');
+    console.log('[Admin] Initializing admin server...');
 
     // Import required plugins
-    const fastifyView = (await import('@fastify/view')).default;
-    const fastifyStatic = (await import('@fastify/static')).default;
-    const fastifyFormbody = (await import('@fastify/formbody')).default;
     const fastifyCookie = (await import('@fastify/cookie')).default;
     const fastifySession = (await import('@fastify/session')).default;
-    const ejs = (await import('ejs')).default;
 
     // Import admin modules
     const { getOrCreateSessionSecret } = await import('./admin/session.js');
-    const { registerUiRoutes } = await import('./admin/ui-routes.js');
-    const { registerHtmxRoutes } = await import('./admin/htmx-routes.js');
 
     // Create session store instance if not already created (F-SEC-M10-005)
     if (!this.sessionStore) {
@@ -392,43 +385,13 @@ export class AmbassadorServer {
         secure: true,
         httpOnly: true,
         sameSite: 'strict',
-        path: '/admin',
+        path: '/', // M29.5: Changed from '/admin' to '/' to support SPA routes
       },
       store: this.sessionStore,
       saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
     });
 
-    // Register form body parser
-    await this.adminServer.register(fastifyFormbody);
-
-    // Determine view paths relative to this source file
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const viewsPath = path.join(__dirname, '..', 'views');
-    const publicPath = path.join(__dirname, '..', 'public');
-
-    // Register view engine (EJS)
-    await this.adminServer.register(fastifyView, {
-      engine: {
-        ejs,
-      },
-      root: viewsPath,
-      options: {
-        filename: viewsPath,
-      },
-    });
-
-    // Register static file serving
-    await this.adminServer.register(fastifyStatic, {
-      root: publicPath,
-      prefix: '/',
-    });
-
     // Security headers hook (SEC-M10-10)
-    // Note: Content-Security-Policy is intentionally set per-admin UI routes
-    // (packages/server/src/admin/ui-routes.ts) because those templates require
-    // specific allowances (e.g. 'unsafe-inline'). Do not set CSP here to avoid
-    // sending duplicate/more restrictive headers.
     this.adminServer.addHook('onSend', async (_request, reply, payload) => {
       // SEC-M10-10: Cache-Control for all admin responses
       reply.header('Cache-Control', 'no-store');
@@ -453,24 +416,59 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
     });
 
-    // Register UI routes
-    await registerUiRoutes(this.adminServer, {
-      db: this.db!,
-      mcpManager: this.mcpManager,
-      dataDir: this.config.dataDir,
-      audit: this.audit!, // F-SEC-M10-004
-      killSwitchManager: this.killSwitchManager, // CR-M10-001
-      sessionStore: this.sessionStore, // F-SEC-M10-005
-      userPool: this.userPool, // M18: CR fix — cascade support in UI routes
+    // Register SPA handler on admin server (M29.5)
+    // This allows the React admin UI to be served on the admin port
+    const { registerSpaHandler } = await import('./spa-handler.js');
+    await registerSpaHandler(this.adminServer);
+
+    // M29.6: Legacy admin UI path redirects to SPA
+    // EJS admin UI was removed in M29.5; redirect old paths to new SPA routes
+    this.adminServer.get('/admin/login', async (_request, reply) => {
+      return reply.redirect('/login', 301);
+    });
+    
+    this.adminServer.get('/admin/dashboard', async (_request, reply) => {
+      return reply.redirect('/app/admin/dashboard', 301);
+    });
+    
+    this.adminServer.get('/admin/users', async (_request, reply) => {
+      return reply.redirect('/app/admin/users', 301);
+    });
+    
+    this.adminServer.get('/admin/clients', async (_request, reply) => {
+      return reply.redirect('/app/admin/mcps', 301);
+    });
+    
+    this.adminServer.get('/admin/profiles', async (_request, reply) => {
+      return reply.redirect('/app/admin/groups', 301);
+    });
+    
+    this.adminServer.get('/admin/sessions', async (_request, reply) => {
+      return reply.redirect('/app/admin/users', 301);
+    });
+    
+    this.adminServer.get('/admin/preshared-keys', async (_request, reply) => {
+      return reply.redirect('/app/admin/users', 301);
+    });
+    
+    this.adminServer.get('/admin/downstream', async (_request, reply) => {
+      return reply.redirect('/app/admin/mcps', 301);
+    });
+    
+    this.adminServer.get('/admin/kill-switches', async (_request, reply) => {
+      return reply.redirect('/app/admin/kill-switches', 301);
+    });
+    
+    this.adminServer.get('/admin/audit-log', async (_request, reply) => {
+      return reply.redirect('/app/admin/audit', 301);
+    });
+    
+    // Redirect /admin to dashboard
+    this.adminServer.get('/admin', async (_request, reply) => {
+      return reply.redirect('/app/admin/dashboard', 301);
     });
 
-    // Register htmx fragment routes
-    await registerHtmxRoutes(this.adminServer, {
-      db: this.db!,
-      killSwitchManager: this.killSwitchManager, // CR-M10-001
-    });
-
-    console.log('[Admin] Admin UI server initialized');
+    console.log('[Admin] Admin server initialized');
   }
 
   /**

@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useAdminUser, useAdminGroups, useAuditEvents } from '@/api/hooks/use-admin';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function UserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const { data: user, isLoading: userLoading } = useAdminUser(userId!);
+  usePageTitle(user ? `Admin - ${user.username}` : 'Admin - User Details');
   const { data: groupsData, isLoading: groupsLoading } = useAdminGroups();
   const { data: auditData, isLoading: auditLoading } = useAuditEvents({
     user_id: userId,

@@ -31,10 +31,12 @@ import {
   useAdminMcps,
 } from '@/api/hooks/use-admin';
 import type { GroupMember, McpCatalogEntry } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function GroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
   const { data: group, isLoading: groupLoading } = useAdminGroup(groupId!);
+  usePageTitle(group ? `Admin - ${group.name}` : 'Admin - Group Details');
   const { data: members, isLoading: membersLoading } = useGroupMembers(groupId!);
   const { data: mcps, isLoading: mcpsLoading } = useGroupMcps(groupId!);
   const { data: allUsers } = useAdminUsers();

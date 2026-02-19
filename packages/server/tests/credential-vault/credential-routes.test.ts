@@ -6,67 +6,49 @@
  * @see M26.10: Integration Tests
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { AmbassadorServer } from '../../src/server.js';
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { startTestServer, stopTestServer, type TestServerHandle } from '../admin-api/helpers.js';
+import { compatInsert, mcp_catalog } from '@mcpambassador/core';
 import crypto from 'crypto';
-import type { DatabaseClient } from '@mcpambassador/core';
-import { initializeDatabase, compatInsert, mcp_catalog, users } from '@mcpambassador/core';
+
+// Helper to extract cookie from set-cookie header
+function extractCookie(setCookieHeader?: string | string[] | undefined): string | undefined {
+  const sc = Array.isArray(setCookieHeader) ? setCookieHeader[0] : setCookieHeader;
+  if (!sc) return undefined;
+  const m = sc.match(/([^=]+)=([^;]+);?/);
+  return m ? `${m[1]}=${m[2]}` : undefined;
+}
 
 describe('Credential Routes', () => {
-  let server: AmbassadorServer;
-  let tempDir: string;
-  let db: DatabaseClient;
+  let server: TestServerHandle;
   let testUserId: string;
   let testMcpId: string;
+  let noCrMcpId: string;
   let sessionCookie: string;
 
   beforeAll(async () => {
-    // Create temporary directory for test
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcpambassador-cred-test-'));
+    server = await startTestServer();
 
-    // Initialize server
-    server = new AmbassadorServer({
-      host: '127.0.0.1',
-      port: 0, // Ephemeral port
-      dataDir: tempDir,
-      downstreamMcps: [],
-      adminPort: 0,
-      adminUiEnabled: false,
+    // Create test user via admin API (ensures proper password hashing)
+    const createUserRes = await server.fastify.inject({
+      method: 'POST',
+      url: '/v1/admin/users',
+      headers: { 'X-Admin-Key': server.adminKey },
+      payload: {
+        username: 'credtestuser',
+        password: 'Test1234!',
+        display_name: 'Credential Test User',
+        email: 'credtest@example.com',
+      },
     });
 
-    await server.initialize();
-    await server.start();
-
-    // Get database reference
-    db = (server as any).db;
-
-    // Create test user with vault_salt
-    const vaultSalt = crypto.randomBytes(32).toString('hex');
-    testUserId = crypto.randomUUID();
-
-    await compatInsert(db, users).values({
-      user_id: testUserId,
-      username: 'testuser',
-      password_hash: 'dummy',
-      display_name: 'Test User',
-      email: 'test@example.com',
-      is_admin: false,
-      status: 'active',
-      auth_source: 'local',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_login_at: null,
-      vault_salt: vaultSalt,
-      metadata: '{}',
-    });
+    expect(createUserRes.statusCode).toBe(201);
+    const userData = JSON.parse(createUserRes.body);
+    testUserId = userData.user_id;
 
     // Create test MCP entry that requires credentials
     testMcpId = crypto.randomUUID();
-
-    await compatInsert(db, mcp_catalog).values({
+    await compatInsert(server.db, mcp_catalog).values({
       mcp_id: testMcpId,
       name: 'test-mcp-with-creds',
       display_name: 'Test MCP with Credentials',
@@ -96,8 +78,8 @@ describe('Credential Routes', () => {
     });
 
     // Create a second MCP that does NOT require credentials
-    const noCrMcpId = crypto.randomUUID();
-    await compatInsert(db, mcp_catalog).values({
+    noCrMcpId = crypto.randomUUID();
+    await compatInsert(server.db, mcp_catalog).values({
       mcp_id: noCrMcpId,
       name: 'test-mcp-no-creds',
       display_name: 'Test MCP without Credentials',
@@ -120,181 +102,168 @@ describe('Credential Routes', () => {
     });
 
     // Login to get session cookie
-    const loginRes = await fetch(`https://127.0.0.1:${(server as any).config.port}/v1/auth/login`, {
+    const loginRes = await server.fastify.inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'testuser',
-        password: 'dummy',
-      }),
-      // @ts-ignore - Node.js fetch accepts rejectUnauthorized
-      agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
+      url: '/v1/auth/login',
+      payload: {
+        username: 'credtestuser',
+        password: 'Test1234!',
+      },
     });
 
-    if (loginRes.ok) {
-      // Extract session cookie
-      const setCookie = loginRes.headers.get('set-cookie');
-      if (setCookie) {
-        sessionCookie = setCookie.split(';')[0];
-      }
-    }
+    expect(loginRes.statusCode).toBe(200);
+    const cookie = extractCookie(loginRes.headers['set-cookie']);
+    expect(cookie).toBeDefined();
+    sessionCookie = cookie!;
   });
 
   afterAll(async () => {
-    await server?.stop();
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+    await stopTestServer(server);
   });
 
   describe('PUT /v1/users/me/credentials/:mcpId', () => {
     it('should set credentials for an MCP that requires credentials', async () => {
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials/${testMcpId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: sessionCookie,
+      const res = await server.fastify.inject({
+        method: 'PUT',
+        url: `/v1/users/me/credentials/${testMcpId}`,
+        headers: { Cookie: sessionCookie },
+        payload: {
+          credentials: {
+            api_key: 'test-key-12345',
+            region: 'us-west-2',
           },
-          body: JSON.stringify({
-            credentials: {
-              api_key: 'test-key-12345',
-              region: 'us-west-2',
-            },
-          }),
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+        },
+      });
 
-      expect(res.status).toBe(200);
-      const data = await res.json();
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
       expect(data.mcp_id).toBe(testMcpId);
       expect(data.has_credentials).toBe(true);
       expect(data.updated_at).toBeDefined();
     });
 
     it('should return 400 if MCP does not require credentials', async () => {
-      // Get the no-creds MCP ID
-      const noCrMcp = await db.query.mcp_catalog.findFirst({
-        where: (mcp_catalog, { eq }) => eq(mcp_catalog.name, 'test-mcp-no-creds'),
+      const res = await server.fastify.inject({
+        method: 'PUT',
+        url: `/v1/users/me/credentials/${noCrMcpId}`,
+        headers: { Cookie: sessionCookie },
+        payload: {
+          credentials: {
+            api_key: 'test-key-12345',
+          },
+        },
       });
 
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials/${noCrMcp?.mcp_id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: sessionCookie,
-          },
-          body: JSON.stringify({
-            credentials: {
-              api_key: 'test-key-12345',
-            },
-          }),
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
-
-      expect(res.status).toBe(400);
-      const data = await res.json();
+      expect(res.statusCode).toBe(400);
+      const data = res.json();
       expect(data.error).toBe('Bad request');
     });
 
     it('should return 404 if MCP does not exist', async () => {
       const fakeMcpId = crypto.randomUUID();
 
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials/${fakeMcpId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: sessionCookie,
+      const res = await server.fastify.inject({
+        method: 'PUT',
+        url: `/v1/users/me/credentials/${fakeMcpId}`,
+        headers: { Cookie: sessionCookie },
+        payload: {
+          credentials: {
+            api_key: 'test-key-12345',
           },
-          body: JSON.stringify({
-            credentials: {
-              api_key: 'test-key-12345',
-            },
-          }),
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+        },
+      });
 
-      expect(res.status).toBe(404);
+      expect(res.statusCode).toBe(404);
     });
 
     it('should return 400 if required credential fields are missing', async () => {
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials/${testMcpId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: sessionCookie,
+      const res = await server.fastify.inject({
+        method: 'PUT',
+        url: `/v1/users/me/credentials/${testMcpId}`,
+        headers: { Cookie: sessionCookie },
+        payload: {
+          credentials: {
+            api_key: 'test-key-12345',
+            // Missing 'region' field
           },
-          body: JSON.stringify({
-            credentials: {
-              api_key: 'test-key-12345',
-              // Missing 'region' field
-            },
-          }),
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+        },
+      });
 
-      expect(res.status).toBe(400);
-      const data = await res.json();
+      expect(res.statusCode).toBe(400);
+      const data = res.json();
       expect(data.error).toBe('Validation failed');
     });
 
     it('should generate vault_salt if user does not have one', async () => {
-      // Create a user without vault_salt
-      const noSaltUserId = crypto.randomUUID();
-      await compatInsert(db, users).values({
-        user_id: noSaltUserId,
-        username: 'nosaltuser',
-        password_hash: 'dummy',
-        display_name: 'No Salt User',
-        email: 'nosalt@example.com',
-        is_admin: false,
-        status: 'active',
-        auth_source: 'local',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        last_login_at: null,
-        vault_salt: null, // No salt
-        metadata: '{}',
+      // Create a user via admin API
+      const noSaltUserRes = await server.fastify.inject({
+        method: 'POST',
+        url: '/v1/admin/users',
+        headers: { 'X-Admin-Key': server.adminKey },
+        payload: {
+          username: 'nosaltuser',
+          password: 'NoSalt1234!',
+          display_name: 'No Salt User',
+          email: 'nosalt@example.com',
+        },
       });
 
+      expect(noSaltUserRes.statusCode).toBe(201);
+
+      // Verify user has no vault_salt yet
+      const userFromDb = await server.db.query.users.findFirst({
+        where: (users, { eq }) => eq(users.username, 'nosaltuser'),
+      });
+      expect(userFromDb?.vault_salt).toBeNull();
+
       // Login as this user
-      // (Skipping login for brevity - in real test, would need to hash password and log in)
-      // For now, just verify that the credential route would generate salt
-      // This is harder to test without proper login flow
+      const noSaltLoginRes = await server.fastify.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: {
+          username: 'nosaltuser',
+          password: 'NoSalt1234!',
+        },
+      });
+
+      expect(noSaltLoginRes.statusCode).toBe(200);
+      const noSaltCookie = extractCookie(noSaltLoginRes.headers['set-cookie']);
+      expect(noSaltCookie).toBeDefined();
+
+      // Set credentials - this should generate vault_salt
+      const res = await server.fastify.inject({
+        method: 'PUT',
+        url: `/v1/users/me/credentials/${testMcpId}`,
+        headers: { Cookie: noSaltCookie! },
+        payload: {
+          credentials: {
+            api_key: 'test-key-nosalt',
+            region: 'eu-west-1',
+          },
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+
+      // Verify vault_salt was generated
+      const updatedUser = await server.db.query.users.findFirst({
+        where: (users, { eq }) => eq(users.username, 'nosaltuser'),
+      });
+      expect(updatedUser?.vault_salt).toBeTruthy();
+      expect(updatedUser?.vault_salt).toHaveLength(64); // 32 bytes hex-encoded
     });
   });
 
   describe('GET /v1/users/me/credentials', () => {
     it('should return credential status for all MCPs that require credentials', async () => {
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials`,
-        {
-          method: 'GET',
-          headers: {
-            Cookie: sessionCookie,
-          },
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+      const res = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/credentials',
+        headers: { Cookie: sessionCookie },
+      });
 
-      expect(res.status).toBe(200);
-      const data = await res.json();
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
       expect(Array.isArray(data)).toBe(true);
 
       // Find our test MCP
@@ -305,19 +274,13 @@ describe('Credential Routes', () => {
     });
 
     it('should never return actual credential values', async () => {
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials`,
-        {
-          method: 'GET',
-          headers: {
-            Cookie: sessionCookie,
-          },
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+      const res = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/credentials',
+        headers: { Cookie: sessionCookie },
+      });
 
-      const data = await res.json();
+      const data = res.json();
 
       // Verify no credential values are returned
       for (const item of data) {
@@ -331,34 +294,22 @@ describe('Credential Routes', () => {
 
   describe('DELETE /v1/users/me/credentials/:mcpId', () => {
     it('should delete credentials for an MCP', async () => {
-      const res = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials/${testMcpId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Cookie: sessionCookie,
-          },
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+      const res = await server.fastify.inject({
+        method: 'DELETE',
+        url: `/v1/users/me/credentials/${testMcpId}`,
+        headers: { Cookie: sessionCookie },
+      });
 
-      expect(res.status).toBe(204);
+      expect(res.statusCode).toBe(204);
 
       // Verify credentials are deleted
-      const listRes = await fetch(
-        `https://127.0.0.1:${(server as any).config.port}/v1/users/me/credentials`,
-        {
-          method: 'GET',
-          headers: {
-            Cookie: sessionCookie,
-          },
-          // @ts-ignore
-          agent: new (await import('https')).Agent({ rejectUnauthorized: false }),
-        }
-      );
+      const listRes = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/credentials',
+        headers: { Cookie: sessionCookie },
+      });
 
-      const data = await listRes.json();
+      const data = listRes.json();
       const testMcpStatus = data.find((m: any) => m.mcp_id === testMcpId);
       expect(testMcpStatus.has_credentials).toBe(false);
     });

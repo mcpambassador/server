@@ -15,8 +15,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function KillSwitches() {
+  usePageTitle('Admin - Kill Switches');
   const { data: clientsData, isLoading: clientsLoading } = useAdminClients();
   const { data: mcpsData, isLoading: mcpsLoading } = useAdminMcps();
   const killSwitch = useKillSwitch();

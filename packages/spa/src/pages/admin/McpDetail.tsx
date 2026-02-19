@@ -18,10 +18,12 @@ import {
   usePublishMcp,
   useArchiveMcp,
 } from '@/api/hooks/use-admin';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function McpDetail() {
   const { mcpId } = useParams<{ mcpId: string }>();
   const { data: mcp, isLoading } = useAdminMcp(mcpId!);
+  usePageTitle(mcp ? `Admin - ${mcp.name}` : 'Admin - MCP Details');
   const updateMcp = useUpdateMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();

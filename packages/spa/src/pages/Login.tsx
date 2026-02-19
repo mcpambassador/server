@@ -15,8 +15,10 @@ import {
 import { authApi } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Login() {
+  usePageTitle('Login');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [username, setUsername] = React.useState('');

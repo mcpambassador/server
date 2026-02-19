@@ -21,8 +21,10 @@ import {
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminGroups, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/api/hooks/use-admin';
 import type { Group } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function GroupsAdmin() {
+  usePageTitle('Admin - Groups');
   const { data: groups, isLoading } = useAdminGroups();
   const { addToast } = useToast();
   const createGroup = useCreateGroup();

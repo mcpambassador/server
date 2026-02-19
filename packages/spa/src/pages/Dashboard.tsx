@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useClients } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Dashboard() {
+  usePageTitle('Dashboard');
   const { data: clients, isLoading: clientsLoading } = useClients();
   const { data: marketplace, isLoading: marketplaceLoading } = useMarketplace();
 

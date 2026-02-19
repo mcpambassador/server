@@ -1,6 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Subscriptions() {
+  usePageTitle('My Subscriptions');
   return (
     <div className="space-y-6">
       <div>

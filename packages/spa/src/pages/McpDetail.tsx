@@ -13,11 +13,13 @@ import { Label } from '@/components/ui/label';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
 import { useCredentialStatus } from '@/api/hooks/use-credentials';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function McpDetail() {
   const { mcpId } = useParams<{ mcpId: string }>();
   const navigate = useNavigate();
   const { data: mcp, isLoading } = useMcpDetail(mcpId!);
+  usePageTitle(mcp?.name || 'MCP Details');
   const { data: clients } = useClients();
   const { data: credentials } = useCredentialStatus();
   const subscribe = useSubscribe();

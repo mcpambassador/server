@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAuditEvents } from '@/api/hooks/use-admin';
 import type { AuditEvent } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function AuditLogsAdmin() {
+  usePageTitle('Admin - Audit Logs');
   const [filters, setFilters] = useState({
     start_time: '',
     end_time: '',

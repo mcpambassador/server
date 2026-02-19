@@ -21,8 +21,10 @@ import {
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@/api/hooks/use-clients';
 import type { Client } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Clients() {
+  usePageTitle('My Clients');
   const { data: clients, isLoading } = useClients();
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();

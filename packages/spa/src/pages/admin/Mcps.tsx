@@ -24,8 +24,10 @@ import {
   useArchiveMcp,
 } from '@/api/hooks/use-admin';
 import type { McpCatalogEntry } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function McpsAdmin() {
+  usePageTitle('Admin - MCPs');
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(undefined);
   const { data: mcpsData, isLoading } = useAdminMcps({ status: statusFilter });

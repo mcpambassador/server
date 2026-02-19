@@ -160,6 +160,7 @@ export function Sidebar() {
               size="icon"
               onClick={toggle}
               className="shrink-0"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? (
                 <ChevronRight className="h-4 w-4" />

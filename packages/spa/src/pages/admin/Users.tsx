@@ -22,8 +22,10 @@ import {
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function UsersAdmin() {
+  usePageTitle('Admin - Users');
   const { data: usersData, isLoading } = useAdminUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();

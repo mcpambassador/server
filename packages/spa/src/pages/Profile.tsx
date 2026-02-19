@@ -7,8 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { useProfile, useChangePassword } from '@/api/hooks/use-profile';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Profile() {
+  usePageTitle('Profile');
   const { data: user, isLoading } = useProfile();
   const changePassword = useChangePassword();
 

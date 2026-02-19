@@ -7,8 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Marketplace() {
+  usePageTitle('Marketplace');
   const { data: marketplace, isLoading } = useMarketplace();
   const [searchQuery, setSearchQuery] = useState('');
 

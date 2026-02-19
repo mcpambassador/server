@@ -20,8 +20,10 @@ import { Input } from '@/components/ui/input';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useCredentialStatus, useSetCredentials, useDeleteCredentials } from '@/api/hooks/use-credentials';
 import type { CredentialStatus } from '@/api/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Credentials() {
+  usePageTitle('Credentials');
   const { data: credentials, isLoading } = useCredentialStatus();
   const setCredentials = useSetCredentials();
   const deleteCredentials = useDeleteCredentials();

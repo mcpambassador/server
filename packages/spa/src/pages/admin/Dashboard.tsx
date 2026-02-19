@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdminUsers, useAdminGroups, useAdminMcps, useAdminSessions, useAuditEvents, useDownstream } from '@/api/hooks/use-admin';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Dashboard() {
+  usePageTitle('Admin Dashboard');
   const { data: usersData, isLoading: usersLoading } = useAdminUsers();
   const { data: groupsData, isLoading: groupsLoading } = useAdminGroups();
   const { data: mcpsData, isLoading: mcpsLoading } = useAdminMcps();
