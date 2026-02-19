@@ -15,7 +15,7 @@ import { z } from 'zod';
 
 export const createGroupSchema = z
   .object({
-    name: z.string().min(1).max(128),
+    name: z.string().min(1).max(128).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, 'Group name must start with alphanumeric and contain only letters, numbers, spaces, hyphens, and underscores'),
     description: z.string().optional(),
     status: z.enum(['active', 'suspended']).optional(),
   })
@@ -23,7 +23,7 @@ export const createGroupSchema = z
 
 export const updateGroupSchema = z
   .object({
-    name: z.string().min(1).max(128).optional(),
+    name: z.string().min(1).max(128).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, 'Group name must start with alphanumeric and contain only letters, numbers, spaces, hyphens, and underscores').optional(),
     description: z.string().optional(),
     status: z.enum(['active', 'suspended']).optional(),
   })

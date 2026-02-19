@@ -58,6 +58,11 @@ export class BoundedSessionStore implements SessionStore {
   get(sessionId: string, callback: (err: unknown, session?: Session | null) => void): void {
     try {
       const session = this.store.get(sessionId) ?? null;
+      if (session) {
+        // AUTH-001: LRU eviction - re-insert to move to end of Map iteration order
+        this.store.delete(sessionId);
+        this.store.set(sessionId, session);
+      }
       callback(null, session);
     } catch (err) {
       callback(err);

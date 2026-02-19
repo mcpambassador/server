@@ -79,6 +79,27 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
       errors.push(`Unknown transport type: ${entry.transport_type}`);
   }
 
+  // MCP-002: Command injection checks (matching downstream validator: F-SEC-M6-001)
+  if (entry.transport_type === 'stdio' && config.command) {
+    const [cmd] = config.command as string[];
+    if (cmd) {
+      // Check for shell metacharacters
+      if (cmd.includes(';') || cmd.includes('|') || cmd.includes('&') || cmd.includes('`') || cmd.includes('$')) {
+        errors.push(`Command contains shell metacharacters: ${cmd}`);
+      }
+    }
+    
+    // Check for dangerous environment variables
+    const BLOCKED_ENV_VARS = ['PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'NODE_OPTIONS', 'NODE_PATH', 'DYLD_INSERT_LIBRARIES', 'DYLD_LIBRARY_PATH'];
+    if (config.env && typeof config.env === 'object') {
+      for (const key of Object.keys(config.env as Record<string, unknown>)) {
+        if (BLOCKED_ENV_VARS.includes(key)) {
+          errors.push(`Environment variable '${key}' is blocked for security reasons`);
+        }
+      }
+    }
+  }
+
   // Validate env var references in config
   const envVarPattern = /\$\{([A-Z_][A-Z0-9_]*)\}/g;
   for (const [key, value] of Object.entries(config)) {

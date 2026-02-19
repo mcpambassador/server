@@ -184,6 +184,13 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
               message: err.message,
             });
           }
+          // MCP-001: Generic message for structural change attempts
+          if (err.message === 'PUBLISHED_MCP_STRUCTURAL_CHANGE') {
+            return reply.status(422).send({
+              error: 'Unprocessable Entity',
+              message: 'Cannot modify structural fields on a published MCP. Archive and recreate instead.',
+            });
+          }
           if (err.message.includes('Cannot modify')) {
             return reply.status(422).send({
               error: 'Unprocessable Entity',

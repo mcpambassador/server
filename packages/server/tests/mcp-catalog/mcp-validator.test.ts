@@ -82,6 +82,76 @@ describe('MCP Validator', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('stdio command array must contain only strings');
     });
+
+    // TEST-001: Tests for MCP-002 command injection checks
+    it('should reject commands with shell metacharacters (semicolon)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node; rm -rf /', 'server.js'],
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('shell metacharacters'))).toBe(true);
+    });
+
+    it('should reject commands with shell metacharacters (pipe)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node | cat', 'server.js'],
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('shell metacharacters'))).toBe(true);
+    });
+
+    it('should reject commands with shell metacharacters (backtick)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node `whoami`', 'server.js'],
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('shell metacharacters'))).toBe(true);
+    });
+
+    it('should reject blocked environment variables (PATH)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node', 'server.js'],
+        env: { PATH: '/malicious/path' },
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes("'PATH' is blocked"))).toBe(true);
+    });
+
+    it('should reject blocked environment variables (LD_PRELOAD)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node', 'server.js'],
+        env: { LD_PRELOAD: '/malicious/lib.so' },
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes("'LD_PRELOAD' is blocked"))).toBe(true);
+    });
+
+    it('should reject blocked environment variables (NODE_OPTIONS)', async () => {
+      const entry = createMockEntry('stdio', {
+        command: ['node', 'server.js'],
+        env: { NODE_OPTIONS: '--inspect' },
+      });
+
+      const result = await validateMcpConfig(entry);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes("'NODE_OPTIONS' is blocked"))).toBe(true);
+    });
   });
 
   describe('http/sse transport', () => {

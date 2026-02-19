@@ -30,6 +30,19 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
     return;
   }
   
+  // H-2 fix: Add Content-Security-Policy headers for SPA routes
+  fastify.addHook('onSend', async (request, reply) => {
+    if (request.url.startsWith('/app')) {
+      reply.header(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      );
+      reply.header('X-Content-Type-Options', 'nosniff');
+      reply.header('X-Frame-Options', 'DENY');
+      reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    }
+  });
+
   // Register static file serving for SPA assets
   const fastifyStatic = (await import('@fastify/static')).default;
   await fastify.register(fastifyStatic, {
@@ -40,8 +53,12 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
       // Cache static assets but not index.html
       if (filepath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache');
+      } else if (filepath.includes('/assets/')) {
+        // Content-hashed assets are immutable (SPA-002 fix)
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        // Other static assets: 30 days
+        res.setHeader('Cache-Control', 'public, max-age=2592000');
       }
     },
   });
@@ -52,9 +69,10 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
     return reply.sendFile('index.html');
   });
   
-  // Root redirect to SPA
-  fastify.get('/', async (_request, reply) => {
-    return reply.redirect('/app/dashboard');
+  // Root redirect to SPA (SPA-001 fix: check auth before redirect)
+  fastify.get('/', async (request, reply) => {
+    const userId = request.session?.userId;
+    return reply.redirect(userId ? '/app/dashboard' : '/app/login');
   });
   
   console.log('[SPA] Handler registered');

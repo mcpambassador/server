@@ -75,12 +75,19 @@ export async function registerAuthRoutes(
       // Reset rate limit on success
       rateLimiter.reset(sourceIp);
 
-      // H-2: Session fixation prevention
+      // M-2: Session fixation prevention (H-2)
       // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
       // nullify the request.session object, making it impossible to set properties afterward.
       // As a workaround, we manually clear existing session data to prevent data leakage.
       // LIMITATION: This does not regenerate the session ID, which is less secure than proper
       // session regeneration. Consider upgrading @fastify/session when a fixed version is available.
+      //
+      // RATIONALE for accepting this limitation:
+      // - Clearing session data prevents data leakage from prior sessions (primary risk)
+      // - Session fixation risk is partially mitigated by httpOnly, secure, and sameSite=strict cookies
+      // - Our authentication flow generates new sessions on first visit, reducing pre-auth fixation window
+      // - The alternative (broken session after login) is worse for security and UX
+      // - This is tracked for resolution when @fastify/session is patched
 
       // Clear any existing session data (prevents data leakage from previous sessions)
       if (request.session.userId) {

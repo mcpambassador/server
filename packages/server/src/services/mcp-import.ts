@@ -14,7 +14,9 @@ import {
   listMcpEntries,
   getGroupByName,
   grantGroupAccess,
+  updateMcpEntry,
 } from '@mcpambassador/core';
+import { validateMcpConfig } from './mcp-validator.js';
 
 /**
  * Import result
@@ -91,6 +93,19 @@ export async function importYamlMcps(
         }),
         last_validated_at: now,
       });
+
+      // M-3: Run validation on imported entry (don't trust YAML blindly)
+      const validationResult = await validateMcpConfig(entry);
+      if (!validationResult.valid) {
+        console.warn(`[MCP Import] Validation failed for ${yamlMcp.name}:`, validationResult.errors);
+        // Update entry to draft with failed validation
+        await updateMcpEntry(db, entry.mcp_id, {
+          status: 'draft',
+          validation_status: 'invalid',
+          validation_result: JSON.stringify(validationResult),
+        });
+        continue; // Don't assign to group if validation fails
+      }
 
       // Assign to all-users group
       if (allUsersGroup) {

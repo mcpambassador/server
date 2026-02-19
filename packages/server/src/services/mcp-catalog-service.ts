@@ -139,7 +139,9 @@ export async function updateMcpCatalogEntry(
     const structuralFields = ['transport_type', 'isolation_mode', 'requires_user_credentials'];
     const hasStructuralChanges = structuralFields.some((field) => field in updates);
     if (hasStructuralChanges) {
-      throw new Error('Cannot modify transport, isolation, or credential requirements for published MCPs');
+      // MCP-001: Generic error message to avoid info leakage
+      console.warn('[MCP Catalog] Blocked structural update on published MCP:', mcpId, Object.keys(updates));
+      throw new Error('PUBLISHED_MCP_STRUCTURAL_CHANGE');
     }
   }
 
@@ -262,18 +264,18 @@ export async function getAccessibleMcps(
   // Get user's groups
   const userGroups = await listUserGroups(db, userId);
 
-  // Get all MCPs accessible to these groups
-  const mcpAccessMap = new Map<string, boolean>();
+  // FIX 10: Collect unique MCP IDs across all groups (deduplication)
+  const mcpIdSet = new Set<string>();
   for (const userGroup of userGroups) {
     const mcpAccess = await listMcpsForGroup(db, userGroup.group_id);
     for (const access of mcpAccess) {
-      mcpAccessMap.set(access.mcp_id, true);
+      mcpIdSet.add(access.mcp_id);
     }
   }
 
-  // Fetch full MCP entries (only published ones)
+  // Batch fetch: get all entries (still N queries but deduplicated)
   const accessibleMcps: McpCatalogEntry[] = [];
-  for (const mcpId of mcpAccessMap.keys()) {
+  for (const mcpId of mcpIdSet) {
     const entry = await getMcpEntryById(db, mcpId);
     if (entry && entry.status === 'published') {
       accessibleMcps.push(entry);

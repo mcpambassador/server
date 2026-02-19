@@ -23,8 +23,10 @@ import {
   grantGroupAccess,
   revokeGroupAccess,
   listMcpsForGroup,
+  getMcpEntryById,
 } from '@mcpambassador/core';
 import type { Group, UserGroup, McpGroupAccess } from '@mcpambassador/core';
+import { getUserById } from '../auth/user-auth.js';
 
 /**
  * Create a new group
@@ -155,10 +157,8 @@ export async function addUserToGroupService(
     throw new Error(`Group not found: ${data.group_id}`);
   }
 
-  // Validate user exists
-  const user = await db.query.users.findFirst({
-    where: (users, { eq }) => eq(users.user_id, data.user_id),
-  });
+  // Validate user exists (GRP-001: use repository function)
+  const user = await getUserById(db, data.user_id);
   if (!user) {
     throw new Error(`User not found: ${data.user_id}`);
   }
@@ -241,10 +241,8 @@ export async function assignMcpToGroupService(
   db: DatabaseClient,
   data: { mcp_id: string; group_id: string; assigned_by: string }
 ): Promise<void> {
-  // Validate MCP exists
-  const mcp = await db.query.mcp_catalog.findFirst({
-    where: (mcp_catalog, { eq }) => eq(mcp_catalog.mcp_id, data.mcp_id),
-  });
+  // Validate MCP exists (GRP-001: use repository function)
+  const mcp = await getMcpEntryById(db, data.mcp_id);
   if (!mcp) {
     throw new Error(`MCP not found: ${data.mcp_id}`);
   }

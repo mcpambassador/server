@@ -9,7 +9,7 @@
  */
 
 import crypto from 'crypto';
-import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import type { FastifyInstance, FastifyPluginCallback, FastifyRequest } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
 import {
@@ -54,6 +54,15 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 ) => {
   const { db, audit } = opts;
 
+  /**
+   * Extract admin actor identifier from request
+   * GRP-002: Use truncated admin key as identifier instead of hardcoded 'admin'
+   */
+  function getAdminActor(request: FastifyRequest): string {
+    const key = (request.headers['x-admin-key'] as string) || '';
+    return key ? `admin:${key.slice(0, 8)}` : 'admin';
+  }
+
   // ==========================================================================
   // POST /v1/admin/groups - Create group
   // ==========================================================================
@@ -67,7 +76,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         name: body.name,
         description: body.description,
         status: body.status,
-        created_by: 'admin', // Admin key context
+        created_by: getAdminActor(request),
       });
 
       // Emit audit event
@@ -243,7 +252,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
       await addUserToGroupService(db, {
         user_id: body.user_id,
         group_id: groupId,
-        assigned_by: 'admin',
+        assigned_by: getAdminActor(request),
       });
 
       // Emit audit event
@@ -353,7 +362,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
       await assignMcpToGroupService(db, {
         mcp_id: body.mcp_id,
         group_id: groupId,
-        assigned_by: 'admin',
+        assigned_by: getAdminActor(request),
       });
 
       // Emit audit event
