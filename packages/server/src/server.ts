@@ -394,14 +394,12 @@ export class AmbassadorServer {
       prefix: '/',
     });
 
-    // Security headers hook (SEC-M10-01, SEC-M10-10)
+    // Security headers hook (SEC-M10-10)
+    // Note: Content-Security-Policy is intentionally set per-admin UI routes
+    // (packages/server/src/admin/ui-routes.ts) because those templates require
+    // specific allowances (e.g. 'unsafe-inline'). Do not set CSP here to avoid
+    // sending duplicate/more restrictive headers.
     this.adminServer.addHook('onSend', async (_request, reply, payload) => {
-      // SEC-M10-01: Content Security Policy
-      reply.header(
-        'Content-Security-Policy',
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
-      );
-
       // SEC-M10-10: Cache-Control for all admin responses
       reply.header('Cache-Control', 'no-store');
 

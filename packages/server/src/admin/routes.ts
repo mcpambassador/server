@@ -1175,9 +1175,13 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         },
       });
 
+      // Log the real error for debugging (do not expose internal details to clients)
+      // eslint-disable-next-line no-console
+      console.error('[Admin] HMAC rotation failed:', err instanceof Error ? err.message : err);
+
       return reply.status(500).send({
         error: 'Internal Server Error',
-        message: err instanceof Error ? err.message : 'Failed to rotate HMAC secret',
+        message: 'Failed to rotate HMAC secret',
       });
     }
   });
