@@ -89,6 +89,23 @@ export function compatCount(query: any): any {
 }
 
 /**
+ * Helper to get the raw SQLite client from a Drizzle database instance.
+ * Drizzle ORM stores the underlying better-sqlite3 client at db.session.client.
+ */
+function getSqliteClient(db: DatabaseClient): any {
+  const client = (db as any).session?.client;
+  if (client && typeof client.prepare === 'function') {
+    return client;
+  }
+  // Fallback: try $client (newer Drizzle versions)
+  const alt = (db as any).$client;
+  if (alt && typeof alt.prepare === 'function') {
+    return alt;
+  }
+  return null;
+}
+
+/**
  * Execute raw SQL (handles both database types)
  *
  * @param db Database client
@@ -100,9 +117,8 @@ export async function compatExecute(db: DatabaseClient, sql: string): Promise<an
     // PostgreSQL: use execute()
     return await (db as any).execute(sql);
   } else {
-    // SQLite: use prepare().run()
-    const client = (db as any).$client;
-    if (client && typeof client.prepare === 'function') {
+    const client = getSqliteClient(db);
+    if (client) {
       return client.prepare(sql).run();
     }
     throw new Error('SQLite prepare() method not available');
@@ -130,8 +146,8 @@ export async function compatTransaction<T>(
   if (isPostgres(db)) {
     await (db as any).execute('BEGIN');
   } else {
-    const client = (db as any).$client;
-    if (client && typeof client.prepare === 'function') {
+    const client = getSqliteClient(db);
+    if (client) {
       client.prepare('BEGIN IMMEDIATE').run();
     } else {
       throw new Error('SQLite prepare() method not available');
@@ -143,14 +159,14 @@ export async function compatTransaction<T>(
     if (isPostgres(db)) {
       await (db as any).execute('COMMIT');
     } else {
-      (db as any).$client.prepare('COMMIT').run();
+      getSqliteClient(db).prepare('COMMIT').run();
     }
     return result;
   } catch (err) {
     if (isPostgres(db)) {
       await (db as any).execute('ROLLBACK');
     } else {
-      (db as any).$client.prepare('ROLLBACK').run();
+      getSqliteClient(db).prepare('ROLLBACK').run();
     }
     throw err;
   }
