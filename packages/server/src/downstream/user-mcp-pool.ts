@@ -7,7 +7,7 @@ import type {
   ToolInvocationRequest,
   ToolInvocationResponse,
 } from './types.js';
-import { validateMcpConfig, validateToolName } from './types.js';
+import { validateMcpConfig, validateToolName, BLOCKED_ENV_VARS } from './types.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 
@@ -90,9 +90,13 @@ export class UserMcpPool {
    * Called when session transitions to 'active' (first connect or reconnect from suspended)
    *
    * M17.6: Enforces resource limits
+   * M26.4: Accepts optional credential environment variables for injection
+   *
+   * @param userId User UUID
+   * @param credentialEnvs Optional map of MCP name → env vars to inject
    * @throws ServiceUnavailableError if per-user or system-wide limit exceeded
    */
-  async spawnForUser(userId: string): Promise<void> {
+  async spawnForUser(userId: string, credentialEnvs?: Map<string, Record<string, string>>): Promise<void> {
     // Idempotent: if already spawned, return immediately
     const existingInstances = this.userInstances.get(userId);
     if (existingInstances && existingInstances.status === 'ready') {
@@ -153,26 +157,48 @@ export class UserMcpPool {
           // F-SEC-M6-001: Validate config before spawning
           validateMcpConfig(config);
 
+          // M26.4: Merge credential env vars if provided
+          let finalConfig = config;
+          if (credentialEnvs && credentialEnvs.has(config.name)) {
+            const credEnvVars = credentialEnvs.get(config.name)!;
+
+            // SEC-H3: Validate credential env var names against BLOCKED_ENV_VARS
+            for (const key of Object.keys(credEnvVars)) {
+              if (BLOCKED_ENV_VARS.includes(key.toUpperCase())) {
+                throw new Error(`Credential env var '${key}' matches blocked env var for ${config.name}`);
+              }
+            }
+
+            finalConfig = {
+              ...config,
+              env: {
+                ...config.env,
+                ...credEnvVars,
+              },
+            };
+            console.log(`[UserMcpPool] Injected ${Object.keys(credEnvVars).length} credential env vars for ${config.name}`);
+          }
+
           let connection: StdioMcpConnection | HttpMcpConnection | null = null;
 
-          if (config.transport === 'stdio') {
-            connection = new StdioMcpConnection(config);
+          if (finalConfig.transport === 'stdio') {
+            connection = new StdioMcpConnection(finalConfig);
             await connection.start();
-            instanceSet.connections.set(config.name, connection);
-          } else if (config.transport === 'http' || config.transport === 'sse') {
-            connection = new HttpMcpConnection(config);
+            instanceSet.connections.set(finalConfig.name, connection);
+          } else if (finalConfig.transport === 'http' || finalConfig.transport === 'sse') {
+            connection = new HttpMcpConnection(finalConfig);
             await connection.start();
-            instanceSet.connections.set(config.name, connection);
+            instanceSet.connections.set(finalConfig.name, connection);
           } else {
             console.warn(
               // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-              `[UserMcpPool] Unknown transport ${config.transport} for ${config.name}`
+              `[UserMcpPool] Unknown transport ${finalConfig.transport} for ${finalConfig.name}`
             );
           }
 
           // CR-M17-006: Register event handlers once (extracted to helper)
           if (connection) {
-            this.registerConnectionHandlers(connection, userId, config.name);
+            this.registerConnectionHandlers(connection, userId, finalConfig.name);
           }
         } catch (err) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions

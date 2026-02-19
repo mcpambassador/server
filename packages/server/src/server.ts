@@ -48,6 +48,7 @@ import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protoco
 import { BoundedSessionStore } from './admin/session.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import type { CredentialVault } from './services/credential-vault.js';
 
 /**
  * MCP Ambassador Server (M6)
@@ -114,6 +115,7 @@ export class AmbassadorServer {
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
+  private credentialVault: CredentialVault | null = null; // CR-H2: M26: Credential vault with proper type
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -230,6 +232,15 @@ export class AmbassadorServer {
 
     // Initialize AAA providers
     console.log('[Server] Initializing AAA providers...');
+    
+    // M26.8: Initialize credential vault and master key manager
+    console.log('[Server] Initializing credential vault...');
+    const { MasterKeyManager } = await import('./services/master-key-manager.js');
+    const { CredentialVault } = await import('./services/credential-vault.js');
+    const keyManager = new MasterKeyManager(this.config.dataDir);
+    const masterKey = await keyManager.loadMasterKey();
+    this.credentialVault = new CredentialVault(masterKey);
+    console.log('[Server] Credential vault initialized');
     
     // Initialize ephemeral auth provider with HMAC secret
     this.hmacSecret = getOrCreateHmacSecret(this.config.dataDir);
@@ -1155,6 +1166,24 @@ export class AmbassadorServer {
     const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
     await registerSelfServiceRoutes(this.fastify, {
       db: this.db!,
+    });
+
+    // M25: Register client and subscription routes
+    const { registerClientRoutes } = await import('./routes/clients.js');
+    await registerClientRoutes(this.fastify, { db: this.db! });
+
+    const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
+    await registerSubscriptionRoutes(this.fastify, { db: this.db! });
+
+    // M26.8: Register credential routes
+    const { registerCredentialRoutes } = await import('./routes/credentials.js');
+    if (!this.credentialVault) {
+      throw new Error('Credential vault not initialized');
+    }
+    await registerCredentialRoutes(this.fastify, {
+      db: this.db!,
+      vault: this.credentialVault,
+      userPool: this.userPool,
     });
 
     // M23.4: Register marketplace routes

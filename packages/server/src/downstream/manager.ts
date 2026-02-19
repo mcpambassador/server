@@ -10,6 +10,7 @@ import type {
 import { validateMcpConfig, validateToolName } from './types.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
+import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 
 /**
  * Downstream MCP Connection Manager
@@ -96,6 +97,58 @@ export class SharedMcpManager {
     console.log(
       `[SharedMcpManager] Initialized ${this.connections.size} connections, ${this.aggregatedTools.length} tools`
     );
+  }
+
+  /**
+   * Initialize shared MCPs from catalog
+   *
+   * M26.5: Alternative initialization path that loads from mcp_catalog
+   * instead of YAML config. Converts catalog entries to DownstreamMcpConfig format.
+   *
+   * @param _db Database client (unused, for future use)
+   * @param entries MCP catalog entries (pre-filtered for shared mode)
+   */
+  async initializeFromCatalog(_db: DatabaseClient, entries: McpCatalogEntry[]): Promise<void> {
+    console.log(`[SharedMcpManager] Initializing from catalog: ${entries.length} MCPs...`);
+
+    // Convert catalog entries to DownstreamMcpConfig format
+    const configs: DownstreamMcpConfig[] = entries.map(entry => {
+      const config = JSON.parse(entry.config) as Record<string, unknown>;
+
+      // Base config
+      const mcpConfig: DownstreamMcpConfig = {
+        name: entry.name,
+        transport: entry.transport_type as 'stdio' | 'http' | 'sse',
+      };
+
+      // Add transport-specific fields from catalog config
+      if (entry.transport_type === 'stdio') {
+        // Command is stored as separate command and args in catalog, but DownstreamMcpConfig expects command array
+        const command = config.command as string;
+        const args = (config.args as string[]) || [];
+        mcpConfig.command = [command, ...args];
+
+        if (config.env) {
+          mcpConfig.env = config.env as Record<string, string>;
+        }
+        if (config.cwd) {
+          mcpConfig.cwd = config.cwd as string;
+        }
+      } else if (entry.transport_type === 'http' || entry.transport_type === 'sse') {
+        mcpConfig.url = config.url as string;
+        if (config.headers) {
+          mcpConfig.headers = config.headers as Record<string, string>;
+        }
+        if (config.timeout_ms) {
+          mcpConfig.timeout_ms = config.timeout_ms as number;
+        }
+      }
+
+      return mcpConfig;
+    });
+
+    // Use existing initialize() method
+    await this.initialize(configs);
   }
 
   /**

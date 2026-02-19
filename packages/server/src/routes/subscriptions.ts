@@ -1,0 +1,234 @@
+/**
+ * Subscription Routes
+ *
+ * User self-service subscription management endpoints.
+ * All routes require user session authentication.
+ *
+ * @see M25.5: Subscription Routes
+ * @see Architecture §4.2 Client Subscription Management
+ */
+
+import type { FastifyInstance } from 'fastify';
+import type { DatabaseClient } from '@mcpambassador/core';
+import { requireUserSession } from '../auth/user-session.js';
+import {
+  subscribeClientToMcp,
+  updateSubscription,
+  listClientSubscriptions,
+  getSubscriptionDetail,
+  removeSubscription,
+} from '../services/subscription-service.js';
+import {
+  createSubscriptionSchema,
+  updateSubscriptionSchema,
+  subscriptionParamsSchema,
+  clientSubscriptionParamsSchema,
+} from './schemas.js';
+
+export interface SubscriptionRoutesConfig {
+  db: DatabaseClient;
+}
+
+/**
+ * Register subscription routes
+ */
+export async function registerSubscriptionRoutes(
+  fastify: FastifyInstance,
+  config: SubscriptionRoutesConfig
+): Promise<void> {
+  const { db } = config;
+
+  // ==========================================================================
+  // GET /v1/users/me/clients/:clientId/subscriptions - List subscriptions
+  // ==========================================================================
+  fastify.get(
+    '/v1/users/me/clients/:clientId/subscriptions',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+      const params = clientSubscriptionParamsSchema.parse(request.params);
+
+      try {
+        const subscriptions = await listClientSubscriptions(db, {
+          userId,
+          clientId: params.clientId,
+        });
+
+        return reply.status(200).send({
+          data: subscriptions,
+        });
+      } catch (error: any) {
+        if (error.message.includes('not found') || error.message.includes('access denied')) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: 'Client not found',
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // POST /v1/users/me/clients/:clientId/subscriptions - Subscribe to MCP
+  // ==========================================================================
+  fastify.post(
+    '/v1/users/me/clients/:clientId/subscriptions',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+      const params = clientSubscriptionParamsSchema.parse(request.params);
+
+      try {
+        const body = createSubscriptionSchema.parse(request.body);
+
+        const subscription = await subscribeClientToMcp(db, {
+          userId,
+          clientId: params.clientId,
+          mcpId: body.mcp_id,
+          selectedTools: body.selected_tools,
+        });
+
+        return reply.status(201).send({
+          data: subscription,
+        });
+      } catch (error: any) {
+        if (error.message.includes('not found')) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+        if (error.message.includes('access denied') || error.message.includes('does not have access')) {
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: error.message,
+          });
+        }
+        if (error.message.includes('already subscribed') || error.message.includes('requires')) {
+          return reply.status(400).send({
+            error: 'Bad Request',
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // GET /v1/users/me/clients/:clientId/subscriptions/:subscriptionId - Get detail
+  // ==========================================================================
+  fastify.get(
+    '/v1/users/me/clients/:clientId/subscriptions/:subscriptionId',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+      const params = subscriptionParamsSchema.parse(request.params);
+
+      try {
+        const subscription = await getSubscriptionDetail(db, {
+          userId,
+          clientId: params.clientId,
+          subscriptionId: params.subscriptionId,
+        });
+
+        return reply.status(200).send({
+          data: subscription,
+        });
+      } catch (error: any) {
+        if (error.message.includes('not found') || error.message.includes('does not belong')) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: 'Subscription not found',
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // PATCH /v1/users/me/clients/:clientId/subscriptions/:subscriptionId - Update
+  // ==========================================================================
+  fastify.patch(
+    '/v1/users/me/clients/:clientId/subscriptions/:subscriptionId',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+      const params = subscriptionParamsSchema.parse(request.params);
+
+      try {
+        const body = updateSubscriptionSchema.parse(request.body);
+
+        await updateSubscription(db, {
+          userId,
+          clientId: params.clientId,
+          subscriptionId: params.subscriptionId,
+          selectedTools: body.selected_tools,
+          status: body.status,
+        });
+
+        const subscription = await getSubscriptionDetail(db, {
+          userId,
+          clientId: params.clientId,
+          subscriptionId: params.subscriptionId,
+        });
+
+        return reply.status(200).send({
+          data: subscription,
+        });
+      } catch (error: any) {
+        if (error.message.includes('not found') || error.message.includes('does not belong')) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: 'Subscription not found',
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // DELETE /v1/users/me/clients/:clientId/subscriptions/:subscriptionId - Remove
+  // ==========================================================================
+  fastify.delete(
+    '/v1/users/me/clients/:clientId/subscriptions/:subscriptionId',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+      const params = subscriptionParamsSchema.parse(request.params);
+
+      try {
+        await removeSubscription(db, {
+          userId,
+          clientId: params.clientId,
+          subscriptionId: params.subscriptionId,
+        });
+
+        return reply.status(204).send();
+      } catch (error: any) {
+        if (error.message.includes('not found') || error.message.includes('does not belong')) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: 'Subscription not found',
+          });
+        }
+        throw error;
+      }
+    }
+  );
+
+  console.log('[SubscriptionRoutes] Registered subscription management routes');
+}

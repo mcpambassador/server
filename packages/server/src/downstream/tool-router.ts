@@ -7,6 +7,7 @@ import type {
   ToolInvocationRequest,
   ToolInvocationResponse,
 } from './types.js';
+import type { DatabaseClient } from '@mcpambassador/core';
 
 /**
  * Combined MCP Status
@@ -123,5 +124,97 @@ export class ToolRouter {
       shared: this.sharedManager.getStatus(),
       perUser: this.userPool.getStatus(),
     };
+  }
+
+  /**
+   * Get subscription-filtered catalog for a client
+   *
+   * M25.7: Returns tools filtered by the client's active subscriptions.
+   * This is intended for use by the MCP protocol handler when a client connects.
+   *
+   * @param db Database client
+   * @param clientId Client UUID
+   * @returns Aggregated tools based on client's subscriptions
+   */
+  async getSubscriptionFilteredCatalog(
+    db: DatabaseClient,
+    clientId: string
+  ): Promise<AggregatedTool[]> {
+    // Import catalog resolver service
+    const { resolveEffectiveTools } = await import('../services/catalog-resolver.js');
+    return resolveEffectiveTools(db, clientId);
+  }
+
+  /**
+   * Get isolation-mode-aware tool catalog for a user
+   *
+   * M26.6: Returns tools considering isolation_mode from catalog.
+   * - Shared MCPs: get tools from SharedMcpManager
+   * - Per-user MCPs: get tools from UserMcpPool
+   * - Applies subscription tool selection filters
+   *
+   * @param db Database client
+   * @param userId User UUID
+   * @param clientId Client UUID
+   * @returns Aggregated tools based on isolation mode and subscriptions
+   */
+  async getIsolationAwareToolCatalog(
+    db: DatabaseClient,
+    userId: string,
+    clientId: string
+  ): Promise<AggregatedTool[]> {
+    // Get client's subscriptions
+    const { listClientSubscriptions } = await import('../services/subscription-service.js');
+    const subscriptions = await listClientSubscriptions(db, { userId, clientId });
+
+    const tools: AggregatedTool[] = [];
+    const seenToolNames = new Set<string>();
+
+    for (const sub of subscriptions) {
+      if (sub.status !== 'active') {
+        continue;
+      }
+
+      // Get MCP entry from catalog
+      const { getMcpEntryById } = await import('@mcpambassador/core');
+      const mcpEntry = await getMcpEntryById(db, sub.mcp_id);
+      if (!mcpEntry) {
+        console.warn(`[ToolRouter] MCP ${sub.mcp_id} not found in catalog`);
+        continue;
+      }
+
+      let mcpTools: AggregatedTool[] = [];
+
+      // Route to correct manager based on isolation_mode
+      if (mcpEntry.isolation_mode === 'shared') {
+        // Get tools from SharedMcpManager
+        const sharedTools = this.sharedManager.getToolCatalog();
+        mcpTools = sharedTools.filter(tool => tool.source_mcp === mcpEntry.name);
+      } else if (mcpEntry.isolation_mode === 'per_user') {
+        // Get tools from UserMcpPool
+        const userTools = this.userPool.getToolCatalog(userId);
+        mcpTools = userTools.filter(tool => tool.source_mcp === mcpEntry.name);
+      }
+
+      // Apply tool selection filter if specified
+      if (sub.selected_tools && sub.selected_tools.length > 0) {
+        const selectedSet = new Set(sub.selected_tools);
+        mcpTools = mcpTools.filter(tool => selectedSet.has(tool.name));
+      }
+
+      // Add tools to result (deduplicate by name, first wins)
+      for (const tool of mcpTools) {
+        if (!seenToolNames.has(tool.name)) {
+          tools.push(tool);
+          seenToolNames.add(tool.name);
+        } else {
+          console.warn(
+            `[ToolRouter] Tool name conflict: ${tool.name} already seen, skipping`
+          );
+        }
+      }
+    }
+
+    return tools;
   }
 }

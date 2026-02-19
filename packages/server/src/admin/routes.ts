@@ -15,6 +15,7 @@ import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { authenticateAdmin } from './middleware.js';
+import { z } from 'zod';
 import {
   createProfileSchema,
   updateProfileSchema,
@@ -1336,6 +1337,127 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   // M23: Register MCP catalog management routes
   // ==========================================================================
   fastify.register(registerAdminMcpRoutes, { db, audit });
+
+  // ==========================================================================
+  // M26.7: POST /v1/admin/rotate-credential-key - Rotate credential vault master key
+  // ==========================================================================
+  fastify.post('/v1/admin/rotate-credential-key', async (request, reply) => {
+    const bodySchema = z
+      .object({
+        new_key: z.string().length(64).regex(/^[0-9a-fA-F]+$/),
+      })
+      .strict();
+
+    const bodyResult = bodySchema.safeParse(request.body);
+    if (!bodyResult.success) {
+      return reply.status(400).send({
+        error: 'Invalid request',
+        details: bodyResult.error.issues,
+      });
+    }
+
+    const { new_key } = bodyResult.data;
+    const newMasterKey = Buffer.from(new_key, 'hex');
+    let currentMasterKey: Buffer | null = null;
+    let tmpKeyPath: string | null = null;
+
+    try {
+      // Import vault and key manager
+      const { CredentialVault } = await import('../services/credential-vault.js');
+      const { MasterKeyManager } = await import('../services/master-key-manager.js');
+
+      // Load current master key
+      const keyManager = new MasterKeyManager(dataDir);
+      currentMasterKey = await keyManager.loadMasterKey();
+      const currentVault = new CredentialVault(currentMasterKey);
+
+      // Get all credentials from database
+      const {
+        updateCredential,
+        user_mcp_credentials,
+        compatSelect,
+        compatTransaction,
+      } = await import('@mcpambassador/core');
+
+      const allCredentials = await compatSelect(db).from(user_mcp_credentials);
+
+      console.log(`[Admin] Starting credential re-encryption for ${allCredentials.length} credentials...`);
+
+      // SEC-M2: Write key file FIRST (to temp), then DB transaction, then rename
+      const keyPath = require('path').join(dataDir, 'credential_master_key');
+      tmpKeyPath = keyPath + '.tmp';
+      require('fs').mkdirSync(dataDir, { recursive: true });
+      require('fs').writeFileSync(tmpKeyPath, newMasterKey.toString('hex'), { mode: 0o600 });
+
+      // Re-encrypt all credentials in a transaction
+      await compatTransaction(db, async () => {
+        for (const cred of allCredentials) {
+          // Get user's vault_salt
+          const user = await db.query.users.findFirst({
+            where: (users: any, { eq }: any) => eq(users.user_id, cred.user_id),
+          });
+
+          if (!user || !user.vault_salt) {
+            console.warn(`[Admin] User ${cred.user_id} has no vault_salt, skipping credential ${cred.credential_id}`);
+            continue;
+          }
+
+          // Re-encrypt with new key
+          const { encryptedCredentials, iv } = currentVault.reEncrypt(
+            user.vault_salt,
+            cred.encrypted_credentials,
+            cred.encryption_iv,
+            newMasterKey
+          );
+
+          // Update in database
+          await updateCredential(db, cred.credential_id, {
+            encrypted_credentials: encryptedCredentials,
+            encryption_iv: iv,
+          });
+        }
+      });
+
+      // Atomic rename: tmpKeyPath -> keyPath
+      require('fs').renameSync(tmpKeyPath, keyPath);
+      tmpKeyPath = null; // Mark as committed
+
+      // SEC-H1: Update the live vault instance with new master key
+      const serverInstance = request.server as any;
+      if (serverInstance.credentialVault) {
+        serverInstance.credentialVault.updateMasterKey(newMasterKey);
+      }
+
+      const completedAt = new Date().toISOString();
+
+      console.log(`[Admin] Credential master key rotation complete: ${allCredentials.length} credentials re-encrypted`);
+
+      return reply.status(200).send({
+        rotated_count: allCredentials.length,
+        completed_at: completedAt,
+      });
+    } catch (err) {
+      console.error('[Admin] Credential key rotation failed:', err);
+      // If transaction failed and temp file exists, delete it
+      if (tmpKeyPath) {
+        try {
+          require('fs').unlinkSync(tmpKeyPath);
+        } catch (unlinkErr) {
+          // Ignore cleanup errors
+        }
+      }
+      return reply.status(500).send({
+        error: 'Internal Server Error',
+        message: 'Failed to rotate credential master key',
+      });
+    } finally {
+      // SEC-H2: Zero master key buffers from heap
+      if (currentMasterKey) {
+        currentMasterKey.fill(0);
+      }
+      newMasterKey.fill(0);
+    }
+  });
 
   done();
 };

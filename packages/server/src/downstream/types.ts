@@ -28,7 +28,7 @@ export interface DownstreamMcpConfig {
 /**
  * F-SEC-M6-001: Security-sensitive environment variables that must not be overridden
  */
-const BLOCKED_ENV_VARS = [
+export const BLOCKED_ENV_VARS = [
   'PATH',
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',

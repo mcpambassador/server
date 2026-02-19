@@ -13,6 +13,7 @@ import type { DatabaseClient } from '@mcpambassador/core';
 import { hashPassword, verifyPassword } from './password-policy.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getGroupByName, addUserToGroup } from '@mcpambassador/core';
+import crypto from 'crypto';
 
 /**
  * Pre-computed dummy hash for timing attack mitigation
@@ -94,6 +95,9 @@ export async function createUser(
 
   const userId = uuidv4();
 
+  // M26.9: Generate vault_salt for credential encryption
+  const vaultSalt = crypto.randomBytes(32).toString('hex');
+
   await compatInsert(db, users).values({
     user_id: userId,
     username: data.username,
@@ -106,7 +110,7 @@ export async function createUser(
     created_at: timestamp,
     updated_at: timestamp,
     last_login_at: null,
-    vault_salt: null,
+    vault_salt: vaultSalt,
     metadata: '{}',
   });
 
