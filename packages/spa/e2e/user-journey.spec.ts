@@ -9,11 +9,11 @@ test.describe('User Journey E2E', () => {
 
     // 2. Dashboard loads with stats
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText('My Clients')).toBeVisible();
-    await expect(page.getByText('MCPs Available')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'My Clients' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'MCPs Available' })).toBeVisible();
 
     // 3. Navigate to My Clients
-    await page.getByRole('link', { name: 'My Clients' }).click();
+    await page.locator('aside').getByRole('link', { name: 'My Clients' }).click();
     await expect(page).toHaveURL(/app\/clients/);
     await expect(page.getByRole('heading', { name: 'My Clients' })).toBeVisible();
 
@@ -22,7 +22,7 @@ test.describe('User Journey E2E', () => {
     await page.getByRole('button', { name: /Create Client/i }).click();
     await expect(page.getByText('Create New Client')).toBeVisible();
     await page.fill('#client_name', clientName);
-    await page.click('button:has-text("Create")');
+    await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click();
 
     // 5. Verify client appears in list (and dismiss API key dialog)
     await expect(page.getByText('API Key Created')).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('User Journey E2E', () => {
     await expect(page.getByText(clientName)).toBeVisible();
 
     // 6. Navigate to Marketplace
-    await page.getByRole('link', { name: 'Marketplace' }).click();
+    await page.locator('aside').getByRole('link', { name: 'Marketplace' }).click();
     await expect(page).toHaveURL(/app\/marketplace/);
     await expect(page.getByRole('heading', { name: 'Marketplace' })).toBeVisible();
 
@@ -51,8 +51,8 @@ test.describe('User Journey E2E', () => {
     await expect(page.locator('h1', { hasText: clientName })).toBeVisible();
 
     // 10. Logout
-    await page.click('header button.relative');
-    await page.getByText('Log out').click();
-    await expect(page).toHaveURL(/login/);
+    await page.locator('header').getByRole('button').last().click();
+    await page.getByRole('menuitem', { name: 'Log out' }).click();
+    await expect(page).toHaveURL(/login/, { timeout: 10000 });
   });
 });

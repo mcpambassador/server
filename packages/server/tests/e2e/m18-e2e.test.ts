@@ -132,7 +132,7 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
     expect(userId).toBeTruthy();
 
     // List users — created user should appear
-    const list = await adminRequest('GET', '/v1/admin/users?status=active&limit=50');
+    const list = await adminRequest('GET', '/v1/admin/users?status=active&limit=100');
     expect(list.statusCode).toBe(200);
     const users = list.body?.data ?? list.body?.users ?? [];
     expect(users.find((u: Record<string, unknown>) => u.user_id === userId)).toBeTruthy();
@@ -176,10 +176,10 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
       client_name: 'e2e-m18-key',
     });
     expect(pkCreate.statusCode).toBe(201);
-    const plaintext: string = pkCreate.body?.plaintext_key ?? '';
+    const plaintext: string = pkCreate.body?.data?.plaintext_key ?? '';
     expect(plaintext.startsWith('amb_pk_')).toBe(true);
 
-    const keyId: string = pkCreate.body?.client_id ?? pkCreate.body?.key_id ?? '';
+    const keyId: string = pkCreate.body?.data?.client_id ?? pkCreate.body?.data?.key_id ?? '';
     expect(keyId).toBeTruthy();
 
     // List keys — key appears, NO hash leaked
@@ -234,7 +234,7 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
       client_name: 'e2e-m18-integ-key',
     });
     expect(pk.statusCode).toBe(201);
-    const plaintext: string = pk.body?.plaintext_key ?? '';
+    const plaintext: string = pk.body?.data?.plaintext_key ?? '';
     expect(plaintext.startsWith('amb_pk_')).toBe(true);
 
     // 4. Register session on MAIN server (port 8443)

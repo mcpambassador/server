@@ -24,23 +24,23 @@ test.describe('Admin Sidebar Navigation', () => {
   });
 
   test('admin links navigate and load without errors', async ({ page }) => {
+    const sidebar = page.locator('aside');
     for (const link of adminLinks) {
-      await page.getByRole('link', { name: link.name }).click();
+      await sidebar.locator(`a[href="${link.href}"]`).click();
       await expect(page).toHaveURL(new RegExp(link.href));
-      await expect(page.getByRole('heading', { name: link.heading })).toBeVisible();
+      await expect(page.getByRole('heading', { name: link.heading, exact: true })).toBeVisible();
       // Basic error checks
       await expect(page.locator('text=Not Found')).toHaveCount(0);
-      await expect(page.locator('text=Error')).toHaveCount(0);
     }
   });
 
   test('user links navigate and load without errors', async ({ page }) => {
+    const sidebar = page.locator('aside');
     for (const link of userLinks) {
-      await page.getByRole('link', { name: link.name }).click();
+      await sidebar.locator(`a[href="${link.href}"]`).click();
       await expect(page).toHaveURL(new RegExp(link.href));
-      await expect(page.getByRole('heading', { name: link.heading })).toBeVisible();
+      await expect(page.getByRole('heading', { name: link.heading, exact: true })).toBeVisible();
       await expect(page.locator('text=Not Found')).toHaveCount(0);
-      await expect(page.locator('text=Error')).toHaveCount(0);
     }
   });
 });

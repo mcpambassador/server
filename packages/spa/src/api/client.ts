@@ -30,7 +30,7 @@ async function request<T>(
     ...fetchOptions,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(fetchOptions.body ? { 'Content-Type': 'application/json' } : {}),
       ...fetchOptions.headers,
     },
   });
