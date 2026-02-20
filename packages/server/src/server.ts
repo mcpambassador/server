@@ -416,8 +416,57 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
     });
 
+    // Register user-facing API routes on admin server (M29.7)
+    // This allows the SPA served on port 9443 to make API calls to the same port
+    console.log('[Admin] Registering user-facing API routes...');
+
+    // Health endpoint for SPA
+    this.adminServer.get('/health', async (_request, reply) => {
+      return reply.send({ status: 'ok' });
+    });
+
+    // Auth routes
+    const { registerAuthRoutes } = await import('./auth/routes.js');
+    await registerAuthRoutes(this.adminServer, {
+      db: this.db!,
+    });
+
+    // Self-service routes
+    const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
+    await registerSelfServiceRoutes(this.adminServer, {
+      db: this.db!,
+    });
+
+    // Client routes
+    const { registerClientRoutes } = await import('./routes/clients.js');
+    await registerClientRoutes(this.adminServer, { db: this.db! });
+
+    // Subscription routes
+    const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
+    await registerSubscriptionRoutes(this.adminServer, { db: this.db! });
+
+    // Credential routes
+    const { registerCredentialRoutes } = await import('./routes/credentials.js');
+    if (!this.credentialVault) {
+      throw new Error('Credential vault not initialized before admin server');
+    }
+    await registerCredentialRoutes(this.adminServer, {
+      db: this.db!,
+      vault: this.credentialVault,
+      userPool: this.userPool,
+    });
+
+    // Marketplace routes
+    const { registerMarketplaceRoutes } = await import('./routes/marketplace.js');
+    await registerMarketplaceRoutes(this.adminServer, {
+      db: this.db!,
+    });
+
+    console.log('[Admin] User-facing API routes registered');
+
     // Register SPA handler on admin server (M29.5)
     // This allows the React admin UI to be served on the admin port
+    // IMPORTANT: Must be registered LAST to avoid intercepting API routes
     const { registerSpaHandler } = await import('./spa-handler.js');
     await registerSpaHandler(this.adminServer);
 
