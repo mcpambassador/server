@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { ArrowLeft, Shield, Key, User } from 'lucide-react';
+import { ArrowLeftIcon, ShieldCheckIcon, KeyIcon, UserIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
@@ -25,8 +25,8 @@ export function UserDetail() {
   if (userLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200" />
-        <div className="animate-pulse h-48 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-48 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
       </div>
     );
   }
@@ -35,10 +35,10 @@ export function UserDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/users">
-          <ArrowLeft data-slot="icon" />
+          <ArrowLeftIcon data-slot="icon" />
           Back to Users
         </Button>
-        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
           <Heading level={3}>User Not Found</Heading>
           <Text className="mt-2">The requested user could not be found.</Text>
         </div>
@@ -49,7 +49,7 @@ export function UserDetail() {
   return (
     <div className="space-y-6">
       <Button plain href="/app/admin/users">
-        <ArrowLeft data-slot="icon" />
+        <ArrowLeftIcon data-slot="icon" />
         Back to Users
       </Button>
 
@@ -63,7 +63,7 @@ export function UserDetail() {
           <div className="flex items-center gap-2">
             {user.is_admin && (
               <Badge color="blue">
-                <Shield data-slot="icon" />
+                <ShieldCheckIcon data-slot="icon" />
                 Admin
               </Badge>
             )}
@@ -75,39 +75,39 @@ export function UserDetail() {
       </div>
 
       {/* User Information */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-        <div className="px-6 py-4 border-b border-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>User Information</Heading>
         </div>
         <div className="px-6 py-6">
           <dl className="grid gap-6 sm:grid-cols-2">
             <div>
-              <dt className="text-sm font-medium text-zinc-500">User ID</dt>
-              <dd className="mt-1 text-sm text-zinc-900">
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">User ID</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
                 <Text className="font-mono">{user.user_id}</Text>
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Username</dt>
-              <dd className="mt-1 text-sm text-zinc-900">{user.username}</dd>
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Username</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{user.username}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Email</dt>
-              <dd className="mt-1 text-sm text-zinc-900">{user.email || '—'}</dd>
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Email</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{user.email || '—'}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Display Name</dt>
-              <dd className="mt-1 text-sm text-zinc-900">{user.display_name || '—'}</dd>
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{user.display_name || '—'}</dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Created</dt>
-              <dd className="mt-1 text-sm text-zinc-900">
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
                 {new Date(user.created_at).toLocaleString()}
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Last Login</dt>
-              <dd className="mt-1 text-sm text-zinc-900">
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Login</dt>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
                 {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '—'}
               </dd>
             </div>
@@ -115,11 +115,11 @@ export function UserDetail() {
           <Divider className="my-6" />
           <div className="flex gap-2">
             <Button color="zinc">
-              <Key data-slot="icon" />
+              <KeyIcon data-slot="icon" />
               Reset Password
             </Button>
             <Button color="zinc">
-              <User data-slot="icon" />
+              <UserIcon data-slot="icon" />
               Edit User
             </Button>
           </div>
@@ -127,27 +127,27 @@ export function UserDetail() {
       </div>
 
       {/* Group Memberships */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-        <div className="px-6 py-4 border-b border-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>Group Memberships</Heading>
           <Text className="mt-1">Groups this user belongs to</Text>
         </div>
         <div className="px-6 py-6">
           {groupsLoading ? (
             <div className="space-y-2">
-              <div className="animate-pulse h-16 w-full rounded bg-zinc-200" />
-              <div className="animate-pulse h-16 w-full rounded bg-zinc-200" />
+              <div className="animate-pulse h-16 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="animate-pulse h-16 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
             </div>
           ) : userGroups.length > 0 ? (
             <div className="space-y-3">
               {userGroups.map((group: any) => (
                 <div
                   key={group.group_id}
-                  className="flex items-center justify-between rounded-lg border border-zinc-950/5 p-4"
+                  className="flex items-center justify-between rounded-lg border border-zinc-950/5 dark:border-white/10 p-4"
                 >
                   <div>
-                    <Text className="font-medium text-zinc-900">{group.name}</Text>
-                    <Text className="text-sm text-zinc-500">{group.description}</Text>
+                    <Text className="font-medium text-zinc-900 dark:text-white">{group.name}</Text>
+                    <Text className="text-sm text-zinc-500 dark:text-zinc-400">{group.description}</Text>
                   </div>
                   <Button color="zinc" href={`/app/admin/groups/${group.group_id}`}>
                     View
@@ -156,14 +156,14 @@ export function UserDetail() {
               ))}
             </div>
           ) : (
-            <Text className="text-zinc-500">Not a member of any groups</Text>
+            <Text className="text-zinc-500 dark:text-zinc-400">Not a member of any groups</Text>
           )}
         </div>
       </div>
 
       {/* Recent Activity */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-        <div className="px-6 py-4 border-b border-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>Recent Activity</Heading>
           <Text className="mt-1">Audit log entries for this user</Text>
         </div>
@@ -171,17 +171,17 @@ export function UserDetail() {
           {auditLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-16 w-full rounded bg-zinc-200" />
+                <div key={i} className="animate-pulse h-16 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
               ))}
             </div>
           ) : auditData && auditData.data.length > 0 ? (
-            <div className="divide-y divide-zinc-950/5">
+            <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
               {auditData.data.map((event) => (
                 <div key={event.event_id} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <Text className="font-medium text-zinc-900">{event.action}</Text>
-                      <Text className="text-sm text-zinc-500">
+                      <Text className="font-medium text-zinc-900 dark:text-white">{event.action}</Text>
+                      <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                         {event.event_type} • {event.source_ip}
                       </Text>
                     </div>
@@ -197,7 +197,7 @@ export function UserDetail() {
                       >
                         {event.severity}
                       </Badge>
-                      <Text className="mt-1 text-xs text-zinc-500">
+                      <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         {new Date(event.timestamp).toLocaleString()}
                       </Text>
                     </div>
@@ -206,7 +206,7 @@ export function UserDetail() {
               ))}
             </div>
           ) : (
-            <Text className="text-zinc-500">No recent activity</Text>
+            <Text className="text-zinc-500 dark:text-zinc-400">No recent activity</Text>
           )}
         </div>
       </div>

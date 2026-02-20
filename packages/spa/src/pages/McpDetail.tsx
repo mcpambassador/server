@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  CubeIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
@@ -60,16 +65,16 @@ export function McpDetail() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200" />
-        <div className="animate-pulse h-32 w-full rounded bg-zinc-200" />
-        <div className="animate-pulse h-64 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-32 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-64 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
       </div>
     );
   }
 
   if (!mcp) {
     return (
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
         <Heading level={3}>MCP Not Found</Heading>
         <Text className="mt-2">The requested MCP could not be found.</Text>
         <div className="mt-4">
@@ -84,7 +89,7 @@ export function McpDetail() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button plain href="/app/marketplace">
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeftIcon />
         </Button>
         <div className="flex-1">
           <Heading>{mcp.name}</Heading>
@@ -95,7 +100,7 @@ export function McpDetail() {
       {/* Credential Alerts */}
       {requiresCredentials && !hasCredentials && (
         <InlineAlert color="warning">
-          <AlertCircle className="h-4 w-4" />
+          <ExclamationCircleIcon className="size-4" />
           <InlineAlertTitle>Credentials Required</InlineAlertTitle>
           <InlineAlertDescription>
             This MCP requires user credentials to function.{' '}
@@ -109,7 +114,7 @@ export function McpDetail() {
 
       {requiresCredentials && hasCredentials && (
         <InlineAlert color="success">
-          <CheckCircle2 className="h-4 w-4" />
+          <CheckCircleIcon className="size-4" />
           <InlineAlertTitle>Credentials Configured</InlineAlertTitle>
           <InlineAlertDescription>
             You have already configured credentials for this MCP.
@@ -118,32 +123,32 @@ export function McpDetail() {
       )}
 
       {/* MCP Details Panel */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-4">MCP Details</Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Isolation Mode</dt>
-            <dd className="mt-1 text-sm text-zinc-900">
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Isolation Mode</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
               <Badge color="zinc">
                 {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
               </Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Credentials Required</dt>
-            <dd className="mt-1 text-sm text-zinc-900">
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Credentials Required</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
               <Badge color="zinc">
                 {requiresCredentials ? 'Yes' : 'No'}
               </Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Tools Available</dt>
-            <dd className="mt-1 text-sm text-zinc-900 font-semibold">{mcp.tools.length}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Tools Available</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white font-semibold">{mcp.tools.length}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Created</dt>
-            <dd className="mt-1 text-sm text-zinc-900 font-semibold">
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white font-semibold">
               {new Date(mcp.createdAt).toLocaleDateString()}
             </dd>
           </div>
@@ -151,18 +156,18 @@ export function McpDetail() {
       </div>
 
       {/* Tools List Panel */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-2">Available Tools</Heading>
         <Text className="mb-4">Tools provided by this MCP</Text>
         {mcp.tools.length === 0 ? (
-          <Text className="text-zinc-500">No tools available</Text>
+          <Text className="text-zinc-500 dark:text-zinc-400">No tools available</Text>
         ) : (
           <div className="space-y-4">
             {mcp.tools.map((tool) => (
-              <div key={tool.name} className="border-l-2 border-zinc-300 pl-4 py-2">
-                <p className="font-medium text-zinc-900">{tool.name}</p>
+              <div key={tool.name} className="border-l-2 border-zinc-300 dark:border-zinc-600 pl-4 py-2">
+                <p className="font-medium text-zinc-900 dark:text-white">{tool.name}</p>
                 {tool.description && (
-                  <p className="text-sm text-zinc-500 mt-1">{tool.description}</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
                 )}
               </div>
             ))}
@@ -176,7 +181,7 @@ export function McpDetail() {
           onClick={openSubscribeDialog}
           disabled={activeClients.length === 0 || (requiresCredentials && !hasCredentials)}
         >
-          <Package className="mr-2 h-4 w-4" />
+          <CubeIcon data-slot="icon" />
           Subscribe to this MCP
         </Button>
       </div>
@@ -204,10 +209,10 @@ export function McpDetail() {
 
             <div className="space-y-2">
               <Label>Select Tools (optional)</Label>
-              <Text className="text-sm text-zinc-500">
+              <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                 Leave all selected to enable all tools
               </Text>
-              <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 p-4">
+              <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
                 {mcp.tools.map((tool) => (
                   <CheckboxField key={tool.name}>
                     <Checkbox

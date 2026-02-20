@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Key, Trash2, Edit, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  KeyIcon,
+  TrashIcon,
+  PencilIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
@@ -81,9 +87,9 @@ export function Credentials() {
       </div>
 
       {/* MCP Credentials Panel */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 shadow-sm">
-        <div className="px-6 py-5 border-b border-zinc-950/5">
-          <h2 className="text-base font-semibold text-zinc-900">MCP Credentials</h2>
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 shadow-sm">
+        <div className="px-6 py-5 border-b border-zinc-950/5 dark:border-white/10">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-white">MCP Credentials</h2>
           <Text className="mt-1">Some MCPs require credentials to access external services. Configure them here.</Text>
         </div>
 
@@ -105,20 +111,20 @@ export function Credentials() {
                   <TableRow key={i}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="animate-pulse h-4 w-4 rounded bg-zinc-200" />
-                        <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-4 w-4 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200" />
+                      <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="animate-pulse h-4 w-40 rounded bg-zinc-200" />
+                      <div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
-                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -127,7 +133,7 @@ export function Credentials() {
                 // Empty state
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-12">
-                    <Text className="text-zinc-500">No MCPs require credentials</Text>
+                    <Text className="text-zinc-500 dark:text-zinc-400">No MCPs require credentials</Text>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -137,10 +143,10 @@ export function Credentials() {
                     {/* MCP Name */}
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Key className="h-4 w-4 text-zinc-500" />
+                        <KeyIcon className="size-4 text-zinc-500 dark:text-zinc-400" />
                         <Link
                           to={`/app/marketplace/${cred.mcpId}`}
-                          className="font-medium text-zinc-900 hover:underline"
+                          className="font-medium text-zinc-900 dark:text-white hover:underline"
                         >
                           {cred.mcpName}
                         </Link>
@@ -152,12 +158,12 @@ export function Credentials() {
                       <div className="flex items-center gap-2">
                         {cred.hasCredentials ? (
                           <>
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <CheckCircleIcon className="size-4 text-green-600 dark:text-green-400" />
                             <Badge color="green">Configured</Badge>
                           </>
                         ) : (
                           <>
-                            <XCircle className="h-4 w-4 text-zinc-400" />
+                            <XCircleIcon className="size-4 text-zinc-400" />
                             <Badge color="zinc">Not Set</Badge>
                           </>
                         )}
@@ -166,7 +172,7 @@ export function Credentials() {
 
                     {/* Last Updated */}
                     <TableCell>
-                      <span className="text-zinc-900">
+                      <span className="text-zinc-900 dark:text-white">
                         {cred.updatedAt ? new Date(cred.updatedAt).toLocaleString() : '—'}
                       </span>
                     </TableCell>
@@ -179,7 +185,7 @@ export function Credentials() {
                           onClick={() => handleEdit(cred)}
                           aria-label="Edit credentials"
                         >
-                          <Edit className="h-4 w-4" />
+                          <PencilIcon data-slot="icon" />
                         </Button>
                         {cred.hasCredentials && (
                           <Button
@@ -191,7 +197,7 @@ export function Credentials() {
                             disabled={deleteCredentials.isPending}
                             aria-label="Delete credentials"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <TrashIcon data-slot="icon" />
                           </Button>
                         )}
                       </div>

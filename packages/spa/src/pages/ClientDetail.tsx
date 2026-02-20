@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Settings } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  PlusIcon,
+  TrashIcon,
+  Cog6ToothIcon,
+} from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
@@ -72,16 +77,16 @@ export function ClientDetail() {
   if (clientLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200" />
-        <div className="animate-pulse h-32 w-full rounded bg-zinc-200" />
-        <div className="animate-pulse h-64 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-32 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-64 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
       </div>
     );
   }
 
   if (!client) {
     return (
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
         <Heading level={3}>Client Not Found</Heading>
         <Text className="mt-2">The requested client could not be found.</Text>
         <div className="mt-4">
@@ -96,7 +101,7 @@ export function ClientDetail() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button plain href="/app/clients">
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeftIcon />
         </Button>
         <div className="flex-1">
           <Heading>{client.clientName}</Heading>
@@ -111,23 +116,23 @@ export function ClientDetail() {
       </div>
 
       {/* Client Details */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-4">Client Details</Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Created</dt>
-            <dd className="mt-1 text-zinc-900">{new Date(client.createdAt).toLocaleString()}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+            <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.createdAt).toLocaleString()}</dd>
           </div>
           {client.expiresAt && (
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Expires</dt>
-              <dd className="mt-1 text-zinc-900">{new Date(client.expiresAt).toLocaleString()}</dd>
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Expires</dt>
+              <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.expiresAt).toLocaleString()}</dd>
             </div>
           )}
           {client.lastUsedAt && (
             <div>
-              <dt className="text-sm font-medium text-zinc-500">Last Used</dt>
-              <dd className="mt-1 text-zinc-900">{new Date(client.lastUsedAt).toLocaleString()}</dd>
+              <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Used</dt>
+              <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.lastUsedAt).toLocaleString()}</dd>
             </div>
           )}
         </dl>
@@ -141,21 +146,21 @@ export function ClientDetail() {
             <Text className="text-sm">MCPs this client is subscribed to</Text>
           </div>
           <Button href="/app/marketplace">
-            <Plus className="mr-2 h-4 w-4" />
+            <PlusIcon data-slot="icon" />
             Subscribe to MCP
           </Button>
         </div>
 
-        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
           {subsLoading ? (
             <div className="p-6 space-y-3">
-              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
-              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
-              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
             </div>
           ) : !subscriptions || subscriptions.length === 0 ? (
             <div className="p-8 text-center">
-              <Text className="text-zinc-500">
+              <Text className="text-zinc-500 dark:text-zinc-400">
                 No subscriptions yet. Browse the marketplace to subscribe to MCPs.
               </Text>
             </div>
@@ -181,7 +186,7 @@ export function ClientDetail() {
                       <TableCell>
                         <Link
                           to={`/app/marketplace/${sub.mcpId}`}
-                          className="font-medium text-zinc-900 hover:underline"
+                          className="font-medium text-zinc-900 dark:text-white hover:underline"
                         >
                           {sub.mcpName}
                         </Link>
@@ -203,10 +208,10 @@ export function ClientDetail() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleEditTools(sub)}
-                            className="p-1 text-zinc-500 hover:text-zinc-900"
+                            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                             aria-label="Edit tools"
                           >
-                            <Settings className="h-4 w-4" />
+                            <Cog6ToothIcon className="size-4" />
                           </button>
                           <button
                             onClick={() => {
@@ -214,10 +219,10 @@ export function ClientDetail() {
                               setUnsubscribeDialogOpen(true);
                             }}
                             disabled={unsubscribe.isPending}
-                            className="p-1 text-zinc-500 hover:text-red-600 disabled:opacity-50"
+                            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                             aria-label="Unsubscribe"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <TrashIcon className="size-4" />
                           </button>
                         </div>
                       </TableCell>

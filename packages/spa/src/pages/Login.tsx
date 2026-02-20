@@ -40,7 +40,7 @@ export function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-sm space-y-10">
         <div>
           {/* Brand mark */}
@@ -50,15 +50,15 @@ export function Login() {
                 <span className="font-mono text-lg font-bold text-white">M</span>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="font-mono text-xl font-bold text-zinc-900">MCP</span>
-                <span className="text-xl font-semibold text-zinc-900">Ambassador</span>
+                <span className="font-mono text-xl font-bold text-zinc-900 dark:text-white">MCP</span>
+                <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
               </div>
             </div>
             <Text className="text-xs uppercase tracking-widest text-zinc-500">
               Protocol Gateway
             </Text>
           </div>
-          <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900">
+          <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900 dark:text-white">
             Sign in to your account
           </Heading>
         </div>
@@ -89,7 +89,7 @@ export function Login() {
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+            <div className="rounded-md bg-red-50 dark:bg-red-950/50 px-3 py-2 text-sm text-red-600 dark:text-red-400">
               {error}
             </div>
           )}

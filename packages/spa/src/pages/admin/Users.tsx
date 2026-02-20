@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Trash2, Key, Pencil } from 'lucide-react';
+import { PlusIcon, EyeIcon, TrashIcon, KeyIcon, PencilIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -12,6 +12,7 @@ import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Select } from '@/components/catalyst/select';
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -128,13 +129,13 @@ export function UsersAdmin() {
           <Text className="mt-1">Manage system users and permissions</Text>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <PlusIcon data-slot="icon" />
           Create User
         </Button>
       </div>
 
       {/* Table Section */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
         <Table>
           <TableHead>
             <TableRow>
@@ -153,14 +154,14 @@ export function UsersAdmin() {
               <>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-32 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-40 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
                   </TableRow>
                 ))}
               </>
@@ -170,15 +171,15 @@ export function UsersAdmin() {
                   <TableCell>
                     <Link
                       to={`/app/admin/users/${user.user_id}`}
-                      className="font-medium text-zinc-900 hover:text-zinc-700"
+                      className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
                     >
                       {user.username}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {user.display_name || '—'}
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {user.email || '—'}
                   </TableCell>
                   <TableCell>
@@ -195,19 +196,19 @@ export function UsersAdmin() {
                       <Badge color="zinc">suspended</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : '—'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button plain href={`/app/admin/users/${user.user_id}`}>
-                        <Eye className="h-4 w-4" />
+                        <EyeIcon />
                       </Button>
                       <Button plain onClick={() => openEditDialog(user)}>
-                        <Pencil className="h-4 w-4" />
+                        <PencilIcon />
                       </Button>
                       <Button
                         plain
@@ -216,7 +217,7 @@ export function UsersAdmin() {
                           setResetDialogOpen(true);
                         }}
                       >
-                        <Key className="h-4 w-4" />
+                        <KeyIcon />
                       </Button>
                       <Button
                         plain
@@ -225,7 +226,7 @@ export function UsersAdmin() {
                           setDeleteDialogOpen(true);
                         }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <TrashIcon />
                       </Button>
                     </div>
                   </TableCell>
@@ -233,7 +234,7 @@ export function UsersAdmin() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-zinc-500 py-12">
+                <TableCell colSpan={8} className="text-center text-zinc-500 dark:text-zinc-400 py-12">
                   No users yet.
                 </TableCell>
               </TableRow>
@@ -344,7 +345,8 @@ export function UsersAdmin() {
             </Field>
             <Field>
               <Label>Status</Label>
-              <select
+              <Select
+                name="status"
                 value={editFormData.status}
                 onChange={(e) =>
                   setEditFormData({
@@ -352,11 +354,10 @@ export function UsersAdmin() {
                     status: e.target.value as 'active' | 'suspended',
                   })
                 }
-                className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
               >
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
-              </select>
+              </Select>
             </Field>
             <CheckboxField>
               <Checkbox
