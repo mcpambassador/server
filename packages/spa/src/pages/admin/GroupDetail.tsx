@@ -2,19 +2,14 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
-import { Skeleton } from '@/components/catalyst/skeleton';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import {
   useAdminGroup,
   useGroupMembers,
@@ -96,89 +91,11 @@ export function GroupDetail() {
     }
   };
 
-  const memberColumns: ColumnDef<GroupMember>[] = [
-    {
-      header: 'Username',
-      accessor: 'username',
-      cell: (member) => (
-        <Link
-          to={`/app/admin/users/${member.user_id}`}
-          className="font-medium hover:underline"
-        >
-          {member.username}
-        </Link>
-      ),
-    },
-    {
-      header: 'Display Name',
-      accessor: 'display_name',
-      cell: (member) => member.display_name || '—',
-    },
-    {
-      header: 'Added',
-      accessor: 'added_at',
-      cell: (member) => new Date(member.added_at).toLocaleDateString(),
-    },
-    {
-      header: 'Actions',
-      accessor: 'user_id',
-      cell: (member) => (
-        <Button
-                    className="p-1"
-          onClick={() => {
-            setMemberToRemove(member);
-            setRemoveMemberDialogOpen(true);
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ),
-    },
-  ];
-
-  const mcpColumns: ColumnDef<McpCatalogEntry>[] = [
-    {
-      header: 'Name',
-      accessor: 'display_name',
-      cell: (mcp) => (
-        <Link
-          to={`/app/admin/mcps/${mcp.mcp_id}`}
-          className="font-medium hover:underline"
-        >
-          {mcp.display_name}
-        </Link>
-      ),
-    },
-    {
-      header: 'Transport',
-      accessor: 'transport_type',
-    },
-    {
-      header: 'Isolation',
-      accessor: 'isolation_mode',
-    },
-    {
-      header: 'Actions',
-      accessor: 'mcp_id',
-      cell: (mcp) => (
-        <Button
-                    className="p-1"
-          onClick={() => {
-            setMcpToRemove(mcp);
-            setRemoveMcpDialogOpen(true);
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ),
-    },
-  ];
-
   if (groupLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
+        <div className="h-8 w-64 animate-pulse rounded bg-zinc-200" />
+        <div className="h-48 w-full animate-pulse rounded bg-zinc-200" />
       </div>
     );
   }
@@ -187,56 +104,52 @@ export function GroupDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/groups">
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft data-slot="icon" />
           Back to Groups
         </Button>
-        <Card>
-          <CardHeader>
-            <CardTitle>Group Not Found</CardTitle>
-          </CardHeader>
-        </Card>
+        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+          <Heading>Group Not Found</Heading>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" href="/app/admin/groups">
-        <ArrowLeft className="mr-2 h-4 w-4" />
+      {/* Back Button */}
+      <Button plain href="/app/admin/groups">
+        <ArrowLeft data-slot="icon" />
         Back to Groups
       </Button>
 
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">{group.name}</h1>
-        <p className="text-sm text-muted-foreground">{group.description || 'No description'}</p>
+      {/* Page Header */}
+      <div className="space-y-1">
+        <Heading>{group.name}</Heading>
+        <Text>{group.description || 'No description'}</Text>
       </div>
 
-      {/* Group Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Group Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Group ID</p>
-              <p className="text-sm font-mono">{group.group_id}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Name</p>
-              <p className="text-sm">{group.name}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Created</p>
-              <p className="text-sm">{new Date(group.created_at).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Updated</p>
-              <p className="text-sm">{new Date(group.updated_at).toLocaleString()}</p>
-            </div>
+      {/* Group Information Panel */}
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <Heading level={2}>Group Information</Heading>
+        <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Group ID</dt>
+            <dd className="mt-1 text-sm font-mono text-zinc-900">{group.group_id}</dd>
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Name</dt>
+            <dd className="mt-1 text-sm text-zinc-900">{group.name}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Created</dt>
+            <dd className="mt-1 text-sm text-zinc-900">{new Date(group.created_at).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Updated</dt>
+            <dd className="mt-1 text-sm text-zinc-900">{new Date(group.updated_at).toLocaleString()}</dd>
+          </div>
+        </dl>
+      </div>
 
       {/* Tabs for Members and MCPs */}
       <Tabs defaultIndex={0} className="w-full">
@@ -245,157 +158,242 @@ export function GroupDetail() {
           <TabsTrigger>MCPs</TabsTrigger>
         </TabsList>
         <TabsPanels>
+          {/* Members Tab */}
           <TabsContent className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Group Members</CardTitle>
-                    <CardDescription>Users who belong to this group</CardDescription>
-                  </div>
-                  <Button onClick={() => setAddMemberDialogOpen(true)} className="h-8">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Member
-                  </Button>
+            <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+              <div className="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4">
+                <div>
+                  <Heading level={2}>Group Members</Heading>
+                  <Text>Users who belong to this group</Text>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  columns={memberColumns}
-                  data={members ?? []}
-                  isLoading={membersLoading}
-                  emptyMessage="No members yet."
-                />
-              </CardContent>
-            </Card>
+                <Button onClick={() => setAddMemberDialogOpen(true)}>
+                  <Plus data-slot="icon" />
+                  Add Member
+                </Button>
+              </div>
+              <div className="p-6">
+                {membersLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                  </div>
+                ) : !members || members.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <Text>No members yet.</Text>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Username</TableHeader>
+                        <TableHeader>Display Name</TableHeader>
+                        <TableHeader>Added</TableHeader>
+                        <TableHeader>Actions</TableHeader>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {members.map((member) => (
+                        <TableRow key={member.user_id}>
+                          <TableCell>
+                            <Link
+                              to={`/app/admin/users/${member.user_id}`}
+                              className="font-medium text-zinc-900 hover:underline"
+                            >
+                              {member.username}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-zinc-500">
+                            {member.display_name || '—'}
+                          </TableCell>
+                          <TableCell className="text-zinc-500">
+                            {new Date(member.added_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              plain
+                              onClick={() => {
+                                setMemberToRemove(member);
+                                setRemoveMemberDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
           </TabsContent>
+
+          {/* MCPs Tab */}
           <TabsContent className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Assigned MCPs</CardTitle>
-                    <CardDescription>MCPs available to this group</CardDescription>
-                  </div>
-                  <Button onClick={() => setAddMcpDialogOpen(true)} className="h-8">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Assign MCP
-                  </Button>
+            <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+              <div className="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4">
+                <div>
+                  <Heading level={2}>Assigned MCPs</Heading>
+                  <Text>MCPs available to this group</Text>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  columns={mcpColumns}
-                  data={mcps ?? []}
-                  isLoading={mcpsLoading}
-                  emptyMessage="No MCPs assigned."
-                />
-              </CardContent>
-            </Card>
+                <Button onClick={() => setAddMcpDialogOpen(true)}>
+                  <Plus data-slot="icon" />
+                  Assign MCP
+                </Button>
+              </div>
+              <div className="p-6">
+                {mcpsLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                  </div>
+                ) : !mcps || mcps.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <Text>No MCPs assigned.</Text>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Name</TableHeader>
+                        <TableHeader>Transport</TableHeader>
+                        <TableHeader>Isolation</TableHeader>
+                        <TableHeader>Actions</TableHeader>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {mcps.map((mcp) => (
+                        <TableRow key={mcp.mcp_id}>
+                          <TableCell>
+                            <Link
+                              to={`/app/admin/mcps/${mcp.mcp_id}`}
+                              className="font-medium text-zinc-900 hover:underline"
+                            >
+                              {mcp.display_name}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-zinc-500">
+                            {mcp.transport_type}
+                          </TableCell>
+                          <TableCell className="text-zinc-500">
+                            {mcp.isolation_mode}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              plain
+                              onClick={() => {
+                                setMcpToRemove(mcp);
+                                setRemoveMcpDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </TabsPanels>
       </Tabs>
 
       {/* Add Member Dialog */}
       <Dialog open={addMemberDialogOpen} onClose={setAddMemberDialogOpen}>
-        
-          
-            <DialogTitle>Add Member to Group</DialogTitle>
-            <DialogDescription>Select a user to add to this group</DialogDescription>
-          
-          <div className="space-y-4">
-            <Field className="space-y-2">
-              <Label>User</Label>
-              <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select a user...</option>
-                {allUsers?.data.map((user) => (
-                  <option key={user.user_id} value={user.user_id}>
-                    {user.username} {user.display_name && `(${user.display_name})`}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setAddMemberDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="h-8" onClick={handleAddMember} disabled={!selectedUserId || addMember.isPending}>
-              {addMember.isPending ? 'Adding...' : 'Add Member'}
-            </Button>
-          </DialogActions>
-        
+        <DialogTitle>Add Member to Group</DialogTitle>
+        <DialogDescription>Select a user to add to this group</DialogDescription>
+        <DialogBody>
+          <Field>
+            <Label>User</Label>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
+            >
+              <option value="">Select a user...</option>
+              {allUsers?.data.map((user) => (
+                <option key={user.user_id} value={user.user_id}>
+                  {user.username} {user.display_name && `(${user.display_name})`}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setAddMemberDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAddMember} disabled={!selectedUserId || addMember.isPending}>
+            {addMember.isPending ? 'Adding...' : 'Add Member'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Add MCP Dialog */}
       <Dialog open={addMcpDialogOpen} onClose={setAddMcpDialogOpen}>
-        
-          
-            <DialogTitle>Assign MCP to Group</DialogTitle>
-            <DialogDescription>Select an MCP to assign to this group</DialogDescription>
-          
-          <div className="space-y-4">
-            <Field className="space-y-2">
-              <Label>MCP</Label>
-              <select
-                value={selectedMcpId}
-                onChange={(e) => setSelectedMcpId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Select an MCP...</option>
-                {allMcps?.data.filter(m => m.status === 'published').map((mcp) => (
-                  <option key={mcp.mcp_id} value={mcp.mcp_id}>
-                    {mcp.display_name} ({mcp.transport_type})
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setAddMcpDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="h-8" onClick={handleAssignMcp} disabled={!selectedMcpId || assignMcp.isPending}>
-              {assignMcp.isPending ? 'Assigning...' : 'Assign MCP'}
-            </Button>
-          </DialogActions>
-        
+        <DialogTitle>Assign MCP to Group</DialogTitle>
+        <DialogDescription>Select an MCP to assign to this group</DialogDescription>
+        <DialogBody>
+          <Field>
+            <Label>MCP</Label>
+            <select
+              value={selectedMcpId}
+              onChange={(e) => setSelectedMcpId(e.target.value)}
+              className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
+            >
+              <option value="">Select an MCP...</option>
+              {allMcps?.data.filter(m => m.status === 'published').map((mcp) => (
+                <option key={mcp.mcp_id} value={mcp.mcp_id}>
+                  {mcp.display_name} ({mcp.transport_type})
+                </option>
+              ))}
+            </select>
+          </Field>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setAddMcpDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAssignMcp} disabled={!selectedMcpId || assignMcp.isPending}>
+            {assignMcp.isPending ? 'Assigning...' : 'Assign MCP'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Remove Member Confirmation */}
       <Alert open={removeMemberDialogOpen} onClose={setRemoveMemberDialogOpen}>
-        
-          
-            <AlertTitle>Remove Member?</AlertTitle>
-            <AlertDescription>
-              Remove &quot;{memberToRemove?.username}&quot; from this group?
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setMemberToRemove(null)}>Cancel</Button>
-            <Button color="red" onClick={handleRemoveMember}>Remove</Button>
-          </AlertActions>
-        
+        <AlertTitle>Remove Member?</AlertTitle>
+        <AlertDescription>
+          Remove &quot;{memberToRemove?.username}&quot; from this group?
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setRemoveMemberDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleRemoveMember}>
+            Remove
+          </Button>
+        </AlertActions>
       </Alert>
 
       {/* Remove MCP Confirmation */}
       <Alert open={removeMcpDialogOpen} onClose={setRemoveMcpDialogOpen}>
-        
-          
-            <AlertTitle>Remove MCP?</AlertTitle>
-            <AlertDescription>
-              Remove &quot;{mcpToRemove?.display_name}&quot; from this group?
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setMcpToRemove(null)}>Cancel</Button>
-            <Button color="red" onClick={handleRemoveMcp}>Remove</Button>
-          </AlertActions>
-        
+        <AlertTitle>Remove MCP?</AlertTitle>
+        <AlertDescription>
+          Remove &quot;{mcpToRemove?.display_name}&quot; from this group?
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setRemoveMcpDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleRemoveMcp}>
+            Remove
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

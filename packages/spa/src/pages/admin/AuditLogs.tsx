@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { Card } from '@/components/catalyst/card';
+import { Heading, Subheading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { useAuditEvents } from '@/api/hooks/use-admin';
 import type { AuditEvent } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -54,100 +55,26 @@ export function AuditLogsAdmin() {
     setEvents([]);
   };
 
-  const columns: ColumnDef<AuditEvent>[] = [
-    {
-      header: 'Timestamp',
-      accessor: 'timestamp',
-      cell: (event) => (
-        <div>
-          <p className="text-sm">{new Date(event.timestamp).toLocaleDateString()}</p>
-          <p className="text-xs text-muted-foreground">
-            {new Date(event.timestamp).toLocaleTimeString()}
-          </p>
-        </div>
-      ),
-    },
-    {
-      header: 'Event Type',
-      accessor: 'event_type',
-      cell: (event) => <code className="text-sm">{event.event_type}</code>,
-    },
-    {
-      header: 'Severity',
-      accessor: 'severity',
-      cell: (event) => (
-        <Badge
-          color={
-            event.severity === 'error'
-              ? 'red'
-              : event.severity === 'warn'
-              ? 'zinc'
-              : 'zinc'
-          }
-        >
-          {event.severity}
-        </Badge>
-      ),
-    },
-    {
-      header: 'Action',
-      accessor: 'action',
-      cell: (event) => <p className="text-sm max-w-sm truncate">{event.action}</p>,
-    },
-    {
-      header: 'User ID',
-      accessor: 'user_id',
-      cell: (event) => (
-        <code className="text-xs">{event.user_id || '—'}</code>
-      ),
-    },
-    {
-      header: 'Client ID',
-      accessor: 'client_id',
-      cell: (event) => (
-        <code className="text-xs">{event.client_id || '—'}</code>
-      ),
-    },
-    {
-      header: 'Source IP',
-      accessor: 'source_ip',
-      cell: (event) => <code className="text-xs">{event.source_ip}</code>,
-    },
-    {
-      header: 'Metadata',
-      accessor: 'metadata',
-      cell: (event) => (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground">View</summary>
-          <pre className="mt-2 bg-muted p-2 rounded overflow-x-auto max-w-xs">
-            {JSON.stringify(event.metadata, null, 2)}
-          </pre>
-        </details>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+      {/* Page Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Audit Logs</h1>
-          <p className="text-sm text-muted-foreground">
-            View system audit logs and activity history
-          </p>
+          <Heading>Audit Logs</Heading>
+          <Text>View system audit logs and activity history</Text>
         </div>
-        <Button color="zinc" className="h-8" onClick={() => refetch()}>
-          <RefreshCw className="mr-2 h-4 w-4" />
+        <Button outline onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4" />
           Refresh
         </Button>
       </div>
 
-      {/* Filters */}
-      <Card className="p-6">
+      {/* Filters Panel */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
         <div className="space-y-4">
-          <h3 className="font-medium">Filters</h3>
+          <Subheading>Filters</Subheading>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Start Time</Label>
               <Input
                 type="datetime-local"
@@ -157,7 +84,7 @@ export function AuditLogsAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>End Time</Label>
               <Input
                 type="datetime-local"
@@ -167,7 +94,7 @@ export function AuditLogsAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Event Type</Label>
               <Input
                 placeholder="e.g., user.login"
@@ -177,7 +104,7 @@ export function AuditLogsAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>User ID</Label>
               <Input
                 placeholder="Filter by user"
@@ -189,35 +116,145 @@ export function AuditLogsAdmin() {
             </Field>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleApplyFilters} className="h-8">
-              Apply Filters
-            </Button>
-            <Button color="zinc" onClick={handleReset} className="h-8">
+            <Button onClick={handleApplyFilters}>Apply Filters</Button>
+            <Button outline onClick={handleReset}>
               Reset
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Audit Events Table */}
-      <Card className="p-6">
-        <DataTable
-          columns={columns}
-          data={events}
-          isLoading={isLoading}
-          emptyMessage="No audit events found."
-          pagination={
-            nextCursor
-              ? {
-                  hasMore: true,
-                  onLoadMore: () => {
-                    setAppliedFilters((prev) => ({ ...prev, cursor: nextCursor }));
-                  },
-                }
-              : undefined
-          }
-        />
-      </Card>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 overflow-hidden">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Timestamp</TableHeader>
+              <TableHeader>Event Type</TableHeader>
+              <TableHeader>Severity</TableHeader>
+              <TableHeader>Action</TableHeader>
+              <TableHeader>User ID</TableHeader>
+              <TableHeader>Client ID</TableHeader>
+              <TableHeader>Source IP</TableHeader>
+              <TableHeader>Metadata</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading && events.length === 0 ? (
+              // Loading state
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-5 w-16 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-48 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-28 rounded bg-zinc-200" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="animate-pulse h-4 w-12 rounded bg-zinc-200" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : events.length === 0 ? (
+              // Empty state
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-zinc-500">
+                  No audit events found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              // Data rows
+              events.map((event) => (
+                <TableRow key={event.event_id}>
+                  <TableCell>
+                    <div className="text-sm text-zinc-900">
+                      {new Date(event.timestamp).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {new Date(event.timestamp).toLocaleTimeString()}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-sm font-mono text-zinc-900">
+                      {event.event_type}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      color={
+                        event.severity === 'error'
+                          ? 'red'
+                          : event.severity === 'warn'
+                          ? 'amber'
+                          : 'zinc'
+                      }
+                    >
+                      {event.severity}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm text-zinc-900 max-w-sm truncate">
+                      {event.action}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-xs font-mono text-zinc-900">
+                      {event.user_id || '—'}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-xs font-mono text-zinc-900">
+                      {event.client_id || '—'}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-xs font-mono text-zinc-900">
+                      {event.source_ip}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-zinc-500">
+                        View
+                      </summary>
+                      <pre className="mt-2 bg-zinc-50 p-2 rounded text-xs overflow-x-auto max-w-xs">
+                        {JSON.stringify(event.metadata, null, 2)}
+                      </pre>
+                    </details>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+        {nextCursor && (
+          <div className="px-4 py-3 border-t border-zinc-950/5 text-center">
+            <Button
+              outline
+              onClick={() =>
+                setAppliedFilters((prev) => ({ ...prev, cursor: nextCursor }))
+              }
+            >
+              Load More
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

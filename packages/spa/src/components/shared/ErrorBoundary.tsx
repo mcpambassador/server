@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Button } from '@/components/catalyst/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -34,23 +33,19 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-          <Card className="max-w-md">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-8 w-8 text-destructive" />
-                <div>
-                  <CardTitle>Something went wrong</CardTitle>
-                  <CardDescription>
-                    An unexpected error occurred
-                  </CardDescription>
-                </div>
+        <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4">
+          <div className="max-w-md rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-8 w-8 text-red-600" />
+              <div>
+                <h3 className="text-base/7 font-semibold text-zinc-900">Something went wrong</h3>
+                <p className="text-sm/6 text-zinc-500">An unexpected error occurred</p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            </div>
+            <div className="mt-4 space-y-4">
               {this.state.error && (
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-sm font-mono text-muted-foreground">
+                <div className="rounded-lg bg-zinc-50 p-3">
+                  <p className="text-sm font-mono text-zinc-500">
                     {this.state.error.message}
                   </p>
                 </div>
@@ -58,8 +53,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <Button onClick={this.handleReset} className="w-full">
                 Try Again
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       );
     }

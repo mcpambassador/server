@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
-import { Skeleton } from '@/components/catalyst/skeleton';
 import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { useProfile, useChangePassword } from '@/api/hooks/use-profile';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -72,156 +72,143 @@ export function Profile() {
 
   return (
     <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Profile</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account settings and preferences
-        </p>
+      <div>
+        <Heading>Profile</Heading>
+        <Text>Manage your account settings and preferences</Text>
       </div>
 
       {/* User Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>User Information</CardTitle>
-          <CardDescription>
-            Your account details
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ))}
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">User Information</h3>
+        <p className="text-sm/6 text-zinc-500">Your account details</p>
+
+        {isLoading ? (
+          <div className="mt-4 space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                <div className="h-6 w-full animate-pulse rounded bg-zinc-200" />
+              </div>
+            ))}
+          </div>
+        ) : user ? (
+          <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            <div>
+              <dt className="text-sm/6 font-medium text-zinc-500">Username</dt>
+              <dd className="text-sm/6 text-zinc-900">{user.username}</dd>
             </div>
-          ) : user ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            {user.displayName && (
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Username</p>
-                <p className="text-lg font-medium mt-1">{user.username}</p>
+                <dt className="text-sm/6 font-medium text-zinc-500">Display Name</dt>
+                <dd className="text-sm/6 text-zinc-900">{user.displayName}</dd>
               </div>
-              {user.displayName && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Display Name</p>
-                  <p className="text-lg font-medium mt-1">{user.displayName}</p>
-                </div>
-              )}
-              {user.email && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Email</p>
-                  <p className="text-lg font-medium mt-1">{user.email}</p>
-                </div>
-              )}
+            )}
+            {user.email && (
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Role</p>
-                <p className="text-lg font-medium mt-1">{user.isAdmin ? 'Administrator' : 'User'}</p>
+                <dt className="text-sm/6 font-medium text-zinc-500">Email</dt>
+                <dd className="text-sm/6 text-zinc-900">{user.email}</dd>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Account Created</p>
-                <p className="text-lg font-medium mt-1">
-                  {new Date(user.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              {user.lastLoginAt && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Last Login</p>
-                  <p className="text-lg font-medium mt-1">
-                    {new Date(user.lastLoginAt).toLocaleString()}
-                  </p>
-                </div>
-              )}
+            )}
+            <div>
+              <dt className="text-sm/6 font-medium text-zinc-500">Role</dt>
+              <dd className="text-sm/6 text-zinc-900">{user.isAdmin ? 'Administrator' : 'User'}</dd>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Failed to load user information</p>
-          )}
-        </CardContent>
-      </Card>
+            <div>
+              <dt className="text-sm/6 font-medium text-zinc-500">Account Created</dt>
+              <dd className="text-sm/6 text-zinc-900">
+                {new Date(user.createdAt).toLocaleDateString()}
+              </dd>
+            </div>
+            {user.lastLoginAt && (
+              <div>
+                <dt className="text-sm/6 font-medium text-zinc-500">Last Login</dt>
+                <dd className="text-sm/6 text-zinc-900">
+                  {new Date(user.lastLoginAt).toLocaleString()}
+                </dd>
+              </div>
+            )}
+          </dl>
+        ) : (
+          <p className="mt-4 text-sm/6 text-zinc-500">Failed to load user information</p>
+        )}
+      </div>
 
       {/* Change Password */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-          <CardDescription>
-            Update your password to keep your account secure
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            {passwordSuccess && (
-              <InlineAlert color="success">
-                <CheckCircle2 className="h-4 w-4" />
-                <InlineAlertDescription>
-                  Password changed successfully
-                </InlineAlertDescription>
-              </InlineAlert>
-            )}
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">Change Password</h3>
+        <p className="text-sm/6 text-zinc-500">Update your password to keep your account secure</p>
 
-            {passwordError && (
-              <InlineAlert color="error">
-                <AlertCircle className="h-4 w-4" />
-                <InlineAlertDescription>{passwordError}</InlineAlertDescription>
-              </InlineAlert>
-            )}
+        <form onSubmit={handlePasswordChange} className="mt-4 space-y-4">
+          {passwordSuccess && (
+            <InlineAlert color="success">
+              <CheckCircle2 className="h-4 w-4" />
+              <InlineAlertDescription>
+                Password changed successfully
+              </InlineAlertDescription>
+            </InlineAlert>
+          )}
 
-            <Field className="space-y-2">
-              <Label>Current Password</Label>
-              <Input
-                type="password"
-                value={passwordForm.current_password}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, current_password: e.target.value })
-                }
-                required
-              />
-            </Field>
+          {passwordError && (
+            <InlineAlert color="error">
+              <AlertCircle className="h-4 w-4" />
+              <InlineAlertDescription>{passwordError}</InlineAlertDescription>
+            </InlineAlert>
+          )}
 
-            <Field className="space-y-2">
-              <Label>New Password</Label>
-              <Input
-                type="password"
-                value={passwordForm.new_password}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, new_password: e.target.value })
-                }
-                required
-              />
-              {passwordForm.new_password && (
-                <p className={`text-sm ${strengthColor}`}>
-                  Password strength: {passwordStrength}
-                </p>
-              )}
-            </Field>
-
-            <Field className="space-y-2">
-              <Label>Confirm New Password</Label>
-              <Input
-                type="password"
-                value={passwordForm.confirm_password}
-                onChange={(e) =>
-                  setPasswordForm({ ...passwordForm, confirm_password: e.target.value })
-                }
-                required
-              />
-            </Field>
-
-            <Button
-              type="submit"
-              className="h-8"
-              disabled={
-                !passwordForm.current_password ||
-                !passwordForm.new_password ||
-                !passwordForm.confirm_password ||
-                changePassword.isPending
+          <Field>
+            <Label>Current Password</Label>
+            <Input
+              type="password"
+              value={passwordForm.current_password}
+              onChange={(e) =>
+                setPasswordForm({ ...passwordForm, current_password: e.target.value })
               }
-            >
-              {changePassword.isPending ? 'Changing...' : 'Change Password'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              required
+            />
+          </Field>
+
+          <Field>
+            <Label>New Password</Label>
+            <Input
+              type="password"
+              value={passwordForm.new_password}
+              onChange={(e) =>
+                setPasswordForm({ ...passwordForm, new_password: e.target.value })
+              }
+              required
+            />
+            {passwordForm.new_password && (
+              <p className={`text-sm ${strengthColor}`}>
+                Password strength: {passwordStrength}
+              </p>
+            )}
+          </Field>
+
+          <Field>
+            <Label>Confirm New Password</Label>
+            <Input
+              type="password"
+              value={passwordForm.confirm_password}
+              onChange={(e) =>
+                setPasswordForm({ ...passwordForm, confirm_password: e.target.value })
+              }
+              required
+            />
+          </Field>
+
+          <Button
+            type="submit"
+            disabled={
+              !passwordForm.current_password ||
+              !passwordForm.new_password ||
+              !passwordForm.confirm_password ||
+              changePassword.isPending
+            }
+          >
+            {changePassword.isPending ? 'Changing...' : 'Change Password'}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

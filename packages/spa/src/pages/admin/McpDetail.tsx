@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/catalyst/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
@@ -109,8 +109,8 @@ export function McpDetail() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
+        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200" />
+        <div className="animate-pulse h-48 w-full rounded bg-zinc-200" />
       </div>
     );
   }
@@ -119,39 +119,39 @@ export function McpDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/mcps">
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft data-slot="icon" />
           Back to MCPs
         </Button>
-        <Card>
-          <CardHeader>
-            <CardTitle>MCP Not Found</CardTitle>
-          </CardHeader>
-        </Card>
+        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+          <p className="text-sm/6 text-zinc-900">MCP Not Found</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" href="/app/admin/mcps">
-        <ArrowLeft className="mr-2 h-4 w-4" />
+      {/* Back Button */}
+      <Button plain href="/app/admin/mcps">
+        <ArrowLeft data-slot="icon" />
         Back to MCPs
       </Button>
 
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+      {/* Header Row */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{mcp.display_name}</h1>
-          <p className="text-sm text-muted-foreground font-mono">{mcp.name}</p>
+          <Heading>{mcp.display_name}</Heading>
+          <Text className="font-mono">{mcp.name}</Text>
         </div>
         <div className="flex items-center gap-2">
-          <Badge color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'teal' : 'zinc'}>
+          <Badge color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'green' : 'zinc'}>
             {mcp.status}
           </Badge>
           {mcp.validation_status && (
             <Badge
               color={
                 mcp.validation_status === 'valid'
-                  ? 'emerald'
+                  ? 'green'
                   : mcp.validation_status === 'invalid'
                   ? 'red'
                   : 'zinc'
@@ -165,22 +165,22 @@ export function McpDetail() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button color="zinc" className="h-8" onClick={openEditDialog}>
+        <Button color="zinc" onClick={openEditDialog}>
           Edit MCP
         </Button>
-        <Button color="zinc" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
-          <RefreshCw className="mr-2 h-4 w-4" />
+        <Button color="zinc" onClick={handleValidate} disabled={validateMcp.isPending}>
+          <RefreshCw data-slot="icon" />
           Validate
         </Button>
         {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
-          <Button className="h-8" onClick={handlePublish} disabled={publishMcp.isPending}>
-            <CheckCircle className="mr-2 h-4 w-4" />
+          <Button onClick={handlePublish} disabled={publishMcp.isPending}>
+            <CheckCircle data-slot="icon" />
             {publishMcp.isPending ? 'Publishing...' : 'Publish'}
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button color="zinc" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
-            <Archive className="mr-2 h-4 w-4" />
+          <Button color="zinc" onClick={handleArchive} disabled={archiveMcp.isPending}>
+            <Archive data-slot="icon" />
             {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
           </Button>
         )}
@@ -188,57 +188,57 @@ export function McpDetail() {
 
       {/* Validation Results */}
       {validationResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {validationResult.valid ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-              )}
+        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5 space-y-4">
+          <div className="flex items-center gap-2">
+            {validationResult.valid ? (
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            )}
+            <h3 className="text-base/7 font-semibold text-zinc-900">
               Validation {validationResult.valid ? 'Passed' : 'Failed'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {validationResult.errors.length > 0 && (
-              <div>
-                <h4 className="font-medium text-destructive mb-2">Errors</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {validationResult.errors.map((err: string, i: number) => (
-                    <li key={i} className="text-sm text-destructive">
-                      {err}
-                    </li>
-                  ))}
-                </ul>
+            </h3>
+          </div>
+          {validationResult.errors.length > 0 && (
+            <div>
+              <h4 className="font-medium text-red-600 mb-2">Errors</h4>
+              <ul className="list-disc list-inside space-y-1">
+                {validationResult.errors.map((err: string, i: number) => (
+                  <li key={i} className="text-sm text-red-600">
+                    {err}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {validationResult.warnings.length > 0 && (
+            <div>
+              <h4 className="font-medium text-amber-600 mb-2">Warnings</h4>
+              <ul className="list-disc list-inside space-y-1">
+                {validationResult.warnings.map((warn: string, i: number) => (
+                  <li key={i} className="text-sm text-amber-600">
+                    {warn}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {validationResult.tools_discovered.length > 0 && (
+            <div>
+              <h4 className="font-medium text-zinc-900 mb-2">
+                Discovered Tools ({validationResult.tools_discovered.length})
+              </h4>
+              <div className="grid gap-2">
+                {validationResult.tools_discovered.map((tool: any, i: number) => (
+                  <div key={i} className="rounded-lg bg-zinc-50 p-3">
+                    <p className="font-mono text-sm font-medium text-zinc-900">{tool.name}</p>
+                    <p className="text-xs text-zinc-500">{tool.description}</p>
+                  </div>
+                ))}
               </div>
-            )}
-            {validationResult.warnings.length > 0 && (
-              <div>
-                <h4 className="font-medium text-yellow-600 mb-2">Warnings</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {validationResult.warnings.map((warn: string, i: number) => (
-                    <li key={i} className="text-sm text-yellow-600">
-                      {warn}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {validationResult.tools_discovered.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2">Discovered Tools ({validationResult.tools_discovered.length})</h4>
-                <div className="grid gap-2">
-                  {validationResult.tools_discovered.map((tool: any, i: number) => (
-                    <div key={i} className="border rounded p-2">
-                      <p className="font-mono text-sm font-medium">{tool.name}</p>
-                      <p className="text-xs text-muted-foreground">{tool.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </div>
       )}
 
       {/* MCP Details */}
@@ -248,93 +248,81 @@ export function McpDetail() {
           <TabsTrigger>Configuration</TabsTrigger>
         </TabsList>
         <TabsPanels>
-          <TabsContent className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>MCP Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">MCP ID</p>
-                    <p className="text-sm font-mono">{mcp.mcp_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Internal Name</p>
-                    <p className="text-sm font-mono">{mcp.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Display Name</p>
-                    <p className="text-sm">{mcp.display_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Transport Type</p>
-                    <p className="text-sm">{mcp.transport_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-                    <p className="text-sm">{mcp.isolation_mode}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Requires Credentials</p>
-                    <p className="text-sm">{mcp.requires_user_credentials ? 'Yes' : 'No'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Created</p>
-                    <p className="text-sm">{new Date(mcp.created_at).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Updated</p>
-                    <p className="text-sm">{new Date(mcp.updated_at).toLocaleString()}</p>
-                  </div>
+          <TabsContent>
+            <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+              <h3 className="text-base/7 font-semibold text-zinc-900">MCP Information</h3>
+              <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">MCP ID</dt>
+                  <dd className="text-sm/6 text-zinc-900 font-mono">{mcp.mcp_id}</dd>
                 </div>
-                {mcp.description && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Description</p>
-                    <p className="text-sm mt-1">{mcp.description}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Internal Name</dt>
+                  <dd className="text-sm/6 text-zinc-900 font-mono">{mcp.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Display Name</dt>
+                  <dd className="text-sm/6 text-zinc-900">{mcp.display_name}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Transport Type</dt>
+                  <dd className="text-sm/6 text-zinc-900">{mcp.transport_type}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Isolation Mode</dt>
+                  <dd className="text-sm/6 text-zinc-900">{mcp.isolation_mode}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Requires Credentials</dt>
+                  <dd className="text-sm/6 text-zinc-900">{mcp.requires_user_credentials ? 'Yes' : 'No'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Created</dt>
+                  <dd className="text-sm/6 text-zinc-900">{new Date(mcp.created_at).toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500">Updated</dt>
+                  <dd className="text-sm/6 text-zinc-900">{new Date(mcp.updated_at).toLocaleString()}</dd>
+                </div>
+              </dl>
+              {mcp.description && (
+                <div className="mt-4">
+                  <dt className="text-sm/6 font-medium text-zinc-500">Description</dt>
+                  <dd className="text-sm/6 text-zinc-900 mt-1">{mcp.description}</dd>
+                </div>
+              )}
+            </div>
           </TabsContent>
-          <TabsContent className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuration</CardTitle>
-                <CardDescription>MCP runtime configuration (JSON)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+          <TabsContent>
+            <div className="space-y-4">
+              <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+                <h3 className="text-base/7 font-semibold text-zinc-900">Configuration</h3>
+                <p className="text-sm/6 text-zinc-500 mt-1">MCP runtime configuration (JSON)</p>
+                <pre className="mt-4 rounded-lg bg-zinc-50 p-4 overflow-x-auto text-sm font-mono text-zinc-900">
                   {JSON.stringify(mcp.config, null, 2)}
                 </pre>
-              </CardContent>
-            </Card>
-            {mcp.credential_schema && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Credential Schema</CardTitle>
-                  <CardDescription>Required user credentials schema</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+              </div>
+              {mcp.credential_schema && (
+                <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+                  <h3 className="text-base/7 font-semibold text-zinc-900">Credential Schema</h3>
+                  <p className="text-sm/6 text-zinc-500 mt-1">Required user credentials schema</p>
+                  <pre className="mt-4 rounded-lg bg-zinc-50 p-4 overflow-x-auto text-sm font-mono text-zinc-900">
                     {JSON.stringify(mcp.credential_schema, null, 2)}
                   </pre>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              )}
+            </div>
           </TabsContent>
         </TabsPanels>
       </Tabs>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
-        
-          
-            <DialogTitle>Edit MCP</DialogTitle>
-            <DialogDescription>Update MCP configuration</DialogDescription>
-          
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            <Field className="space-y-2">
+        <DialogBody>
+          <DialogTitle>Edit MCP</DialogTitle>
+          <DialogDescription>Update MCP configuration</DialogDescription>
+          <div className="space-y-4 mt-4">
+            <Field>
               <Label>Display Name</Label>
               <Input
                 value={editFormData.display_name}
@@ -343,7 +331,7 @@ export function McpDetail() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Description</Label>
               <Textarea
                 value={editFormData.description}
@@ -353,7 +341,7 @@ export function McpDetail() {
                 rows={3}
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Icon URL</Label>
               <Input
                 value={editFormData.icon_url}
@@ -362,7 +350,7 @@ export function McpDetail() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Configuration (JSON)</Label>
               <Textarea
                 value={editFormData.config}
@@ -370,19 +358,19 @@ export function McpDetail() {
                   setEditFormData({ ...editFormData, config: e.target.value })
                 }
                 rows={10}
-                className="font-mono text-sm"
+                className="font-mono"
               />
             </Field>
           </div>
           <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
+            <Button color="zinc" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button className="h-8" onClick={handleEdit} disabled={updateMcp.isPending}>
+            <Button onClick={handleEdit} disabled={updateMcp.isPending}>
               {updateMcp.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogActions>
-        
+        </DialogBody>
       </Dialog>
     </div>
   );

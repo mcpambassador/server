@@ -3,14 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/catalyst/button';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { authApi } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
@@ -46,66 +40,67 @@ export function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border">
-        <CardHeader className="space-y-4">
+    <div className="flex min-h-full items-center justify-center bg-zinc-50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-sm space-y-10">
+        <div>
+          {/* Brand mark */}
           <div className="flex flex-col items-center gap-3">
-            {/* Brand mark */}
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <span className="font-mono text-base font-bold text-primary-foreground">M</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+                <span className="font-mono text-lg font-bold text-white">M</span>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="font-mono text-lg font-bold text-primary">MCP</span>
-                <span className="text-lg font-semibold">Ambassador</span>
+                <span className="font-mono text-xl font-bold text-zinc-900">MCP</span>
+                <span className="text-xl font-semibold text-zinc-900">Ambassador</span>
               </div>
             </div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            <Text className="text-xs uppercase tracking-widest text-zinc-500">
               Protocol Gateway
-            </p>
+            </Text>
           </div>
-          <CardTitle className="text-xl text-center">Welcome back</CardTitle>
-          <CardDescription className="text-center">
-            Enter your credentials to access your account
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <Field className="space-y-2">
+          <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900">
+            Sign in to your account
+          </Heading>
+        </div>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <Field>
               <Label>Username</Label>
               <Input
                 type="text"
-                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 disabled={isLoading}
+                autoComplete="username"
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Password</Label>
               <Input
                 type="password"
-                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                autoComplete="current-password"
               />
             </Field>
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+          </div>
+
+          {error && (
+            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <Button type="submit" color="dark/zinc" className="w-full" disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>
-          </CardFooter>
+          </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -1,21 +1,42 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Copy, Eye, Pause, Play, Trash2, Check } from 'lucide-react';
-import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
+import { Heading } from '@/components/catalyst/heading';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogBody,
+  DialogDescription,
+  DialogActions,
+  DialogTitle,
+} from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
+import {
+  InlineAlert,
+  InlineAlertDescription,
+} from '@/components/catalyst/inline-alert';
 import {
   Alert,
   AlertDescription,
   AlertActions,
   AlertTitle,
 } from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
-import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '@/api/hooks/use-clients';
+import {
+  useClients,
+  useCreateClient,
+  useUpdateClient,
+  useDeleteClient,
+} from '@/api/hooks/use-clients';
 import type { Client } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -85,121 +106,129 @@ export function Clients() {
     }
   };
 
-  const columns: ColumnDef<Client>[] = [
-    {
-      header: 'Name',
-      accessor: 'clientName',
-      cell: (client) => (
-        <Link
-          to={`/app/clients/${client.id}`}
-          className="font-medium hover:underline"
-        >
-          {client.clientName}
-        </Link>
-      ),
-    },
-    {
-      header: 'Key Prefix',
-      accessor: 'keyPrefix',
-      cell: (client) => (
-        <code className="text-sm text-muted-foreground">{client.keyPrefix}</code>
-      ),
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      cell: (client) => {
-        const variant =
-          client.status === 'active' ? 'emerald' :
-          client.status === 'suspended' ? 'amber' : 'red';
-        return <Badge color={variant}>{client.status}</Badge>;
-      },
-    },
-    {
-      header: 'Created',
-      accessor: 'createdAt',
-      cell: (client) => new Date(client.createdAt).toLocaleDateString(),
-    },
-    {
-      header: 'Expires',
-      accessor: 'expiresAt',
-      cell: (client) =>
-        client.expiresAt ? new Date(client.expiresAt).toLocaleDateString() : '—',
-    },
-    {
-      header: 'Actions',
-      accessor: 'id',
-      cell: (client) => (
-        <div className="flex items-center gap-2">
-          <Button
-                        className="p-1"
-            href={`/app/clients/${client.id}`}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          {client.status !== 'revoked' && (
-            <Button
-                            className="p-1"
-              onClick={() => handleToggleStatus(client)}
-              disabled={updateClient.isPending}
-            >
-              {client.status === 'active' ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          <Button
-                        className="p-1"
-            onClick={() => {
-              setClientToDelete(client.id);
-              setDeleteDialogOpen(true);
-            }}
-            disabled={deleteClient.isPending}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">My Clients</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <Heading>My Clients</Heading>
+          <p className="mt-1 text-sm text-zinc-500">
             Manage your MCP API clients and credentials
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="text-sm">
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus data-slot="icon" />
           Create Client
         </Button>
       </div>
 
-      <Card className="p-6">
-        <DataTable
-          columns={columns}
-          data={clients ?? []}
-          isLoading={isLoading}
-          emptyMessage="No clients yet. Create your first client to get started."
-        />
-      </Card>
+      {/* Table Section */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        {isLoading ? (
+          <div className="p-6 space-y-4">
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
+          </div>
+        ) : !clients || clients.length === 0 ? (
+          <div className="p-12 text-center text-zinc-500">
+            No clients yet. Create your first client to get started.
+          </div>
+        ) : (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeader>Name</TableHeader>
+                <TableHeader>Key Prefix</TableHeader>
+                <TableHeader>Status</TableHeader>
+                <TableHeader>Created</TableHeader>
+                <TableHeader>Expires</TableHeader>
+                <TableHeader>Actions</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {clients.map((client) => (
+                <TableRow key={client.id}>
+                  <TableCell>
+                    <Link
+                      to={`/app/clients/${client.id}`}
+                      className="font-medium text-zinc-900 hover:underline"
+                    >
+                      {client.clientName}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <code className="text-sm text-zinc-500">
+                      {client.keyPrefix}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      color={
+                        client.status === 'active'
+                          ? 'green'
+                          : client.status === 'suspended'
+                            ? 'amber'
+                            : 'red'
+                      }
+                    >
+                      {client.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {new Date(client.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {client.expiresAt
+                      ? new Date(client.expiresAt).toLocaleDateString()
+                      : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button plain href={`/app/clients/${client.id}`}>
+                        <Eye data-slot="icon" />
+                      </Button>
+                      {client.status !== 'revoked' && (
+                        <Button
+                          plain
+                          onClick={() => handleToggleStatus(client)}
+                          disabled={updateClient.isPending}
+                        >
+                          {client.status === 'active' ? (
+                            <Pause data-slot="icon" />
+                          ) : (
+                            <Play data-slot="icon" />
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        plain
+                        onClick={() => {
+                          setClientToDelete(client.id);
+                          setDeleteDialogOpen(true);
+                        }}
+                        disabled={deleteClient.isPending}
+                      >
+                        <Trash2 data-slot="icon" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
 
       {/* Create Client Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
         <DialogBody>
-          
-            <DialogTitle>Create New Client</DialogTitle>
-            <DialogDescription>
-              Generate a new API client and key for accessing MCP services
-            </DialogDescription>
-          
+          <DialogTitle>Create New Client</DialogTitle>
+          <DialogDescription>
+            Generate a new API client and key for accessing MCP services
+          </DialogDescription>
           <div className="space-y-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Client Name</Label>
               <Input
                 placeholder="My Application"
@@ -209,7 +238,7 @@ export function Clients() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Expires At (optional)</Label>
               <Input
                 type="datetime-local"
@@ -241,39 +270,40 @@ export function Clients() {
       {/* API Key Dialog */}
       <Dialog open={keyDialogOpen} onClose={setKeyDialogOpen}>
         <DialogBody>
-          
-            <DialogTitle>API Key Created</DialogTitle>
-            <DialogDescription>
-              Save this key securely. It will only be shown once.
-            </DialogDescription>
-        
+          <DialogTitle>API Key Created</DialogTitle>
+          <DialogDescription>
+            Save this key securely. It will only be shown once.
+          </DialogDescription>
           <InlineAlert color="warning">
             <InlineAlertDescription>
-              This is the only time you&apos;ll see the full API key. Copy it now and
-              store it securely.
+              This is the only time you&apos;ll see the full API key. Copy it
+              now and store it securely.
             </InlineAlertDescription>
           </InlineAlert>
-          <Field className="space-y-2">
+          <Field>
             <Label>API Key</Label>
             <div className="flex gap-2">
               <Input
                 value={plaintextKey ?? ''}
                 readOnly
-                className="font-mono text-xs bg-muted"
+                className="font-mono text-xs bg-zinc-100"
               />
-              <Button
-                plain className="p-1"
-                onClick={handleCopyKey}
-              >
-                {keyCopied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+              <Button plain onClick={handleCopyKey}>
+                {keyCopied ? (
+                  <Check data-slot="icon" className="text-green-600" />
+                ) : (
+                  <Copy data-slot="icon" />
+                )}
               </Button>
             </div>
           </Field>
           <DialogActions>
-            <Button onClick={() => {
-              setKeyDialogOpen(false);
-              setPlaintextKey(null);
-            }}>
+            <Button
+              onClick={() => {
+                setKeyDialogOpen(false);
+                setPlaintextKey(null);
+              }}
+            >
               I&apos;ve Saved the Key
             </Button>
           </DialogActions>
@@ -282,26 +312,25 @@ export function Clients() {
 
       {/* Delete Confirmation Dialog */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
-        
-          
-            <AlertTitle>Are you sure?</AlertTitle>
-            <AlertDescription>
-              This will permanently revoke the client and all associated subscriptions.
-              This action cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setClientToDelete(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Are you sure?</AlertTitle>
+        <AlertDescription>
+          This will permanently revoke the client and all associated
+          subscriptions. This action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button
+            plain
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setClientToDelete(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleDelete}>
+            Delete
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

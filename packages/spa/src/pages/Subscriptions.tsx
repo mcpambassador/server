@@ -1,31 +1,20 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Subscriptions() {
   usePageTitle('My Subscriptions');
   return (
     <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">My Subscriptions</h1>
-        <p className="text-sm text-muted-foreground">
-          View your active MCP subscriptions
+      <Heading>My Subscriptions</Heading>
+      <Text>View your active MCP subscriptions</Text>
+
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">Coming Soon</h3>
+        <p className="mt-2 text-sm/6 text-zinc-500">
+          Subscription management interface is under development. Manage your active subscriptions to MCP servers, view usage, billing details, and subscription history.
         </p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Coming Soon</CardTitle>
-          <CardDescription>
-            Subscription management interface is under development
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Manage your active subscriptions to MCP servers. View usage,
-            billing details, and subscription history.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }

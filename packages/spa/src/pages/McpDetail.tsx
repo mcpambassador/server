@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/catalyst/skeleton';
+import { Button } from '@/components/catalyst/button';
 import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Select } from '@/components/catalyst/select';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
@@ -60,42 +60,39 @@ export function McpDetail() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200" />
+        <div className="animate-pulse h-32 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-64 w-full rounded bg-zinc-200" />
       </div>
     );
   }
 
   if (!mcp) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>MCP Not Found</CardTitle>
-          <CardDescription>
-            The requested MCP could not be found.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+        <Heading level={3}>MCP Not Found</Heading>
+        <Text className="mt-2">The requested MCP could not be found.</Text>
+        <div className="mt-4">
           <Button href="/app/marketplace">Back to Marketplace</Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button plain className="p-1" href="/app/marketplace">
-          <ArrowLeft className="h-4 w-4" />
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button plain href="/app/marketplace">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-semibold">{mcp.name}</h1>
-          <p className="text-sm text-muted-foreground">{mcp.description || 'No description available'}</p>
+          <Heading>{mcp.name}</Heading>
+          <Text className="mt-1">{mcp.description || 'No description available'}</Text>
         </div>
       </div>
 
-      {/* Credential Warning */}
+      {/* Credential Alerts */}
       {requiresCredentials && !hasCredentials && (
         <InlineAlert color="warning">
           <AlertCircle className="h-4 w-4" />
@@ -120,71 +117,62 @@ export function McpDetail() {
         </InlineAlert>
       )}
 
-      {/* MCP Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>MCP Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-              <Badge color="zinc" className="mt-1">
+      {/* MCP Details Panel */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+        <Heading level={2} className="mb-4">MCP Details</Heading>
+        <dl className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Isolation Mode</dt>
+            <dd className="mt-1 text-sm text-zinc-900">
+              <Badge color="zinc">
                 {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
               </Badge>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Credentials Required</p>
-              <Badge color={requiresCredentials ? 'zinc' : 'zinc'} className="mt-1">
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Credentials Required</dt>
+            <dd className="mt-1 text-sm text-zinc-900">
+              <Badge color="zinc">
                 {requiresCredentials ? 'Yes' : 'No'}
               </Badge>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Tools Available</p>
-              <p className="text-lg font-medium mt-1">{mcp.tools.length}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Created</p>
-              <p className="text-lg font-medium mt-1">
-                {new Date(mcp.createdAt).toLocaleDateString()}
-              </p>
-            </div>
+            </dd>
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Tools Available</dt>
+            <dd className="mt-1 text-sm text-zinc-900 font-semibold">{mcp.tools.length}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-zinc-500">Created</dt>
+            <dd className="mt-1 text-sm text-zinc-900 font-semibold">
+              {new Date(mcp.createdAt).toLocaleDateString()}
+            </dd>
+          </div>
+        </dl>
+      </div>
 
-      {/* Tools List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Tools</CardTitle>
-          <CardDescription>
-            Tools provided by this MCP
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {mcp.tools.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tools available</p>
-          ) : (
-            <div className="space-y-3">
-              {mcp.tools.map((tool) => (
-                <div key={tool.name} className="border-l-2 border-primary pl-4 py-2">
-                  <p className="font-medium">{tool.name}</p>
-                  {tool.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {tool.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tools List Panel */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+        <Heading level={2} className="mb-2">Available Tools</Heading>
+        <Text className="mb-4">Tools provided by this MCP</Text>
+        {mcp.tools.length === 0 ? (
+          <Text className="text-zinc-500">No tools available</Text>
+        ) : (
+          <div className="space-y-4">
+            {mcp.tools.map((tool) => (
+              <div key={tool.name} className="border-l-2 border-zinc-300 pl-4 py-2">
+                <p className="font-medium text-zinc-900">{tool.name}</p>
+                {tool.description && (
+                  <p className="text-sm text-zinc-500 mt-1">{tool.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Subscribe Button */}
       <div className="flex justify-end">
         <Button
-          className="h-8"
           onClick={openSubscribeDialog}
           disabled={activeClients.length === 0 || (requiresCredentials && !hasCredentials)}
         >
@@ -195,15 +183,13 @@ export function McpDetail() {
 
       {/* Subscribe Dialog */}
       <Dialog open={subscribeDialogOpen} onClose={setSubscribeDialogOpen}>
-        
-          
-            <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
-            <DialogDescription>
-              Select a client and choose which tools to enable
-            </DialogDescription>
-          
+        <DialogBody>
+          <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
+          <DialogDescription>
+            Select a client and choose which tools to enable
+          </DialogDescription>
 
-          <div className="space-y-4">
+          <div className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label>Select Client</Label>
               <Select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} name="client">
@@ -218,10 +204,10 @@ export function McpDetail() {
 
             <div className="space-y-2">
               <Label>Select Tools (optional)</Label>
-              <p className="text-sm text-muted-foreground">
+              <Text className="text-sm text-zinc-500">
                 Leave all selected to enable all tools
-              </p>
-              <div className="max-h-64 overflow-y-auto space-y-3 border rounded-md p-4">
+              </Text>
+              <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 p-4">
                 {mcp.tools.map((tool) => (
                   <CheckboxField key={tool.name}>
                     <Checkbox
@@ -240,9 +226,9 @@ export function McpDetail() {
                         {tool.name}
                       </Label>
                       {tool.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <Text className="text-sm text-zinc-500 mt-1">
                           {tool.description}
-                        </p>
+                        </Text>
                       )}
                     </div>
                   </CheckboxField>
@@ -252,18 +238,17 @@ export function McpDetail() {
           </div>
 
           <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
+            <Button color="zinc" onClick={() => setSubscribeDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              className="h-8"
               onClick={handleSubscribe}
               disabled={!selectedClientId || selectedTools.length === 0 || subscribe.isPending}
             >
               {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
             </Button>
           </DialogActions>
-        
+        </DialogBody>
       </Dialog>
     </div>
   );

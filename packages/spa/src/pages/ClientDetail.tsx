@@ -1,20 +1,15 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Settings } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/catalyst/skeleton';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Button } from '@/components/catalyst/button';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import type { Subscription } from '@/api/types';
@@ -74,199 +69,197 @@ export function ClientDetail() {
     }
   };
 
-  const columns: ColumnDef<Subscription>[] = [
-    {
-      header: 'MCP Name',
-      accessor: 'mcpName',
-      cell: (sub) => (
-        <Link
-          to={`/app/marketplace/${sub.mcpId}`}
-          className="font-medium hover:underline"
-        >
-          {sub.mcpName}
-        </Link>
-      ),
-    },
-    {
-      header: 'Tools',
-      accessor: 'selectedTools',
-      cell: (sub) => {
-        const mcp = marketplace?.data?.find(m => m.id === sub.mcpId);
-        const totalTools = mcp?.tools?.length ?? 0;
-        const selectedCount = sub.selectedTools?.length ?? totalTools;
-        return (
-          <span className="text-sm text-muted-foreground">
-            {selectedCount} / {totalTools}
-          </span>
-        );
-      },
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      cell: (sub) => (
-        <Badge color={sub.status === 'active' ? 'emerald' : 'zinc'}>
-          {sub.status}
-        </Badge>
-      ),
-    },
-    {
-      header: 'Created',
-      accessor: 'createdAt',
-      cell: (sub) => new Date(sub.createdAt).toLocaleDateString(),
-    },
-    {
-      header: 'Actions',
-      accessor: 'id',
-      cell: (sub) => (
-        <div className="flex items-center gap-2">
-          <Button
-                        className="p-1"
-            onClick={() => handleEditTools(sub)}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => {
-              setSubscriptionToDelete(sub.id);
-              setUnsubscribeDialogOpen(true);
-            }}
-            disabled={unsubscribe.isPending}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   if (clientLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <div className="animate-pulse h-8 w-48 rounded bg-zinc-200" />
+        <div className="animate-pulse h-32 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-64 w-full rounded bg-zinc-200" />
       </div>
     );
   }
 
   if (!client) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Not Found</CardTitle>
-          <CardDescription>
-            The requested client could not be found.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+        <Heading level={3}>Client Not Found</Heading>
+        <Text className="mt-2">The requested client could not be found.</Text>
+        <div className="mt-4">
           <Button href="/app/clients">Back to Clients</Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button plain className="p-1" href="/app/clients">
-          <ArrowLeft className="h-4 w-4" />
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button plain href="/app/clients">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-semibold">{client.clientName}</h1>
-          <p className="text-sm text-muted-foreground">{client.keyPrefix}</p>
+          <Heading>{client.clientName}</Heading>
+          <Text className="font-mono text-sm">{client.keyPrefix}</Text>
         </div>
         <Badge color={
-          client.status === 'active' ? 'emerald' :
+          client.status === 'active' ? 'green' :
           client.status === 'suspended' ? 'zinc' : 'red'
         }>
           {client.status}
         </Badge>
       </div>
 
-      {/* Client Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Details</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+      {/* Client Details */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+        <Heading level={2} className="mb-4">Client Details</Heading>
+        <dl className="grid gap-6 sm:grid-cols-2">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Created</p>
-            <p className="text-lg">{new Date(client.createdAt).toLocaleString()}</p>
+            <dt className="text-sm font-medium text-zinc-500">Created</dt>
+            <dd className="mt-1 text-zinc-900">{new Date(client.createdAt).toLocaleString()}</dd>
           </div>
           {client.expiresAt && (
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Expires</p>
-              <p className="text-lg">{new Date(client.expiresAt).toLocaleString()}</p>
+              <dt className="text-sm font-medium text-zinc-500">Expires</dt>
+              <dd className="mt-1 text-zinc-900">{new Date(client.expiresAt).toLocaleString()}</dd>
             </div>
           )}
           {client.lastUsedAt && (
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Last Used</p>
-              <p className="text-lg">{new Date(client.lastUsedAt).toLocaleString()}</p>
+              <dt className="text-sm font-medium text-zinc-500">Last Used</dt>
+              <dd className="mt-1 text-zinc-900">{new Date(client.lastUsedAt).toLocaleString()}</dd>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </dl>
+      </div>
 
-      {/* Subscriptions */}
+      {/* Subscriptions Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Subscriptions</h2>
-            <p className="text-sm text-muted-foreground">
-              MCPs this client is subscribed to
-            </p>
+            <Heading level={2}>Subscriptions</Heading>
+            <Text className="text-sm">MCPs this client is subscribed to</Text>
           </div>
-          <Button className="h-8" href="/app/marketplace">
+          <Button href="/app/marketplace">
             <Plus className="mr-2 h-4 w-4" />
             Subscribe to MCP
           </Button>
         </div>
 
-        <Card className="p-6">
-          <DataTable
-            columns={columns}
-            data={subscriptions ?? []}
-            isLoading={subsLoading}
-            emptyMessage="No subscriptions yet. Browse the marketplace to subscribe to MCPs."
-          />
-        </Card>
+        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+          {subsLoading ? (
+            <div className="p-6 space-y-3">
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+              <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+            </div>
+          ) : !subscriptions || subscriptions.length === 0 ? (
+            <div className="p-8 text-center">
+              <Text className="text-zinc-500">
+                No subscriptions yet. Browse the marketplace to subscribe to MCPs.
+              </Text>
+            </div>
+          ) : (
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeader>MCP Name</TableHeader>
+                  <TableHeader>Tools</TableHeader>
+                  <TableHeader>Status</TableHeader>
+                  <TableHeader>Created</TableHeader>
+                  <TableHeader>Actions</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {subscriptions.map((sub) => {
+                  const mcp = marketplace?.data?.find(m => m.id === sub.mcpId);
+                  const totalTools = mcp?.tools?.length ?? 0;
+                  const selectedCount = sub.selectedTools?.length ?? totalTools;
+                  
+                  return (
+                    <TableRow key={sub.id}>
+                      <TableCell>
+                        <Link
+                          to={`/app/marketplace/${sub.mcpId}`}
+                          className="font-medium text-zinc-900 hover:underline"
+                        >
+                          {sub.mcpName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Text className="text-sm text-zinc-500">
+                          {selectedCount} / {totalTools}
+                        </Text>
+                      </TableCell>
+                      <TableCell>
+                        <Badge color={sub.status === 'active' ? 'green' : 'zinc'}>
+                          {sub.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Text>{new Date(sub.createdAt).toLocaleDateString()}</Text>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditTools(sub)}
+                            className="p-1 text-zinc-500 hover:text-zinc-900"
+                            aria-label="Edit tools"
+                          >
+                            <Settings className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSubscriptionToDelete(sub.id);
+                              setUnsubscribeDialogOpen(true);
+                            }}
+                            disabled={unsubscribe.isPending}
+                            className="p-1 text-zinc-500 hover:text-red-600 disabled:opacity-50"
+                            aria-label="Unsubscribe"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
       </div>
 
-      {/* Unsubscribe Confirmation Dialog */}
+      {/* Unsubscribe Confirmation Alert */}
       <Alert open={unsubscribeDialogOpen} onClose={setUnsubscribeDialogOpen}>
-        
-          
-            <AlertTitle>Unsubscribe from MCP?</AlertTitle>
-            <AlertDescription>
-              This will remove access to this MCP for this client. This action cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSubscriptionToDelete(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleUnsubscribe}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Unsubscribe
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Unsubscribe from MCP?</AlertTitle>
+        <AlertDescription>
+          This will remove access to this MCP for this client. This action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => {
+            setUnsubscribeDialogOpen(false);
+            setSubscriptionToDelete(null);
+          }}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            onClick={handleUnsubscribe}
+            disabled={unsubscribe.isPending}
+          >
+            {unsubscribe.isPending ? 'Unsubscribing...' : 'Unsubscribe'}
+          </Button>
+        </AlertActions>
       </Alert>
 
       {/* Edit Tools Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
-        
-          
-            <DialogTitle>Select Tools</DialogTitle>
-            <DialogDescription>
-              Choose which tools this client can access from {subscriptionToEdit?.mcpName}
-            </DialogDescription>
-          
+        <DialogTitle>Select Tools</DialogTitle>
+        <DialogDescription>
+          Choose which tools this client can access from {subscriptionToEdit?.mcpName}
+        </DialogDescription>
+        <DialogBody>
           <div className="max-h-96 overflow-y-auto space-y-3">
             {marketplace?.data
               ?.find(m => m.id === subscriptionToEdit?.mcpId)
@@ -288,27 +281,26 @@ export function ClientDetail() {
                       {tool.name}
                     </Label>
                     {tool.description && (
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <Text className="text-sm text-zinc-500 mt-1">
                         {tool.description}
-                      </p>
+                      </Text>
                     )}
                   </div>
                 </CheckboxField>
               ))}
           </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="h-8"
-              onClick={handleSaveTools}
-              disabled={selectedTools.length === 0 || updateSubscription.isPending}
-            >
-              {updateSubscription.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogActions>
-        
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveTools}
+            disabled={selectedTools.length === 0 || updateSubscription.isPending}
+          >
+            {updateSubscription.isPending ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </div>
   );

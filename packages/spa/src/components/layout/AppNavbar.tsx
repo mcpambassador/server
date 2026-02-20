@@ -34,7 +34,7 @@ export function AppNavbar() {
       <NavbarSpacer />
       <Dropdown>
         <DropdownButton as="div" className="cursor-pointer">
-          <Avatar initials={userInitials} className="size-8 bg-zinc-700 text-white" />
+          <Avatar initials={userInitials} className="size-8 bg-slate-700 text-white" />
         </DropdownButton>
         <DropdownMenu anchor="bottom end">
           <DropdownItem href="/app/profile">
