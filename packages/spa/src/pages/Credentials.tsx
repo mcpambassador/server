@@ -2,21 +2,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Key, Trash2, Edit, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+  Alert,
+  AlertBody,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
+import { Label } from '@/components/catalyst/fieldset';
+import { Input } from '@/components/catalyst/input';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useCredentialStatus, useSetCredentials, useDeleteCredentials } from '@/api/hooks/use-credentials';
 import type { CredentialStatus } from '@/api/types';
@@ -99,12 +96,12 @@ export function Credentials() {
           {cred.hasCredentials ? (
             <>
               <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <Badge variant="success">Configured</Badge>
+              <Badge color="emerald">Configured</Badge>
             </>
           ) : (
             <>
               <XCircle className="h-4 w-4 text-red-600" />
-              <Badge variant="secondary">Not Set</Badge>
+              <Badge color="zinc">Not Set</Badge>
             </>
           )}
         </div>
@@ -122,16 +119,14 @@ export function Credentials() {
       cell: (cred) => (
         <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => handleEdit(cred)}
           >
             <Edit className="h-4 w-4" />
           </Button>
           {cred.hasCredentials && (
             <Button
-              variant="ghost"
-              size="icon"
+                            className="p-1"
               onClick={() => {
                 setSelectedMcp(cred);
                 setDeleteDialogOpen(true);
@@ -178,16 +173,16 @@ export function Credentials() {
       </Card>
 
       {/* Edit Credentials Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>
               {selectedMcp?.hasCredentials ? 'Update' : 'Set'} Credentials for {selectedMcp?.mcpName}
             </DialogTitle>
             <DialogDescription>
               Enter the required credentials. They will be stored securely and never displayed.
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
             {selectedMcp && Object.keys(
               (selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>) ?? {}
@@ -217,8 +212,8 @@ export function Credentials() {
               );
             })}
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -231,33 +226,33 @@ export function Credentials() {
             >
               {setCredentials.isPending ? 'Saving...' : 'Save Credentials'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Credentials?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
+        
+          
+            <AlertTitle>Delete Credentials?</AlertTitle>
+            <AlertDescription>
               This will permanently delete your stored credentials for{' '}
               {selectedMcp?.mcpName}. You will need to re-enter them to use this MCP.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedMcp(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSelectedMcp(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/catalyst/fieldset';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
 import { useCredentialStatus } from '@/api/hooks/use-credentials';
@@ -88,7 +88,7 @@ export function McpDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button variant="ghost" size="icon" asChild>
+        <Button plain className="p-1" asChild>
           <Link to="/app/marketplace">
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -115,7 +115,7 @@ export function McpDetail() {
       )}
 
       {requiresCredentials && hasCredentials && (
-        <Alert variant="success">
+        <Alert color="emerald">
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Credentials Configured</AlertTitle>
           <AlertDescription>
@@ -133,13 +133,13 @@ export function McpDetail() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-              <Badge variant="outline" className="mt-1">
+              <Badge color="zinc" className="mt-1">
                 {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
               </Badge>
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Credentials Required</p>
-              <Badge variant={requiresCredentials ? 'secondary' : 'outline'} className="mt-1">
+              <Badge color={requiresCredentials ? 'zinc' : 'zinc'} className="mt-1">
                 {requiresCredentials ? 'Yes' : 'No'}
               </Badge>
             </div>
@@ -198,14 +198,14 @@ export function McpDetail() {
       </div>
 
       {/* Subscribe Dialog */}
-      <Dialog open={subscribeDialogOpen} onOpenChange={setSubscribeDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+      <Dialog open={subscribeDialogOpen} onClose={setSubscribeDialogOpen}>
+        
+          
             <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
             <DialogDescription>
               Select a client and choose which tools to enable
             </DialogDescription>
-          </DialogHeader>
+          
 
           <div className="space-y-4">
             <div className="space-y-2">
@@ -259,8 +259,8 @@ export function McpDetail() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -270,8 +270,8 @@ export function McpDetail() {
             >
               {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
     </div>
   );

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Store, UserCircle, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/catalyst/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useClients } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
@@ -124,7 +124,7 @@ export function Dashboard() {
               <p className="text-sm text-muted-foreground mb-4">
                 No clients yet. Create your first API client to get started.
               </p>
-              <Button asChild size="sm">
+              <Button asChild className="text-sm">
                 <Link to="/app/clients">Create Client</Link>
               </Button>
             </div>
@@ -141,13 +141,13 @@ export function Dashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild color="zinc" className="text-sm">
             <Link to="/app/clients">
               <UserCircle className="mr-2 h-4 w-4" />
               Create Client
             </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild color="zinc" className="text-sm">
             <Link to="/app/marketplace">
               <Store className="mr-2 h-4 w-4" />
               Browse Marketplace

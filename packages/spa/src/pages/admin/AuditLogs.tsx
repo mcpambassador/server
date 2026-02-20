@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Input } from '@/components/catalyst/input';
+import { Label } from '@/components/catalyst/fieldset';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAuditEvents } from '@/api/hooks/use-admin';
 import type { AuditEvent } from '@/api/types';
@@ -77,12 +77,12 @@ export function AuditLogsAdmin() {
       accessor: 'severity',
       cell: (event) => (
         <Badge
-          variant={
+          color={
             event.severity === 'error'
-              ? 'destructive'
+              ? 'red'
               : event.severity === 'warn'
-              ? 'secondary'
-              : 'outline'
+              ? 'zinc'
+              : 'zinc'
           }
         >
           {event.severity}
@@ -136,7 +136,7 @@ export function AuditLogsAdmin() {
             View system audit logs and activity history
           </p>
         </div>
-        <Button variant="outline" className="h-8" onClick={() => refetch()}>
+        <Button color="zinc" className="h-8" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
@@ -196,7 +196,7 @@ export function AuditLogsAdmin() {
             <Button onClick={handleApplyFilters} className="h-8">
               Apply Filters
             </Button>
-            <Button variant="outline" onClick={handleReset} className="h-8">
+            <Button color="zinc" onClick={handleReset} className="h-8">
               Reset
             </Button>
           </div>

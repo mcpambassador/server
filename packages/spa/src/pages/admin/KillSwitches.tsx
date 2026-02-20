@@ -2,18 +2,15 @@ import { useState } from 'react';
 import { Power, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Button } from '@/components/catalyst/button';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertBody,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -44,7 +41,7 @@ export function KillSwitches() {
       setConfirmDialogOpen(false);
       setSelectedTarget(null);
     } catch (error) {
-      addToast({ title: 'Kill switch failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Kill switch failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -95,11 +92,11 @@ export function KillSwitches() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={client.status === 'active' ? 'default' : 'secondary'}>
+                    <Badge color={client.status === 'active' ? 'teal' : 'zinc'}>
                       {client.status}
                     </Badge>
                     <Button
-                      variant={client.status === 'active' ? 'destructive' : 'default'}
+                      color={client.status === 'active' ? 'red' : 'teal'}
                       className="h-8"
                       onClick={() =>
                         handleToggle(
@@ -145,18 +142,18 @@ export function KillSwitches() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge
-                      variant={
+                      color={
                         mcp.status === 'published'
-                          ? 'default'
+                          ? 'teal'
                           : mcp.status === 'draft'
-                          ? 'secondary'
-                          : 'outline'
+                          ? 'zinc'
+                          : 'zinc'
                       }
                     >
                       {mcp.status}
                     </Badge>
                     <Button
-                      variant={mcp.status === 'published' ? 'destructive' : 'default'}
+                      color={mcp.status === 'published' ? 'red' : 'teal'}
                       className="h-8"
                       onClick={() =>
                         handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')
@@ -177,23 +174,23 @@ export function KillSwitches() {
       </Card>
 
       {/* Confirmation Dialog */}
-      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
+      <Alert open={confirmDialogOpen} onClose={setConfirmDialogOpen}>
+        
+          
+            <AlertTitle>
               {selectedTarget?.enabled ? 'Disable' : 'Enable'} {selectedTarget?.target}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
+            </AlertTitle>
+            <AlertDescription>
               {selectedTarget?.enabled
                 ? 'This will immediately block all requests from this entity. Active connections may be terminated.'
                 : 'This will re-enable access for this entity.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedTarget(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSelectedTarget(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleConfirm}
               className={
                 selectedTarget?.enabled
@@ -202,10 +199,10 @@ export function KillSwitches() {
               }
             >
               {selectedTarget?.enabled ? 'Disable' : 'Enable'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

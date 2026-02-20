@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Package, Key } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/catalyst/input';
+import { Badge } from '@/components/catalyst/badge';
+import { Button } from '@/components/catalyst/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -85,18 +85,18 @@ export function Marketplace() {
                     <span>{mcp.tools.length} tools</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="text-xs">
+                    <Badge color="zinc" className="text-xs">
                       {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
                     </Badge>
                     {mcp.requiresUserCredentials && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge color="zinc" className="text-xs">
                         <Key className="h-3 w-3 mr-1" />
                         Credentials
                       </Badge>
                     )}
                   </div>
                 </div>
-                <Button asChild variant="outline" size="sm" className="w-full">
+                <Button asChild color="zinc" className="text-sm w-full">
                   <Link to={`/app/marketplace/${mcp.id}`}>
                     View Details
                   </Link>

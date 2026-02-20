@@ -3,21 +3,18 @@ import { Link } from 'react-router-dom';
 import { Plus, Eye, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/catalyst/button';
+import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
+import { Input } from '@/components/catalyst/input';
+import { Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertBody,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminGroups, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/api/hooks/use-admin';
 import type { Group } from '@/api/types';
@@ -55,7 +52,7 @@ export function GroupsAdmin() {
       setCreateDialogOpen(false);
       setCreateFormData({ name: '', description: '' });
     } catch (error) {
-      addToast({ title: 'Create group failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Create group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -72,7 +69,7 @@ export function GroupsAdmin() {
       setEditDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      addToast({ title: 'Update group failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Update group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -83,7 +80,7 @@ export function GroupsAdmin() {
       setDeleteDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      addToast({ title: 'Delete group failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Delete group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -129,21 +126,19 @@ export function GroupsAdmin() {
       accessor: 'group_id',
       cell: (group) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild>
+          <Button plain className="p-1" asChild>
             <Link to={`/app/admin/groups/${group.group_id}`}>
               <Eye className="h-4 w-4" />
             </Link>
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => openEditDialog(group)}
           >
             <Eye className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => {
               setSelectedGroup(group);
               setDeleteDialogOpen(true);
@@ -181,14 +176,14 @@ export function GroupsAdmin() {
       </Card>
 
       {/* Create Group Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
+        
+          
             <DialogTitle>Create New Group</DialogTitle>
             <DialogDescription>
               Add a new group for organizing users
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name *</Label>
@@ -212,8 +207,8 @@ export function GroupsAdmin() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setCreateDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -223,19 +218,19 @@ export function GroupsAdmin() {
             >
               {createGroup.isPending ? 'Creating...' : 'Create'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Edit Group Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>Edit Group</DialogTitle>
             <DialogDescription>
               Update group information
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit_name">Name</Label>
@@ -259,40 +254,40 @@ export function GroupsAdmin() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleEdit} disabled={updateGroup.isPending}>
               {updateGroup.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
+        
+          
+            <AlertTitle>Are you sure?</AlertTitle>
+            <AlertDescription>
               This will permanently delete the group &quot;{selectedGroup?.name}&quot;. This
               action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedGroup(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSelectedGroup(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

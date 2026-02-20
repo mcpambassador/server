@@ -1,10 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Shield, Key, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
+import { Divider } from '@/components/catalyst/divider';
 import { useAdminUser, useAdminGroups, useAuditEvents } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -34,7 +34,7 @@ export function UserDetail() {
   if (!user) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" asChild>
+        <Button plain asChild>
           <Link to="/app/admin/users">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Users
@@ -54,7 +54,7 @@ export function UserDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" className="h-8" asChild>
+      <Button plain className="h-8" asChild>
         <Link to="/app/admin/users">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Users
@@ -68,12 +68,12 @@ export function UserDetail() {
         </div>
         <div className="flex items-center gap-2">
           {user.is_admin && (
-            <Badge variant="default">
+            <Badge color="teal">
               <Shield className="mr-1 h-3 w-3" />
               Admin
             </Badge>
           )}
-          <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
+          <Badge color={user.status === 'active' ? 'emerald' : 'zinc'}>
             {user.status}
           </Badge>
         </div>
@@ -113,13 +113,13 @@ export function UserDetail() {
               </p>
             </div>
           </div>
-          <Separator />
+          <Divider />
           <div className="flex gap-2">
-            <Button variant="outline" className="h-8">
+            <Button color="zinc" className="h-8">
               <Key className="mr-2 h-4 w-4" />
               Reset Password
             </Button>
-            <Button variant="outline" className="h-8">
+            <Button color="zinc" className="h-8">
               <User className="mr-2 h-4 w-4" />
               Edit User
             </Button>
@@ -150,7 +150,7 @@ export function UserDetail() {
                     <p className="font-medium">{group.name}</p>
                     <p className="text-sm text-muted-foreground">{group.description}</p>
                   </div>
-                  <Button variant="outline" className="h-8" asChild>
+                  <Button color="zinc" className="h-8" asChild>
                     <Link to={`/app/admin/groups/${group.group_id}`}>View</Link>
                   </Button>
                 </div>
@@ -190,12 +190,12 @@ export function UserDetail() {
                   </div>
                   <div className="text-right">
                     <Badge
-                      variant={
+                      color={
                         event.severity === 'error'
-                          ? 'destructive'
+                          ? 'red'
                           : event.severity === 'warn'
-                          ? 'secondary'
-                          : 'outline'
+                          ? 'zinc'
+                          : 'zinc'
                       }
                     >
                       {event.severity}

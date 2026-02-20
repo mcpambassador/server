@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/catalyst/button';
+import { Label } from '@/components/catalyst/fieldset';
+import { Input } from '@/components/catalyst/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -151,7 +151,7 @@ export function Profile() {
         <CardContent>
           <form onSubmit={handlePasswordChange} className="space-y-4">
             {passwordSuccess && (
-              <Alert variant="success">
+              <Alert color="emerald">
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
                   Password changed successfully
@@ -160,7 +160,7 @@ export function Profile() {
             )}
 
             {passwordError && (
-              <Alert variant="destructive">
+              <Alert color="red">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{passwordError}</AlertDescription>
               </Alert>

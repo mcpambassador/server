@@ -3,13 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Input } from '@/components/catalyst/input';
+import { Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useAdminMcp,
@@ -48,7 +48,7 @@ export function McpDetail() {
         try {
           configObj = JSON.parse(editFormData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'destructive' });
+          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'red' });
           return;
         }
       }
@@ -64,7 +64,7 @@ export function McpDetail() {
       });
       setEditDialogOpen(false);
     } catch (error) {
-      addToast({ title: 'Update MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Update MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -85,7 +85,7 @@ export function McpDetail() {
       const result = await validateMcp.mutateAsync(mcp.mcp_id);
       setValidationResult(result);
     } catch (error) {
-      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -94,7 +94,7 @@ export function McpDetail() {
     try {
       await publishMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -103,7 +103,7 @@ export function McpDetail() {
     try {
       await archiveMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -119,7 +119,7 @@ export function McpDetail() {
   if (!mcp) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" asChild>
+        <Button plain asChild>
           <Link to="/app/admin/mcps">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to MCPs
@@ -136,7 +136,7 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" className="h-8" asChild>
+      <Button plain className="h-8" asChild>
         <Link to="/app/admin/mcps">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to MCPs
@@ -149,17 +149,17 @@ export function McpDetail() {
           <p className="text-sm text-muted-foreground font-mono">{mcp.name}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={mcp.status === 'draft' ? 'secondary' : mcp.status === 'published' ? 'default' : 'outline'}>
+          <Badge color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'teal' : 'zinc'}>
             {mcp.status}
           </Badge>
           {mcp.validation_status && (
             <Badge
-              variant={
+              color={
                 mcp.validation_status === 'valid'
-                  ? 'success'
+                  ? 'emerald'
                   : mcp.validation_status === 'invalid'
-                  ? 'destructive'
-                  : 'outline'
+                  ? 'red'
+                  : 'zinc'
               }
             >
               {mcp.validation_status}
@@ -170,10 +170,10 @@ export function McpDetail() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" className="h-8" onClick={openEditDialog}>
+        <Button color="zinc" className="h-8" onClick={openEditDialog}>
           Edit MCP
         </Button>
-        <Button variant="outline" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
+        <Button color="zinc" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Validate
         </Button>
@@ -184,7 +184,7 @@ export function McpDetail() {
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button variant="outline" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
+          <Button color="zinc" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
             <Archive className="mr-2 h-4 w-4" />
             {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
           </Button>
@@ -330,12 +330,12 @@ export function McpDetail() {
       </Tabs>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>Edit MCP</DialogTitle>
             <DialogDescription>Update MCP configuration</DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
               <Label htmlFor="edit_display_name">Display Name</Label>
@@ -381,15 +381,15 @@ export function McpDetail() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleEdit} disabled={updateMcp.isPending}>
               {updateMcp.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
     </div>
   );

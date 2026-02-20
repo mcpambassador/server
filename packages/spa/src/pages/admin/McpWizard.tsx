@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Input } from '@/components/catalyst/input';
+import { Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
@@ -42,7 +42,7 @@ export function McpWizard() {
     if (currentStep === 0) {
       // Basic validation
       if (!formData.name || !formData.display_name) {
-        addToast({ title: 'Validation', description: 'Name and Display Name are required', variant: 'destructive' });
+        addToast({ title: 'Validation', description: 'Name and Display Name are required', variant: 'red' });
         return;
       }
     }
@@ -54,7 +54,7 @@ export function McpWizard() {
         try {
           configObj = JSON.parse(formData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'destructive' });
+          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'red' });
           return;
         }
 
@@ -63,7 +63,7 @@ export function McpWizard() {
           try {
             credentialSchemaObj = JSON.parse(formData.credential_schema);
           } catch {
-            addToast({ title: 'Invalid JSON', description: 'Invalid JSON in credential schema field', variant: 'destructive' });
+            addToast({ title: 'Invalid JSON', description: 'Invalid JSON in credential schema field', variant: 'red' });
             return;
           }
         }
@@ -82,7 +82,7 @@ export function McpWizard() {
 
         setCreatedMcpId(result.mcp_id);
       } catch (error) {
-        addToast({ title: 'Create MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+        addToast({ title: 'Create MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
         return;
       }
     }
@@ -94,7 +94,7 @@ export function McpWizard() {
         const result = await validateMcp.mutateAsync(createdMcpId);
         setValidationResult(result);
       } catch (error) {
-        addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+        addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
         return;
       }
     }
@@ -112,7 +112,7 @@ export function McpWizard() {
       await publishMcp.mutateAsync(createdMcpId);
       navigate(`/app/admin/mcps/${createdMcpId}`);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -396,7 +396,7 @@ export function McpWizard() {
                   <div>
                     <p className="text-muted-foreground">Validation Status</p>
                     <Badge
-                      variant={validationResult?.valid ? 'success' : 'destructive'}
+                      color={validationResult?.valid ? 'emerald' : 'red'}
                     >
                       {validationResult?.valid ? 'Valid' : 'Invalid'}
                     </Badge>
@@ -422,7 +422,7 @@ export function McpWizard() {
                       {publishMcp.isPending ? 'Publishing...' : 'Publish MCP'}
                     </Button>
                   )}
-                  <Button variant="outline" className="h-8" onClick={handleSaveDraft}>
+                  <Button color="zinc" className="h-8" onClick={handleSaveDraft}>
                     Save as Draft
                   </Button>
                 </div>
@@ -436,7 +436,7 @@ export function McpWizard() {
       {currentStep < 3 && (
         <div className="flex justify-between">
           <Button
-            variant="outline"
+            color="zinc"
             className="h-8"
             onClick={handleBack}
             disabled={currentStep === 0}

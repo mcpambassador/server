@@ -3,21 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/catalyst/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Label } from '@/components/catalyst/fieldset';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertBody,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import {
   useAdminGroup,
@@ -64,7 +61,7 @@ export function GroupDetail() {
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
     } catch (error) {
-      addToast({ title: 'Add member failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Add member failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -75,7 +72,7 @@ export function GroupDetail() {
       setRemoveMemberDialogOpen(false);
       setMemberToRemove(null);
     } catch (error) {
-      addToast({ title: 'Remove member failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Remove member failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -86,7 +83,7 @@ export function GroupDetail() {
       setAddMcpDialogOpen(false);
       setSelectedMcpId('');
     } catch (error) {
-      addToast({ title: 'Assign MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Assign MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -97,7 +94,7 @@ export function GroupDetail() {
       setRemoveMcpDialogOpen(false);
       setMcpToRemove(null);
     } catch (error) {
-      addToast({ title: 'Remove MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      addToast({ title: 'Remove MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
     }
   };
 
@@ -129,8 +126,7 @@ export function GroupDetail() {
       accessor: 'user_id',
       cell: (member) => (
         <Button
-          variant="ghost"
-          size="icon"
+                    className="p-1"
           onClick={() => {
             setMemberToRemove(member);
             setRemoveMemberDialogOpen(true);
@@ -168,8 +164,7 @@ export function GroupDetail() {
       accessor: 'mcp_id',
       cell: (mcp) => (
         <Button
-          variant="ghost"
-          size="icon"
+                    className="p-1"
           onClick={() => {
             setMcpToRemove(mcp);
             setRemoveMcpDialogOpen(true);
@@ -193,7 +188,7 @@ export function GroupDetail() {
   if (!group) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" asChild>
+        <Button plain asChild>
           <Link to="/app/admin/groups">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Groups
@@ -210,7 +205,7 @@ export function GroupDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" className="h-8" asChild>
+      <Button plain className="h-8" asChild>
         <Link to="/app/admin/groups">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Groups
@@ -306,12 +301,12 @@ export function GroupDetail() {
       </Tabs>
 
       {/* Add Member Dialog */}
-      <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={addMemberDialogOpen} onClose={setAddMemberDialogOpen}>
+        
+          
             <DialogTitle>Add Member to Group</DialogTitle>
             <DialogDescription>Select a user to add to this group</DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="user_select">User</Label>
@@ -330,24 +325,24 @@ export function GroupDetail() {
               </select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setAddMemberDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setAddMemberDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleAddMember} disabled={!selectedUserId || addMember.isPending}>
               {addMember.isPending ? 'Adding...' : 'Add Member'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Add MCP Dialog */}
-      <Dialog open={addMcpDialogOpen} onOpenChange={setAddMcpDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={addMcpDialogOpen} onClose={setAddMcpDialogOpen}>
+        
+          
             <DialogTitle>Assign MCP to Group</DialogTitle>
             <DialogDescription>Select an MCP to assign to this group</DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="mcp_select">MCP</Label>
@@ -366,48 +361,48 @@ export function GroupDetail() {
               </select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setAddMcpDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setAddMcpDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleAssignMcp} disabled={!selectedMcpId || assignMcp.isPending}>
               {assignMcp.isPending ? 'Assigning...' : 'Assign MCP'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Remove Member Confirmation */}
-      <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={removeMemberDialogOpen} onClose={setRemoveMemberDialogOpen}>
+        
+          
+            <AlertTitle>Remove Member?</AlertTitle>
+            <AlertDescription>
               Remove &quot;{memberToRemove?.username}&quot; from this group?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMemberToRemove(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveMember}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setMemberToRemove(null)}>Cancel</Button>
+            <Button color="red" onClick={handleRemoveMember}>Remove</Button>
+          </AlertActions>
+        
+      </Alert>
 
       {/* Remove MCP Confirmation */}
-      <AlertDialog open={removeMcpDialogOpen} onOpenChange={setRemoveMcpDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove MCP?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={removeMcpDialogOpen} onClose={setRemoveMcpDialogOpen}>
+        
+          
+            <AlertTitle>Remove MCP?</AlertTitle>
+            <AlertDescription>
               Remove &quot;{mcpToRemove?.display_name}&quot; from this group?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMcpToRemove(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveMcp}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setMcpToRemove(null)}>Cancel</Button>
+            <Button color="red" onClick={handleRemoveMcp}>Remove</Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }
