@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Switch to class-based dark mode so only elements inside a
+   .dark ancestor get dark: variants. The sidebar is wrapped
+   in <div class="dark"> in AppShell — everything else stays light. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
    MCP Ambassador — Catalyst Design System
    ============================================================
