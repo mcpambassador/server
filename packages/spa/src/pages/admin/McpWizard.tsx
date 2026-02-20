@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
@@ -172,47 +172,42 @@ export function McpWizard() {
           {/* Step 0: Basic Info */}
           {currentStep === 0 && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Internal Name * (e.g., github, slack)</Label>
+              <Field className="space-y-2">
+                <Label>Internal Name * (e.g., github, slack)</Label>
                 <Input
-                  id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="github"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="display_name">Display Name *</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Display Name *</Label>
                 <Input
-                  id="display_name"
                   value={formData.display_name}
                   onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                   placeholder="GitHub"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Description</Label>
                 <Textarea
-                  id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
                   placeholder="Interact with GitHub repositories and issues"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="icon_url">Icon URL</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Icon URL</Label>
                 <Input
-                  id="icon_url"
                   value={formData.icon_url}
                   onChange={(e) => setFormData({ ...formData, icon_url: e.target.value })}
                   placeholder="https://..."
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="transport_type">Transport Type</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Transport Type</Label>
                 <select
-                  id="transport_type"
                   value={formData.transport_type}
                   onChange={(e) =>
                     setFormData({
@@ -226,11 +221,10 @@ export function McpWizard() {
                   <option value="http">http</option>
                   <option value="sse">sse</option>
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="isolation_mode">Isolation Mode</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Isolation Mode</Label>
                 <select
-                  id="isolation_mode"
                   value={formData.isolation_mode}
                   onChange={(e) =>
                     setFormData({
@@ -243,24 +237,23 @@ export function McpWizard() {
                   <option value="shared">shared</option>
                   <option value="per_user">per_user</option>
                 </select>
-              </div>
+              </Field>
             </>
           )}
 
           {/* Step 1: Configuration */}
           {currentStep === 1 && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="config">Configuration (JSON) *</Label>
+              <Field className="space-y-2">
+                <Label>Configuration (JSON) *</Label>
                 <Textarea
-                  id="config"
                   value={formData.config}
                   onChange={(e) => setFormData({ ...formData, config: e.target.value })}
                   rows={12}
                   className="font-mono text-sm"
                   placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
                 />
-              </div>
+              </Field>
               <CheckboxField>
                 <Checkbox
                   name="requires_user_credentials"
@@ -274,10 +267,9 @@ export function McpWizard() {
                 </Label>
               </CheckboxField>
               {formData.requires_user_credentials && (
-                <div className="space-y-2">
-                  <Label htmlFor="credential_schema">Credential Schema (JSON)</Label>
+                <Field className="space-y-2">
+                  <Label>Credential Schema (JSON)</Label>
                   <Textarea
-                    id="credential_schema"
                     value={formData.credential_schema}
                     onChange={(e) =>
                       setFormData({ ...formData, credential_schema: e.target.value })
@@ -286,7 +278,7 @@ export function McpWizard() {
                     className="font-mono text-sm"
                     placeholder='{ "api_key": { "type": "string", "description": "API Key" } }'
                   />
-                </div>
+                </Field>
               )}
             </>
           )}

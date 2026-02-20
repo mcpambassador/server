@@ -77,9 +77,7 @@ export function McpDetail() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild>
-            <Link to="/app/marketplace">Back to Marketplace</Link>
-          </Button>
+          <Button href="/app/marketplace">Back to Marketplace</Button>
         </CardContent>
       </Card>
     );
@@ -88,10 +86,8 @@ export function McpDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button plain className="p-1" asChild>
-          <Link to="/app/marketplace">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button plain className="p-1" href="/app/marketplace">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{mcp.name}</h1>

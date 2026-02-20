@@ -34,11 +34,9 @@ export function UserDetail() {
   if (!user) {
     return (
       <div className="space-y-6">
-        <Button plain asChild>
-          <Link to="/app/admin/users">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Users
-          </Link>
+        <Button plain href="/app/admin/users">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Users
         </Button>
         <Card>
           <CardHeader>
@@ -54,11 +52,9 @@ export function UserDetail() {
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" asChild>
-        <Link to="/app/admin/users">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Users
-        </Link>
+      <Button plain className="h-8" href="/app/admin/users">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Users
       </Button>
 
       <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
@@ -150,9 +146,7 @@ export function UserDetail() {
                     <p className="font-medium">{group.name}</p>
                     <p className="text-sm text-muted-foreground">{group.description}</p>
                   </div>
-                  <Button color="zinc" className="h-8" asChild>
-                    <Link to={`/app/admin/groups/${group.group_id}`}>View</Link>
-                  </Button>
+                  <Button color="zinc" className="h-8" href={`/app/admin/groups/${group.group_id}`}>View</Button>
                 </div>
               ))}
             </div>

@@ -177,9 +177,7 @@ export function Dashboard() {
               <CardTitle>Recent Audit Events</CardTitle>
               <CardDescription>Last 10 system events</CardDescription>
             </div>
-            <Button color="zinc" className="h-8" asChild>
-              <Link to="/app/admin/audit">View All</Link>
-            </Button>
+            <Button color="zinc" className="h-8" href="/app/admin/audit">View All</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -234,23 +232,17 @@ export function Dashboard() {
           <CardDescription>Common administrative tasks</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button color="zinc" className="h-8" asChild>
-            <Link to="/app/admin/users">
-              <Users className="mr-2 h-4 w-4" />
-              Manage Users
-            </Link>
+          <Button color="zinc" className="h-8" href="/app/admin/users">
+            <Users className="mr-2 h-4 w-4" />
+            Manage Users
           </Button>
-          <Button color="zinc" asChild>
-            <Link to="/app/admin/groups">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Manage Groups
-            </Link>
+          <Button color="zinc" href="/app/admin/groups">
+            <UserPlus className="mr-2 h-4 w-4" />
+            Manage Groups
           </Button>
-          <Button color="zinc" className="h-8" asChild>
-            <Link to="/app/admin/mcps/new">
-              <Package className="mr-2 h-4 w-4" />
-              Create MCP
-            </Link>
+          <Button color="zinc" className="h-8" href="/app/admin/mcps/new">
+            <Package className="mr-2 h-4 w-4" />
+            Create MCP
           </Button>
         </CardContent>
       </Card>

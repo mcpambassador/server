@@ -7,7 +7,7 @@ import { Button } from '@/components/catalyst/button';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import {
   Alert,
   AlertBody,
@@ -187,11 +187,9 @@ export function GroupDetail() {
   if (!group) {
     return (
       <div className="space-y-6">
-        <Button plain asChild>
-          <Link to="/app/admin/groups">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Groups
-          </Link>
+        <Button plain href="/app/admin/groups">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Groups
         </Button>
         <Card>
           <CardHeader>
@@ -204,11 +202,9 @@ export function GroupDetail() {
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" asChild>
-        <Link to="/app/admin/groups">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Groups
-        </Link>
+      <Button plain className="h-8" href="/app/admin/groups">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Groups
       </Button>
 
       <div className="pb-4 border-b border-border mb-6">
@@ -309,10 +305,9 @@ export function GroupDetail() {
             <DialogDescription>Select a user to add to this group</DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="user_select">User</Label>
+            <Field className="space-y-2">
+              <Label>User</Label>
               <select
-                id="user_select"
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -324,7 +319,7 @@ export function GroupDetail() {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setAddMemberDialogOpen(false)}>
@@ -345,10 +340,9 @@ export function GroupDetail() {
             <DialogDescription>Select an MCP to assign to this group</DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="mcp_select">MCP</Label>
+            <Field className="space-y-2">
+              <Label>MCP</Label>
               <select
-                id="mcp_select"
                 value={selectedMcpId}
                 onChange={(e) => setSelectedMcpId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -360,7 +354,7 @@ export function GroupDetail() {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setAddMcpDialogOpen(false)}>

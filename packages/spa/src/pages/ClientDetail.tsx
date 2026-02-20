@@ -162,9 +162,7 @@ export function ClientDetail() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild>
-            <Link to="/app/clients">Back to Clients</Link>
-          </Button>
+          <Button href="/app/clients">Back to Clients</Button>
         </CardContent>
       </Card>
     );
@@ -173,10 +171,8 @@ export function ClientDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button plain className="p-1" asChild>
-          <Link to="/app/clients">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button plain className="p-1" href="/app/clients">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{client.clientName}</h1>
@@ -224,11 +220,9 @@ export function ClientDetail() {
               MCPs this client is subscribed to
             </p>
           </div>
-          <Button className="h-8" asChild>
-            <Link to="/app/marketplace">
-              <Plus className="mr-2 h-4 w-4" />
-              Subscribe to MCP
-            </Link>
+          <Button className="h-8" href="/app/marketplace">
+            <Plus className="mr-2 h-4 w-4" />
+            Subscribe to MCP
           </Button>
         </div>
 

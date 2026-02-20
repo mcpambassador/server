@@ -6,7 +6,7 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
 import {
   Alert,
@@ -134,11 +134,9 @@ export function Clients() {
         <div className="flex items-center gap-2">
           <Button
                         className="p-1"
-            asChild
+            href={`/app/clients/${client.id}`}
           >
-            <Link to={`/app/clients/${client.id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+            <Eye className="h-4 w-4" />
           </Button>
           {client.status !== 'revoked' && (
             <Button
@@ -194,7 +192,7 @@ export function Clients() {
 
       {/* Create Client Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
-        
+        <DialogBody>
           
             <DialogTitle>Create New Client</DialogTitle>
             <DialogDescription>
@@ -202,28 +200,26 @@ export function Clients() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="client_name">Client Name</Label>
+            <Field className="space-y-2">
+              <Label>Client Name</Label>
               <Input
-                id="client_name"
                 placeholder="My Application"
                 value={formData.client_name}
                 onChange={(e) =>
                   setFormData({ ...formData, client_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expires_at">Expires At (optional)</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Expires At (optional)</Label>
               <Input
-                id="expires_at"
                 type="datetime-local"
                 value={formData.expires_at}
                 onChange={(e) =>
                   setFormData({ ...formData, expires_at: e.target.value })
                 }
               />
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button
@@ -240,12 +236,12 @@ export function Clients() {
               {createClient.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogActions>
-        
+        </DialogBody>
       </Dialog>
 
       {/* API Key Dialog */}
       <Dialog open={keyDialogOpen} onClose={setKeyDialogOpen}>
-        
+        <DialogBody>
           
             <DialogTitle>API Key Created</DialogTitle>
             <DialogDescription>
@@ -258,7 +254,7 @@ export function Clients() {
               store it securely.
             </InlineAlertDescription>
           </InlineAlert>
-          <div className="space-y-2">
+          <Field className="space-y-2">
             <Label>API Key</Label>
             <div className="flex gap-2">
               <Input
@@ -274,7 +270,7 @@ export function Clients() {
                 {keyCopied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
-          </div>
+          </Field>
           <DialogActions>
             <Button onClick={() => {
               setKeyDialogOpen(false);
@@ -283,7 +279,7 @@ export function Clients() {
               I&apos;ve Saved the Key
             </Button>
           </DialogActions>
-        
+        </DialogBody>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}

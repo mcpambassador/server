@@ -7,7 +7,7 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
   Alert,
@@ -178,10 +178,8 @@ export function UsersAdmin() {
       accessor: 'user_id',
       cell: (user) => (
         <div className="flex items-center gap-2">
-          <Button plain className="p-1" asChild>
-            <Link to={`/app/admin/users/${user.user_id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+          <Button plain className="p-1" href={`/app/admin/users/${user.user_id}`}>
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
                         className="p-1"
@@ -246,48 +244,44 @@ export function UsersAdmin() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username *</Label>
+            <Field className="space-y-2">
+              <Label>Username *</Label>
               <Input
-                id="username"
                 value={createFormData.username}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, username: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Password *</Label>
               <Input
-                id="password"
                 type="password"
                 value={createFormData.password}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, password: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="display_name">Display Name</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="display_name"
                 value={createFormData.display_name}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Email</Label>
               <Input
-                id="email"
                 type="email"
                 value={createFormData.email}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, email: e.target.value })
                 }
               />
-            </div>
+            </Field>
             <CheckboxField>
               <Checkbox
                 name="is_admin"
@@ -328,31 +322,28 @@ export function UsersAdmin() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit_display_name">Display Name</Label>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="edit_display_name"
                 value={editFormData.display_name}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_email">Email</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Email</Label>
               <Input
-                id="edit_email"
                 type="email"
                 value={editFormData.email}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, email: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_status">Status</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Status</Label>
               <select
-                id="edit_status"
                 value={editFormData.status}
                 onChange={(e) =>
                   setEditFormData({
@@ -365,7 +356,7 @@ export function UsersAdmin() {
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
               </select>
-            </div>
+            </Field>
             <CheckboxField>
               <Checkbox
                 name="edit_is_admin"
@@ -400,15 +391,14 @@ export function UsersAdmin() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new_password">New Password</Label>
+            <Field className="space-y-2">
+              <Label>New Password</Label>
               <Input
-                id="new_password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setResetDialogOpen(false)}>

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/catalyst/button';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import {
   Card,
   CardContent,
@@ -71,10 +71,9 @@ export function Login() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+            <Field className="space-y-2">
+              <Label>Username</Label>
               <Input
-                id="username"
                 type="text"
                 placeholder="Enter your username"
                 value={username}
@@ -82,11 +81,10 @@ export function Login() {
                 required
                 disabled={isLoading}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Password</Label>
               <Input
-                id="password"
                 type="password"
                 placeholder="Enter your password"
                 value={password}
@@ -94,7 +92,7 @@ export function Login() {
                 required
                 disabled={isLoading}
               />
-            </div>
+            </Field>
             {error && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}

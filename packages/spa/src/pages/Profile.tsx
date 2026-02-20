@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
@@ -166,10 +166,9 @@ export function Profile() {
               </InlineAlert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="current_password">Current Password</Label>
+            <Field className="space-y-2">
+              <Label>Current Password</Label>
               <Input
-                id="current_password"
                 type="password"
                 value={passwordForm.current_password}
                 onChange={(e) =>
@@ -177,12 +176,11 @@ export function Profile() {
                 }
                 required
               />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="new_password">New Password</Label>
+            <Field className="space-y-2">
+              <Label>New Password</Label>
               <Input
-                id="new_password"
                 type="password"
                 value={passwordForm.new_password}
                 onChange={(e) =>
@@ -195,12 +193,11 @@ export function Profile() {
                   Password strength: {passwordStrength}
                 </p>
               )}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirm_password">Confirm New Password</Label>
+            <Field className="space-y-2">
+              <Label>Confirm New Password</Label>
               <Input
-                id="confirm_password"
                 type="password"
                 value={passwordForm.confirm_password}
                 onChange={(e) =>
@@ -208,7 +205,7 @@ export function Profile() {
                 }
                 required
               />
-            </div>
+            </Field>
 
             <Button
               type="submit"

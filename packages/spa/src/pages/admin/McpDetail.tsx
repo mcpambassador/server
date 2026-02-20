@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/catalyst/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import {
   useAdminMcp,
@@ -118,11 +118,9 @@ export function McpDetail() {
   if (!mcp) {
     return (
       <div className="space-y-6">
-        <Button plain asChild>
-          <Link to="/app/admin/mcps">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to MCPs
-          </Link>
+        <Button plain href="/app/admin/mcps">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to MCPs
         </Button>
         <Card>
           <CardHeader>
@@ -135,11 +133,9 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" asChild>
-        <Link to="/app/admin/mcps">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to MCPs
-        </Link>
+      <Button plain className="h-8" href="/app/admin/mcps">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to MCPs
       </Button>
 
       <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
@@ -338,41 +334,37 @@ export function McpDetail() {
             <DialogDescription>Update MCP configuration</DialogDescription>
           
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-2">
-              <Label htmlFor="edit_display_name">Display Name</Label>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="edit_display_name"
                 value={editFormData.display_name}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_description">Description</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Description</Label>
               <Textarea
-                id="edit_description"
                 value={editFormData.description}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, description: e.target.value })
                 }
                 rows={3}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_icon_url">Icon URL</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Icon URL</Label>
               <Input
-                id="edit_icon_url"
                 value={editFormData.icon_url}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, icon_url: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_config">Configuration (JSON)</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Configuration (JSON)</Label>
               <Textarea
-                id="edit_config"
                 value={editFormData.config}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, config: e.target.value })
@@ -380,7 +372,7 @@ export function McpDetail() {
                 rows={10}
                 className="font-mono text-sm"
               />
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>

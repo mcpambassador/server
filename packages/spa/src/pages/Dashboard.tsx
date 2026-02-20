@@ -124,9 +124,7 @@ export function Dashboard() {
               <p className="text-sm text-muted-foreground mb-4">
                 No clients yet. Create your first API client to get started.
               </p>
-              <Button asChild className="text-sm">
-                <Link to="/app/clients">Create Client</Link>
-              </Button>
+              <Button href="/app/clients" className="text-sm">Create Client</Button>
             </div>
           )}
         </CardContent>
@@ -141,17 +139,13 @@ export function Dashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button asChild color="zinc" className="text-sm">
-            <Link to="/app/clients">
-              <UserCircle className="mr-2 h-4 w-4" />
-              Create Client
-            </Link>
+          <Button href="/app/clients" color="zinc" className="text-sm">
+            <UserCircle className="mr-2 h-4 w-4" />
+            Create Client
           </Button>
-          <Button asChild color="zinc" className="text-sm">
-            <Link to="/app/marketplace">
-              <Store className="mr-2 h-4 w-4" />
-              Browse Marketplace
-            </Link>
+          <Button href="/app/marketplace" color="zinc" className="text-sm">
+            <Store className="mr-2 h-4 w-4" />
+            Browse Marketplace
           </Button>
         </CardContent>
       </Card>

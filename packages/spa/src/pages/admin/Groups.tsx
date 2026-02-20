@@ -6,7 +6,7 @@ import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import {
   Alert,
@@ -125,10 +125,8 @@ export function GroupsAdmin() {
       accessor: 'group_id',
       cell: (group) => (
         <div className="flex items-center gap-2">
-          <Button plain className="p-1" asChild>
-            <Link to={`/app/admin/groups/${group.group_id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+          <Button plain className="p-1" href={`/app/admin/groups/${group.group_id}`}>
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
                         className="p-1"
@@ -184,27 +182,25 @@ export function GroupsAdmin() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+            <Field className="space-y-2">
+              <Label>Name *</Label>
               <Input
-                id="name"
                 value={createFormData.name}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Description</Label>
               <Textarea
-                id="description"
                 value={createFormData.description}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, description: e.target.value })
                 }
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
@@ -231,27 +227,25 @@ export function GroupsAdmin() {
             </DialogDescription>
           
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit_name">Name</Label>
+            <Field className="space-y-2">
+              <Label>Name</Label>
               <Input
-                id="edit_name"
                 value={editFormData.name}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_description">Description</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Description</Label>
               <Textarea
-                id="edit_description"
                 value={editFormData.description}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, description: e.target.value })
                 }
                 rows={3}
               />
-            </div>
+            </Field>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>

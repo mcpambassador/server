@@ -96,10 +96,8 @@ export function Marketplace() {
                     )}
                   </div>
                 </div>
-                <Button asChild color="zinc" className="text-sm w-full">
-                  <Link to={`/app/marketplace/${mcp.id}`}>
-                    View Details
-                  </Link>
+                <Button href={`/app/marketplace/${mcp.id}`} color="zinc" className="text-sm w-full">
+                  View Details
                 </Button>
               </div>
             </Card>

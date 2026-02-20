@@ -145,10 +145,8 @@ export function McpsAdmin() {
       accessor: 'mcp_id',
       cell: (mcp) => (
         <div className="flex items-center gap-2">
-          <Button plain className="p-1" asChild>
-            <Link to={`/app/admin/mcps/${mcp.mcp_id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+          <Button plain className="p-1" href={`/app/admin/mcps/${mcp.mcp_id}`}>
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
                         className="p-1"

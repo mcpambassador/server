@@ -12,7 +12,7 @@ import {
   AlertActions,
   AlertTitle,
 } from '@/components/catalyst/alert';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useCredentialStatus, useSetCredentials, useDeleteCredentials } from '@/api/hooks/use-credentials';
@@ -191,13 +191,12 @@ export function Credentials() {
               const field = schema?.[key];
               if (!field) return null;
               return (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{key}</Label>
+                <Field key={key} className="space-y-2">
+                  <Label>{key}</Label>
                   {field.description && (
                     <p className="text-sm text-muted-foreground">{field.description}</p>
                   )}
                   <Input
-                    id={key}
                     type={field.type === 'password' ? 'password' : 'text'}
                     value={credentialFields[key] ?? ''}
                     onChange={(e) =>
@@ -208,7 +207,7 @@ export function Credentials() {
                     }
                     placeholder={selectedMcp.hasCredentials ? '(unchanged)' : ''}
                   />
-                </div>
+                </Field>
               );
             })}
           </div>
