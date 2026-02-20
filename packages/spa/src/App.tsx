@@ -18,11 +18,11 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GlobalErrorHandler>
-          <ToastProvider>
+        <ToastProvider>
+          <GlobalErrorHandler>
             <RouterProvider router={router} />
-          </ToastProvider>
-        </GlobalErrorHandler>
+          </GlobalErrorHandler>
+        </ToastProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
