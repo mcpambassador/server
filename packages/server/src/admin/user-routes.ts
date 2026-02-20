@@ -16,7 +16,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { users, compatUpdate } from '@mcpambassador/core';
 import { eq, and } from 'drizzle-orm';
-import { authenticateAdmin } from './middleware.js';
+import { authenticateAdminOrSession } from './middleware.js';
 import { createUser, getUserById, updateUserPassword } from '../auth/user-auth.js';
 import {
   createUserSchema,
@@ -39,8 +39,8 @@ export async function registerAdminUserRoutes(
   fastify: FastifyInstance,
   opts: AdminUserRoutesOptions
 ): Promise<void> {
-  // All routes protected by admin key authentication
-  const preHandlers = [authenticateAdmin(opts.db)];
+  // All routes protected by admin authentication (API key or session)
+  const preHandlers = [authenticateAdminOrSession(opts.db)];
 
   /**
    * GET /v1/admin/users - List users with pagination

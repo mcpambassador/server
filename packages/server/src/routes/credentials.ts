@@ -162,9 +162,9 @@ export async function registerCredentialRoutes(
       }
 
       return reply.status(200).send({
-        mcp_id: mcpId,
-        has_credentials: true,
-        updated_at: updatedAt,
+        mcpId: mcpId,
+        hasCredentials: true,
+        updatedAt: updatedAt,
       });
     }
   );
@@ -197,14 +197,20 @@ export async function registerCredentialRoutes(
         where: (mcp_catalog, { eq }) => eq(mcp_catalog.requires_user_credentials, true),
       });
 
-      // Build response array
+      // Build response array - transform to camelCase
       const result = allMcps.map(mcp => {
         const credInfo = credMap.get(mcp.mcp_id);
         return {
-          mcp_id: mcp.mcp_id,
-          mcp_name: mcp.name,
-          has_credentials: credInfo ? credInfo.has_credentials : false,
-          updated_at: credInfo ? credInfo.updated_at : null,
+          mcpId: mcp.mcp_id,
+          mcpName: mcp.name,
+          hasCredentials: credInfo ? credInfo.has_credentials : false,
+          requiresCredentials: mcp.requires_user_credentials || false,
+          credentialSchema: mcp.credential_schema 
+            ? (typeof mcp.credential_schema === 'string' 
+              ? JSON.parse(mcp.credential_schema) 
+              : mcp.credential_schema)
+            : undefined,
+          updatedAt: credInfo ? credInfo.updated_at : undefined,
         };
       });
 

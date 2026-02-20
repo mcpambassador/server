@@ -14,7 +14,7 @@ import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import type { KillSwitchManager } from './kill-switch-manager.js';
-import { authenticateAdmin } from './middleware.js';
+import { authenticateAdminOrSession } from './middleware.js';
 import { z } from 'zod';
 import {
   createProfileSchema,
@@ -86,7 +86,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   // ADMIN AUTHENTICATION HOOK (all routes)
   // ==========================================================================
   // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  fastify.addHook('preHandler', authenticateAdmin(db));
+  fastify.addHook('preHandler', authenticateAdminOrSession(db));
 
   // ==========================================================================
   // SEC-M8-01: Security headers on all admin routes

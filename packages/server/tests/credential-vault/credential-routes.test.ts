@@ -137,9 +137,9 @@ describe('Credential Routes', () => {
 
       expect(res.statusCode).toBe(200);
       const data = res.json();
-      expect(data.mcp_id).toBe(testMcpId);
-      expect(data.has_credentials).toBe(true);
-      expect(data.updated_at).toBeDefined();
+      expect(data.mcpId).toBe(testMcpId);
+      expect(data.hasCredentials).toBe(true);
+      expect(data.updatedAt).toBeDefined();
     });
 
     it('should return 400 if MCP does not require credentials', async () => {
@@ -266,11 +266,11 @@ describe('Credential Routes', () => {
       const data = res.json();
       expect(Array.isArray(data)).toBe(true);
 
-      // Find our test MCP
-      const testMcpStatus = data.find((m: any) => m.mcp_id === testMcpId);
+      // Find our test MCP (using camelCase fields now)
+      const testMcpStatus = data.find((m: any) => m.mcpId === testMcpId);
       expect(testMcpStatus).toBeDefined();
-      expect(testMcpStatus.mcp_name).toBe('test-mcp-with-creds');
-      expect(testMcpStatus.has_credentials).toBe(true); // We set credentials earlier
+      expect(testMcpStatus.mcpName).toBe('test-mcp-with-creds');
+      expect(testMcpStatus.hasCredentials).toBe(true); // We set credentials earlier
     });
 
     it('should never return actual credential values', async () => {
@@ -282,12 +282,12 @@ describe('Credential Routes', () => {
 
       const data = res.json();
 
-      // Verify no credential values are returned
+      // Verify no credential values are returned (using camelCase fields)
       for (const item of data) {
         expect(item).not.toHaveProperty('credentials');
         expect(item).not.toHaveProperty('encrypted_credentials');
         expect(item).not.toHaveProperty('api_key');
-        expect(item.has_credentials).toBeTypeOf('boolean');
+        expect(item.hasCredentials).toBeTypeOf('boolean');
       }
     });
   });
@@ -310,8 +310,8 @@ describe('Credential Routes', () => {
       });
 
       const data = listRes.json();
-      const testMcpStatus = data.find((m: any) => m.mcp_id === testMcpId);
-      expect(testMcpStatus.has_credentials).toBe(false);
+      const testMcpStatus = data.find((m: any) => m.mcpId === testMcpId);
+      expect(testMcpStatus.hasCredentials).toBe(false);
     });
   });
 });

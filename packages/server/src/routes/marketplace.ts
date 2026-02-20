@@ -56,11 +56,49 @@ export async function registerMarketplaceRoutes(
         // Get all MCPs accessible to user (via groups)
         const mcps = await getAccessibleMcps(db, userId);
 
-        // Apply cursor pagination (by name)
-        let filteredMcps = mcps;
+        // Transform database rows to API contract format
+        const transformedMcps = mcps.map((mcp) => {
+          // Parse JSON fields safely
+          let tools = [];
+          try {
+            const catalogData = typeof mcp.tool_catalog === 'string' 
+              ? JSON.parse(mcp.tool_catalog) 
+              : mcp.tool_catalog;
+            tools = Array.isArray(catalogData) ? catalogData : [];
+          } catch (err) {
+            console.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+          }
+
+          let credentialSchema = undefined;
+          if (mcp.credential_schema) {
+            try {
+              credentialSchema = typeof mcp.credential_schema === 'string'
+                ? JSON.parse(mcp.credential_schema)
+                : mcp.credential_schema;
+            } catch (err) {
+              console.warn(`[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`, err);
+            }
+          }
+
+          // Map snake_case database fields to camelCase API fields
+          return {
+            id: mcp.mcp_id,
+            name: mcp.display_name || mcp.name, // Use display_name for user-facing name
+            description: mcp.description || undefined,
+            isolationMode: mcp.isolation_mode as 'shared' | 'per-user',
+            requiresUserCredentials: mcp.requires_user_credentials || false,
+            credentialSchema,
+            tools,
+            createdAt: mcp.created_at,
+            updatedAt: mcp.updated_at,
+          };
+        });
+
+        // Apply cursor pagination (by display name for consistent ordering)
+        let filteredMcps = transformedMcps;
         if (query.cursor) {
           const cursor = query.cursor;
-          filteredMcps = mcps.filter((mcp) => mcp.name > cursor);
+          filteredMcps = transformedMcps.filter((mcp) => mcp.name > cursor);
         }
 
         // Sort by name for consistent ordering

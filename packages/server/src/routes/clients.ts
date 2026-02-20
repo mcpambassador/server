@@ -51,8 +51,20 @@ export async function registerClientRoutes(
 
       const clients = await listUserClients(db, userId);
 
+      // Transform snake_case to camelCase for SPA
+      const transformedClients = clients.map((client: any) => ({
+        id: client.client_id,
+        clientName: client.client_name,
+        keyPrefix: client.key_prefix,
+        status: client.status,
+        profileId: client.profile_id || undefined,
+        createdAt: client.created_at,
+        expiresAt: client.expires_at || undefined,
+        lastUsedAt: client.last_used_at || undefined,
+      }));
+
       return reply.status(200).send({
-        data: clients,
+        data: transformedClients,
       });
     }
   );
@@ -77,16 +89,18 @@ export async function registerClientRoutes(
           profileId: body.profile_id,
         });
 
+        // Transform response to match SPA expectations
         return reply.status(201).send({
           data: {
-            client_id: result.client.client_id,
-            client_name: result.client.client_name,
-            key_prefix: result.client.key_prefix,
-            user_id: result.client.user_id,
-            profile_id: result.client.profile_id,
-            status: result.client.status,
-            created_at: result.client.created_at,
-            expires_at: result.client.expires_at,
+            client: {
+              id: result.client.client_id,
+              clientName: result.client.client_name,
+              keyPrefix: result.client.key_prefix,
+              status: result.client.status,
+              profileId: result.client.profile_id || undefined,
+              createdAt: result.client.created_at,
+              expiresAt: result.client.expires_at || undefined,
+            },
             plaintext_key: result.plaintextKey, // ONLY returned here
           },
         });
@@ -126,8 +140,18 @@ export async function registerClientRoutes(
       try {
         const client = await getUserClient(db, userId, params.clientId);
 
+        // Transform to camelCase
         return reply.status(200).send({
-          data: client,
+          data: {
+            id: client.client_id,
+            clientName: client.client_name,
+            keyPrefix: client.key_prefix,
+            status: client.status,
+            profileId: client.profile_id || undefined,
+            createdAt: client.created_at,
+            expiresAt: client.expires_at || undefined,
+            lastUsedAt: client.last_used_at || undefined,
+          },
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
@@ -166,8 +190,18 @@ export async function registerClientRoutes(
 
         const client = await getUserClient(db, userId, params.clientId);
 
+        // Transform to camelCase
         return reply.status(200).send({
-          data: client,
+          data: {
+            id: client.client_id,
+            clientName: client.client_name,
+            keyPrefix: client.key_prefix,
+            status: client.status,
+            profileId: client.profile_id || undefined,
+            createdAt: client.created_at,
+            expiresAt: client.expires_at || undefined,
+            lastUsedAt: client.last_used_at || undefined,
+          },
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {

@@ -10,6 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
+import { getMcpEntryById } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import {
   subscribeClientToMcp,
@@ -56,8 +57,20 @@ export async function registerSubscriptionRoutes(
           clientId: params.clientId,
         });
 
+        // Transform snake_case to camelCase for SPA
+        const transformedSubscriptions = subscriptions.map((sub) => ({
+          id: sub.subscription_id,
+          clientId: sub.client_id,
+          mcpId: sub.mcp_id,
+          mcpName: sub.mcp_name,
+          selectedTools: sub.selected_tools,
+          status: sub.status,
+          createdAt: sub.subscribed_at,
+          updatedAt: sub.updated_at,
+        }));
+
         return reply.status(200).send({
-          data: subscriptions,
+          data: transformedSubscriptions,
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
@@ -93,8 +106,30 @@ export async function registerSubscriptionRoutes(
           selectedTools: body.selected_tools,
         });
 
+        // Fetch MCP name for response
+        const mcp = await getMcpEntryById(db, body.mcp_id);
+        const mcpName = mcp?.name || body.mcp_id;
+
+        // Parse selected_tools if it's a JSON string
+        let selectedTools: string[] = [];
+        if (subscription.selected_tools) {
+          selectedTools = typeof subscription.selected_tools === 'string'
+            ? JSON.parse(subscription.selected_tools)
+            : subscription.selected_tools;
+        }
+
+        // Transform to camelCase
         return reply.status(201).send({
-          data: subscription,
+          data: {
+            id: subscription.subscription_id,
+            clientId: subscription.client_id,
+            mcpId: subscription.mcp_id,
+            mcpName,
+            selectedTools,
+            status: subscription.status,
+            createdAt: subscription.subscribed_at,
+            updatedAt: subscription.updated_at,
+          },
         });
       } catch (error: any) {
         if (error.message.includes('not found')) {
@@ -139,8 +174,18 @@ export async function registerSubscriptionRoutes(
           subscriptionId: params.subscriptionId,
         });
 
+        // Transform to camelCase
         return reply.status(200).send({
-          data: subscription,
+          data: {
+            id: subscription.subscription_id,
+            clientId: subscription.client_id,
+            mcpId: subscription.mcp_id,
+            mcpName: subscription.mcp_name,
+            selectedTools: subscription.selected_tools,
+            status: subscription.status,
+            createdAt: subscription.subscribed_at,
+            updatedAt: subscription.updated_at,
+          },
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('does not belong')) {
@@ -183,8 +228,18 @@ export async function registerSubscriptionRoutes(
           subscriptionId: params.subscriptionId,
         });
 
+        // Transform to camelCase
         return reply.status(200).send({
-          data: subscription,
+          data: {
+            id: subscription.subscription_id,
+            clientId: subscription.client_id,
+            mcpId: subscription.mcp_id,
+            mcpName: subscription.mcp_name,
+            selectedTools: subscription.selected_tools,
+            status: subscription.status,
+            createdAt: subscription.subscribed_at,
+            updatedAt: subscription.updated_at,
+          },
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('does not belong')) {
