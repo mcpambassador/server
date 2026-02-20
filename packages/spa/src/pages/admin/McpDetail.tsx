@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
@@ -7,7 +7,7 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';

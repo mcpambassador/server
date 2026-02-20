@@ -10,7 +10,6 @@ import { Field, Label } from '@/components/catalyst/fieldset';
 import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,
@@ -112,7 +111,7 @@ export function Clients() {
       cell: (client) => {
         const variant =
           client.status === 'active' ? 'emerald' :
-          client.status === 'suspended' ? 'warning' : 'red';
+          client.status === 'suspended' ? 'amber' : 'red';
         return <Badge color={variant}>{client.status}</Badge>;
       },
     },
@@ -263,7 +262,6 @@ export function Clients() {
                 className="font-mono text-xs bg-muted"
               />
               <Button
-                color="zinc"
                 plain className="p-1"
                 onClick={handleCopyKey}
               >

@@ -5,13 +5,12 @@ import { toast } from 'sonner';
 import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,

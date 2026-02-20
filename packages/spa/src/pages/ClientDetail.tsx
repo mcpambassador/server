@@ -7,12 +7,11 @@ import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,
 } from '@/components/catalyst/alert';
-import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';

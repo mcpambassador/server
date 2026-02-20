@@ -6,11 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/catalyst/button';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,

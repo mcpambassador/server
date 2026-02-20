@@ -6,7 +6,7 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/catalyst/skeleton';
 import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
-import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Select } from '@/components/catalyst/select';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';

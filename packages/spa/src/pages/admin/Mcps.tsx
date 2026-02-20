@@ -7,7 +7,6 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,

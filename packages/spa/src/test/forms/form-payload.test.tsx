@@ -24,10 +24,7 @@ function renderPage(ui: React.ReactElement, { route = '/' } = {}) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/app/clients" element={<Clients />} />
-        </Routes>
+        {ui}
       </MemoryRouter>
     </QueryClientProvider>
   );

@@ -6,7 +6,6 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import {
   Alert,
-  AlertBody,
   AlertDescription,
   AlertActions,
   AlertTitle,
@@ -235,7 +234,7 @@ export function Settings() {
             </AlertDescription>
           
           <AlertActions>
-            <Button plain onClick={() => setRotateHmacDialog(false)}>Cancel</Button>
+            <Button plain onClick={() => setHmacDialogOpen(false)}>Cancel</Button>
             <Button color="red"
               onClick={handleRotateHmac}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -257,7 +256,7 @@ export function Settings() {
             </AlertDescription>
           
           <AlertActions>
-            <Button plain onClick={() => setRotateCredentialDialog(false)}>Cancel</Button>
+            <Button plain onClick={() => setCredKeyDialogOpen(false)}>Cancel</Button>
             <Button color="red"
               onClick={handleRotateCredentialKey}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
