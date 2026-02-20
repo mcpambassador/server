@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom';
-import { Store, UserCircle, Activity } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Store, UserCircle } from 'lucide-react';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
+import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Skeleton } from '@/components/catalyst/skeleton';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { useClients } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -15,140 +16,131 @@ export function Dashboard() {
   const activeClients = clients?.filter(c => c.status === 'active').length ?? 0;
   const totalMcps = marketplace?.data?.length ?? 0;
 
+  const stats = [
+    {
+      name: 'My Clients',
+      value: clientsLoading ? '...' : clients?.length ?? 0,
+      subtitle: clientsLoading ? '' : `${activeClients} active`,
+    },
+    {
+      name: 'MCPs Available',
+      value: marketplaceLoading ? '...' : totalMcps,
+      subtitle: 'in marketplace',
+    },
+    {
+      name: 'Activity',
+      value: 'Live',
+      subtitle: 'System operational',
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
-        <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Welcome to MCP Ambassador
-          </p>
-        </div>
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div>
+        <Heading>Dashboard</Heading>
+        <Text className="mt-2 text-zinc-500">Welcome to MCP Ambassador</Text>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Clients</CardTitle>
-            <UserCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {clientsLoading ? (
-              <Skeleton className="h-8 w-16" />
+      {/* Stats Grid */}
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-zinc-900/5 sm:grid-cols-2 lg:grid-cols-3">
+        {stats.map((stat) => (
+          <div
+            key={stat.name}
+            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 bg-white px-4 py-10 sm:px-6 xl:px-8"
+          >
+            <dt className="text-sm/6 font-medium text-zinc-500">{stat.name}</dt>
+            {clientsLoading || marketplaceLoading ? (
+              <dd className="w-full flex-none">
+                <div className="animate-pulse h-8 w-20 rounded bg-zinc-200" />
+              </dd>
             ) : (
               <>
-                <div className="text-2xl font-bold">{clients?.length ?? 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  {activeClients} active
-                </p>
+                <dd className="w-full flex-none text-3xl/10 font-medium tracking-tight text-zinc-900">
+                  {stat.value}
+                </dd>
+                <dd className="text-sm text-zinc-500">{stat.subtitle}</dd>
               </>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">MCPs Available</CardTitle>
-            <Store className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {marketplaceLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{totalMcps}</div>
-                <p className="text-xs text-muted-foreground">
-                  in marketplace
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Activity</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Live</div>
-            <p className="text-xs text-muted-foreground">
-              System operational
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        ))}
+      </dl>
 
       {/* Recent Clients */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Clients</CardTitle>
-          <CardDescription>
-            Your most recently created API clients
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {clientsLoading ? (
-            <div className="space-y-0">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="border-b last:border-b-0 px-6 py-3">
-                  <Skeleton className="h-4 w-full" />
-                </div>
-              ))}
+      <div>
+        <div className="mb-4">
+          <h3 className="text-base font-semibold text-zinc-900">Recent Clients</h3>
+          <p className="mt-1 text-sm text-zinc-500">Your most recently created API clients</p>
+        </div>
+
+        {clientsLoading ? (
+          <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6 space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse h-12 w-full rounded bg-zinc-200" />
+            ))}
+          </div>
+        ) : clients && clients.length > 0 ? (
+          <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeader>Client</TableHeader>
+                  <TableHeader>Key Prefix</TableHeader>
+                  <TableHeader>Status</TableHeader>
+                  <TableHeader>Created</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {clients.slice(0, 5).map((client) => (
+                  <TableRow key={client.id} href={`/app/clients/${client.id}`}>
+                    <TableCell className="font-medium">{client.clientName}</TableCell>
+                    <TableCell className="text-zinc-500">{client.keyPrefix}</TableCell>
+                    <TableCell>
+                      <Badge color={client.status === 'active' ? 'green' : 'zinc'}>
+                        {client.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-zinc-500">
+                      {new Date(client.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="rounded-lg border-2 border-dashed border-zinc-300 bg-white px-6 py-10 text-center">
+            <UserCircle className="mx-auto size-12 text-zinc-400" />
+            <h3 className="mt-2 text-sm font-semibold text-zinc-900">No clients</h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Get started by creating your first API client.
+            </p>
+            <div className="mt-6">
+              <Button href="/app/clients">Create Client</Button>
             </div>
-          ) : clients && clients.length > 0 ? (
-            <div className="divide-y">
-              {clients.slice(0, 5).map((client) => (
-                <Link
-                  key={client.id}
-                  to={`/app/clients/${client.id}`}
-                  className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{client.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{client.keyPrefix}</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground shrink-0">
-                    {new Date(client.createdAt).toLocaleDateString()}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 px-6">
-              <UserCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                No clients yet. Create your first API client to get started.
-              </p>
-              <Button href="/app/clients" className="text-sm">Create Client</Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Common tasks to get you started
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button href="/app/clients" color="zinc" className="text-sm">
-            <UserCircle className="mr-2 h-4 w-4" />
-            Create Client
-          </Button>
-          <Button href="/app/marketplace" color="zinc" className="text-sm">
-            <Store className="mr-2 h-4 w-4" />
-            Browse Marketplace
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-base font-semibold text-zinc-900">Quick Actions</h3>
+          <div className="mt-2 max-w-xl text-sm text-zinc-500">
+            <p>Common tasks to get you started</p>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button href="/app/clients" outline>
+              <UserCircle data-slot="icon" />
+              Create Client
+            </Button>
+            <Button href="/app/marketplace" outline>
+              <Store data-slot="icon" />
+              Browse Marketplace
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

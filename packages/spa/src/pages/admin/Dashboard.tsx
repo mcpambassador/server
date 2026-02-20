@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Users, UserPlus, Package, Activity, Server, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Users, UserPlus, Package, Activity, Server } from 'lucide-react';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/catalyst/skeleton';
+import { Button } from '@/components/catalyst/button';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { useAdminUsers, useAdminGroups, useAdminMcps, useAdminSessions, useAuditEvents, useDownstream } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -40,7 +41,7 @@ export function Dashboard() {
     },
     {
       title: 'Active Sessions',
-      value: Array.isArray(sessionsData) ? sessionsData.length : 0,
+      value: sessionsData?.data?.length ?? 0,
       icon: Activity,
       loading: sessionsLoading,
       href: '/app/admin/settings',
@@ -54,198 +55,207 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Admin Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          System overview and quick actions
-        </p>
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div>
+        <Heading>Admin Dashboard</Heading>
+        <Text>System overview and quick actions</Text>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map(stat => {
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-zinc-900/5 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-muted-foreground">
-                  {stat.title}
-                </p>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              {stat.loading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold">{stat.value}</div>
-              )}
-              <Link to={stat.href} className="text-xs text-muted-foreground hover:underline">
-                View details →
-              </Link>
-            </Card>
+            <div key={stat.title} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 bg-white px-4 py-10 sm:px-6 xl:px-8">
+              <dt className="flex items-center gap-x-2 text-sm/6 font-medium text-zinc-500">
+                <Icon className="h-4 w-4" />
+                {stat.title}
+              </dt>
+              <dd className="w-full flex-none text-3xl/10 font-medium tracking-tight text-zinc-900">
+                {stat.loading ? (
+                  <div className="animate-pulse h-8 w-20 rounded bg-zinc-200" />
+                ) : (
+                  stat.value
+                )}
+              </dd>
+              <dd className="w-full flex-none text-sm/6 text-zinc-500">
+                <Link to={stat.href} className="hover:text-zinc-900 transition-colors">
+                  View details →
+                </Link>
+              </dd>
+            </div>
           );
         })}
-      </div>
+      </dl>
 
       {/* MCP Status & Downstream Health */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="p-4">
-          <div className="mb-4">
-            <h3 className="font-semibold">MCP Status</h3>
-            <p className="text-xs text-muted-foreground">Catalog entries by status</p>
-          </div>
-          <div className="space-y-3">
-            {mcpsLoading ? (
-              <>
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-full" />
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Draft</span>
-                  <Badge color="zinc">{mcpsByStatus.draft}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Published</span>
-                  <Badge color="teal">{mcpsByStatus.published}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Archived</span>
-                  <Badge color="zinc">{mcpsByStatus.archived}</Badge>
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="mb-4">
-            <h3 className="font-semibold">Downstream Health</h3>
-            <p className="text-xs text-muted-foreground">MCP connection status</p>
-          </div>
-          <div className="space-y-3">
-            {downstreamLoading ? (
-              <>
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-full" />
-              </>
-            ) : downstream ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm flex items-center gap-2">
-                    <Server className="h-4 w-4" />
-                    Healthy Connections
-                  </span>
-                  <Badge color={downstream.healthy_connections === downstream.total_connections ? 'teal' : 'red'}>
-                    {downstream.healthy_connections}/{downstream.total_connections}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Total Tools Available</span>
-                  <Badge color="zinc">{downstream.total_tools}</Badge>
-                </div>
-                {downstream.connections.length > 0 && (
-                  <div className="pt-2 space-y-2 border-t">
-                    {downstream.connections.map(conn => (
-                      <div key={conn.name} className="flex items-center justify-between text-xs">
-                        <span className="font-mono">{conn.name}</span>
-                        <div className="flex items-center gap-2">
-                          <Badge color={conn.status === 'healthy' ? 'teal' : 'red'} className="text-xs">
-                            {conn.status}
-                          </Badge>
-                          <span className="text-muted-foreground">{conn.tools} tools</span>
-                        </div>
-                      </div>
-                    ))}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* MCP Status Panel */}
+        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-base font-semibold text-zinc-900">MCP Status</h3>
+            <div className="mt-2 max-w-xl text-sm text-zinc-500">
+              <p>Catalog entries by status</p>
+            </div>
+            <div className="mt-5 space-y-3">
+              {mcpsLoading ? (
+                <>
+                  <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+                  <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+                  <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-900">Draft</span>
+                    <Badge color="zinc">{mcpsByStatus.draft}</Badge>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No downstream data available</p>
-            )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-900">Published</span>
+                    <Badge color="green">{mcpsByStatus.published}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-900">Archived</span>
+                    <Badge color="zinc">{mcpsByStatus.archived}</Badge>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </Card>
+        </div>
+
+        {/* Downstream Health Panel */}
+        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-base font-semibold text-zinc-900">Downstream Health</h3>
+            <div className="mt-2 max-w-xl text-sm text-zinc-500">
+              <p>MCP connection status</p>
+            </div>
+            <div className="mt-5 space-y-3">
+              {downstreamLoading ? (
+                <>
+                  <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+                  <div className="animate-pulse h-6 w-full rounded bg-zinc-200" />
+                </>
+              ) : downstream ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-900 flex items-center gap-2">
+                      <Server className="h-4 w-4" />
+                      Healthy Connections
+                    </span>
+                    <Badge color={downstream.healthy_connections === downstream.total_connections ? 'green' : 'red'}>
+                      {downstream.healthy_connections}/{downstream.total_connections}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-900">Total Tools Available</span>
+                    <Badge color="zinc">{downstream.total_tools}</Badge>
+                  </div>
+                  {downstream.connections.length > 0 && (
+                    <div className="pt-3 space-y-2 border-t border-zinc-950/5">
+                      {downstream.connections.map(conn => (
+                        <div key={conn.name} className="flex items-center justify-between">
+                          <span className="text-sm font-mono text-zinc-700">{conn.name}</span>
+                          <div className="flex items-center gap-2">
+                            <Badge color={conn.status === 'healthy' ? 'green' : 'red'}>
+                              {conn.status}
+                            </Badge>
+                            <span className="text-sm text-zinc-500">{conn.tools} tools</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-zinc-500">No downstream data available</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Recent Audit Events */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Recent Audit Events</CardTitle>
-              <CardDescription>Last 10 system events</CardDescription>
-            </div>
-            <Button color="zinc" className="h-8" href="/app/admin/audit">View All</Button>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-4 py-5 sm:px-6 border-b border-zinc-950/5 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-900">Recent Audit Events</h3>
+            <p className="mt-1 text-sm text-zinc-500">Last 10 system events</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {auditLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : auditData && auditData.data.length > 0 ? (
-            <div className="space-y-2">
+          <Button outline href="/app/admin/audit">
+            View All
+          </Button>
+        </div>
+        {auditLoading ? (
+          <div className="px-4 py-5 sm:p-6 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="animate-pulse h-10 w-full rounded bg-zinc-200" />
+            ))}
+          </div>
+        ) : auditData && auditData.data.length > 0 ? (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeader>Severity</TableHeader>
+                <TableHeader>Action</TableHeader>
+                <TableHeader>Type</TableHeader>
+                <TableHeader>User</TableHeader>
+                <TableHeader>Time</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {auditData.data.map(event => (
-                <div
-                  key={event.event_id}
-                  className="flex items-center justify-between border-b pb-2 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    {event.severity === 'error' && <AlertTriangle className="h-4 w-4 text-destructive" />}
-                    {event.severity === 'warn' && <AlertTriangle className="h-4 w-4 text-yellow-500" />}
-                    {event.severity === 'info' && <Activity className="h-4 w-4 text-muted-foreground" />}
-                    <div>
-                      <p className="text-sm font-medium">{event.action}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {event.event_type} {event.user_id && `• User: ${event.user_id}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
+                <TableRow key={event.event_id}>
+                  <TableCell>
                     <Badge color={
                       event.severity === 'error' ? 'red' :
-                      event.severity === 'warn' ? 'zinc' : 'zinc'
+                      event.severity === 'warn' ? 'amber' : 'zinc'
                     }>
                       {event.severity}
                     </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{event.action}</TableCell>
+                  <TableCell className="text-zinc-500">{event.event_type}</TableCell>
+                  <TableCell className="text-zinc-500">{event.user_id || '—'}</TableCell>
+                  <TableCell className="text-zinc-500">
+                    {new Date(event.timestamp).toLocaleString()}
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No recent audit events</p>
-          )}
-        </CardContent>
-      </Card>
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="px-4 py-5 sm:p-6">
+            <p className="text-sm text-zinc-500">No recent audit events</p>
+          </div>
+        )}
+      </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common administrative tasks</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button color="zinc" className="h-8" href="/app/admin/users">
-            <Users className="mr-2 h-4 w-4" />
-            Manage Users
-          </Button>
-          <Button color="zinc" href="/app/admin/groups">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Manage Groups
-          </Button>
-          <Button color="zinc" className="h-8" href="/app/admin/mcps/new">
-            <Package className="mr-2 h-4 w-4" />
-            Create MCP
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-base font-semibold text-zinc-900">Quick Actions</h3>
+          <div className="mt-2 max-w-xl text-sm text-zinc-500">
+            <p>Common administrative tasks</p>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button outline href="/app/admin/users">
+              <Users data-slot="icon" />
+              Manage Users
+            </Button>
+            <Button outline href="/app/admin/groups">
+              <UserPlus data-slot="icon" />
+              Manage Groups
+            </Button>
+            <Button outline href="/app/admin/mcps/new">
+              <Package data-slot="icon" />
+              Create MCP
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
