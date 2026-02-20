@@ -13,7 +13,7 @@ import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Select } from '@/components/catalyst/select';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import {
@@ -98,18 +98,26 @@ export function McpsAdmin() {
       {/* Status Filter */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-zinc-700">Status:</span>
-        <Select
+        <Listbox
           name="status"
           value={statusFilter || ''}
-          onChange={(e) =>
-            setStatusFilter(e.target.value ? (e.target.value as any) : undefined)
+          onChange={(value: string) =>
+            setStatusFilter(value ? (value as any) : undefined)
           }
         >
-          <option value="">All</option>
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-          <option value="archived">Archived</option>
-        </Select>
+          <ListboxOption value="">
+            <ListboxLabel>All</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="draft">
+            <ListboxLabel>Draft</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="published">
+            <ListboxLabel>Published</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="archived">
+            <ListboxLabel>Archived</ListboxLabel>
+          </ListboxOption>
+        </Listbox>
       </div>
 
       {/* Table */}

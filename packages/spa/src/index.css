@@ -16,6 +16,12 @@
    ============================================================ */
 
 @layer base {
+  /* Tell the browser to render native controls (date pickers, scrollbars,
+     time spinners) in dark mode when .dark is on <html> */
+  .dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-white text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";

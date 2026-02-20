@@ -12,7 +12,7 @@ import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
-import { Select } from '@/components/catalyst/select';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -345,19 +345,23 @@ export function UsersAdmin() {
             </Field>
             <Field>
               <Label>Status</Label>
-              <Select
+              <Listbox
                 name="status"
                 value={editFormData.status}
-                onChange={(e) =>
+                onChange={(value: string) =>
                   setEditFormData({
                     ...editFormData,
-                    status: e.target.value as 'active' | 'suspended',
+                    status: value as 'active' | 'suspended',
                   })
                 }
               >
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-              </Select>
+                <ListboxOption value="active">
+                  <ListboxLabel>Active</ListboxLabel>
+                </ListboxOption>
+                <ListboxOption value="suspended">
+                  <ListboxLabel>Suspended</ListboxLabel>
+                </ListboxOption>
+              </Listbox>
             </Field>
             <CheckboxField>
               <Checkbox

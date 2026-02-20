@@ -12,7 +12,7 @@ import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
-import { Select } from '@/components/catalyst/select';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
@@ -197,14 +197,13 @@ export function McpDetail() {
           <div className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label>Select Client</Label>
-              <Select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} name="client">
-                <option value="">Choose a client</option>
+              <Listbox placeholder="Choose a client" value={selectedClientId} onChange={(value: string) => setSelectedClientId(value)} name="client">
                 {activeClients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.clientName} ({client.keyPrefix})
-                  </option>
+                  <ListboxOption key={client.id} value={client.id}>
+                    <ListboxLabel>{client.clientName} ({client.keyPrefix})</ListboxLabel>
+                  </ListboxOption>
                 ))}
-              </Select>
+              </Listbox>
             </div>
 
             <div className="space-y-2">

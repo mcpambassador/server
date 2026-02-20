@@ -11,7 +11,7 @@ import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Divider } from '@/components/catalyst/divider';
-import { Select } from '@/components/catalyst/select';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -210,36 +210,46 @@ export function McpWizard() {
               </Field>
               <Field>
                 <Label>Transport Type</Label>
-                <Select
+                <Listbox
                   name="transport-type"
                   value={formData.transport_type}
-                  onChange={(e) =>
+                  onChange={(value: string) =>
                     setFormData({
                       ...formData,
-                      transport_type: e.target.value as any,
+                      transport_type: value as any,
                     })
                   }
                 >
-                  <option value="stdio">stdio</option>
-                  <option value="http">http</option>
-                  <option value="sse">sse</option>
-                </Select>
+                  <ListboxOption value="stdio">
+                    <ListboxLabel>stdio</ListboxLabel>
+                  </ListboxOption>
+                  <ListboxOption value="http">
+                    <ListboxLabel>http</ListboxLabel>
+                  </ListboxOption>
+                  <ListboxOption value="sse">
+                    <ListboxLabel>sse</ListboxLabel>
+                  </ListboxOption>
+                </Listbox>
               </Field>
               <Field>
                 <Label>Isolation Mode</Label>
-                <Select
+                <Listbox
                   name="isolation-mode"
                   value={formData.isolation_mode}
-                  onChange={(e) =>
+                  onChange={(value: string) =>
                     setFormData({
                       ...formData,
-                      isolation_mode: e.target.value as any,
+                      isolation_mode: value as any,
                     })
                   }
                 >
-                  <option value="shared">shared</option>
-                  <option value="per_user">per_user</option>
-                </Select>
+                  <ListboxOption value="shared">
+                    <ListboxLabel>shared</ListboxLabel>
+                  </ListboxOption>
+                  <ListboxOption value="per_user">
+                    <ListboxLabel>per_user</ListboxLabel>
+                  </ListboxOption>
+                </Listbox>
               </Field>
             </>
           )}

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/componen
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import { Select } from '@/components/catalyst/select';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import {
   useAdminGroup,
   useGroupMembers,
@@ -310,18 +310,18 @@ export function GroupDetail() {
         <DialogBody>
           <Field>
             <Label>User</Label>
-            <Select
+            <Listbox
               name="user-select"
+              placeholder="Select a user..."
               value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
+              onChange={(value: string) => setSelectedUserId(value)}
             >
-              <option value="">Select a user...</option>
               {allUsers?.data.map((user) => (
-                <option key={user.user_id} value={user.user_id}>
-                  {user.username} {user.display_name && `(${user.display_name})`}
-                </option>
+                <ListboxOption key={user.user_id} value={user.user_id}>
+                  <ListboxLabel>{user.username} {user.display_name && `(${user.display_name})`}</ListboxLabel>
+                </ListboxOption>
               ))}
-            </Select>
+            </Listbox>
           </Field>
         </DialogBody>
         <DialogActions>
@@ -341,18 +341,18 @@ export function GroupDetail() {
         <DialogBody>
           <Field>
             <Label>MCP</Label>
-            <Select
+            <Listbox
               name="mcp-select"
+              placeholder="Select an MCP..."
               value={selectedMcpId}
-              onChange={(e) => setSelectedMcpId(e.target.value)}
+              onChange={(value: string) => setSelectedMcpId(value)}
             >
-              <option value="">Select an MCP...</option>
               {allMcps?.data.filter(m => m.status === 'published').map((mcp) => (
-                <option key={mcp.mcp_id} value={mcp.mcp_id}>
-                  {mcp.display_name} ({mcp.transport_type})
-                </option>
+                <ListboxOption key={mcp.mcp_id} value={mcp.mcp_id}>
+                  <ListboxLabel>{mcp.display_name} ({mcp.transport_type})</ListboxLabel>
+                </ListboxOption>
               ))}
-            </Select>
+            </Listbox>
           </Field>
         </DialogBody>
         <DialogActions>
