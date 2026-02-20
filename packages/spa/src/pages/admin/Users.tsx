@@ -1,21 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Trash2, Key } from 'lucide-react';
+import { Plus, Eye, Trash2, Key, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Button } from '@/components/catalyst/button';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -123,127 +119,138 @@ export function UsersAdmin() {
     setEditDialogOpen(true);
   };
 
-  const columns: ColumnDef<AdminUser>[] = [
-    {
-      header: 'Username',
-      accessor: 'username',
-      cell: (user) => (
-        <Link
-          to={`/app/admin/users/${user.user_id}`}
-          className="font-medium hover:underline"
-        >
-          {user.username}
-        </Link>
-      ),
-    },
-    {
-      header: 'Display Name',
-      accessor: 'display_name',
-      cell: (user) => user.display_name || '—',
-    },
-    {
-      header: 'Email',
-      accessor: 'email',
-      cell: (user) => user.email || '—',
-    },
-    {
-      header: 'Admin',
-      accessor: 'is_admin',
-      cell: (user) =>
-        user.is_admin ? <Badge color="teal">Admin</Badge> : <Badge color="zinc">User</Badge>,
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      cell: (user) => (
-        <Badge color={user.status === 'active' ? 'emerald' : 'zinc'}>
-          {user.status}
-        </Badge>
-      ),
-    },
-    {
-      header: 'Created',
-      accessor: 'created_at',
-      cell: (user) => new Date(user.created_at).toLocaleDateString(),
-    },
-    {
-      header: 'Last Login',
-      accessor: 'last_login_at',
-      cell: (user) =>
-        user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : '—',
-    },
-    {
-      header: 'Actions',
-      accessor: 'user_id',
-      cell: (user) => (
-        <div className="flex items-center gap-2">
-          <Button plain className="p-1" href={`/app/admin/users/${user.user_id}`}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => openEditDialog(user)}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => {
-              setSelectedUser(user);
-              setResetDialogOpen(true);
-            }}
-          >
-            <Key className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => {
-              setSelectedUser(user);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-xl font-semibold">User Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage system users and permissions
-          </p>
+          <Heading>User Management</Heading>
+          <Text className="mt-1">Manage system users and permissions</Text>
         </div>
-        <Button className="h-8" onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create User
         </Button>
       </div>
 
-      <Card className="p-6">
-        <DataTable
-          columns={columns}
-          data={usersData?.data ?? []}
-          isLoading={isLoading}
-          emptyMessage="No users yet."
-        />
-      </Card>
+      {/* Table Section */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Username</TableHeader>
+              <TableHeader>Display Name</TableHeader>
+              <TableHeader>Email</TableHeader>
+              <TableHeader>Admin</TableHeader>
+              <TableHeader>Status</TableHeader>
+              <TableHeader>Created</TableHeader>
+              <TableHeader>Last Login</TableHeader>
+              <TableHeader>Actions</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading ? (
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-32 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-40 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200" /></TableCell>
+                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200" /></TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ) : usersData?.data && usersData.data.length > 0 ? (
+              usersData.data.map((user) => (
+                <TableRow key={user.user_id}>
+                  <TableCell>
+                    <Link
+                      to={`/app/admin/users/${user.user_id}`}
+                      className="font-medium text-zinc-900 hover:text-zinc-700"
+                    >
+                      {user.username}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {user.display_name || '—'}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {user.email || '—'}
+                  </TableCell>
+                  <TableCell>
+                    {user.is_admin ? (
+                      <Badge color="blue">Admin</Badge>
+                    ) : (
+                      <Badge color="zinc">User</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.status === 'active' ? (
+                      <Badge color="green">active</Badge>
+                    ) : (
+                      <Badge color="zinc">suspended</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button plain href={`/app/admin/users/${user.user_id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button plain onClick={() => openEditDialog(user)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        plain
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setResetDialogOpen(true);
+                        }}
+                      >
+                        <Key className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        plain
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-zinc-500 py-12">
+                  No users yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Create User Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
-        
-          
-            <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>
-              Add a new user to the system
-            </DialogDescription>
-          
+        <DialogTitle>Create New User</DialogTitle>
+        <DialogDescription>
+          Add a new user to the system
+        </DialogDescription>
+        <DialogBody>
           <div className="space-y-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Username *</Label>
               <Input
                 value={createFormData.username}
@@ -252,7 +259,7 @@ export function UsersAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Password *</Label>
               <Input
                 type="password"
@@ -262,7 +269,7 @@ export function UsersAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Display Name</Label>
               <Input
                 value={createFormData.display_name}
@@ -271,7 +278,7 @@ export function UsersAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Email</Label>
               <Input
                 type="email"
@@ -289,39 +296,34 @@ export function UsersAdmin() {
                   setCreateFormData({ ...createFormData, is_admin: checked })
                 }
               />
-              <Label className="cursor-pointer">
-                Administrator
-              </Label>
+              <Label>Administrator</Label>
             </CheckboxField>
           </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="h-8"
-              onClick={handleCreate}
-              disabled={
-                !createFormData.username || !createFormData.password || createUser.isPending
-              }
-            >
-              {createUser.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogActions>
-        
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setCreateDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={
+              !createFormData.username || !createFormData.password || createUser.isPending
+            }
+          >
+            {createUser.isPending ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
-        
-          
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user information and permissions
-            </DialogDescription>
-          
+        <DialogTitle>Edit User</DialogTitle>
+        <DialogDescription>
+          Update user information and permissions
+        </DialogDescription>
+        <DialogBody>
           <div className="space-y-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Display Name</Label>
               <Input
                 value={editFormData.display_name}
@@ -330,7 +332,7 @@ export function UsersAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Email</Label>
               <Input
                 type="email"
@@ -340,7 +342,7 @@ export function UsersAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Status</Label>
               <select
                 value={editFormData.status}
@@ -350,7 +352,7 @@ export function UsersAdmin() {
                     status: e.target.value as 'active' | 'suspended',
                   })
                 }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
               >
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
@@ -364,78 +366,64 @@ export function UsersAdmin() {
                   setEditFormData({ ...editFormData, is_admin: checked })
                 }
               />
-              <Label className="cursor-pointer">
-                Administrator
-              </Label>
+              <Label>Administrator</Label>
             </CheckboxField>
           </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="h-8" onClick={handleEdit} disabled={updateUser.isPending}>
-              {updateUser.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogActions>
-        
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleEdit} disabled={updateUser.isPending}>
+            {updateUser.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
-        
-          
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              Set a new password for {selectedUser?.username}
-            </DialogDescription>
-          
-          <div className="space-y-4">
-            <Field className="space-y-2">
-              <Label>New Password</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-            </Field>
-          </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setResetDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="h-8"
-              onClick={handleResetPassword}
-              disabled={!newPassword || resetPassword.isPending}
-            >
-              {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
-            </Button>
-          </DialogActions>
-        
+        <DialogTitle>Reset Password</DialogTitle>
+        <DialogDescription>
+          Set a new password for {selectedUser?.username}
+        </DialogDescription>
+        <DialogBody>
+          <Field>
+            <Label>New Password</Label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </Field>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setResetDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleResetPassword}
+            disabled={!newPassword || resetPassword.isPending}
+          >
+            {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Alert */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
-        
-          
-            <AlertTitle>Are you sure?</AlertTitle>
-            <AlertDescription>
-              This will permanently delete the user {selectedUser?.username}. This action
-              cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSelectedUser(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Are you sure?</AlertTitle>
+        <AlertDescription>
+          This will permanently delete the user {selectedUser?.username}. This action
+          cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleDelete}>
+            Delete
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

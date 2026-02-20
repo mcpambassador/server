@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Trash2 } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
-import { Dialog, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminGroups, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/api/hooks/use-admin';
 import type { Group } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -91,97 +87,120 @@ export function GroupsAdmin() {
     setEditDialogOpen(true);
   };
 
-  const columns: ColumnDef<Group>[] = [
-    {
-      header: 'Name',
-      accessor: 'name',
-      cell: (group) => (
-        <Link
-          to={`/app/admin/groups/${group.group_id}`}
-          className="font-medium hover:underline"
-        >
-          {group.name}
-        </Link>
-      ),
-    },
-    {
-      header: 'Description',
-      accessor: 'description',
-      cell: (group) => group.description || '—',
-    },
-    {
-      header: 'Created',
-      accessor: 'created_at',
-      cell: (group) => new Date(group.created_at).toLocaleDateString(),
-    },
-    {
-      header: 'Updated',
-      accessor: 'updated_at',
-      cell: (group) => new Date(group.updated_at).toLocaleDateString(),
-    },
-    {
-      header: 'Actions',
-      accessor: 'group_id',
-      cell: (group) => (
-        <div className="flex items-center gap-2">
-          <Button plain className="p-1" href={`/app/admin/groups/${group.group_id}`}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => openEditDialog(group)}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => {
-              setSelectedGroup(group);
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Group Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage user groups and access control
-          </p>
+          <Heading>Group Management</Heading>
+          <Text>Manage user groups and access control</Text>
         </div>
-        <Button className="h-8" onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create Group
         </Button>
       </div>
 
-      <Card className="p-6">
-        <DataTable
-          columns={columns}
-          data={groups?.data ?? []}
-          isLoading={isLoading}
-          emptyMessage="No groups yet."
-        />
-      </Card>
+      {/* Table */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Name</TableHeader>
+              <TableHeader>Description</TableHeader>
+              <TableHeader>Created</TableHeader>
+              <TableHeader>Updated</TableHeader>
+              <TableHeader>Actions</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading ? (
+              <>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-48 rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ) : groups?.data && groups.data.length > 0 ? (
+              groups.data.map((group) => (
+                <TableRow key={group.group_id}>
+                  <TableCell>
+                    <Link
+                      to={`/app/admin/groups/${group.group_id}`}
+                      className="font-medium text-zinc-900 hover:text-zinc-700"
+                    >
+                      {group.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {group.description || '—'}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {new Date(group.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-zinc-500">
+                    {new Date(group.updated_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button plain href={`/app/admin/groups/${group.group_id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button plain onClick={() => openEditDialog(group)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        plain
+                        onClick={() => {
+                          setSelectedGroup(group);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-zinc-500">
+                  No groups yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Create Group Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
-        
-          
-            <DialogTitle>Create New Group</DialogTitle>
-            <DialogDescription>
-              Add a new group for organizing users
-            </DialogDescription>
-          
+        <DialogTitle>Create New Group</DialogTitle>
+        <DialogDescription>
+          Add a new group for organizing users
+        </DialogDescription>
+        <DialogBody>
           <div className="space-y-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Name *</Label>
               <Input
                 value={createFormData.name}
@@ -190,7 +209,7 @@ export function GroupsAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Description</Label>
               <Textarea
                 value={createFormData.description}
@@ -201,32 +220,29 @@ export function GroupsAdmin() {
               />
             </Field>
           </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="h-8"
-              onClick={handleCreate}
-              disabled={!createFormData.name || createGroup.isPending}
-            >
-              {createGroup.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogActions>
-        
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setCreateDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={!createFormData.name || createGroup.isPending}
+          >
+            {createGroup.isPending ? 'Creating...' : 'Create'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Edit Group Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
-        
-          
-            <DialogTitle>Edit Group</DialogTitle>
-            <DialogDescription>
-              Update group information
-            </DialogDescription>
-          
+        <DialogTitle>Edit Group</DialogTitle>
+        <DialogDescription>
+          Update group information
+        </DialogDescription>
+        <DialogBody>
           <div className="space-y-4">
-            <Field className="space-y-2">
+            <Field>
               <Label>Name</Label>
               <Input
                 value={editFormData.name}
@@ -235,7 +251,7 @@ export function GroupsAdmin() {
                 }
               />
             </Field>
-            <Field className="space-y-2">
+            <Field>
               <Label>Description</Label>
               <Textarea
                 value={editFormData.description}
@@ -246,39 +262,32 @@ export function GroupsAdmin() {
               />
             </Field>
           </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="h-8" onClick={handleEdit} disabled={updateGroup.isPending}>
-              {updateGroup.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogActions>
-        
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleEdit} disabled={updateGroup.isPending}>
+            {updateGroup.isPending ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
-        
-          
-            <AlertTitle>Are you sure?</AlertTitle>
-            <AlertDescription>
-              This will permanently delete the group &quot;{selectedGroup?.name}&quot;. This
-              action cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSelectedGroup(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Are you sure?</AlertTitle>
+        <AlertDescription>
+          This will permanently delete the group &quot;{selectedGroup?.name}&quot;. This
+          action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleDelete}>
+            Delete
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

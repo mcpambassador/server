@@ -1,19 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Key, Trash2, Edit, CheckCircle2, XCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Dialog, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useCredentialStatus, useSetCredentials, useDeleteCredentials } from '@/api/hooks/use-credentials';
 import type { CredentialStatus } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -71,75 +67,6 @@ export function Credentials() {
     }
   };
 
-  const columns: ColumnDef<CredentialStatus & { id: string }>[] = [
-    {
-      header: 'MCP Name',
-      accessor: 'mcpName',
-      cell: (cred) => (
-        <div className="flex items-center gap-2">
-          <Key className="h-4 w-4 text-muted-foreground" />
-          <Link
-            to={`/app/marketplace/${cred.mcpId}`}
-            className="font-medium hover:underline"
-          >
-            {cred.mcpName}
-          </Link>
-        </div>
-      ),
-    },
-    {
-      header: 'Status',
-      accessor: 'hasCredentials',
-      cell: (cred) => (
-        <div className="flex items-center gap-2">
-          {cred.hasCredentials ? (
-            <>
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <Badge color="emerald">Configured</Badge>
-            </>
-          ) : (
-            <>
-              <XCircle className="h-4 w-4 text-red-600" />
-              <Badge color="zinc">Not Set</Badge>
-            </>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: 'Last Updated',
-      accessor: 'updatedAt',
-      cell: (cred) =>
-        cred.updatedAt ? new Date(cred.updatedAt).toLocaleString() : '—',
-    },
-    {
-      header: 'Actions',
-      accessor: 'mcpId',
-      cell: (cred) => (
-        <div className="flex items-center gap-2">
-          <Button
-                        className="p-1"
-            onClick={() => handleEdit(cred)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          {cred.hasCredentials && (
-            <Button
-                            className="p-1"
-              onClick={() => {
-                setSelectedMcp(cred);
-                setDeleteDialogOpen(true);
-              }}
-              disabled={deleteCredentials.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ];
-
   const credentialsRequiring = (credentials?.filter(c => c.requiresCredentials) ?? []).map(c => ({
     ...c,
     id: c.mcpId,
@@ -147,109 +74,207 @@ export function Credentials() {
 
   return (
     <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Credentials</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage credentials for MCPs that require authentication
-        </p>
+      {/* Page Header */}
+      <div>
+        <Heading>Credentials</Heading>
+        <Text className="mt-1">Manage credentials for MCPs that require authentication</Text>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>MCP Credentials</CardTitle>
-          <CardDescription>
-            Some MCPs require credentials to access external services. Configure them here.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={credentialsRequiring}
-            isLoading={isLoading}
-            emptyMessage="No MCPs require credentials"
-          />
-        </CardContent>
-      </Card>
+      {/* MCP Credentials Panel */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 shadow-sm">
+        <div className="px-6 py-5 border-b border-zinc-950/5">
+          <h2 className="text-base font-semibold text-zinc-900">MCP Credentials</h2>
+          <Text className="mt-1">Some MCPs require credentials to access external services. Configure them here.</Text>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <Table className="w-full">
+            <TableHead>
+              <TableRow>
+                <TableHeader>MCP Name</TableHeader>
+                <TableHeader>Status</TableHeader>
+                <TableHeader>Last Updated</TableHeader>
+                <TableHeader>Actions</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading ? (
+                // Loading state
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-pulse h-4 w-4 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-40 rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : credentialsRequiring.length === 0 ? (
+                // Empty state
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-12">
+                    <Text className="text-zinc-500">No MCPs require credentials</Text>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                // Data rows
+                credentialsRequiring.map((cred) => (
+                  <TableRow key={cred.mcpId}>
+                    {/* MCP Name */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Key className="h-4 w-4 text-zinc-500" />
+                        <Link
+                          to={`/app/marketplace/${cred.mcpId}`}
+                          className="font-medium text-zinc-900 hover:underline"
+                        >
+                          {cred.mcpName}
+                        </Link>
+                      </div>
+                    </TableCell>
+
+                    {/* Status */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {cred.hasCredentials ? (
+                          <>
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <Badge color="green">Configured</Badge>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-zinc-400" />
+                            <Badge color="zinc">Not Set</Badge>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Last Updated */}
+                    <TableCell>
+                      <span className="text-zinc-900">
+                        {cred.updatedAt ? new Date(cred.updatedAt).toLocaleString() : '—'}
+                      </span>
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          plain
+                          onClick={() => handleEdit(cred)}
+                          aria-label="Edit credentials"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {cred.hasCredentials && (
+                          <Button
+                            plain
+                            onClick={() => {
+                              setSelectedMcp(cred);
+                              setDeleteDialogOpen(true);
+                            }}
+                            disabled={deleteCredentials.isPending}
+                            aria-label="Delete credentials"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       {/* Edit Credentials Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
-        
-          
-            <DialogTitle>
-              {selectedMcp?.hasCredentials ? 'Update' : 'Set'} Credentials for {selectedMcp?.mcpName}
-            </DialogTitle>
-            <DialogDescription>
-              Enter the required credentials. They will be stored securely and never displayed.
-            </DialogDescription>
-          
-          <div className="space-y-4">
-            {selectedMcp && Object.keys(
-              (selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>) ?? {}
-            ).map((key) => {
-              const schema = selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>;
-              const field = schema?.[key];
-              if (!field) return null;
-              return (
-                <Field key={key} className="space-y-2">
-                  <Label>{key}</Label>
-                  {field.description && (
-                    <p className="text-sm text-muted-foreground">{field.description}</p>
-                  )}
-                  <Input
-                    type={field.type === 'password' ? 'password' : 'text'}
-                    value={credentialFields[key] ?? ''}
-                    onChange={(e) =>
-                      setCredentialFields({
-                        ...credentialFields,
-                        [key]: e.target.value,
-                      })
-                    }
-                    placeholder={selectedMcp.hasCredentials ? '(unchanged)' : ''}
-                  />
-                </Field>
-              );
-            })}
-          </div>
-          <DialogActions>
-            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="h-8"
-              onClick={handleSave}
-              disabled={
-                Object.values(credentialFields).every(v => !v) ||
-                setCredentials.isPending
-              }
-            >
-              {setCredentials.isPending ? 'Saving...' : 'Save Credentials'}
-            </Button>
-          </DialogActions>
-        
+        <DialogTitle>
+          {selectedMcp?.hasCredentials ? 'Update' : 'Set'} Credentials for {selectedMcp?.mcpName}
+        </DialogTitle>
+        <DialogDescription>
+          Enter the required credentials. They will be stored securely and never displayed.
+        </DialogDescription>
+        <div className="mt-4 space-y-4">
+          {selectedMcp && Object.keys(
+            (selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>) ?? {}
+          ).map((key) => {
+            const schema = selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>;
+            const field = schema?.[key];
+            if (!field) return null;
+            return (
+              <Field key={key}>
+                <Label>{key}</Label>
+                {field.description && (
+                  <Text className="text-zinc-500">{field.description}</Text>
+                )}
+                <Input
+                  type={field.type === 'password' ? 'password' : 'text'}
+                  value={credentialFields[key] ?? ''}
+                  onChange={(e) =>
+                    setCredentialFields({
+                      ...credentialFields,
+                      [key]: e.target.value,
+                    })
+                  }
+                  placeholder={selectedMcp.hasCredentials ? '(unchanged)' : ''}
+                />
+              </Field>
+            );
+          })}
+        </div>
+        <DialogActions>
+          <Button plain onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={
+              Object.values(credentialFields).every(v => !v) ||
+              setCredentials.isPending
+            }
+          >
+            {setCredentials.isPending ? 'Saving...' : 'Save Credentials'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
-        
-          
-            <AlertTitle>Delete Credentials?</AlertTitle>
-            <AlertDescription>
-              This will permanently delete your stored credentials for{' '}
-              {selectedMcp?.mcpName}. You will need to re-enter them to use this MCP.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSelectedMcp(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Delete Credentials?</AlertTitle>
+        <AlertDescription>
+          This will permanently delete your stored credentials for{' '}
+          {selectedMcp?.mcpName}. You will need to re-enter them to use this MCP.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            onClick={handleDelete}
+            disabled={deleteCredentials.isPending}
+          >
+            Delete
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

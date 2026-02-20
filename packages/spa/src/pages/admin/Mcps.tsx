@@ -2,16 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Eye, CheckCircle, Archive, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
+import { Button } from '@/components/catalyst/button';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import {
   useAdminMcps,
   useDeleteMcp,
@@ -75,142 +71,31 @@ export function McpsAdmin() {
     }
   };
 
-  const columns: ColumnDef<McpCatalogEntry>[] = [
-    {
-      header: 'Name',
-      accessor: 'display_name',
-      cell: (mcp) => (
-        <Link
-          to={`/app/admin/mcps/${mcp.mcp_id}`}
-          className="font-medium hover:underline"
-        >
-          {mcp.display_name}
-        </Link>
-      ),
-    },
-    {
-      header: 'Internal Name',
-      accessor: 'name',
-      cell: (mcp) => <code className="text-sm">{mcp.name}</code>,
-    },
-    {
-      header: 'Transport',
-      accessor: 'transport_type',
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      cell: (mcp) => {
-        const variant =
-          mcp.status === 'draft'
-            ? 'zinc'
-            : mcp.status === 'published'
-            ? 'teal'
-            : 'zinc';
-        return <Badge color={variant}>{mcp.status}</Badge>;
-      },
-    },
-    {
-      header: 'Validation',
-      accessor: 'validation_status',
-      cell: (mcp) =>
-        mcp.validation_status ? (
-          <Badge
-            color={
-              mcp.validation_status === 'valid'
-                ? 'teal'
-                : mcp.validation_status === 'invalid'
-                ? 'red'
-                : 'zinc'
-            }
-          >
-            {mcp.validation_status}
-          </Badge>
-        ) : (
-          '—'
-        ),
-    },
-    {
-      header: 'Isolation',
-      accessor: 'isolation_mode',
-    },
-    {
-      header: 'Created',
-      accessor: 'created_at',
-      cell: (mcp) => new Date(mcp.created_at).toLocaleDateString(),
-    },
-    {
-      header: 'Actions',
-      accessor: 'mcp_id',
-      cell: (mcp) => (
-        <div className="flex items-center gap-2">
-          <Button plain className="p-1" href={`/app/admin/mcps/${mcp.mcp_id}`}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-                        className="p-1"
-            onClick={() => handleValidate(mcp.mcp_id)}
-            disabled={validateMcp.isPending}
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
-            <Button
-                            className="p-1"
-              onClick={() => handlePublish(mcp.mcp_id)}
-              disabled={publishMcp.isPending}
-            >
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-          )}
-          {mcp.status === 'published' && (
-            <Button
-                            className="p-1"
-              onClick={() => handleArchive(mcp.mcp_id)}
-              disabled={archiveMcp.isPending}
-            >
-              <Archive className="h-4 w-4" />
-            </Button>
-          )}
-          {mcp.status === 'draft' && (
-            <Button
-                            className="p-1"
-              onClick={() => {
-                setMcpToDelete(mcp);
-                setDeleteDialogOpen(true);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ];
+  const mcps = mcpsData?.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">MCP Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Administer MCP servers and configurations
-          </p>
+          <Heading>MCP Management</Heading>
+          <Text>Administer MCP servers and configurations</Text>
         </div>
-        <Button className="h-8" onClick={() => navigate('/app/admin/mcps/new')}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => navigate('/app/admin/mcps/new')}>
+          <Plus className="h-4 w-4" />
           Create MCP
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium">Status Filter:</label>
+      {/* Status Filter */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-zinc-700">Status:</span>
         <select
           value={statusFilter || ''}
           onChange={(e) =>
             setStatusFilter(e.target.value ? (e.target.value as any) : undefined)
           }
-          className="flex h-9 w-40 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          className="block rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
         >
           <option value="">All</option>
           <option value="draft">Draft</option>
@@ -219,35 +104,193 @@ export function McpsAdmin() {
         </select>
       </div>
 
-      <Card className="p-6">
-        <DataTable
-          columns={columns}
-          data={mcpsData?.data ?? []}
-          isLoading={isLoading}
-          emptyMessage="No MCPs yet."
-        />
-      </Card>
+      {/* Table */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Name</TableHeader>
+              <TableHeader>Internal Name</TableHeader>
+              <TableHeader>Transport</TableHeader>
+              <TableHeader>Status</TableHeader>
+              <TableHeader>Validation</TableHeader>
+              <TableHeader>Isolation</TableHeader>
+              <TableHeader>Created</TableHeader>
+              <TableHeader>Actions</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading ? (
+              // Loading state with animate-pulse
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <div className="h-4 w-32 animate-pulse rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ) : mcps.length === 0 ? (
+              // Empty state
+              <TableRow>
+                <TableCell colSpan={8} className="h-32 text-center text-zinc-500">
+                  No MCPs yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              // Data rows
+              mcps.map((mcp) => (
+                <TableRow key={mcp.mcp_id}>
+                  <TableCell>
+                    <Link
+                      to={`/app/admin/mcps/${mcp.mcp_id}`}
+                      className="font-medium text-zinc-900 hover:underline"
+                    >
+                      {mcp.display_name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-sm font-mono text-zinc-900">
+                      {mcp.name}
+                    </code>
+                  </TableCell>
+                  <TableCell className="text-zinc-700">{mcp.transport_type}</TableCell>
+                  <TableCell>
+                    <Badge
+                      color={
+                        mcp.status === 'draft'
+                          ? 'zinc'
+                          : mcp.status === 'published'
+                          ? 'green'
+                          : 'zinc'
+                      }
+                    >
+                      {mcp.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {mcp.validation_status ? (
+                      <Badge
+                        color={
+                          mcp.validation_status === 'valid'
+                            ? 'green'
+                            : mcp.validation_status === 'invalid'
+                            ? 'red'
+                            : 'zinc'
+                        }
+                      >
+                        {mcp.validation_status}
+                      </Badge>
+                    ) : (
+                      <span className="text-zinc-500">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-zinc-700">{mcp.isolation_mode}</TableCell>
+                  <TableCell className="text-zinc-700">
+                    {new Date(mcp.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {/* View */}
+                      <Button plain href={`/app/admin/mcps/${mcp.mcp_id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {/* Validate */}
+                      <Button
+                        plain
+                        onClick={() => handleValidate(mcp.mcp_id)}
+                        disabled={validateMcp.isPending}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      {/* Publish (draft + valid only) */}
+                      {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
+                        <Button
+                          plain
+                          onClick={() => handlePublish(mcp.mcp_id)}
+                          disabled={publishMcp.isPending}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {/* Archive (published only) */}
+                      {mcp.status === 'published' && (
+                        <Button
+                          plain
+                          onClick={() => handleArchive(mcp.mcp_id)}
+                          disabled={archiveMcp.isPending}
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {/* Delete (draft only) */}
+                      {mcp.status === 'draft' && (
+                        <Button
+                          plain
+                          onClick={() => {
+                            setMcpToDelete(mcp);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Alert */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
-        
-          
-            <AlertTitle>Are you sure?</AlertTitle>
-            <AlertDescription>
-              This will permanently delete the MCP &quot;{mcpToDelete?.display_name}&quot;. Only
-              draft MCPs can be deleted. This action cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setMcpToDelete(null)}>Cancel</Button>
-            <Button color="red"
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Are you sure?</AlertTitle>
+        <AlertDescription>
+          This will permanently delete the MCP &quot;{mcpToDelete?.display_name}&quot;. Only draft
+          MCPs can be deleted. This action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button
+            plain
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setMcpToDelete(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleDelete}>
+            Delete
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );
