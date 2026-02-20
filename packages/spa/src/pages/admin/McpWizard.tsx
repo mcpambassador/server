@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Input } from '@/components/catalyst/input';
+import { Field, Label } from '@/components/catalyst/fieldset';
+import { Textarea } from '@/components/catalyst/textarea';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -20,7 +20,6 @@ export function McpWizard() {
   const createMcp = useCreateMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
-  const { addToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [createdMcpId, setCreatedMcpId] = useState<string | null>(null);
@@ -42,7 +41,7 @@ export function McpWizard() {
     if (currentStep === 0) {
       // Basic validation
       if (!formData.name || !formData.display_name) {
-        addToast({ title: 'Validation', description: 'Name and Display Name are required', variant: 'destructive' });
+        toast.error('Validation', { description: 'Name and Display Name are required' });
         return;
       }
     }
@@ -54,7 +53,7 @@ export function McpWizard() {
         try {
           configObj = JSON.parse(formData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'destructive' });
+          toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
 
@@ -63,7 +62,7 @@ export function McpWizard() {
           try {
             credentialSchemaObj = JSON.parse(formData.credential_schema);
           } catch {
-            addToast({ title: 'Invalid JSON', description: 'Invalid JSON in credential schema field', variant: 'destructive' });
+            toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
             return;
           }
         }
@@ -82,7 +81,7 @@ export function McpWizard() {
 
         setCreatedMcpId(result.mcp_id);
       } catch (error) {
-        addToast({ title: 'Create MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+        toast.error('Create MCP failed', { description: (error as Error)?.message ?? String(error) });
         return;
       }
     }
@@ -94,7 +93,7 @@ export function McpWizard() {
         const result = await validateMcp.mutateAsync(createdMcpId);
         setValidationResult(result);
       } catch (error) {
-        addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+        toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
         return;
       }
     }
@@ -112,7 +111,7 @@ export function McpWizard() {
       await publishMcp.mutateAsync(createdMcpId);
       navigate(`/app/admin/mcps/${createdMcpId}`);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -173,47 +172,42 @@ export function McpWizard() {
           {/* Step 0: Basic Info */}
           {currentStep === 0 && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Internal Name * (e.g., github, slack)</Label>
+              <Field className="space-y-2">
+                <Label>Internal Name * (e.g., github, slack)</Label>
                 <Input
-                  id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="github"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="display_name">Display Name *</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Display Name *</Label>
                 <Input
-                  id="display_name"
                   value={formData.display_name}
                   onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                   placeholder="GitHub"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Description</Label>
                 <Textarea
-                  id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
                   placeholder="Interact with GitHub repositories and issues"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="icon_url">Icon URL</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Icon URL</Label>
                 <Input
-                  id="icon_url"
                   value={formData.icon_url}
                   onChange={(e) => setFormData({ ...formData, icon_url: e.target.value })}
                   placeholder="https://..."
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="transport_type">Transport Type</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Transport Type</Label>
                 <select
-                  id="transport_type"
                   value={formData.transport_type}
                   onChange={(e) =>
                     setFormData({
@@ -227,11 +221,10 @@ export function McpWizard() {
                   <option value="http">http</option>
                   <option value="sse">sse</option>
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="isolation_mode">Isolation Mode</Label>
+              </Field>
+              <Field className="space-y-2">
+                <Label>Isolation Mode</Label>
                 <select
-                  id="isolation_mode"
                   value={formData.isolation_mode}
                   onChange={(e) =>
                     setFormData({
@@ -244,41 +237,39 @@ export function McpWizard() {
                   <option value="shared">shared</option>
                   <option value="per_user">per_user</option>
                 </select>
-              </div>
+              </Field>
             </>
           )}
 
           {/* Step 1: Configuration */}
           {currentStep === 1 && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="config">Configuration (JSON) *</Label>
+              <Field className="space-y-2">
+                <Label>Configuration (JSON) *</Label>
                 <Textarea
-                  id="config"
                   value={formData.config}
                   onChange={(e) => setFormData({ ...formData, config: e.target.value })}
                   rows={12}
                   className="font-mono text-sm"
                   placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
                 />
-              </div>
-              <div className="flex items-center space-x-2">
+              </Field>
+              <CheckboxField>
                 <Checkbox
-                  id="requires_user_credentials"
+                  name="requires_user_credentials"
                   checked={formData.requires_user_credentials}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, requires_user_credentials: checked as boolean })
+                  onChange={(checked) =>
+                    setFormData({ ...formData, requires_user_credentials: checked })
                   }
                 />
-                <Label htmlFor="requires_user_credentials" className="cursor-pointer">
+                <Label className="cursor-pointer">
                   Requires User Credentials
                 </Label>
-              </div>
+              </CheckboxField>
               {formData.requires_user_credentials && (
-                <div className="space-y-2">
-                  <Label htmlFor="credential_schema">Credential Schema (JSON)</Label>
+                <Field className="space-y-2">
+                  <Label>Credential Schema (JSON)</Label>
                   <Textarea
-                    id="credential_schema"
                     value={formData.credential_schema}
                     onChange={(e) =>
                       setFormData({ ...formData, credential_schema: e.target.value })
@@ -287,7 +278,7 @@ export function McpWizard() {
                     className="font-mono text-sm"
                     placeholder='{ "api_key": { "type": "string", "description": "API Key" } }'
                   />
-                </div>
+                </Field>
               )}
             </>
           )}
@@ -396,7 +387,7 @@ export function McpWizard() {
                   <div>
                     <p className="text-muted-foreground">Validation Status</p>
                     <Badge
-                      variant={validationResult?.valid ? 'success' : 'destructive'}
+                      color={validationResult?.valid ? 'emerald' : 'red'}
                     >
                       {validationResult?.valid ? 'Valid' : 'Invalid'}
                     </Badge>
@@ -422,7 +413,7 @@ export function McpWizard() {
                       {publishMcp.isPending ? 'Publishing...' : 'Publish MCP'}
                     </Button>
                   )}
-                  <Button variant="outline" className="h-8" onClick={handleSaveDraft}>
+                  <Button color="zinc" className="h-8" onClick={handleSaveDraft}>
                     Save as Draft
                   </Button>
                 </div>
@@ -436,7 +427,7 @@ export function McpWizard() {
       {currentStep < 3 && (
         <div className="flex justify-between">
           <Button
-            variant="outline"
+            color="zinc"
             className="h-8"
             onClick={handleBack}
             disabled={currentStep === 0}

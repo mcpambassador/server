@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Users, UserPlus, Package, Activity, Server, AlertTriangle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Skeleton } from '@/components/catalyst/skeleton';
 import { useAdminUsers, useAdminGroups, useAdminMcps, useAdminSessions, useAuditEvents, useDownstream } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -105,15 +105,15 @@ export function Dashboard() {
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Draft</span>
-                  <Badge variant="secondary">{mcpsByStatus.draft}</Badge>
+                  <Badge color="zinc">{mcpsByStatus.draft}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Published</span>
-                  <Badge variant="default">{mcpsByStatus.published}</Badge>
+                  <Badge color="teal">{mcpsByStatus.published}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Archived</span>
-                  <Badge variant="outline">{mcpsByStatus.archived}</Badge>
+                  <Badge color="zinc">{mcpsByStatus.archived}</Badge>
                 </div>
               </>
             )}
@@ -138,13 +138,13 @@ export function Dashboard() {
                     <Server className="h-4 w-4" />
                     Healthy Connections
                   </span>
-                  <Badge variant={downstream.healthy_connections === downstream.total_connections ? 'default' : 'destructive'}>
+                  <Badge color={downstream.healthy_connections === downstream.total_connections ? 'teal' : 'red'}>
                     {downstream.healthy_connections}/{downstream.total_connections}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Total Tools Available</span>
-                  <Badge variant="outline">{downstream.total_tools}</Badge>
+                  <Badge color="zinc">{downstream.total_tools}</Badge>
                 </div>
                 {downstream.connections.length > 0 && (
                   <div className="pt-2 space-y-2 border-t">
@@ -152,7 +152,7 @@ export function Dashboard() {
                       <div key={conn.name} className="flex items-center justify-between text-xs">
                         <span className="font-mono">{conn.name}</span>
                         <div className="flex items-center gap-2">
-                          <Badge variant={conn.status === 'healthy' ? 'default' : 'destructive'} className="text-xs">
+                          <Badge color={conn.status === 'healthy' ? 'teal' : 'red'} className="text-xs">
                             {conn.status}
                           </Badge>
                           <span className="text-muted-foreground">{conn.tools} tools</span>
@@ -177,9 +177,7 @@ export function Dashboard() {
               <CardTitle>Recent Audit Events</CardTitle>
               <CardDescription>Last 10 system events</CardDescription>
             </div>
-            <Button variant="outline" className="h-8" asChild>
-              <Link to="/app/admin/audit">View All</Link>
-            </Button>
+            <Button color="zinc" className="h-8" href="/app/admin/audit">View All</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -208,9 +206,9 @@ export function Dashboard() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge variant={
-                      event.severity === 'error' ? 'destructive' :
-                      event.severity === 'warn' ? 'secondary' : 'outline'
+                    <Badge color={
+                      event.severity === 'error' ? 'red' :
+                      event.severity === 'warn' ? 'zinc' : 'zinc'
                     }>
                       {event.severity}
                     </Badge>
@@ -234,23 +232,17 @@ export function Dashboard() {
           <CardDescription>Common administrative tasks</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button variant="outline" className="h-8" asChild>
-            <Link to="/app/admin/users">
-              <Users className="mr-2 h-4 w-4" />
-              Manage Users
-            </Link>
+          <Button color="zinc" className="h-8" href="/app/admin/users">
+            <Users className="mr-2 h-4 w-4" />
+            Manage Users
           </Button>
-          <Button variant="outline" asChild>
-            <Link to="/app/admin/groups">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Manage Groups
-            </Link>
+          <Button color="zinc" href="/app/admin/groups">
+            <UserPlus className="mr-2 h-4 w-4" />
+            Manage Groups
           </Button>
-          <Button variant="outline" className="h-8" asChild>
-            <Link to="/app/admin/mcps/new">
-              <Package className="mr-2 h-4 w-4" />
-              Create MCP
-            </Link>
+          <Button color="zinc" className="h-8" href="/app/admin/mcps/new">
+            <Package className="mr-2 h-4 w-4" />
+            Create MCP
           </Button>
         </CardContent>
       </Card>

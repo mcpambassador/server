@@ -1,24 +1,20 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Eye, Trash2, Key } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { Card } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Input } from '@/components/catalyst/input';
+import { Field, Label } from '@/components/catalyst/fieldset';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
@@ -31,7 +27,6 @@ export function UsersAdmin() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
   const resetPassword = useResetPassword();
-  const { addToast } = useToast();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -68,7 +63,7 @@ export function UsersAdmin() {
       setCreateDialogOpen(false);
       setCreateFormData({ username: '', password: '', display_name: '', email: '', is_admin: false });
     } catch (error) {
-      addToast({ title: 'Create user failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Create user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -87,7 +82,7 @@ export function UsersAdmin() {
       setEditDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      addToast({ title: 'Update user failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Update user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -102,7 +97,7 @@ export function UsersAdmin() {
       setSelectedUser(null);
       setNewPassword('');
     } catch (error) {
-      addToast({ title: 'Reset password failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Reset password failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -113,7 +108,7 @@ export function UsersAdmin() {
       setDeleteDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      addToast({ title: 'Delete user failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Delete user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -155,13 +150,13 @@ export function UsersAdmin() {
       header: 'Admin',
       accessor: 'is_admin',
       cell: (user) =>
-        user.is_admin ? <Badge variant="default">Admin</Badge> : <Badge variant="outline">User</Badge>,
+        user.is_admin ? <Badge color="teal">Admin</Badge> : <Badge color="zinc">User</Badge>,
     },
     {
       header: 'Status',
       accessor: 'status',
       cell: (user) => (
-        <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
+        <Badge color={user.status === 'active' ? 'emerald' : 'zinc'}>
           {user.status}
         </Badge>
       ),
@@ -182,21 +177,17 @@ export function UsersAdmin() {
       accessor: 'user_id',
       cell: (user) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to={`/app/admin/users/${user.user_id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+          <Button plain className="p-1" href={`/app/admin/users/${user.user_id}`}>
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => openEditDialog(user)}
           >
             <Eye className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => {
               setSelectedUser(user);
               setResetDialogOpen(true);
@@ -205,8 +196,7 @@ export function UsersAdmin() {
             <Key className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => {
               setSelectedUser(user);
               setDeleteDialogOpen(true);
@@ -244,72 +234,68 @@ export function UsersAdmin() {
       </Card>
 
       {/* Create User Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
+        
+          
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
               Add a new user to the system
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username *</Label>
+            <Field className="space-y-2">
+              <Label>Username *</Label>
               <Input
-                id="username"
                 value={createFormData.username}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, username: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Password *</Label>
               <Input
-                id="password"
                 type="password"
                 value={createFormData.password}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, password: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="display_name">Display Name</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="display_name"
                 value={createFormData.display_name}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Email</Label>
               <Input
-                id="email"
                 type="email"
                 value={createFormData.email}
                 onChange={(e) =>
                   setCreateFormData({ ...createFormData, email: e.target.value })
                 }
               />
-            </div>
-            <div className="flex items-center space-x-2">
+            </Field>
+            <CheckboxField>
               <Checkbox
-                id="is_admin"
+                name="is_admin"
                 checked={createFormData.is_admin}
-                onCheckedChange={(checked) =>
-                  setCreateFormData({ ...createFormData, is_admin: checked as boolean })
+                onChange={(checked) =>
+                  setCreateFormData({ ...createFormData, is_admin: checked })
                 }
               />
-              <Label htmlFor="is_admin" className="cursor-pointer">
+              <Label className="cursor-pointer">
                 Administrator
               </Label>
-            </div>
+            </CheckboxField>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setCreateDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -321,45 +307,42 @@ export function UsersAdmin() {
             >
               {createUser.isPending ? 'Creating...' : 'Create'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
               Update user information and permissions
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit_display_name">Display Name</Label>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="edit_display_name"
                 value={editFormData.display_name}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_email">Email</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Email</Label>
               <Input
-                id="edit_email"
                 type="email"
                 value={editFormData.email}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, email: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_status">Status</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Status</Label>
               <select
-                id="edit_status"
                 value={editFormData.status}
                 onChange={(e) =>
                   setEditFormData({
@@ -372,53 +355,52 @@ export function UsersAdmin() {
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
               </select>
-            </div>
-            <div className="flex items-center space-x-2">
+            </Field>
+            <CheckboxField>
               <Checkbox
-                id="edit_is_admin"
+                name="edit_is_admin"
                 checked={editFormData.is_admin}
-                onCheckedChange={(checked) =>
-                  setEditFormData({ ...editFormData, is_admin: checked as boolean })
+                onChange={(checked) =>
+                  setEditFormData({ ...editFormData, is_admin: checked })
                 }
               />
-              <Label htmlFor="edit_is_admin" className="cursor-pointer">
+              <Label className="cursor-pointer">
                 Administrator
               </Label>
-            </div>
+            </CheckboxField>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleEdit} disabled={updateUser.isPending}>
               {updateUser.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Reset Password Dialog */}
-      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
+        
+          
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
               Set a new password for {selectedUser?.username}
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new_password">New Password</Label>
+            <Field className="space-y-2">
+              <Label>New Password</Label>
               <Input
-                id="new_password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
-            </div>
+            </Field>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setResetDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setResetDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -428,33 +410,33 @@ export function UsersAdmin() {
             >
               {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
+        
+          
+            <AlertTitle>Are you sure?</AlertTitle>
+            <AlertDescription>
               This will permanently delete the user {selectedUser?.username}. This action
               cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedUser(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSelectedUser(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Skeleton } from '@/components/catalyst/skeleton';
+import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Select } from '@/components/catalyst/select';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Label } from '@/components/catalyst/fieldset';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
 import { useCredentialStatus } from '@/api/hooks/use-credentials';
@@ -77,9 +77,7 @@ export function McpDetail() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild>
-            <Link to="/app/marketplace">Back to Marketplace</Link>
-          </Button>
+          <Button href="/app/marketplace">Back to Marketplace</Button>
         </CardContent>
       </Card>
     );
@@ -88,10 +86,8 @@ export function McpDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/app/marketplace">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button plain className="p-1" href="/app/marketplace">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{mcp.name}</h1>
@@ -101,27 +97,27 @@ export function McpDetail() {
 
       {/* Credential Warning */}
       {requiresCredentials && !hasCredentials && (
-        <Alert variant="warning">
+        <InlineAlert color="warning">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Credentials Required</AlertTitle>
-          <AlertDescription>
+          <InlineAlertTitle>Credentials Required</InlineAlertTitle>
+          <InlineAlertDescription>
             This MCP requires user credentials to function.{' '}
             <Link to="/app/credentials" className="underline font-medium">
               Set credentials first
             </Link>{' '}
             before subscribing.
-          </AlertDescription>
-        </Alert>
+          </InlineAlertDescription>
+        </InlineAlert>
       )}
 
       {requiresCredentials && hasCredentials && (
-        <Alert variant="success">
+        <InlineAlert color="success">
           <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>Credentials Configured</AlertTitle>
-          <AlertDescription>
+          <InlineAlertTitle>Credentials Configured</InlineAlertTitle>
+          <InlineAlertDescription>
             You have already configured credentials for this MCP.
-          </AlertDescription>
-        </Alert>
+          </InlineAlertDescription>
+        </InlineAlert>
       )}
 
       {/* MCP Info Card */}
@@ -133,13 +129,13 @@ export function McpDetail() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-              <Badge variant="outline" className="mt-1">
+              <Badge color="zinc" className="mt-1">
                 {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
               </Badge>
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">Credentials Required</p>
-              <Badge variant={requiresCredentials ? 'secondary' : 'outline'} className="mt-1">
+              <Badge color={requiresCredentials ? 'zinc' : 'zinc'} className="mt-1">
                 {requiresCredentials ? 'Yes' : 'No'}
               </Badge>
             </div>
@@ -198,29 +194,25 @@ export function McpDetail() {
       </div>
 
       {/* Subscribe Dialog */}
-      <Dialog open={subscribeDialogOpen} onOpenChange={setSubscribeDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+      <Dialog open={subscribeDialogOpen} onClose={setSubscribeDialogOpen}>
+        
+          
             <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
             <DialogDescription>
               Select a client and choose which tools to enable
             </DialogDescription>
-          </DialogHeader>
+          
 
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Client</Label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeClients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.clientName} ({client.keyPrefix})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} name="client">
+                <option value="">Choose a client</option>
+                {activeClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.clientName} ({client.keyPrefix})
+                  </option>
+                ))}
               </Select>
             </div>
 
@@ -231,11 +223,11 @@ export function McpDetail() {
               </p>
               <div className="max-h-64 overflow-y-auto space-y-3 border rounded-md p-4">
                 {mcp.tools.map((tool) => (
-                  <div key={tool.name} className="flex items-start gap-3">
+                  <CheckboxField key={tool.name}>
                     <Checkbox
-                      id={tool.name}
+                      name={tool.name}
                       checked={selectedTools.includes(tool.name)}
-                      onCheckedChange={(checked) => {
+                      onChange={(checked) => {
                         if (checked) {
                           setSelectedTools([...selectedTools, tool.name]);
                         } else {
@@ -244,7 +236,7 @@ export function McpDetail() {
                       }}
                     />
                     <div className="flex-1">
-                      <Label htmlFor={tool.name} className="font-medium cursor-pointer">
+                      <Label className="font-medium cursor-pointer">
                         {tool.name}
                       </Label>
                       {tool.description && (
@@ -253,14 +245,14 @@ export function McpDetail() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </CheckboxField>
                 ))}
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -270,8 +262,8 @@ export function McpDetail() {
             >
               {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
     </div>
   );

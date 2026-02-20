@@ -1,19 +1,15 @@
 import { useState } from 'react';
 import { AlertTriangle, Key, Trash2, Shield } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useDownstream, useAdminSessions, useKillSession, useRotateHmac, useRotateCredentialKey } from '@/api/hooks/use-admin';
 import type { Session } from '@/api/types';
@@ -26,7 +22,6 @@ export function Settings() {
   const killSession = useKillSession();
   const rotateHmac = useRotateHmac();
   const rotateCredentialKey = useRotateCredentialKey();
-  const { addToast } = useToast();
 
   const [hmacDialogOpen, setHmacDialogOpen] = useState(false);
   const [credKeyDialogOpen, setCredKeyDialogOpen] = useState(false);
@@ -37,9 +32,9 @@ export function Settings() {
     try {
       await rotateHmac.mutateAsync();
       setHmacDialogOpen(false);
-      addToast({ title: 'HMAC rotated', description: 'HMAC secret rotated successfully', variant: 'success' });
+      toast.success('HMAC rotated', { description: 'HMAC secret rotated successfully' });
     } catch (error) {
-      addToast({ title: 'Rotate HMAC failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Rotate HMAC failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -47,9 +42,9 @@ export function Settings() {
     try {
       await rotateCredentialKey.mutateAsync();
       setCredKeyDialogOpen(false);
-      addToast({ title: 'Credential key rotated', description: 'Credential encryption key rotated successfully', variant: 'success' });
+      toast.success('Credential key rotated', { description: 'Credential encryption key rotated successfully' });
     } catch (error) {
-      addToast({ title: 'Rotate credential key failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Rotate credential key failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -60,7 +55,7 @@ export function Settings() {
       setKillSessionDialogOpen(false);
       setSessionToKill(null);
     } catch (error) {
-      addToast({ title: 'Kill session failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Kill session failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -94,8 +89,7 @@ export function Settings() {
       accessor: 'session_id',
       cell: (session) => (
         <Button
-          variant="ghost"
-          size="icon"
+                    className="p-1"
           onClick={() => {
             setSessionToKill(session);
             setKillSessionDialogOpen(true);
@@ -138,10 +132,10 @@ export function Settings() {
               <div>
                 <p className="text-xs text-muted-foreground">Health Status</p>
                 <Badge
-                  variant={
+                  color={
                     downstream.healthy_connections === downstream.total_connections
-                      ? 'success'
-                      : 'destructive'
+                      ? 'emerald'
+                      : 'red'
                   }
                 >
                   {downstream.healthy_connections === downstream.total_connections
@@ -195,7 +189,7 @@ export function Settings() {
               </p>
             </div>
             <Button
-              variant="destructive"
+              color="red"
               className="h-8"
               onClick={() => setHmacDialogOpen(true)}
               disabled={rotateHmac.isPending}
@@ -217,7 +211,7 @@ export function Settings() {
               </p>
             </div>
             <Button
-              variant="destructive"
+              color="red"
               className="h-8"
               onClick={() => setCredKeyDialogOpen(true)}
               disabled={rotateCredentialKey.isPending}
@@ -230,72 +224,72 @@ export function Settings() {
       </Card>
 
       {/* HMAC Rotation Confirmation */}
-      <AlertDialog open={hmacDialogOpen} onOpenChange={setHmacDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rotate HMAC Secret?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={hmacDialogOpen} onClose={setHmacDialogOpen}>
+        
+          
+            <AlertTitle>Rotate HMAC Secret?</AlertTitle>
+            <AlertDescription>
               This will invalidate ALL existing API keys. All clients will need to generate new
               keys. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setHmacDialogOpen(false)}>Cancel</Button>
+            <Button color="red"
               onClick={handleRotateHmac}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Rotate HMAC Secret
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
 
       {/* Credential Key Rotation Confirmation */}
-      <AlertDialog open={credKeyDialogOpen} onOpenChange={setCredKeyDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rotate Credential Encryption Key?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={credKeyDialogOpen} onClose={setCredKeyDialogOpen}>
+        
+          
+            <AlertTitle>Rotate Credential Encryption Key?</AlertTitle>
+            <AlertDescription>
               This will re-encrypt all stored user credentials. The operation may take several
               seconds. Users may experience brief service disruption.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setCredKeyDialogOpen(false)}>Cancel</Button>
+            <Button color="red"
               onClick={handleRotateCredentialKey}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Rotate Credential Key
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
 
       {/* Kill Session Confirmation */}
-      <AlertDialog open={killSessionDialogOpen} onOpenChange={setKillSessionDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Kill Session?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={killSessionDialogOpen} onClose={setKillSessionDialogOpen}>
+        
+          
+            <AlertTitle>Kill Session?</AlertTitle>
+            <AlertDescription>
               This will immediately terminate the session for {sessionToKill?.username}. They
               will be logged out.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSessionToKill(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSessionToKill(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleKillSession}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Kill Session
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

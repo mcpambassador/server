@@ -1,23 +1,19 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Settings } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Skeleton } from '@/components/catalyst/skeleton';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+  Alert,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Label } from '@/components/catalyst/fieldset';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
@@ -109,7 +105,7 @@ export function ClientDetail() {
       header: 'Status',
       accessor: 'status',
       cell: (sub) => (
-        <Badge variant={sub.status === 'active' ? 'success' : 'secondary'}>
+        <Badge color={sub.status === 'active' ? 'emerald' : 'zinc'}>
           {sub.status}
         </Badge>
       ),
@@ -125,15 +121,13 @@ export function ClientDetail() {
       cell: (sub) => (
         <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => handleEditTools(sub)}
           >
             <Settings className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => {
               setSubscriptionToDelete(sub.id);
               setUnsubscribeDialogOpen(true);
@@ -167,9 +161,7 @@ export function ClientDetail() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild>
-            <Link to="/app/clients">Back to Clients</Link>
-          </Button>
+          <Button href="/app/clients">Back to Clients</Button>
         </CardContent>
       </Card>
     );
@@ -178,18 +170,16 @@ export function ClientDetail() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/app/clients">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button plain className="p-1" href="/app/clients">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{client.clientName}</h1>
           <p className="text-sm text-muted-foreground">{client.keyPrefix}</p>
         </div>
-        <Badge variant={
-          client.status === 'active' ? 'success' :
-          client.status === 'suspended' ? 'secondary' : 'destructive'
+        <Badge color={
+          client.status === 'active' ? 'emerald' :
+          client.status === 'suspended' ? 'zinc' : 'red'
         }>
           {client.status}
         </Badge>
@@ -229,11 +219,9 @@ export function ClientDetail() {
               MCPs this client is subscribed to
             </p>
           </div>
-          <Button className="h-8" asChild>
-            <Link to="/app/marketplace">
-              <Plus className="mr-2 h-4 w-4" />
-              Subscribe to MCP
-            </Link>
+          <Button className="h-8" href="/app/marketplace">
+            <Plus className="mr-2 h-4 w-4" />
+            Subscribe to MCP
           </Button>
         </div>
 
@@ -248,46 +236,46 @@ export function ClientDetail() {
       </div>
 
       {/* Unsubscribe Confirmation Dialog */}
-      <AlertDialog open={unsubscribeDialogOpen} onOpenChange={setUnsubscribeDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsubscribe from MCP?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={unsubscribeDialogOpen} onClose={setUnsubscribeDialogOpen}>
+        
+          
+            <AlertTitle>Unsubscribe from MCP?</AlertTitle>
+            <AlertDescription>
               This will remove access to this MCP for this client. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSubscriptionToDelete(null)}>
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setSubscriptionToDelete(null)}>
               Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button color="red"
               onClick={handleUnsubscribe}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Unsubscribe
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
 
       {/* Edit Tools Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>Select Tools</DialogTitle>
             <DialogDescription>
               Choose which tools this client can access from {subscriptionToEdit?.mcpName}
             </DialogDescription>
-          </DialogHeader>
+          
           <div className="max-h-96 overflow-y-auto space-y-3">
             {marketplace?.data
               ?.find(m => m.id === subscriptionToEdit?.mcpId)
               ?.tools?.map((tool) => (
-                <div key={tool.name} className="flex items-start gap-3">
+                <CheckboxField key={tool.name}>
                   <Checkbox
-                    id={tool.name}
+                    name={tool.name}
                     checked={selectedTools.includes(tool.name)}
-                    onCheckedChange={(checked) => {
+                    onChange={(checked) => {
                       if (checked) {
                         setSelectedTools([...selectedTools, tool.name]);
                       } else {
@@ -296,7 +284,7 @@ export function ClientDetail() {
                     }}
                   />
                   <div className="flex-1">
-                    <Label htmlFor={tool.name} className="font-medium cursor-pointer">
+                    <Label className="font-medium cursor-pointer">
                       {tool.name}
                     </Label>
                     {tool.description && (
@@ -305,11 +293,11 @@ export function ClientDetail() {
                       </p>
                     )}
                   </div>
-                </div>
+                </CheckboxField>
               ))}
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -319,8 +307,8 @@ export function ClientDetail() {
             >
               {updateSubscription.isPending ? 'Saving...' : 'Save'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
     </div>
   );

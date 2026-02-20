@@ -1,20 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Eye, CheckCircle, Archive, Trash2, RefreshCw } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Card } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Alert,
+  AlertDescription,
+  AlertActions,
+  AlertTitle,
+} from '@/components/catalyst/alert';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import {
   useAdminMcps,
@@ -31,7 +27,6 @@ export function McpsAdmin() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(undefined);
   const { data: mcpsData, isLoading } = useAdminMcps({ status: statusFilter });
-  const { addToast } = useToast();
   const deleteMcp = useDeleteMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
@@ -44,12 +39,12 @@ export function McpsAdmin() {
     try {
       const result = await validateMcp.mutateAsync(mcpId);
       if (result.valid) {
-        addToast({ title: 'Validation passed', description: `Discovered ${result.tools_discovered.length} tools.`, variant: 'success' });
+        toast.success('Validation passed', { description: `Discovered ${result.tools_discovered.length} tools.` });
       } else {
-        addToast({ title: 'Validation failed', description: result.errors.join(', '), variant: 'destructive' });
+        toast.error('Validation failed', { description: result.errors.join(', ') });
       }
     } catch (error) {
-      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -57,7 +52,7 @@ export function McpsAdmin() {
     try {
       await publishMcp.mutateAsync(mcpId);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -65,7 +60,7 @@ export function McpsAdmin() {
     try {
       await archiveMcp.mutateAsync(mcpId);
     } catch (error) {
-      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -76,7 +71,7 @@ export function McpsAdmin() {
       setDeleteDialogOpen(false);
       setMcpToDelete(null);
     } catch (error) {
-      addToast({ title: 'Delete MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Delete MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -108,11 +103,11 @@ export function McpsAdmin() {
       cell: (mcp) => {
         const variant =
           mcp.status === 'draft'
-            ? 'secondary'
+            ? 'zinc'
             : mcp.status === 'published'
-            ? 'default'
-            : 'outline';
-        return <Badge variant={variant}>{mcp.status}</Badge>;
+            ? 'teal'
+            : 'zinc';
+        return <Badge color={variant}>{mcp.status}</Badge>;
       },
     },
     {
@@ -121,12 +116,12 @@ export function McpsAdmin() {
       cell: (mcp) =>
         mcp.validation_status ? (
           <Badge
-            variant={
+            color={
               mcp.validation_status === 'valid'
-                ? 'default'
+                ? 'teal'
                 : mcp.validation_status === 'invalid'
-                ? 'destructive'
-                : 'outline'
+                ? 'red'
+                : 'zinc'
             }
           >
             {mcp.validation_status}
@@ -149,14 +144,11 @@ export function McpsAdmin() {
       accessor: 'mcp_id',
       cell: (mcp) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to={`/app/admin/mcps/${mcp.mcp_id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
+          <Button plain className="p-1" href={`/app/admin/mcps/${mcp.mcp_id}`}>
+            <Eye className="h-4 w-4" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+                        className="p-1"
             onClick={() => handleValidate(mcp.mcp_id)}
             disabled={validateMcp.isPending}
           >
@@ -164,8 +156,7 @@ export function McpsAdmin() {
           </Button>
           {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
             <Button
-              variant="ghost"
-              size="icon"
+                            className="p-1"
               onClick={() => handlePublish(mcp.mcp_id)}
               disabled={publishMcp.isPending}
             >
@@ -174,8 +165,7 @@ export function McpsAdmin() {
           )}
           {mcp.status === 'published' && (
             <Button
-              variant="ghost"
-              size="icon"
+                            className="p-1"
               onClick={() => handleArchive(mcp.mcp_id)}
               disabled={archiveMcp.isPending}
             >
@@ -184,8 +174,7 @@ export function McpsAdmin() {
           )}
           {mcp.status === 'draft' && (
             <Button
-              variant="ghost"
-              size="icon"
+                            className="p-1"
               onClick={() => {
                 setMcpToDelete(mcp);
                 setDeleteDialogOpen(true);
@@ -240,26 +229,26 @@ export function McpsAdmin() {
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
+        
+          
+            <AlertTitle>Are you sure?</AlertTitle>
+            <AlertDescription>
               This will permanently delete the MCP &quot;{mcpToDelete?.display_name}&quot;. Only
               draft MCPs can be deleted. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMcpToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            </AlertDescription>
+          
+          <AlertActions>
+            <Button plain onClick={() => setMcpToDelete(null)}>Cancel</Button>
+            <Button color="red"
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </AlertActions>
+        
+      </Alert>
     </div>
   );
 }

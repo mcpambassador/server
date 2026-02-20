@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
+import { Skeleton } from '@/components/catalyst/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
+import { Dialog, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
+import { Input } from '@/components/catalyst/input';
+import { Field, Label } from '@/components/catalyst/fieldset';
+import { Textarea } from '@/components/catalyst/textarea';
 import {
   useAdminMcp,
   useUpdateMcp,
@@ -28,7 +28,6 @@ export function McpDetail() {
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
   const archiveMcp = useArchiveMcp();
-  const { addToast } = useToast();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [validationResult, setValidationResult] = useState<any>(null);
@@ -48,7 +47,7 @@ export function McpDetail() {
         try {
           configObj = JSON.parse(editFormData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'destructive' });
+          toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
       }
@@ -64,7 +63,7 @@ export function McpDetail() {
       });
       setEditDialogOpen(false);
     } catch (error) {
-      addToast({ title: 'Update MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Update MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -85,7 +84,7 @@ export function McpDetail() {
       const result = await validateMcp.mutateAsync(mcp.mcp_id);
       setValidationResult(result);
     } catch (error) {
-      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -94,7 +93,7 @@ export function McpDetail() {
     try {
       await publishMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -103,7 +102,7 @@ export function McpDetail() {
     try {
       await archiveMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'destructive' });
+      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -119,11 +118,9 @@ export function McpDetail() {
   if (!mcp) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" asChild>
-          <Link to="/app/admin/mcps">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to MCPs
-          </Link>
+        <Button plain href="/app/admin/mcps">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to MCPs
         </Button>
         <Card>
           <CardHeader>
@@ -136,11 +133,9 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" className="h-8" asChild>
-        <Link to="/app/admin/mcps">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to MCPs
-        </Link>
+      <Button plain className="h-8" href="/app/admin/mcps">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to MCPs
       </Button>
 
       <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
@@ -149,17 +144,17 @@ export function McpDetail() {
           <p className="text-sm text-muted-foreground font-mono">{mcp.name}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={mcp.status === 'draft' ? 'secondary' : mcp.status === 'published' ? 'default' : 'outline'}>
+          <Badge color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'teal' : 'zinc'}>
             {mcp.status}
           </Badge>
           {mcp.validation_status && (
             <Badge
-              variant={
+              color={
                 mcp.validation_status === 'valid'
-                  ? 'success'
+                  ? 'emerald'
                   : mcp.validation_status === 'invalid'
-                  ? 'destructive'
-                  : 'outline'
+                  ? 'red'
+                  : 'zinc'
               }
             >
               {mcp.validation_status}
@@ -170,10 +165,10 @@ export function McpDetail() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" className="h-8" onClick={openEditDialog}>
+        <Button color="zinc" className="h-8" onClick={openEditDialog}>
           Edit MCP
         </Button>
-        <Button variant="outline" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
+        <Button color="zinc" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Validate
         </Button>
@@ -184,7 +179,7 @@ export function McpDetail() {
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button variant="outline" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
+          <Button color="zinc" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
             <Archive className="mr-2 h-4 w-4" />
             {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
           </Button>
@@ -247,131 +242,129 @@ export function McpDetail() {
       )}
 
       {/* MCP Details */}
-      <Tabs defaultValue="info" className="w-full">
+      <Tabs defaultIndex={0} className="w-full">
         <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger>Information</TabsTrigger>
+          <TabsTrigger>Configuration</TabsTrigger>
         </TabsList>
-        <TabsContent value="info" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>MCP Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">MCP ID</p>
-                  <p className="text-sm font-mono">{mcp.mcp_id}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Internal Name</p>
-                  <p className="text-sm font-mono">{mcp.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Display Name</p>
-                  <p className="text-sm">{mcp.display_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Transport Type</p>
-                  <p className="text-sm">{mcp.transport_type}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-                  <p className="text-sm">{mcp.isolation_mode}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Requires Credentials</p>
-                  <p className="text-sm">{mcp.requires_user_credentials ? 'Yes' : 'No'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Created</p>
-                  <p className="text-sm">{new Date(mcp.created_at).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Updated</p>
-                  <p className="text-sm">{new Date(mcp.updated_at).toLocaleString()}</p>
-                </div>
-              </div>
-              {mcp.description && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Description</p>
-                  <p className="text-sm mt-1">{mcp.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="config" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>MCP runtime configuration (JSON)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                {JSON.stringify(mcp.config, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-          {mcp.credential_schema && (
+        <TabsPanels>
+          <TabsContent className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Credential Schema</CardTitle>
-                <CardDescription>Required user credentials schema</CardDescription>
+                <CardTitle>MCP Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">MCP ID</p>
+                    <p className="text-sm font-mono">{mcp.mcp_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Internal Name</p>
+                    <p className="text-sm font-mono">{mcp.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Display Name</p>
+                    <p className="text-sm">{mcp.display_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Transport Type</p>
+                    <p className="text-sm">{mcp.transport_type}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
+                    <p className="text-sm">{mcp.isolation_mode}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Requires Credentials</p>
+                    <p className="text-sm">{mcp.requires_user_credentials ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Created</p>
+                    <p className="text-sm">{new Date(mcp.created_at).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Updated</p>
+                    <p className="text-sm">{new Date(mcp.updated_at).toLocaleString()}</p>
+                  </div>
+                </div>
+                {mcp.description && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Description</p>
+                    <p className="text-sm mt-1">{mcp.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration</CardTitle>
+                <CardDescription>MCP runtime configuration (JSON)</CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                  {JSON.stringify(mcp.credential_schema, null, 2)}
+                  {JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </CardContent>
             </Card>
-          )}
-        </TabsContent>
+            {mcp.credential_schema && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Credential Schema</CardTitle>
+                  <CardDescription>Required user credentials schema</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                    {JSON.stringify(mcp.credential_schema, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </TabsPanels>
       </Tabs>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        
+          
             <DialogTitle>Edit MCP</DialogTitle>
             <DialogDescription>Update MCP configuration</DialogDescription>
-          </DialogHeader>
+          
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-2">
-              <Label htmlFor="edit_display_name">Display Name</Label>
+            <Field className="space-y-2">
+              <Label>Display Name</Label>
               <Input
-                id="edit_display_name"
                 value={editFormData.display_name}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, display_name: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_description">Description</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Description</Label>
               <Textarea
-                id="edit_description"
                 value={editFormData.description}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, description: e.target.value })
                 }
                 rows={3}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_icon_url">Icon URL</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Icon URL</Label>
               <Input
-                id="edit_icon_url"
                 value={editFormData.icon_url}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, icon_url: e.target.value })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_config">Configuration (JSON)</Label>
+            </Field>
+            <Field className="space-y-2">
+              <Label>Configuration (JSON)</Label>
               <Textarea
-                id="edit_config"
                 value={editFormData.config}
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, config: e.target.value })
@@ -379,17 +372,17 @@ export function McpDetail() {
                 rows={10}
                 className="font-mono text-sm"
               />
-            </div>
+            </Field>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
+          <DialogActions>
+            <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button className="h-8" onClick={handleEdit} disabled={updateMcp.isPending}>
               {updateMcp.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </DialogActions>
+        
       </Dialog>
     </div>
   );
