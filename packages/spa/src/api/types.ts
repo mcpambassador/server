@@ -13,8 +13,12 @@ export interface AuthResponse {
 }
 
 export interface ErrorResponse {
-  error: string;
-  message?: string;
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    details?: unknown[];
+  };
 }
 
 export interface Client {

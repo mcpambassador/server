@@ -5,8 +5,7 @@ import type { CredentialStatus, SetCredentialsRequest } from '../types';
 export function useCredentialStatus() {
   return useQuery({
     queryKey: ['credentials'],
-    queryFn: () => apiClient.get<{ data: CredentialStatus[] }>('/v1/users/me/credentials'),
-    select: (response) => response.data,
+    queryFn: () => apiClient.get<CredentialStatus[]>('/v1/users/me/credentials'),
   });
 }
 

@@ -88,7 +88,7 @@ describe('Admin Group Routes', () => {
 
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Conflict');
+      expect(body.error.code).toBe('CONFLICT');
     });
 
     it('should reject without admin key', async () => {
@@ -239,7 +239,7 @@ describe('Admin Group Routes', () => {
 
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
-      expect(body.message).toBe('User added to group');
+      expect(body.data.message).toBe('User added to group');
     });
 
     it('should reject duplicate membership', async () => {
@@ -381,7 +381,7 @@ describe('Admin Group Routes', () => {
 
         expect(response.statusCode).toBe(403);
         const body = JSON.parse(response.body);
-        expect(body.error).toBe('Forbidden');
+        expect(body.error.code).toBe('FORBIDDEN');
       }
     });
 

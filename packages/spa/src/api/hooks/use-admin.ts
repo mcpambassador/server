@@ -100,7 +100,7 @@ export function useAdminGroups() {
 export function useAdminGroup(groupId: string) {
   return useQuery({
     queryKey: ['admin', 'groups', groupId],
-    queryFn: () => apiClient.get<{ data: Group }>(`/v1/admin/groups/${groupId}`).then(res => res.data),
+    queryFn: () => apiClient.get<Group>(`/v1/admin/groups/${groupId}`),
     enabled: !!groupId,
   });
 }
@@ -110,7 +110,7 @@ export function useCreateGroup() {
   
   return useMutation({
     mutationFn: (data: CreateGroupRequest) =>
-      apiClient.post<{ data: Group }>('/v1/admin/groups', data).then(res => res.data),
+      apiClient.post<Group>('/v1/admin/groups', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] });
     },
@@ -122,7 +122,7 @@ export function useUpdateGroup() {
   
   return useMutation({
     mutationFn: ({ groupId, data }: { groupId: string; data: UpdateGroupRequest }) =>
-      apiClient.patch<{ data: Group }>(`/v1/admin/groups/${groupId}`, data).then(res => res.data),
+      apiClient.patch<Group>(`/v1/admin/groups/${groupId}`, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', variables.groupId] });
@@ -146,7 +146,7 @@ export function useDeleteGroup() {
 export function useGroupMembers(groupId: string) {
   return useQuery({
     queryKey: ['admin', 'groups', groupId, 'members'],
-    queryFn: () => apiClient.get<{ data: GroupMember[] }>(`/v1/admin/groups/${groupId}/members`).then(res => res.data),
+    queryFn: () => apiClient.get<GroupMember[]>(`/v1/admin/groups/${groupId}/members`),
     enabled: !!groupId,
   });
 }
@@ -156,7 +156,7 @@ export function useAddGroupMember() {
   
   return useMutation({
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-      apiClient.post<{ data: { message: string } }>(`/v1/admin/groups/${groupId}/members`, { user_id: userId }),
+      apiClient.post<{ message: string }>(`/v1/admin/groups/${groupId}/members`, { user_id: userId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', variables.groupId, 'members'] });
     },
@@ -179,7 +179,7 @@ export function useRemoveGroupMember() {
 export function useGroupMcps(groupId: string) {
   return useQuery({
     queryKey: ['admin', 'groups', groupId, 'mcps'],
-    queryFn: () => apiClient.get<{ data: McpCatalogEntry[] }>(`/v1/admin/groups/${groupId}/mcps`).then(res => res.data),
+    queryFn: () => apiClient.get<McpCatalogEntry[]>(`/v1/admin/groups/${groupId}/mcps`),
     enabled: !!groupId,
   });
 }
@@ -189,7 +189,7 @@ export function useAssignGroupMcp() {
   
   return useMutation({
     mutationFn: ({ groupId, mcpId }: { groupId: string; mcpId: string }) =>
-      apiClient.post<{ data: { message: string } }>(`/v1/admin/groups/${groupId}/mcps`, { mcp_id: mcpId }),
+      apiClient.post<{ message: string }>(`/v1/admin/groups/${groupId}/mcps`, { mcp_id: mcpId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', variables.groupId, 'mcps'] });
     },
@@ -232,7 +232,7 @@ export function useAdminMcps(filters?: {
 export function useAdminMcp(mcpId: string) {
   return useQuery({
     queryKey: ['admin', 'mcps', mcpId],
-    queryFn: () => apiClient.get<{ data: McpCatalogEntry }>(`/v1/admin/mcps/${mcpId}`).then(res => res.data),
+    queryFn: () => apiClient.get<McpCatalogEntry>(`/v1/admin/mcps/${mcpId}`),
     enabled: !!mcpId,
   });
 }
@@ -242,7 +242,7 @@ export function useCreateMcp() {
   
   return useMutation({
     mutationFn: (data: CreateMcpRequest) =>
-      apiClient.post<{ data: McpCatalogEntry }>('/v1/admin/mcps', data).then(res => res.data),
+      apiClient.post<McpCatalogEntry>('/v1/admin/mcps', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
     },
@@ -254,7 +254,7 @@ export function useUpdateMcp() {
   
   return useMutation({
     mutationFn: ({ mcpId, data }: { mcpId: string; data: UpdateMcpRequest }) =>
-      apiClient.patch<{ data: McpCatalogEntry }>(`/v1/admin/mcps/${mcpId}`, data).then(res => res.data),
+      apiClient.patch<McpCatalogEntry>(`/v1/admin/mcps/${mcpId}`, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', variables.mcpId] });
@@ -277,7 +277,7 @@ export function useDeleteMcp() {
 export function useValidateMcp() {
   return useMutation({
     mutationFn: (mcpId: string) =>
-      apiClient.post<{ data: ValidationResult }>(`/v1/admin/mcps/${mcpId}/validate`).then(res => res.data),
+      apiClient.post<ValidationResult>(`/v1/admin/mcps/${mcpId}/validate`),
   });
 }
 
@@ -286,7 +286,7 @@ export function usePublishMcp() {
   
   return useMutation({
     mutationFn: (mcpId: string) =>
-      apiClient.post<{ data: McpCatalogEntry }>(`/v1/admin/mcps/${mcpId}/publish`).then(res => res.data),
+      apiClient.post<McpCatalogEntry>(`/v1/admin/mcps/${mcpId}/publish`),
     onSuccess: (_, mcpId) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
@@ -299,7 +299,7 @@ export function useArchiveMcp() {
   
   return useMutation({
     mutationFn: (mcpId: string) =>
-      apiClient.post<{ data: McpCatalogEntry }>(`/v1/admin/mcps/${mcpId}/archive`).then(res => res.data),
+      apiClient.post<McpCatalogEntry>(`/v1/admin/mcps/${mcpId}/archive`),
     onSuccess: (_, mcpId) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });

@@ -35,6 +35,7 @@
     "@mcpambassador/audit-file": "workspace:*",
     "@mcpambassador/authn-ephemeral": "workspace:*",
     "@mcpambassador/authz-local": "workspace:*",
+    "@mcpambassador/contracts": "workspace:*",
     "@mcpambassador/core": "workspace:*",
     "@mcpambassador/protocol": "workspace:*",
     "argon2": "^0.31.2",

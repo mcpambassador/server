@@ -40,9 +40,9 @@ describe('HMAC Secret Rotation', () => {
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
 
-    expect(body.success).toBe(true);
-    expect(body.sessionsInvalidated).toBe(sessionsBeforeCount.length);
-    expect(body.message).toBe('HMAC secret rotated. All sessions invalidated.');
+    expect(body.ok).toBe(true);
+    expect(body.data.sessionsInvalidated).toBe(sessionsBeforeCount.length);
+    expect(body.data.message).toBe('HMAC secret rotated. All sessions invalidated.');
   });
 
   it('POST /v1/admin/rotate-hmac-secret - requires admin authentication', async () => {
@@ -67,7 +67,7 @@ describe('HMAC Secret Rotation', () => {
 
     expect(response1.statusCode).toBe(200);
     const body1 = JSON.parse(response1.body);
-    expect(body1.success).toBe(true);
+    expect(body1.ok).toBe(true);
 
     // Call again immediately (should succeed with 0 sessions invalidated since all already expired)
     const response2 = await handle.fastify.inject({
@@ -80,7 +80,7 @@ describe('HMAC Secret Rotation', () => {
 
     expect(response2.statusCode).toBe(200);
     const body2 = JSON.parse(response2.body);
-    expect(body2.success).toBe(true);
-    expect(body2.sessionsInvalidated).toBe(0); // No active sessions to invalidate
+    expect(body2.ok).toBe(true);
+    expect(body2.data.sessionsInvalidated).toBe(0); // No active sessions to invalidate
   });
 });

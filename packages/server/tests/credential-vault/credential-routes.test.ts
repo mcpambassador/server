@@ -44,7 +44,7 @@ describe('Credential Routes', () => {
 
     expect(createUserRes.statusCode).toBe(201);
     const userData = JSON.parse(createUserRes.body);
-    testUserId = userData.user_id;
+    testUserId = userData.data.user_id;
 
     // Create test MCP entry that requires credentials
     testMcpId = crypto.randomUUID();
@@ -137,9 +137,9 @@ describe('Credential Routes', () => {
 
       expect(res.statusCode).toBe(200);
       const data = res.json();
-      expect(data.mcpId).toBe(testMcpId);
-      expect(data.hasCredentials).toBe(true);
-      expect(data.updatedAt).toBeDefined();
+      expect(data.data.mcpId).toBe(testMcpId);
+      expect(data.data.hasCredentials).toBe(true);
+      expect(data.data.updatedAt).toBeDefined();
     });
 
     it('should return 400 if MCP does not require credentials', async () => {
@@ -156,7 +156,7 @@ describe('Credential Routes', () => {
 
       expect(res.statusCode).toBe(400);
       const data = res.json();
-      expect(data.error).toBe('Bad request');
+      expect(data.error.code).toBe('BAD_REQUEST');
     });
 
     it('should return 404 if MCP does not exist', async () => {
@@ -191,7 +191,7 @@ describe('Credential Routes', () => {
 
       expect(res.statusCode).toBe(400);
       const data = res.json();
-      expect(data.error).toBe('Validation failed');
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('should generate vault_salt if user does not have one', async () => {
@@ -264,10 +264,10 @@ describe('Credential Routes', () => {
 
       expect(res.statusCode).toBe(200);
       const data = res.json();
-      expect(Array.isArray(data)).toBe(true);
+      expect(Array.isArray(data.data)).toBe(true);
 
       // Find our test MCP (using camelCase fields now)
-      const testMcpStatus = data.find((m: any) => m.mcpId === testMcpId);
+      const testMcpStatus = data.data.find((m: any) => m.mcpId === testMcpId);
       expect(testMcpStatus).toBeDefined();
       expect(testMcpStatus.mcpName).toBe('test-mcp-with-creds');
       expect(testMcpStatus.hasCredentials).toBe(true); // We set credentials earlier
@@ -283,7 +283,7 @@ describe('Credential Routes', () => {
       const data = res.json();
 
       // Verify no credential values are returned (using camelCase fields)
-      for (const item of data) {
+      for (const item of data.data) {
         expect(item).not.toHaveProperty('credentials');
         expect(item).not.toHaveProperty('encrypted_credentials');
         expect(item).not.toHaveProperty('api_key');
@@ -300,7 +300,7 @@ describe('Credential Routes', () => {
         headers: { Cookie: sessionCookie },
       });
 
-      expect(res.statusCode).toBe(204);
+      expect(res.statusCode).toBe(200);
 
       // Verify credentials are deleted
       const listRes = await server.fastify.inject({
@@ -310,7 +310,7 @@ describe('Credential Routes', () => {
       });
 
       const data = listRes.json();
-      const testMcpStatus = data.find((m: any) => m.mcpId === testMcpId);
+      const testMcpStatus = data.data.find((m: any) => m.mcpId === testMcpId);
       expect(testMcpStatus.hasCredentials).toBe(false);
     });
   });

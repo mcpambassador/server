@@ -116,7 +116,7 @@ describe('MCP Catalog Routes', () => {
 
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Conflict');
+      expect(body.error.code).toBe('CONFLICT');
     });
 
     it('should reject invalid transport config', async () => {
@@ -388,7 +388,7 @@ describe('MCP Catalog Routes', () => {
 
       expect(response.statusCode).toBe(422);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('validation');
+      expect(body.error.message).toContain('validation');
     });
   });
 
@@ -491,7 +491,7 @@ describe('MCP Catalog Routes', () => {
 
       expect(response.statusCode).toBe(422);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('Cannot delete published');
+      expect(body.error.message).toContain('Cannot delete published');
     });
   });
 

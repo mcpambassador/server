@@ -35,6 +35,7 @@ COPY packages/authn-ephemeral/package.json ./packages/authn-ephemeral/
 COPY packages/authz-local/package.json ./packages/authz-local/
 COPY packages/audit-file/package.json ./packages/audit-file/
 COPY packages/server/package.json ./packages/server/
+COPY packages/contracts/package.json ./packages/contracts/
 COPY packages/spa/package.json ./packages/spa/
 
 # Install dependencies
@@ -97,6 +98,10 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/authz-lo
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/dist ./packages/audit-file/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/package.json ./packages/audit-file/
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-file/node_modules ./packages/audit-file/node_modules
+
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/contracts/dist ./packages/contracts/dist
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/contracts/package.json ./packages/contracts/
+COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/contracts/node_modules ./packages/contracts/node_modules
 
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/dist ./packages/server/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/package.json ./packages/server/

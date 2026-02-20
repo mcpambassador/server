@@ -9,394 +9,427 @@
  * - DELETE /v1/admin/users/:userId - Deactivate user
  * - POST /v1/admin/users/:userId/reset-password - Reset user password
  *
+ * All routes require admin authentication (applied globally by parent plugin).
+ *
  * @see M21.7: Admin User CRUD Routes
  */
 
-import type { FastifyInstance } from 'fastify';
-import type { DatabaseClient } from '@mcpambassador/core';
-import { users, compatUpdate } from '@mcpambassador/core';
-import { eq, and } from 'drizzle-orm';
-import { authenticateAdminOrSession } from './middleware.js';
-import { createUser, getUserById, updateUserPassword } from '../auth/user-auth.js';
-import {
-  createUserSchema,
-  updateUserSchema,
-  userParamsSchema,
-  listUsersQuerySchema,
-  resetPasswordSchema,
-} from '../auth/schemas.js';
-import { validatePassword } from '../auth/password-policy.js';
-import { ZodError } from 'zod';
+import crypto from 'crypto';
+import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
+import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
+import { users, user_sessions, compatInsert, compatUpdate } from '@mcpambassador/core';
+import { eq, and, or, desc, asc } from 'drizzle-orm';
+import { validatePassword, hashPassword } from '../auth/password-policy.js';
+import { createUserSchema, updateUserSchema, resetPasswordSchema } from '../auth/schemas.js';
+import { updateUserParamsSchema, listUsersQuerySchema } from './schemas.js';
+import { createPaginationEnvelope } from './pagination.js';
+import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 
-export interface AdminUserRoutesOptions {
+/**
+ * Admin user routes plugin configuration
+ */
+export interface AdminUserRoutesConfig {
   db: DatabaseClient;
+  audit: AuditProvider;
+  userPool: UserMcpPool | null;
 }
 
 /**
- * Register admin user routes on admin Fastify instance
+ * Admin user routes plugin
  */
-export async function registerAdminUserRoutes(
+export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfig> = (
   fastify: FastifyInstance,
-  opts: AdminUserRoutesOptions
-): Promise<void> {
-  // All routes protected by admin authentication (API key or session)
-  const preHandlers = [authenticateAdminOrSession(opts.db)];
+  opts: AdminUserRoutesConfig,
+  done
+) => {
+  const { db, audit, userPool } = opts;
 
-  /**
-   * GET /v1/admin/users - List users with pagination
-   */
-  fastify.get(
-    '/v1/admin/users',
-    { preHandler: preHandlers },
-    async (request, reply) => {
-      try {
-        const query = listUsersQuerySchema.parse(request.query);
+  // ==========================================================================
+  // M21: POST /v1/admin/users - Create user with authentication
+  // ==========================================================================
+  fastify.post('/v1/admin/users', async (request, reply) => {
+    const body = createUserSchema.parse(request.body);
 
-        // Build where clause
-        const conditions = [];
-        if (query.status) {
-          conditions.push(eq(users.status, query.status));
-        }
+    // Validate password
+    const validation = validatePassword(body.password);
+    if (!validation.valid) {
+      return reply.status(400).send(
+        wrapError(ErrorCodes.VALIDATION_ERROR, validation.errors[0] ?? 'Invalid password', validation.errors)
+      );
+    }
 
-        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    // Hash password
+    const passwordHash = await hashPassword(body.password);
 
-        // Fetch users
-        const userList = await opts.db.query.users.findMany({
-          where: whereClause,
-          limit: query.limit,
-          offset: query.offset,
-          orderBy: (users, { desc }) => [desc(users.created_at)],
-        });
+    // Check for duplicate username
+    const existingUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.username, body.username),
+    });
 
-        // Count total (simplified - in production would optimize this)
-        const totalUsers = await opts.db.query.users.findMany({
-          where: whereClause,
-        });
+    if (existingUser) {
+      return reply.status(409).send(
+        wrapError(ErrorCodes.CONFLICT, 'Username already exists')
+      );
+    }
 
-        return reply.status(200).send({
-          users: userList.map((u) => ({
-            user_id: u.user_id,
-            username: u.username,
-            display_name: u.display_name,
-            email: u.email,
-            is_admin: u.is_admin,
-            status: u.status,
-            auth_source: u.auth_source,
-            created_at: u.created_at,
-            last_login_at: u.last_login_at,
-          })),
-          pagination: {
-            limit: query.limit,
-            offset: query.offset,
-            total: totalUsers.length,
-          },
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid query parameters',
-            details: err.errors,
-          });
-        }
+    const userId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
 
-        fastify.log.error({ err }, '[Admin] List users error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to list users',
-        });
+    await compatInsert(db, users).values({
+      user_id: userId,
+      username: body.username,
+      password_hash: passwordHash,
+      display_name: body.display_name,
+      email: body.email || null,
+      is_admin: body.is_admin || false,
+      status: 'active',
+      auth_source: 'local',
+      created_at: nowIso,
+      updated_at: nowIso,
+      metadata: '{}',
+    });
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'user_create',
+      metadata: {
+        username: body.username,
+        display_name: body.display_name,
+        email: body.email,
+        is_admin: body.is_admin || false,
+      },
+    });
+
+    const createdUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+      columns: {
+        user_id: true,
+        username: true,
+        display_name: true,
+        email: true,
+        is_admin: true,
+        status: true,
+        auth_source: true,
+        created_at: true,
+        updated_at: true,
+      },
+    });
+
+    return reply.status(201).send(wrapSuccess(createdUser));
+  });
+
+  // ==========================================================================
+  // M18.2: GET /v1/admin/users
+  // ==========================================================================
+  fastify.get('/v1/admin/users', async (request, reply) => {
+    const query = listUsersQuerySchema.parse(request.query);
+    const limit = Math.min(query.limit || 20, 100);
+
+    // Build where conditions
+    const conditions: any[] = [];
+    if (query.status) {
+      conditions.push(eq(users.status, query.status));
+    }
+
+    // Query with filters
+    let userList = await db.query.users.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      limit: limit + 1, // Fetch one extra to detect has_more
+      orderBy: query.sort.includes('created_at')
+        ? query.sort === 'created_at:desc'
+          ? [desc(users.created_at)]
+          : [asc(users.created_at)]
+        : query.sort === 'display_name:desc'
+          ? [desc(users.display_name)]
+          : [asc(users.display_name)],
+    });
+
+    // Apply cursor filtering if provided
+    if (query.cursor) {
+      const cursorIndex = userList.findIndex(
+        u => u.user_id === query.cursor || u.created_at === query.cursor
+      );
+      if (cursorIndex >= 0) {
+        userList = userList.slice(cursorIndex + 1);
       }
     }
-  );
 
-  /**
-   * POST /v1/admin/users - Create user
-   */
-  fastify.post(
-    '/v1/admin/users',
-    { preHandler: preHandlers, bodyLimit: 8192 },
-    async (request, reply) => {
-      try {
-        const body = createUserSchema.parse(request.body);
+    // Pagination
+    const hasMore = userList.length > limit;
+    const data = hasMore ? userList.slice(0, limit) : userList;
+    const nextCursor =
+      hasMore && data.length > 0
+        ? query.sort.includes('created_at')
+          ? data[data.length - 1]!.created_at
+          : data[data.length - 1]!.user_id
+        : null;
 
-        // Validate password
-        const validation = validatePassword(body.password);
-        if (!validation.valid) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: validation.errors[0] ?? 'Invalid password',
-            details: validation.errors,
-          });
-        }
+    return reply.send(
+      createPaginationEnvelope(data, {
+        has_more: hasMore,
+        next_cursor: nextCursor,
+        total_count: data.length,
+      })
+    );
+  });
 
-        // Check if username already exists
-        const existing = await opts.db.query.users.findFirst({
-          where: (users, { eq }) => eq(users.username, body.username),
-        });
+  // ==========================================================================
+  // M21: GET /v1/admin/users/:userId - Get user details
+  // ==========================================================================
+  fastify.get('/v1/admin/users/:userId', async (request, reply) => {
+    try {
+      const { userId } = updateUserParamsSchema.parse(request.params);
 
-        if (existing) {
-          return reply.status(409).send({
-            error: 'Conflict',
-            message: 'Username already exists',
-          });
-        }
+      const user = await db.query.users.findFirst({
+        where: (u, { eq }) => eq(u.user_id, userId),
+      });
 
-        // Create user
-        const user = await createUser(opts.db, {
-          username: body.username,
-          password: body.password,
-          display_name: body.display_name,
-          email: body.email,
-          is_admin: body.is_admin,
-        });
-
-        return reply.status(201).send({
-          user_id: user.user_id,
-          username: user.username,
-          display_name: user.display_name,
-          email: user.email,
-          is_admin: user.is_admin,
-          status: user.status,
-          auth_source: user.auth_source,
-          created_at: user.created_at,
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid request body',
-            details: err.errors,
-          });
-        }
-
-        fastify.log.error({ err }, '[Admin] Create user error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to create user',
-        });
+      if (!user) {
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+        );
       }
-    }
-  );
 
-  /**
-   * GET /v1/admin/users/:userId - Get user details
-   */
-  fastify.get(
-    '/v1/admin/users/:userId',
-    { preHandler: preHandlers },
-    async (request, reply) => {
-      try {
-        const params = userParamsSchema.parse(request.params);
-        const user = await getUserById(opts.db, params.userId);
-
-        if (!user) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'User not found',
-          });
-        }
-
-        return reply.status(200).send({
-          user_id: user.user_id,
-          username: user.username,
-          display_name: user.display_name,
-          email: user.email,
-          is_admin: user.is_admin,
-          status: user.status,
-          auth_source: user.auth_source,
-          created_at: user.created_at,
-          updated_at: user.updated_at,
-          last_login_at: user.last_login_at,
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid user ID',
-            details: err.errors,
-          });
-        }
-
-        fastify.log.error({ err }, '[Admin] Get user error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to get user',
-        });
+      return reply.send(wrapSuccess({
+        user_id: user.user_id,
+        username: user.username,
+        display_name: user.display_name,
+        email: user.email,
+        is_admin: user.is_admin,
+        status: user.status,
+        auth_source: user.auth_source,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        last_login_at: user.last_login_at,
+      }));
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send(
+          wrapError(ErrorCodes.BAD_REQUEST, 'Invalid user ID format')
+        );
       }
+      throw err;
     }
-  );
+  });
 
-  /**
-   * PATCH /v1/admin/users/:userId - Update user
-   */
-  fastify.patch(
-    '/v1/admin/users/:userId',
-    { preHandler: preHandlers, bodyLimit: 8192 },
-    async (request, reply) => {
-      try {
-        const params = userParamsSchema.parse(request.params);
-        const body = updateUserSchema.parse(request.body);
+  // ==========================================================================
+  // M18.3: PATCH /v1/admin/users/:userId
+  // ==========================================================================
+  fastify.patch('/v1/admin/users/:userId', async (request, reply) => {
+    const { userId } = updateUserParamsSchema.parse(request.params);
+    const body = updateUserSchema.parse(request.body);
 
-        // Check if user exists
-        const user = await getUserById(opts.db, params.userId);
-        if (!user) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'User not found',
-          });
-        }
+    // Check if user exists
+    const user = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
 
-        // Build update object
-        const updates: Record<string, unknown> = {
-          updated_at: new Date().toISOString(),
-        };
+    if (!user) {
+      return reply.status(404).send(
+        wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+      );
+    }
 
-        if (body.display_name !== undefined) {
-          updates['display_name'] = body.display_name;
-        }
-        if (body.email !== undefined) {
-          updates['email'] = body.email;
-        }
-        if (body.status !== undefined) {
-          updates['status'] = body.status;
-        }
-        if (body.is_admin !== undefined) {
-          updates['is_admin'] = body.is_admin;
-        }
+    const nowIso = new Date().toISOString();
+    const updates: Record<string, unknown> = {
+      updated_at: nowIso,
+    };
 
-        // Update user
-        await compatUpdate(opts.db, users).set(updates).where(eq(users.user_id, params.userId));
+    if (body.display_name !== undefined) updates.display_name = body.display_name;
+    if (body.email !== undefined) updates.email = body.email;
 
-        // Fetch updated user
-        const updatedUser = await getUserById(opts.db, params.userId);
+    const oldStatus = user.status;
+    const statusChanged = body.status !== undefined && body.status !== oldStatus;
 
-        return reply.status(200).send({
-          user_id: updatedUser!.user_id,
-          username: updatedUser!.username,
-          display_name: updatedUser!.display_name,
-          email: updatedUser!.email,
-          is_admin: updatedUser!.is_admin,
-          status: updatedUser!.status,
-          auth_source: updatedUser!.auth_source,
-          updated_at: updatedUser!.updated_at,
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid request',
-            details: err.errors,
-          });
-        }
+    if (body.status !== undefined) {
+      updates.status = body.status;
+    }
 
-        fastify.log.error({ err }, '[Admin] Update user error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to update user',
-        });
+    // If status changes to suspended or deactivated, expire all active sessions
+    if (statusChanged && (body.status === 'suspended' || body.status === 'deactivated')) {
+      // Update user
+      await compatUpdate(db, users)
+        .set(updates)
+        .where(eq(users.user_id, userId));
+
+      // Expire all active sessions for this user
+      await compatUpdate(db, user_sessions)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(user_sessions.user_id, userId),
+            or(
+              eq(user_sessions.status, 'active'),
+              eq(user_sessions.status, 'idle'),
+              eq(user_sessions.status, 'spinning_down')
+            )
+          )
+        );
+
+      // Terminate MCP instances (outside transaction)
+      if (userPool) {
+        await userPool.terminateForUser(userId);
       }
+    } else {
+      // Normal update (no cascading)
+      await compatUpdate(db, users)
+        .set(updates)
+        .where(eq(users.user_id, userId));
     }
-  );
 
-  /**
-   * DELETE /v1/admin/users/:userId - Deactivate user
-   */
-  fastify.delete(
-    '/v1/admin/users/:userId',
-    { preHandler: preHandlers },
-    async (request, reply) => {
-      try {
-        const params = userParamsSchema.parse(request.params);
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'user_update',
+      metadata: {
+        changes: Object.keys(updates).filter(k => k !== 'updated_at'),
+        old_status: oldStatus,
+        new_status: body.status,
+      },
+    });
 
-        // Check if user exists
-        const user = await getUserById(opts.db, params.userId);
-        if (!user) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'User not found',
-          });
-        }
+    const updatedUser = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
 
-        // Soft delete - set status to inactive
-        await compatUpdate(opts.db, users)
-          .set({
-            status: 'deactivated',
-            updated_at: new Date().toISOString(),
-          })
-          .where(eq(users.user_id, params.userId));
+    return reply.send(wrapSuccess(updatedUser));
+  });
 
-        return reply.status(200).send({
-          message: 'User deactivated successfully',
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid user ID',
-            details: err.errors,
-          });
-        }
+  // ==========================================================================
+  // M21: DELETE /v1/admin/users/:userId - Deactivate user
+  // ==========================================================================
+  fastify.delete('/v1/admin/users/:userId', async (request, reply) => {
+    try {
+      const { userId } = updateUserParamsSchema.parse(request.params);
 
-        fastify.log.error({ err }, '[Admin] Deactivate user error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to deactivate user',
-        });
+      const user = await db.query.users.findFirst({
+        where: (u, { eq }) => eq(u.user_id, userId),
+      });
+
+      if (!user) {
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+        );
       }
-    }
-  );
 
-  /**
-   * POST /v1/admin/users/:userId/reset-password - Reset user password
-   */
-  fastify.post(
-    '/v1/admin/users/:userId/reset-password',
-    { preHandler: preHandlers, bodyLimit: 4096 },
-    async (request, reply) => {
-      try {
-        const params = userParamsSchema.parse(request.params);
-        const body = resetPasswordSchema.parse(request.body);
+      const nowIso = new Date().toISOString();
 
-        // Check if user exists
-        const user = await getUserById(opts.db, params.userId);
-        if (!user) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'User not found',
-          });
-        }
+      // Deactivate user
+      await compatUpdate(db, users)
+        .set({ status: 'deactivated', updated_at: nowIso })
+        .where(eq(users.user_id, userId));
 
-        // Validate new password
-        const validation = validatePassword(body.new_password);
-        if (!validation.valid) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: validation.errors[0] ?? 'Invalid password',
-            details: validation.errors,
-          });
-        }
+      // Expire all active sessions
+      await compatUpdate(db, user_sessions)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(user_sessions.user_id, userId),
+            or(
+              eq(user_sessions.status, 'active'),
+              eq(user_sessions.status, 'idle'),
+              eq(user_sessions.status, 'spinning_down')
+            )
+          )
+        );
 
-        // Update password
-        await updateUserPassword(opts.db, params.userId, body.new_password);
-
-        return reply.status(200).send({
-          message: 'Password reset successfully',
-        });
-      } catch (err) {
-        if (err instanceof ZodError) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid request',
-            details: err.errors,
-          });
-        }
-
-        fastify.log.error({ err }, '[Admin] Reset password error');
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to reset password',
-        });
+      // Terminate MCP instances
+      if (userPool) {
+        await userPool.terminateForUser(userId);
       }
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'info',
+        client_id: undefined,
+        user_id: userId,
+        source_ip: request.ip || '127.0.0.1',
+        action: 'user_deactivated',
+        metadata: {},
+      });
+
+      return reply.send(wrapSuccess({
+        message: 'User successfully deactivated',
+        user_id: userId,
+      }));
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send(
+          wrapError(ErrorCodes.BAD_REQUEST, 'Invalid user ID format')
+        );
+      }
+      throw err;
     }
-  );
-}
+  });
+
+  // ==========================================================================
+  // M21: POST /v1/admin/users/:userId/reset-password - Reset password
+  // ==========================================================================
+  fastify.post('/v1/admin/users/:userId/reset-password', async (request, reply) => {
+    const { userId } = updateUserParamsSchema.parse(request.params);
+    const { new_password } = resetPasswordSchema.parse(request.body);
+
+    const user = await db.query.users.findFirst({
+      where: (u, { eq }) => eq(u.user_id, userId),
+    });
+
+    if (!user) {
+      return reply.status(404).send(
+        wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+      );
+    }
+
+    // Validate password
+    const validation = validatePassword(new_password);
+    if (!validation.valid) {
+      return reply.status(400).send(
+        wrapError(ErrorCodes.VALIDATION_ERROR, validation.errors[0] ?? 'Invalid password', validation.errors)
+      );
+    }
+
+    // Hash and update password
+    const passwordHash = await hashPassword(new_password);
+    const nowIso = new Date().toISOString();
+
+    await compatUpdate(db, users)
+      .set({ password_hash: passwordHash, updated_at: nowIso })
+      .where(eq(users.user_id, userId));
+
+    // Emit audit event
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: nowIso,
+      event_type: 'admin_action',
+      severity: 'info',
+      client_id: undefined,
+      user_id: userId,
+      source_ip: request.ip || '127.0.0.1',
+      action: 'password_reset',
+      metadata: {},
+    });
+
+    return reply.send(wrapSuccess({
+      message: 'Password successfully reset',
+      user_id: userId,
+    }));
+  });
+
+  done();
+};

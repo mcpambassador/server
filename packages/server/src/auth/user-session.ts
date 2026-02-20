@@ -12,6 +12,7 @@ import type { SessionStore } from '@fastify/session';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
 import { getOrCreateSessionSecret } from '../admin/session.js';
+import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 
 // Augment Fastify Session interface with user fields
 declare module 'fastify' {
@@ -94,10 +95,9 @@ export async function requireUserSession(
   reply: FastifyReply
 ): Promise<void> {
   if (!request.session.userId) {
-    return reply.status(401).send({
-      error: 'Unauthorized',
-      message: 'Authentication required',
-    });
+    return reply.status(401).send(
+      wrapError(ErrorCodes.UNAUTHORIZED, 'Authentication required')
+    );
   }
 }
 

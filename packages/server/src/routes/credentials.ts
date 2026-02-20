@@ -24,6 +24,7 @@ import { eq } from 'drizzle-orm';
 import type { CredentialVault } from '../services/credential-vault.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import { credentialParamsSchema, setCredentialBodySchema } from './schemas.js'; // CR-L2: Import from schemas.ts
+import { wrapSuccess, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 
 /**
  * Credential routes config
@@ -57,10 +58,9 @@ export async function registerCredentialRoutes(
       // Validate params
       const paramsResult = credentialParamsSchema.safeParse(request.params);
       if (!paramsResult.success) {
-        return reply.status(400).send({
-          error: 'Invalid parameters',
-          details: paramsResult.error.issues,
-        });
+        return reply.status(400).send(
+          wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid parameters', paramsResult.error.issues)
+        );
       }
 
       const { mcpId } = paramsResult.data;
@@ -68,10 +68,9 @@ export async function registerCredentialRoutes(
       // Validate body
       const bodyResult = setCredentialBodySchema.safeParse(request.body);
       if (!bodyResult.success) {
-        return reply.status(400).send({
-          error: 'Invalid request body',
-          details: bodyResult.error.issues,
-        });
+        return reply.status(400).send(
+          wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request body', bodyResult.error.issues)
+        );
       }
 
       const { credentials } = bodyResult.data;
@@ -79,17 +78,15 @@ export async function registerCredentialRoutes(
       // Check if MCP exists and requires credentials
       const mcpEntry = await getMcpEntryById(db, mcpId);
       if (!mcpEntry) {
-        return reply.status(404).send({
-          error: 'Not found',
-          message: 'MCP not found in catalog',
-        });
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, 'MCP not found in catalog')
+        );
       }
 
       if (!mcpEntry.requires_user_credentials) {
-        return reply.status(400).send({
-          error: 'Bad request',
-          message: 'This MCP does not require user credentials',
-        });
+        return reply.status(400).send(
+          wrapError(ErrorCodes.BAD_REQUEST, 'This MCP does not require user credentials')
+        );
       }
 
       // Basic credential schema validation (if schema is defined)
@@ -100,10 +97,9 @@ export async function registerCredentialRoutes(
 
           for (const field of requiredFields) {
             if (!(field in credentials)) {
-              return reply.status(400).send({
-                error: 'Validation failed',
-                message: `Missing required credential field: ${field}`,
-              });
+              return reply.status(400).send(
+                wrapError(ErrorCodes.VALIDATION_ERROR, `Missing required credential field: ${field}`)
+              );
             }
           }
         } catch (err) {
@@ -118,10 +114,9 @@ export async function registerCredentialRoutes(
       });
 
       if (!user) {
-        return reply.status(404).send({
-          error: 'Not found',
-          message: 'User not found',
-        });
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+        );
       }
 
       // Ensure user has a vault_salt (generate if missing)
@@ -161,11 +156,13 @@ export async function registerCredentialRoutes(
         console.log(`[Credentials] Stored new credentials for user ${userId}, MCP ${mcpId}`);
       }
 
-      return reply.status(200).send({
-        mcpId: mcpId,
-        hasCredentials: true,
-        updatedAt: updatedAt,
-      });
+      return reply.status(200).send(
+        wrapSuccess({
+          mcpId: mcpId,
+          hasCredentials: true,
+          updatedAt: updatedAt,
+        })
+      );
     }
   );
 
@@ -214,7 +211,7 @@ export async function registerCredentialRoutes(
         };
       });
 
-      return reply.status(200).send(result);
+      return reply.status(200).send(wrapSuccess(result));
     }
   );
 
@@ -232,10 +229,9 @@ export async function registerCredentialRoutes(
       // Validate params
       const paramsResult = credentialParamsSchema.safeParse(request.params);
       if (!paramsResult.success) {
-        return reply.status(400).send({
-          error: 'Invalid parameters',
-          details: paramsResult.error.issues,
-        });
+        return reply.status(400).send(
+          wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid parameters', paramsResult.error.issues)
+        );
       }
 
       const { mcpId } = paramsResult.data;
@@ -250,7 +246,12 @@ export async function registerCredentialRoutes(
         console.log(`[Credentials] Terminated user ${userId} MCP pool after credential deletion`);
       }
 
-      return reply.status(204).send();
+      return reply.status(200).send(
+        wrapSuccess({
+          mcpId,
+          deleted: true,
+        })
+      );
     }
   );
 }

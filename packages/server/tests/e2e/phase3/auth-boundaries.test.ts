@@ -45,7 +45,7 @@ describe('Phase 3 Auth Boundaries', () => {
 
     const createClient = await server.fastify.inject({ method: 'POST', url: '/v1/users/me/clients', headers: { cookie: session2 }, payload: { client_name: 'ab-client', profile_id: profile.profile_id } });
     expect(createClient.statusCode).toBe(201);
-    const clientId = JSON.parse(createClient.body).data.client_id;
+    const clientId = JSON.parse(createClient.body).data.client.id;
 
     // Original user tries to GET that client
     const res = await server.fastify.inject({ method: 'GET', url: `/v1/users/me/clients/${clientId}`, headers: { cookie: userCookie } });
@@ -68,7 +68,7 @@ describe('Phase 3 Auth Boundaries', () => {
     const mk = await server.fastify.inject({ method: 'GET', url: '/v1/marketplace', headers: { cookie: userCookie } });
     expect(mk.statusCode).toBe(200);
     const body = JSON.parse(mk.body);
-    const found = (body.data || []).some((m: any) => m.mcp_id === mid);
+    const found = (body.data || []).some((m: any) => m.id === mid);
     expect(found).toBe(false);
   });
 

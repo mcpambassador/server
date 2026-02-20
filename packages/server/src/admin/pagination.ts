@@ -20,6 +20,7 @@ export interface PaginationMetadata {
  * Pagination envelope (standard response format)
  */
 export interface PaginationEnvelope<T> {
+  ok: true;
   data: T[];
   pagination: PaginationMetadata;
 }
@@ -36,6 +37,7 @@ export function createPaginationEnvelope<T>(
   pagination: PaginationMetadata
 ): PaginationEnvelope<T> {
   return {
+    ok: true,
     data,
     pagination,
   };

@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import { createPaginationEnvelope } from '../admin/pagination.js';
+import { wrapSuccess, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import { marketplaceQuerySchema } from '../admin/mcp-schemas.js';
 import { getAccessibleMcps } from '../services/mcp-catalog-service.js';
 
@@ -44,10 +45,9 @@ export async function registerMarketplaceRoutes(
       // Get user ID from session
       const userId = request.session.userId;
       if (!userId) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'User session required',
-        });
+        return reply.status(401).send(
+          wrapError(ErrorCodes.UNAUTHORIZED, 'User session required')
+        );
       }
 
       // Parse query params
@@ -121,10 +121,9 @@ export async function registerMarketplaceRoutes(
         return reply.send(envelope);
       } catch (err) {
         console.error('[Marketplace] Error fetching MCPs:', err);
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch marketplace MCPs',
-        });
+        return reply.status(500).send(
+          wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch marketplace MCPs')
+        );
       }
     }
   );
@@ -139,10 +138,9 @@ export async function registerMarketplaceRoutes(
       // Get user ID from session
       const userId = request.session.userId;
       if (!userId) {
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'User session required',
-        });
+        return reply.status(401).send(
+          wrapError(ErrorCodes.UNAUTHORIZED, 'User session required')
+        );
       }
 
       const mcpId = request.params.id;
@@ -153,10 +151,9 @@ export async function registerMarketplaceRoutes(
         const mcp = accessibleMcps.find(m => m.mcp_id === mcpId);
 
         if (!mcp) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'MCP not found or not accessible',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'MCP not found or not accessible')
+          );
         }
 
         // Transform to API format (same as list endpoint)
@@ -193,13 +190,12 @@ export async function registerMarketplaceRoutes(
           updatedAt: mcp.updated_at,
         };
 
-        return reply.send(response);
+        return reply.send(wrapSuccess(response));
       } catch (err) {
         console.error('[Marketplace] Error fetching MCP details:', err);
-        return reply.status(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch MCP details',
-        });
+        return reply.status(500).send(
+          wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch MCP details')
+        );
       }
     }
   );

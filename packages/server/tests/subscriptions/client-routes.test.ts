@@ -77,12 +77,11 @@ describe('Client Routes', () => {
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
       expect(body.data).toBeDefined();
-      expect(body.data.client_id).toBeDefined();
+      expect(body.data.client.id).toBeDefined();
       expect(body.data.plaintext_key).toBeDefined();
       expect(body.data.plaintext_key).toMatch(/^amb_pk_/);
-      expect(body.data.user_id).toBe(testUserId);
-      expect(body.data.profile_id).toBe(testProfileId);
-      expect(body.data.status).toBe('active');
+      expect(body.data.client.profileId).toBe(testProfileId);
+      expect(body.data.client.status).toBe('active');
     });
 
     it('should reject without session', async () => {
@@ -150,7 +149,7 @@ describe('Client Routes', () => {
       });
 
       const body = JSON.parse(createResponse.body);
-      testClientId = body.data.client_id;
+      testClientId = body.data.client.id;
     });
 
     it('should list user clients', async () => {
@@ -168,7 +167,7 @@ describe('Client Routes', () => {
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.data.length).toBeGreaterThan(0);
 
-      const client = body.data.find((c: any) => c.client_id === testClientId);
+      const client = body.data.find((c: any) => c.id === testClientId);
       expect(client).toBeDefined();
       expect(client.plaintext_key).toBeUndefined(); // Should NOT be returned in list
     });
@@ -201,7 +200,7 @@ describe('Client Routes', () => {
       });
 
       const body = JSON.parse(createResponse.body);
-      testClientId = body.data.client_id;
+      testClientId = body.data.client.id;
     });
 
     it('should get client detail', async () => {
@@ -216,7 +215,7 @@ describe('Client Routes', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.data).toBeDefined();
-      expect(body.data.client_id).toBe(testClientId);
+      expect(body.data.id).toBe(testClientId);
       expect(body.data.plaintext_key).toBeUndefined(); // Should NOT be returned
     });
 
@@ -251,7 +250,7 @@ describe('Client Routes', () => {
       });
 
       const body = JSON.parse(createResponse.body);
-      testClientId = body.data.client_id;
+      testClientId = body.data.client.id;
     });
 
     it('should update client name', async () => {
@@ -270,7 +269,7 @@ describe('Client Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.data.client_name).toBe(newName);
+      expect(body.data.clientName).toBe(newName);
     });
 
     it('should suspend client', async () => {
@@ -309,7 +308,7 @@ describe('Client Routes', () => {
       });
 
       const body = JSON.parse(createResponse.body);
-      testClientId = body.data.client_id;
+      testClientId = body.data.client.id;
     });
 
     it('should revoke client', async () => {

@@ -92,11 +92,11 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
-      expect(body.user_id).toBeDefined();
-      expect(body.username).toContain('newuser');
-      expect(body.display_name).toBe('New User');
-      expect(body.email).toBe('new@example.com');
-      expect(body.is_admin).toBe(false);
+      expect(body.data.user_id).toBeDefined();
+      expect(body.data.username).toContain('newuser');
+      expect(body.data.display_name).toBe('New User');
+      expect(body.data.email).toBe('new@example.com');
+      expect(body.data.is_admin).toBe(false);
     });
 
     it('should reject duplicate username', async () => {
@@ -131,7 +131,7 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Conflict');
+      expect(body.error.code).toBe('CONFLICT');
     });
 
     it('should reject invalid password', async () => {
@@ -150,7 +150,7 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('Password');
+      expect(body.error.message).toContain('Password');
     });
   });
 
@@ -166,8 +166,8 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user_id).toBe(testUserId);
-      expect(body.username).toBe('manageduser');
+      expect(body.data.user_id).toBe(testUserId);
+      expect(body.data.username).toBe('manageduser');
     });
 
     it('should return 404 for non-existent user', async () => {
@@ -199,8 +199,8 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.display_name).toBe('Updated Display Name');
-      expect(body.email).toBe('updated@example.com');
+      expect(body.data.display_name).toBe('Updated Display Name');
+      expect(body.data.email).toBe('updated@example.com');
     });
 
     it('should update user status', async () => {
@@ -217,7 +217,7 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.status).toBe('suspended');
+      expect(body.data.status).toBe('suspended');
     });
   });
 
@@ -237,7 +237,7 @@ describe('Admin User CRUD Routes', () => {
         },
       });
 
-      const userId = JSON.parse(createResp.body).user_id;
+      const userId = JSON.parse(createResp.body).data.user_id;
 
       // Delete user
       const response = await server.fastify.inject({
@@ -250,7 +250,7 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('deactivated');
+      expect(body.data.message).toContain('deactivated');
 
       // Verify user is deactivated
       const getResp = await server.fastify.inject({
@@ -262,7 +262,7 @@ describe('Admin User CRUD Routes', () => {
       });
 
       const user = JSON.parse(getResp.body);
-      expect(user.status).toBe('deactivated');
+      expect(user.data.status).toBe('deactivated');
     });
   });
 
@@ -281,7 +281,7 @@ describe('Admin User CRUD Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('reset');
+      expect(body.data.message).toContain('reset');
     });
 
     it('should reject invalid password', async () => {

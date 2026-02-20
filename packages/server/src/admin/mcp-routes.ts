@@ -12,6 +12,7 @@ import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import { updateValidationStatus } from '@mcpambassador/core'; 
 import { createPaginationEnvelope } from './pagination.js';
+import { wrapError, ErrorCodes } from './reply-envelope.js';
 import {
   createMcpSchema,
   updateMcpSchema,
@@ -84,13 +85,12 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         },
       });
 
-      return reply.status(201).send({ data: entry });
+      return reply.status(201).send({ ok: true, data: entry });
     } catch (err) {
       if (err instanceof Error && err.message.includes('already exists')) {
-        return reply.status(409).send({
-          error: 'Conflict',
-          message: err.message,
-        });
+        return reply.status(409).send(
+          wrapError(ErrorCodes.CONFLICT, err.message)
+        );
       }
       throw err;
     }
@@ -131,13 +131,12 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
 
     try {
       const entry = await getMcpCatalogEntry(db, params.mcpId);
-      return reply.send({ data: entry });
+      return reply.send({ ok: true, data: entry });
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
-        return reply.status(404).send({
-          error: 'Not Found',
-          message: err.message,
-        });
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, err.message)
+        );
       }
       throw err;
     }
@@ -175,27 +174,24 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
 
         // Fetch updated entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);
-        return reply.send({ data: entry });
+        return reply.send({ ok: true, data: entry });
       } catch (err) {
         if (err instanceof Error) {
           if (err.message.includes('not found')) {
-            return reply.status(404).send({
-              error: 'Not Found',
-              message: err.message,
-            });
+            return reply.status(404).send(
+              wrapError(ErrorCodes.NOT_FOUND, err.message)
+            );
           }
           // MCP-001: Generic message for structural change attempts
           if (err.message === 'PUBLISHED_MCP_STRUCTURAL_CHANGE') {
-            return reply.status(422).send({
-              error: 'Unprocessable Entity',
-              message: 'Cannot modify structural fields on a published MCP. Archive and recreate instead.',
-            });
+            return reply.status(422).send(
+              wrapError(ErrorCodes.BAD_REQUEST, 'Cannot modify structural fields on a published MCP. Archive and recreate instead.')
+            );
           }
           if (err.message.includes('Cannot modify')) {
-            return reply.status(422).send({
-              error: 'Unprocessable Entity',
-              message: err.message,
-            });
+            return reply.status(422).send(
+              wrapError(ErrorCodes.BAD_REQUEST, err.message)
+            );
           }
         }
         throw err;
@@ -235,16 +231,14 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       } catch (err) {
         if (err instanceof Error) {
           if (err.message.includes('not found')) {
-            return reply.status(404).send({
-              error: 'Not Found',
-              message: err.message,
-            });
+            return reply.status(404).send(
+              wrapError(ErrorCodes.NOT_FOUND, err.message)
+            );
           }
           if (err.message.includes('Cannot delete')) {
-            return reply.status(422).send({
-              error: 'Unprocessable Entity',
-              message: err.message,
-            });
+            return reply.status(422).send(
+              wrapError(ErrorCodes.BAD_REQUEST, err.message)
+            );
           }
         }
         throw err;
@@ -295,13 +289,12 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
           },
         });
 
-        return reply.send({ data: result });
+        return reply.send({ ok: true, data: result });
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         throw err;
       }
@@ -338,20 +331,18 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
 
         // Fetch updated entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);
-        return reply.send({ data: entry });
+        return reply.send({ ok: true, data: entry });
       } catch (err) {
         if (err instanceof Error) {
           if (err.message.includes('not found')) {
-            return reply.status(404).send({
-              error: 'Not Found',
-              message: err.message,
-            });
+            return reply.status(404).send(
+              wrapError(ErrorCodes.NOT_FOUND, err.message)
+            );
           }
           if (err.message.includes('Cannot publish')) {
-            return reply.status(422).send({
-              error: 'Unprocessable Entity',
-              message: err.message,
-            });
+            return reply.status(422).send(
+              wrapError(ErrorCodes.BAD_REQUEST, err.message)
+            );
           }
         }
         throw err;
@@ -389,13 +380,12 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
 
         // Fetch updated entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);
-        return reply.send({ data: entry });
+        return reply.send({ ok: true, data: entry });
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         throw err;
       }

@@ -28,13 +28,17 @@ describe('Phase 3 Group Access Control', () => {
     groupB = JSON.parse(gB.body).data.group_id;
 
     // Create and publish MCPs
-    const mA = await server.fastify.inject({ method: 'POST', url: '/v1/admin/mcps', headers: { 'X-Admin-Key': server.adminKey }, payload: { name: 'mcp-A-' + Date.now(), display_name: 'MCP A', transport_type: 'stdio', config: { command: ['echo'] }, isolation_mode: 'shared' } });
-    mcpA = JSON.parse(mA.body).data.mcp_id;
+    const mA = await server.fastify.inject({ method: 'POST', url: '/v1/admin/mcps', headers: { 'X-Admin-Key': server.adminKey }, payload: { name: 'mcp-a-' + Date.now(), display_name: 'MCP A', transport_type: 'stdio', config: { command: ['echo'] }, isolation_mode: 'shared' } });
+    const mABody = JSON.parse(mA.body);
+    console.log('MCP A creation response:', mA.statusCode, JSON.stringify(mABody));
+    mcpA = mABody.data?.mcp_id;
     await server.fastify.inject({ method: 'POST', url: `/v1/admin/mcps/${mcpA}/validate`, headers: { 'X-Admin-Key': server.adminKey } });
     await server.fastify.inject({ method: 'POST', url: `/v1/admin/mcps/${mcpA}/publish`, headers: { 'X-Admin-Key': server.adminKey } });
 
-    const mBres = await server.fastify.inject({ method: 'POST', url: '/v1/admin/mcps', headers: { 'X-Admin-Key': server.adminKey }, payload: { name: 'mcp-B-' + Date.now(), display_name: 'MCP B', transport_type: 'stdio', config: { command: ['echo'] }, isolation_mode: 'shared' } });
-    mcpB = JSON.parse(mBres.body).data.mcp_id;
+    const mBres = await server.fastify.inject({ method: 'POST', url: '/v1/admin/mcps', headers: { 'X-Admin-Key': server.adminKey }, payload: { name: 'mcp-b-' + Date.now(), display_name: 'MCP B', transport_type: 'stdio', config: { command: ['echo'] }, isolation_mode: 'shared' } });
+    const mBBody = JSON.parse(mBres.body);
+    console.log('MCP B creation response:', mBres.statusCode, JSON.stringify(mBBody));
+    mcpB = mBBody.data?.mcp_id;
     await server.fastify.inject({ method: 'POST', url: `/v1/admin/mcps/${mcpB}/validate`, headers: { 'X-Admin-Key': server.adminKey } });
     await server.fastify.inject({ method: 'POST', url: `/v1/admin/mcps/${mcpB}/publish`, headers: { 'X-Admin-Key': server.adminKey } });
 
@@ -67,14 +71,14 @@ describe('Phase 3 Group Access Control', () => {
     const res = await server.fastify.inject({ method: 'GET', url: '/v1/marketplace', headers: { cookie: userAcookie } });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    const hasA = (body.data || []).some((m: any) => m.mcp_id === mcpA);
+    const hasA = (body.data || []).some((m: any) => m.id === mcpA);
     expect(hasA).toBe(true);
   });
 
   it('User NOT in group does not see other group MCP', async () => {
     const res = await server.fastify.inject({ method: 'GET', url: '/v1/marketplace', headers: { cookie: userAcookie } });
     const body = JSON.parse(res.body);
-    const hasB = (body.data || []).some((m: any) => m.mcp_id === mcpB);
+    const hasB = (body.data || []).some((m: any) => m.id === mcpB);
     expect(hasB).toBe(false);
   });
 
@@ -84,8 +88,8 @@ describe('Phase 3 Group Access Control', () => {
 
     const res = await server.fastify.inject({ method: 'GET', url: '/v1/marketplace', headers: { cookie: userAcookie } });
     const body = JSON.parse(res.body);
-    const hasA = (body.data || []).some((m: any) => m.mcp_id === mcpA);
-    const hasB = (body.data || []).some((m: any) => m.mcp_id === mcpB);
+    const hasA = (body.data || []).some((m: any) => m.id === mcpA);
+    const hasB = (body.data || []).some((m: any) => m.id === mcpB);
     expect(hasA).toBe(true);
     expect(hasB).toBe(true);
   });
@@ -96,7 +100,7 @@ describe('Phase 3 Group Access Control', () => {
 
     const res = await server.fastify.inject({ method: 'GET', url: '/v1/marketplace', headers: { cookie: userAcookie } });
     const body = JSON.parse(res.body);
-    const hasA = (body.data || []).some((m: any) => m.mcp_id === mcpA);
+    const hasA = (body.data || []).some((m: any) => m.id === mcpA);
     expect(hasA).toBe(false);
   });
 

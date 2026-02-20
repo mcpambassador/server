@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback, FastifyRequest } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
+import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 import {
   createGroupSchema,
   updateGroupSchema,
@@ -95,13 +96,12 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         },
       });
 
-      return reply.status(201).send({ data: group });
+      return reply.status(201).send({ ok: true, data: group });
     } catch (err) {
       if (err instanceof Error && err.message.includes('already exists')) {
-        return reply.status(409).send({
-          error: 'Conflict',
-          message: err.message,
-        });
+        return reply.status(409).send(
+          wrapError(ErrorCodes.CONFLICT, err.message)
+        );
       }
       throw err;
     }
@@ -132,13 +132,12 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 
     try {
       const group = await getGroupService(db, groupId);
-      return reply.send({ data: group });
+      return reply.send({ ok: true, data: group });
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
-        return reply.status(404).send({
-          error: 'Not Found',
-          message: err.message,
-        });
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, err.message)
+        );
       }
       throw err;
     }
@@ -173,20 +172,18 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
       });
 
       const group = await getGroupService(db, groupId);
-      return reply.send({ data: group });
+      return reply.send({ ok: true, data: group });
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         if (err.message.includes('already exists')) {
-          return reply.status(409).send({
-            error: 'Conflict',
-            message: err.message,
-          });
+          return reply.status(409).send(
+            wrapError(ErrorCodes.CONFLICT, err.message)
+          );
         }
       }
       throw err;
@@ -223,16 +220,14 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         if (err.message.includes('Cannot delete')) {
-          return reply.status(403).send({
-            error: 'Forbidden',
-            message: err.message,
-          });
+          return reply.status(403).send(
+            wrapError(ErrorCodes.FORBIDDEN, err.message)
+          );
         }
       }
       throw err;
@@ -271,20 +266,18 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         },
       });
 
-      return reply.status(201).send({ message: 'User added to group' });
+      return reply.status(201).send(wrapSuccess({ message: 'User added to group' }));
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         if (err.message.includes('already a member')) {
-          return reply.status(409).send({
-            error: 'Conflict',
-            message: err.message,
-          });
+          return reply.status(409).send(
+            wrapError(ErrorCodes.CONFLICT, err.message)
+          );
         }
       }
       throw err;
@@ -322,16 +315,14 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         if (err.message.includes('Cannot remove')) {
-          return reply.status(403).send({
-            error: 'Forbidden',
-            message: err.message,
-          });
+          return reply.status(403).send(
+            wrapError(ErrorCodes.FORBIDDEN, err.message)
+          );
         }
       }
       throw err;
@@ -346,7 +337,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 
     const members = await listGroupMembersService(db, groupId);
 
-    return reply.send({ data: members });
+    return reply.send({ ok: true, data: members });
   });
 
   // ==========================================================================
@@ -381,20 +372,18 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         },
       });
 
-      return reply.status(201).send({ message: 'MCP assigned to group' });
+      return reply.status(201).send(wrapSuccess({ message: 'MCP assigned to group' }));
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: err.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
         }
         if (err.message.includes('already assigned')) {
-          return reply.status(409).send({
-            error: 'Conflict',
-            message: err.message,
-          });
+          return reply.status(409).send(
+            wrapError(ErrorCodes.CONFLICT, err.message)
+          );
         }
       }
       throw err;
@@ -438,7 +427,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 
     const mcps = await listMcpsForGroupService(db, groupId);
 
-    return reply.send({ data: mcps });
+    return reply.send({ ok: true, data: mcps });
   });
 
   done();

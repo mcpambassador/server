@@ -11,6 +11,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
+import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import {
   createUserClient,
   listUserClients,
@@ -64,6 +65,7 @@ export async function registerClientRoutes(
       }));
 
       return reply.status(200).send({
+        ok: true,
         data: transformedClients,
       });
     }
@@ -103,6 +105,7 @@ export async function registerClientRoutes(
 
         // Transform response to match SPA expectations
         return reply.status(201).send({
+          ok: true,
           data: {
             client: {
               id: result.client.client_id,
@@ -119,18 +122,15 @@ export async function registerClientRoutes(
       } catch (error: any) {
         // Handle Zod validation errors
         if (error.name === 'ZodError') {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: 'Invalid request data',
-            details: error.errors,
-          });
+          return reply.status(400).send(
+            wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request data', error.errors)
+          );
         }
         
         if (error.message.includes('not found')) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: error.message,
-          });
+          return reply.status(400).send(
+            wrapError(ErrorCodes.BAD_REQUEST, error.message)
+          );
         }
         throw error;
       }
@@ -154,6 +154,7 @@ export async function registerClientRoutes(
 
         // Transform to camelCase
         return reply.status(200).send({
+          ok: true,
           data: {
             id: client.client_id,
             clientName: client.client_name,
@@ -167,10 +168,9 @@ export async function registerClientRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Client not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
+          );
         }
         throw error;
       }
@@ -204,6 +204,7 @@ export async function registerClientRoutes(
 
         // Transform to camelCase
         return reply.status(200).send({
+          ok: true,
           data: {
             id: client.client_id,
             clientName: client.client_name,
@@ -217,10 +218,9 @@ export async function registerClientRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Client not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
+          );
         }
         throw error;
       }
@@ -245,10 +245,9 @@ export async function registerClientRoutes(
         return reply.status(204).send();
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Client not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
+          );
         }
         throw error;
       }

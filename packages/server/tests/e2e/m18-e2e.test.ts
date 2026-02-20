@@ -18,11 +18,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 const ADMIN_BASE = 'https://localhost:9443';
 const MAIN_BASE = 'https://localhost:8443';
-const ADMIN_KEY = 'amb_ak_nfx5t4gFZxa3u1z5EsO0yRwPCIw9nvLmz3eGBLrNcjDfjRXL';
+let adminSessionCookie = '';
 
 interface HttpResponse<T = unknown> {
   statusCode: number;
   body: T;
+  headers?: Record<string, string | string[]>;
 }
 
 function httpRequest<T = unknown>(
@@ -58,7 +59,7 @@ function httpRequest<T = unknown>(
         } catch {
           parsed = data as unknown as T;
         }
-        resolve({ statusCode: res.statusCode || 0, body: parsed });
+        resolve({ statusCode: res.statusCode || 0, body: parsed, headers: res.headers });
       });
     });
 
@@ -70,10 +71,9 @@ function httpRequest<T = unknown>(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function adminRequest<T = any>(method: string, path: string, body?: unknown): Promise<HttpResponse<T>> {
-  return httpRequest<T>(ADMIN_BASE, method, path, {
-    body,
-    headers: { 'X-Admin-Key': ADMIN_KEY },
-  });
+  const headers: Record<string, string> = {};
+  if (adminSessionCookie) headers.Cookie = adminSessionCookie;
+  return httpRequest<T>(ADMIN_BASE, method, path, { body, headers });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,16 +103,32 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
         `Container not reachable on ${MAIN_BASE}/health. Run: docker compose up -d`,
       );
     }
+    // Login to admin API and capture session cookie for admin requests
+    const login = await httpRequest(ADMIN_BASE, 'POST', '/v1/auth/login', {
+      body: { username: 'admin', password: 'admin123' },
+    });
+    if (![200, 201].includes(login.statusCode)) {
+      throw new Error(`Admin login failed with status ${login.statusCode}`);
+    }
+    const setCookie = login.headers?.['set-cookie'] ?? login.headers?.['Set-Cookie'];
+    if (!setCookie) {
+      throw new Error('Admin login did not return Set-Cookie header');
+    }
+    const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    // Keep only the cookie pair (name=value)
+    adminSessionCookie = raw.split(';')[0];
   }, 10000);
 
   it('T1: User CRUD Flow', async () => {
     // Create user
     const create = await adminRequest('POST', '/v1/admin/users', {
+      username: `e2e_m18_user_${Date.now()}`,
+      password: 'P@ssw0rd1!',
       display_name: 'e2e-m18-user',
       email: 'e2e-m18@example.test',
     });
     expect(create.statusCode).toBe(201);
-    const userId = create.body?.user_id;
+    const userId = create.body?.data?.user_id;
     expect(userId).toBeTruthy();
 
     // List users — created user should appear
@@ -137,10 +153,12 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
   it('T2: Preshared Key Lifecycle', async () => {
     // Create user prerequisite
     const createUser = await adminRequest('POST', '/v1/admin/users', {
+      username: `e2e_m18_keyuser_${Date.now()}`,
+      password: 'P@ssw0rd1!',
       display_name: 'e2e-m18-keyuser',
     });
     expect(createUser.statusCode).toBe(201);
-    const userId = createUser.body?.user_id;
+    const userId = createUser.body?.data?.user_id;
     expect(userId).toBeTruthy();
 
     // Get a profile_id
@@ -151,30 +169,30 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
     const profileId = profs[0].profile_id ?? profs[0].id;
     expect(profileId).toBeTruthy();
 
-    // Create preshared key — plaintext returned once
-    const pkCreate = await adminRequest('POST', '/v1/admin/preshared-keys', {
+    // Create client (preshared key) — plaintext returned once
+    const pkCreate = await adminRequest('POST', '/v1/admin/clients', {
       user_id: userId,
       profile_id: profileId,
-      label: 'e2e-m18-key',
+      client_name: 'e2e-m18-key',
     });
     expect(pkCreate.statusCode).toBe(201);
     const plaintext: string = pkCreate.body?.plaintext_key ?? '';
     expect(plaintext.startsWith('amb_pk_')).toBe(true);
 
-    const keyId: string = pkCreate.body?.key_id ?? '';
+    const keyId: string = pkCreate.body?.client_id ?? pkCreate.body?.key_id ?? '';
     expect(keyId).toBeTruthy();
 
     // List keys — key appears, NO hash leaked
-    const listKeys = await adminRequest('GET', '/v1/admin/preshared-keys');
+    const listKeys = await adminRequest('GET', '/v1/admin/clients');
     expect(listKeys.statusCode).toBe(200);
-    const keys = listKeys.body?.data ?? listKeys.body?.keys ?? [];
-    const found = keys.find((k: Record<string, unknown>) => k.key_id === keyId);
+    const keys = listKeys.body?.data ?? listKeys.body?.clients ?? [];
+    const found = keys.find((k: Record<string, unknown>) => k.client_id === keyId || k.key_id === keyId);
     expect(found).toBeTruthy();
     expect(found.key_hash).toBeUndefined();
     expect(found.preshared_key).toBeUndefined();
 
     // Revoke key (triggers cascade)
-    const revoke = await adminRequest('PATCH', `/v1/admin/preshared-keys/${keyId}`, {
+    const revoke = await adminRequest('PATCH', `/v1/admin/clients/${keyId}`, {
       status: 'revoked',
     });
     expect(revoke.statusCode).toBe(200);
@@ -196,10 +214,12 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
   it('T4: Integration — Create User → Key → Register Session → Suspend → Session Expired', async () => {
     // 1. Create user
     const create = await adminRequest('POST', '/v1/admin/users', {
+      username: `e2e_m18_integ_${Date.now()}`,
+      password: 'P@ssw0rd1!',
       display_name: 'e2e-m18-integration',
     });
     expect(create.statusCode).toBe(201);
-    const userId = create.body?.user_id;
+    const userId = create.body?.data?.user_id;
     expect(userId).toBeTruthy();
 
     // 2. Get profile_id
@@ -207,11 +227,11 @@ describe('M18 E2E - Admin Users / Preshared Keys / Sessions', () => {
     const profs = profiles.body?.data ?? profiles.body?.profiles ?? (Array.isArray(profiles.body) ? profiles.body : []);
     const profileId = profs[0]?.profile_id ?? profs[0]?.id;
 
-    // 3. Create preshared key
-    const pk = await adminRequest('POST', '/v1/admin/preshared-keys', {
+    // 3. Create preshared key (client)
+    const pk = await adminRequest('POST', '/v1/admin/clients', {
       user_id: userId,
       profile_id: profileId,
-      label: 'e2e-m18-integ-key',
+      client_name: 'e2e-m18-integ-key',
     });
     expect(pk.statusCode).toBe(201);
     const plaintext: string = pk.body?.plaintext_key ?? '';

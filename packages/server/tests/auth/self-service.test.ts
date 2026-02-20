@@ -56,10 +56,11 @@ describe('Self-Service Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user_id).toBe(userId);
-      expect(body.username).toBe('selfserviceuser');
-      expect(body.display_name).toBe('Self Service User');
-      expect(body.email).toBe('selfservice@example.com');
+      expect(body.ok).toBe(true);
+      expect(body.data.user_id).toBe(userId);
+      expect(body.data.username).toBe('selfserviceuser');
+      expect(body.data.display_name).toBe('Self Service User');
+      expect(body.data.email).toBe('selfservice@example.com');
     });
 
     it('should reject unauthenticated request', async () => {
@@ -70,7 +71,8 @@ describe('Self-Service Routes', () => {
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Unauthorized');
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe('UNAUTHORIZED');
     });
   });
 
@@ -90,7 +92,8 @@ describe('Self-Service Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('changed');
+      expect(body.ok).toBe(true);
+      expect(body.data.message).toContain('changed');
     });
 
     it('should reject incorrect current password', async () => {
@@ -108,7 +111,8 @@ describe('Self-Service Routes', () => {
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('incorrect');
+      expect(body.ok).toBe(false);
+      expect(body.error.message).toContain('incorrect');
     });
 
     it('should reject invalid new password', async () => {
@@ -138,7 +142,8 @@ describe('Self-Service Routes', () => {
 
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
-      expect(body.message).toContain('Password');
+      expect(body.ok).toBe(false);
+      expect(body.error.message).toContain('Password');
     });
 
     it('should reject unauthenticated request', async () => {

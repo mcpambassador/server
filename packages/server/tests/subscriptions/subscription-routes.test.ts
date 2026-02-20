@@ -159,7 +159,7 @@ describe('Subscription Routes', () => {
     });
 
     const clientBody = JSON.parse(clientResponse.body);
-    testClientId = clientBody.data.client_id;
+    testClientId = clientBody.data.client.id;
   });
 
   afterAll(async () => {
@@ -183,9 +183,9 @@ describe('Subscription Routes', () => {
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
       expect(body.data).toBeDefined();
-      expect(body.data.subscription_id).toBeDefined();
-      expect(body.data.client_id).toBe(testClientId);
-      expect(body.data.mcp_id).toBe(testMcpId);
+      expect(body.data.id).toBeDefined();
+      expect(body.data.clientId).toBe(testClientId);
+      expect(body.data.mcpId).toBe(testMcpId);
       expect(body.data.status).toBe('active');
     });
 
@@ -203,7 +203,9 @@ describe('Subscription Routes', () => {
 
       expect(response.statusCode).toBe(403);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Forbidden');
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe('FORBIDDEN');
+      expect(body.error.message).toContain('does not have access');
     });
 
     it('should reject duplicate subscription', async () => {
@@ -221,8 +223,9 @@ describe('Subscription Routes', () => {
 
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Bad Request');
-      expect(body.message).toContain('already subscribed');
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe('BAD_REQUEST');
+      expect(body.error.message).toContain('already subscribed');
     });
 
     it('should reject without session', async () => {
@@ -255,8 +258,8 @@ describe('Subscription Routes', () => {
       expect(body.data.length).toBeGreaterThan(0);
 
       const sub = body.data[0];
-      expect(sub.subscription_id).toBeDefined();
-      expect(sub.mcp_name).toBeDefined();
+      expect(sub.id).toBeDefined();
+      expect(sub.mcpName).toBeDefined();
     });
 
     it('should reject for other user client', async () => {
@@ -287,7 +290,7 @@ describe('Subscription Routes', () => {
       });
 
       const listBody = JSON.parse(listResponse.body);
-      testSubscriptionId = listBody.data[0].subscription_id;
+      testSubscriptionId = listBody.data[0].id;
     });
 
     it('should get subscription detail', async () => {
@@ -302,8 +305,8 @@ describe('Subscription Routes', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.data).toBeDefined();
-      expect(body.data.subscription_id).toBe(testSubscriptionId);
-      expect(body.data.mcp_name).toBeDefined();
+      expect(body.data.id).toBe(testSubscriptionId);
+      expect(body.data.mcpName).toBeDefined();
     });
   });
 
@@ -321,7 +324,7 @@ describe('Subscription Routes', () => {
       });
 
       const listBody = JSON.parse(listResponse.body);
-      testSubscriptionId = listBody.data[0].subscription_id;
+      testSubscriptionId = listBody.data[0].id;
     });
 
     it('should update selected tools', async () => {
@@ -338,7 +341,7 @@ describe('Subscription Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.data.selected_tools).toEqual(['tool1', 'tool2']);
+      expect(body.data.selectedTools).toEqual(['tool1', 'tool2']);
     });
 
     it('should pause subscription', async () => {
@@ -390,7 +393,7 @@ describe('Subscription Routes', () => {
       });
 
       const listBody = JSON.parse(listResponse.body);
-      testSubscriptionId = listBody.data[0].subscription_id;
+      testSubscriptionId = listBody.data[0].id;
     });
 
     it('should remove subscription', async () => {

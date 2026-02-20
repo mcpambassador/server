@@ -13,6 +13,7 @@
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { authenticateAdminKey } from '@mcpambassador/core';
+import { wrapError, ErrorCodes } from './reply-envelope.js';
 
 /**
  * Admin authentication pre-handler hook (API key only)
@@ -29,19 +30,17 @@ export function authenticateAdmin(db: DatabaseClient): preHandlerHookHandler {
     const adminKey = request.headers['x-admin-key'];
 
     if (!adminKey || typeof adminKey !== 'string') {
-      return reply.status(401).send({
-        error: 'Unauthorized',
-        message: 'Invalid or missing admin key',
-      });
+      return reply.status(401).send(
+        wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key')
+      );
     }
 
     const isValid = await authenticateAdminKey(db, adminKey);
 
     if (!isValid) {
-      return reply.status(401).send({
-        error: 'Unauthorized',
-        message: 'Invalid or missing admin key',
-      });
+      return reply.status(401).send(
+        wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key')
+      );
     }
 
     // Authentication successful - continue to route handler
@@ -80,9 +79,11 @@ export function authenticateAdminOrSession(db: DatabaseClient): preHandlerHookHa
     }
 
     // Both authentication methods failed
-    return reply.status(401).send({
-      error: 'Unauthorized',
-      message: 'Admin authentication required (API key or admin session)',
-    });
+    return reply.status(401).send(
+      wrapError(
+        ErrorCodes.UNAUTHORIZED,
+        'Admin authentication required (API key or admin session)'
+      )
+    );
   };
 }

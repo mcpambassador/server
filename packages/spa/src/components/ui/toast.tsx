@@ -84,7 +84,7 @@ function Toast({
   return (
     <div
       className={cn(
-        'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all',
+        'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-sm transition-all',
         {
           'bg-background': variant === 'default',
           'bg-destructive text-destructive-foreground': variant === 'destructive',

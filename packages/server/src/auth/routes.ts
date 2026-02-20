@@ -15,6 +15,7 @@ import { authenticateUser, getUserById } from './user-auth.js';
 import { loginSchema } from './schemas.js';
 import { LoginRateLimiter } from '../admin/session.js';
 import { ZodError } from 'zod';
+import { wrapSuccess, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 
 export interface AuthRoutesOptions {
   db: DatabaseClient;
@@ -41,11 +42,9 @@ export async function registerAuthRoutes(
     // Check rate limit
     if (rateLimiter.isRateLimited(sourceIp)) {
       const retryAfter = rateLimiter.getRetryAfter(sourceIp);
-      return reply.status(429).header('Retry-After', retryAfter.toString()).send({
-        error: 'Too Many Requests',
-        message: 'Login rate limit exceeded. Please try again later.',
-        retry_after: retryAfter,
-      });
+      return reply.status(429).header('Retry-After', retryAfter.toString()).send(
+        wrapError(ErrorCodes.BAD_REQUEST, 'Login rate limit exceeded. Please try again later.', [{ retry_after: retryAfter }])
+      );
     }
 
     try {
@@ -58,10 +57,9 @@ export async function registerAuthRoutes(
       if (!user) {
         // Record failure and return generic error
         rateLimiter.recordFailure(sourceIp);
-        return reply.status(401).send({
-          error: 'Unauthorized',
-          message: 'Invalid credentials',
-        });
+        return reply.status(401).send(
+          wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid credentials')
+        );
       }
 
       // Update last login timestamp
@@ -112,7 +110,7 @@ export async function registerAuthRoutes(
       await request.session.save();
 
       // Return user info (wrapped in user object, camelCase for frontend)
-      return reply.status(200).send({
+      return reply.status(200).send(wrapSuccess({
         user: {
           id: user.user_id,
           username: user.username,
@@ -122,22 +120,20 @@ export async function registerAuthRoutes(
           createdAt: user.created_at,
           lastLoginAt: timestamp,
         },
-      });
+      }));
     } catch (err) {
       if (err instanceof ZodError) {
         // M-3: Do not expose validation errors on login endpoint
         // Return generic message to prevent information leakage
-        return reply.status(400).send({
-          error: 'Bad Request',
-          message: 'Invalid credentials',
-        });
+        return reply.status(400).send(
+          wrapError(ErrorCodes.BAD_REQUEST, 'Invalid credentials')
+        );
       }
 
       fastify.log.error({ err }, '[Auth] Login error');
-      return reply.status(500).send({
-        error: 'Internal Server Error',
-        message: 'Login failed',
-      });
+      return reply.status(500).send(
+        wrapError(ErrorCodes.INTERNAL_ERROR, 'Login failed')
+      );
     }
   });
 
@@ -148,10 +144,9 @@ export async function registerAuthRoutes(
    */
   fastify.get('/v1/auth/session', async (request, reply) => {
     if (!request.session.userId) {
-      return reply.status(401).send({
-        error: 'Unauthorized',
-        message: 'Not authenticated',
-      });
+      return reply.status(401).send(
+        wrapError(ErrorCodes.UNAUTHORIZED, 'Not authenticated')
+      );
     }
 
     // Fetch fresh user data
@@ -160,13 +155,12 @@ export async function registerAuthRoutes(
     if (!user) {
       // Session has stale user ID, clear it
       await request.session.destroy();
-      return reply.status(401).send({
-        error: 'Unauthorized',
-        message: 'Session invalid',
-      });
+      return reply.status(401).send(
+        wrapError(ErrorCodes.UNAUTHORIZED, 'Session invalid')
+      );
     }
 
-    return reply.status(200).send({
+    return reply.status(200).send(wrapSuccess({
       user: {
         id: user.user_id,
         username: user.username,
@@ -176,7 +170,7 @@ export async function registerAuthRoutes(
         createdAt: user.created_at,
         lastLoginAt: user.last_login_at,
       },
-    });
+    }));
   });
 
   /**
@@ -187,8 +181,8 @@ export async function registerAuthRoutes(
       await request.session.destroy();
     }
 
-    return reply.status(200).send({
+    return reply.status(200).send(wrapSuccess({
       message: 'Logged out successfully',
-    });
+    }));
   });
 }

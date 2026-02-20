@@ -14,16 +14,14 @@ import type {
 export function useClients() {
   return useQuery({
     queryKey: ['clients'],
-    queryFn: () => apiClient.get<{ data: Client[] }>('/v1/users/me/clients'),
-    select: (response) => response.data,
+    queryFn: () => apiClient.get<Client[]>('/v1/users/me/clients'),
   });
 }
 
 export function useClient(clientId: string) {
   return useQuery({
     queryKey: ['clients', clientId],
-    queryFn: () => apiClient.get<{ data: Client }>(`/v1/users/me/clients/${clientId}`),
-    select: (response) => response.data,
+    queryFn: () => apiClient.get<Client>(`/v1/users/me/clients/${clientId}`),
     enabled: !!clientId,
   });
 }
@@ -70,8 +68,7 @@ export function useClientSubscriptions(clientId: string) {
   return useQuery({
     queryKey: ['clients', clientId, 'subscriptions'],
     queryFn: () =>
-      apiClient.get<{ data: Subscription[] }>(`/v1/users/me/clients/${clientId}/subscriptions`),
-    select: (response) => response.data,
+      apiClient.get<Subscription[]>(`/v1/users/me/clients/${clientId}/subscriptions`),
     enabled: !!clientId,
   });
 }

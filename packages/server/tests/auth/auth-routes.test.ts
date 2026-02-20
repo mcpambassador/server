@@ -59,13 +59,13 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user).toBeDefined();
-      expect(body.user.id).toBeDefined();
-      expect(body.user.username).toBe('testuser');
-      expect(body.user.displayName).toBe('Test User');
-      expect(body.user.isAdmin).toBe(false);
-      expect(body.user.createdAt).toBeDefined();
-      expect(body.user.lastLoginAt).toBeDefined();
+      expect(body.data.user).toBeDefined();
+      expect(body.data.user.id).toBeDefined();
+      expect(body.data.user.username).toBe('testuser');
+      expect(body.data.user.displayName).toBe('Test User');
+      expect(body.data.user.isAdmin).toBe(false);
+      expect(body.data.user.createdAt).toBeDefined();
+      expect(body.data.user.lastLoginAt).toBeDefined();
 
       // Should set session cookie
       const setCookie = response.headers['set-cookie'];
@@ -84,7 +84,7 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Bad Request');
+      expect(body.error.code).toBe('BAD_REQUEST');
     });
   });
 
@@ -115,10 +115,10 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user).toBeDefined();
-      expect(body.user.id).toBeDefined();
-      expect(body.user.username).toBe('adminuser');
-      expect(body.user.isAdmin).toBe(true);
+      expect(body.data.user).toBeDefined();
+      expect(body.data.user.id).toBeDefined();
+      expect(body.data.user.username).toBe('adminuser');
+      expect(body.data.user.isAdmin).toBe(true);
     });
 
     it('should return 401 when not authenticated', async () => {
@@ -129,7 +129,7 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Unauthorized');
+      expect(body.error.code).toBe('UNAUTHORIZED');
     });
   });
 
@@ -160,7 +160,7 @@ describe('Auth Routes', () => {
 
       expect(logoutResponse.statusCode).toBe(200);
       const body = JSON.parse(logoutResponse.body);
-      expect(body.message).toBe('Logged out successfully');
+      expect(body.data.message).toBe('Logged out successfully');
 
       // Session should be invalid now
       const sessionResponse = await server.fastify.inject({
@@ -198,8 +198,8 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Unauthorized');
-      expect(body.message).toBe('Invalid credentials');
+      expect(body.error.code).toBe('UNAUTHORIZED');
+      expect(body.error.message).toBe('Invalid credentials');
     });
 
     it('should reject invalid password', async () => {
@@ -214,7 +214,7 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Unauthorized');
+      expect(body.error.code).toBe('UNAUTHORIZED');
     });
 
     it('should rate limit after multiple failures', async () => {
@@ -242,8 +242,8 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(429);
       const body = JSON.parse(response.body);
-      expect(body.error).toBe('Too Many Requests');
-      expect(body.retry_after).toBeDefined();
+      expect(body.error.code).toBe('BAD_REQUEST');
+      expect(body.error.details[0].retry_after).toBeDefined();
     });
   });
 });

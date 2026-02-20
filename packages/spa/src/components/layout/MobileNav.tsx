@@ -53,7 +53,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden"
+        className="fixed inset-0 z-50 bg-background md:hidden"
         onClick={onClose}
       />
 
@@ -85,7 +85,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                     key={item.href}
                     to={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                       isActive(item.href)
                         ? 'bg-primary text-primary-foreground'
                         : 'hover:bg-accent hover:text-accent-foreground'
@@ -113,7 +113,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                         key={item.href}
                         to={item.href}
                         className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                           isActive(item.href)
                             ? 'bg-primary text-primary-foreground'
                             : 'hover:bg-accent hover:text-accent-foreground'

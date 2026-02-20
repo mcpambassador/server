@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { getMcpEntryById } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
+import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import {
   subscribeClientToMcp,
   updateSubscription,
@@ -70,14 +71,14 @@ export async function registerSubscriptionRoutes(
         }));
 
         return reply.status(200).send({
+          ok: true,
           data: transformedSubscriptions,
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('access denied')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Client not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
+          );
         }
         throw error;
       }
@@ -120,6 +121,7 @@ export async function registerSubscriptionRoutes(
 
         // Transform to camelCase
         return reply.status(201).send({
+          ok: true,
           data: {
             id: subscription.subscription_id,
             clientId: subscription.client_id,
@@ -133,22 +135,19 @@ export async function registerSubscriptionRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: error.message,
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, error.message)
+          );
         }
         if (error.message.includes('access denied') || error.message.includes('does not have access')) {
-          return reply.status(403).send({
-            error: 'Forbidden',
-            message: error.message,
-          });
+          return reply.status(403).send(
+            wrapError(ErrorCodes.FORBIDDEN, error.message)
+          );
         }
         if (error.message.includes('already subscribed') || error.message.includes('requires')) {
-          return reply.status(400).send({
-            error: 'Bad Request',
-            message: error.message,
-          });
+          return reply.status(400).send(
+            wrapError(ErrorCodes.BAD_REQUEST, error.message)
+          );
         }
         throw error;
       }
@@ -176,6 +175,7 @@ export async function registerSubscriptionRoutes(
 
         // Transform to camelCase
         return reply.status(200).send({
+          ok: true,
           data: {
             id: subscription.subscription_id,
             clientId: subscription.client_id,
@@ -189,10 +189,9 @@ export async function registerSubscriptionRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('does not belong')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Subscription not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Subscription not found')
+          );
         }
         throw error;
       }
@@ -230,6 +229,7 @@ export async function registerSubscriptionRoutes(
 
         // Transform to camelCase
         return reply.status(200).send({
+          ok: true,
           data: {
             id: subscription.subscription_id,
             clientId: subscription.client_id,
@@ -243,10 +243,9 @@ export async function registerSubscriptionRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('does not belong')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Subscription not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Subscription not found')
+          );
         }
         throw error;
       }
@@ -275,10 +274,9 @@ export async function registerSubscriptionRoutes(
         return reply.status(204).send();
       } catch (error: any) {
         if (error.message.includes('not found') || error.message.includes('does not belong')) {
-          return reply.status(404).send({
-            error: 'Not Found',
-            message: 'Subscription not found',
-          });
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, 'Subscription not found')
+          );
         }
         throw error;
       }

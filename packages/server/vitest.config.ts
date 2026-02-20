@@ -7,5 +7,9 @@ export default defineConfig({
       ? ['**/node_modules/**', '**/dist/**']
       : ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
     passWithNoTests: true,
+    deps: {
+      // re2 is a native C++ module that cannot be transformed by Vite
+      external: [/re2/],
+    },
   },
 });
