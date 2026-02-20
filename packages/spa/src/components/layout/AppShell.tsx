@@ -7,7 +7,7 @@ export function AppShell() {
   return (
     <SidebarLayout
       sidebar={
-        <div className="dark h-full">
+        <div className="dark h-full bg-slate-900">
           <AppSidebar />
         </div>
       }

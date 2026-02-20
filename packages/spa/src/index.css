@@ -2,8 +2,10 @@
 
 /* Switch to class-based dark mode so only elements inside a
    .dark ancestor get dark: variants. The sidebar is wrapped
-   in <div class="dark"> in AppShell — everything else stays light. */
-@custom-variant dark (&:where(.dark, .dark *));
+   in <div class="dark"> in AppShell — everything else stays light.
+   Using :is() instead of :where() so dark variants have higher
+   specificity (0,2,0) than base utilities (0,1,0) and always win. */
+@custom-variant dark (&:is(.dark, .dark *));
 
 /* ============================================================
    MCP Ambassador — Catalyst Design System
