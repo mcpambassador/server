@@ -111,12 +111,17 @@ export async function registerAuthRoutes(
 
       await request.session.save();
 
-      // Return user info
+      // Return user info (wrapped in user object, camelCase for frontend)
       return reply.status(200).send({
-        user_id: user.user_id,
-        username: user.username,
-        display_name: user.display_name,
-        is_admin: user.is_admin,
+        user: {
+          id: user.user_id,
+          username: user.username,
+          displayName: user.display_name,
+          email: user.email,
+          isAdmin: user.is_admin,
+          createdAt: user.created_at,
+          lastLoginAt: timestamp,
+        },
       });
     } catch (err) {
       if (err instanceof ZodError) {
@@ -162,12 +167,15 @@ export async function registerAuthRoutes(
     }
 
     return reply.status(200).send({
-      user_id: user.user_id,
-      username: user.username,
-      display_name: user.display_name,
-      is_admin: user.is_admin,
-      email: user.email,
-      status: user.status,
+      user: {
+        id: user.user_id,
+        username: user.username,
+        displayName: user.display_name,
+        email: user.email,
+        isAdmin: user.is_admin,
+        createdAt: user.created_at,
+        lastLoginAt: user.last_login_at,
+      },
     });
   });
 

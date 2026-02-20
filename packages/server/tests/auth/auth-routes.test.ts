@@ -59,10 +59,13 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user_id).toBeDefined();
-      expect(body.username).toBe('testuser');
-      expect(body.display_name).toBe('Test User');
-      expect(body.is_admin).toBe(false);
+      expect(body.user).toBeDefined();
+      expect(body.user.id).toBeDefined();
+      expect(body.user.username).toBe('testuser');
+      expect(body.user.displayName).toBe('Test User');
+      expect(body.user.isAdmin).toBe(false);
+      expect(body.user.createdAt).toBeDefined();
+      expect(body.user.lastLoginAt).toBeDefined();
 
       // Should set session cookie
       const setCookie = response.headers['set-cookie'];
@@ -112,9 +115,10 @@ describe('Auth Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.user_id).toBeDefined();
-      expect(body.username).toBe('adminuser');
-      expect(body.is_admin).toBe(true);
+      expect(body.user).toBeDefined();
+      expect(body.user.id).toBeDefined();
+      expect(body.user.username).toBe('adminuser');
+      expect(body.user.isAdmin).toBe(true);
     });
 
     it('should return 401 when not authenticated', async () => {

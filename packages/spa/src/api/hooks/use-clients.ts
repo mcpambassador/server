@@ -14,7 +14,8 @@ import type {
 export function useClients() {
   return useQuery({
     queryKey: ['clients'],
-    queryFn: () => apiClient.get<Client[]>('/v1/users/me/clients'),
+    queryFn: () => apiClient.get<{ data: Client[] }>('/v1/users/me/clients'),
+    select: (response) => response.data,
   });
 }
 
