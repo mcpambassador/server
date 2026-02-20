@@ -6,11 +6,7 @@ import { AppNavbar } from './AppNavbar';
 export function AppShell() {
   return (
     <SidebarLayout
-      sidebar={
-        <div className="dark h-full bg-slate-900">
-          <AppSidebar />
-        </div>
-      }
+      sidebar={<AppSidebar />}
       navbar={<AppNavbar />}
     >
       <Outlet />

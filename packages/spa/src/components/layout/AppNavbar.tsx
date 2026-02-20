@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { UserCircleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/16/solid';
 import { Navbar, NavbarSection, NavbarSpacer, NavbarItem } from '@/components/catalyst/navbar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar } from '@/components/catalyst/avatar';
 import { 
   Dropdown, 
@@ -40,6 +41,7 @@ export function AppNavbar() {
     <Navbar>
       <NavbarSpacer />
       <NavbarSection>
+        <ThemeToggle />
         <Dropdown>
           <DropdownButton as={NavbarItem}>
             <Avatar initials={userInitials} className="bg-slate-700 text-white" square />

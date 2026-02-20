@@ -10,6 +10,8 @@ import {
   DocumentTextIcon,
   PowerIcon,
   Cog6ToothIcon,
+  SunIcon,
+  MoonIcon,
 } from '@heroicons/react/20/solid';
 import {
   UserCircleIcon as UserCircleIcon16,
@@ -38,6 +40,7 @@ import {
 } from '@/components/catalyst/dropdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
+import { useTheme } from '@/stores/theme';
 
 interface NavItem {
   title: string;
@@ -66,6 +69,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { resolvedTheme, setTheme } = useTheme();
   
   const { data: session } = useQuery({
     queryKey: ['session'],
@@ -142,6 +146,19 @@ export function AppSidebar() {
         )}
 
         <SidebarSpacer />
+
+        {/* Theme toggle */}
+        <SidebarSection>
+          <SidebarItem
+            onClick={() => {
+              const next = resolvedTheme === 'dark' ? 'light' : 'dark';
+              setTheme(next);
+            }}
+          >
+            {resolvedTheme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            <SidebarLabel>{resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}</SidebarLabel>
+          </SidebarItem>
+        </SidebarSection>
       </SidebarBody>
 
       <SidebarFooter className="max-lg:hidden">

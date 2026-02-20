@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="text-zinc-950 antialiased lg:bg-zinc-100 dark:bg-zinc-900 dark:text-white dark:lg:bg-zinc-950">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -9,6 +9,14 @@
     <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1e293b" media="(prefers-color-scheme: dark)" />
     <title>MCP Ambassador</title>
+    <script>
+      try {
+        const stored = JSON.parse(localStorage.getItem('mcp-ambassador-theme') || '{}');
+        const theme = stored?.state?.theme || 'system';
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) document.documentElement.classList.add('dark');
+      } catch(e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
