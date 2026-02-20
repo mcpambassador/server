@@ -1,15 +1,11 @@
 import { useState } from 'react';
 import { Power, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -45,57 +41,68 @@ export function KillSwitches() {
 
   return (
     <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Kill Switches</h1>
-        <p className="text-sm text-muted-foreground">
-          Emergency controls to disable clients or MCPs
+      {/* Page Header */}
+      <div>
+        <Heading>Kill Switches</Heading>
+        <Text>Emergency controls to disable clients or MCPs</Text>
+      </div>
+
+      {/* Warning Banner */}
+      <div className="rounded-lg bg-red-50 p-4 ring-1 ring-red-200">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-600" />
+          <h3 className="text-sm/6 font-semibold text-red-900">Warning</h3>
+        </div>
+        <p className="mt-1 text-sm/6 text-red-700">
+          Kill switches immediately disable access. Use with caution. Disabled entities will not be
+          able to make requests until re-enabled.
         </p>
       </div>
 
-      <Card className="border-destructive">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-destructive">Warning</CardTitle>
-          </div>
-          <CardDescription>
-            Kill switches immediately disable access. Use with caution. Disabled entities will
-            not be able to make requests until re-enabled.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
       {/* Client Kill Switches */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Client Kill Switches</CardTitle>
-          <CardDescription>
-            Disable individual API clients
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">Client Kill Switches</h3>
+        <p className="text-sm/6 text-zinc-500">Disable individual API clients</p>
+        <div className="mt-4">
           {clientsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading clients...</p>
-          ) : clientsData && clientsData.data.length > 0 ? (
             <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-3 animate-pulse"
+                >
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 rounded bg-zinc-200" />
+                    <div className="h-3 w-24 rounded bg-zinc-200" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-16 rounded bg-zinc-200" />
+                    <div className="h-8 w-20 rounded bg-zinc-200" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : clientsData && clientsData.data.length > 0 ? (
+            <div className="divide-y divide-zinc-950/5">
               {clientsData.data.map((client: any) => (
                 <div
                   key={client.client_id || client.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="flex items-center justify-between py-3"
                 >
                   <div>
-                    <p className="font-medium">{client.client_name || client.clientName}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm/6 font-medium text-zinc-900">
+                      {client.client_name || client.clientName}
+                    </p>
+                    <p className="text-sm/6 font-mono text-zinc-500">
                       {client.key_prefix || client.keyPrefix}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge color={client.status === 'active' ? 'teal' : 'zinc'}>
+                    <Badge color={client.status === 'active' ? 'green' : 'zinc'}>
                       {client.status}
                     </Badge>
                     <Button
-                      color={client.status === 'active' ? 'red' : 'teal'}
-                      className="h-8"
+                      color={client.status === 'active' ? 'red' : 'green'}
                       onClick={() =>
                         handleToggle(
                           `client:${client.client_id || client.id}`,
@@ -103,7 +110,7 @@ export function KillSwitches() {
                         )
                       }
                     >
-                      <Power className="mr-2 h-4 w-4" />
+                      <Power data-slot="icon" />
                       {client.status === 'active' ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -111,54 +118,62 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No clients found</p>
+            <p className="text-sm/6 text-zinc-500">No clients found</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* MCP Kill Switches */}
-      <Card>
-        <CardHeader>
-          <CardTitle>MCP Kill Switches</CardTitle>
-          <CardDescription>
-            Disable MCP servers system-wide
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">MCP Kill Switches</h3>
+        <p className="text-sm/6 text-zinc-500">Disable MCP servers system-wide</p>
+        <div className="mt-4">
           {mcpsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading MCPs...</p>
-          ) : mcpsData && mcpsData.data.length > 0 ? (
             <div className="space-y-3">
-              {mcpsData.data.map((mcp) => (
+              {[1, 2, 3].map((i) => (
                 <div
-                  key={mcp.mcp_id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  key={i}
+                  className="flex items-center justify-between py-3 animate-pulse"
                 >
+                  <div className="space-y-2">
+                    <div className="h-4 w-32 rounded bg-zinc-200" />
+                    <div className="h-3 w-24 rounded bg-zinc-200" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-16 rounded bg-zinc-200" />
+                    <div className="h-8 w-20 rounded bg-zinc-200" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : mcpsData && mcpsData.data.length > 0 ? (
+            <div className="divide-y divide-zinc-950/5">
+              {mcpsData.data.map((mcp) => (
+                <div key={mcp.mcp_id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="font-medium">{mcp.display_name}</p>
-                    <p className="text-sm text-muted-foreground font-mono">{mcp.name}</p>
+                    <p className="text-sm/6 font-medium text-zinc-900">{mcp.display_name}</p>
+                    <p className="text-sm/6 font-mono text-zinc-500">{mcp.name}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge
                       color={
                         mcp.status === 'published'
-                          ? 'teal'
+                          ? 'green'
                           : mcp.status === 'draft'
-                          ? 'zinc'
-                          : 'zinc'
+                            ? 'zinc'
+                            : 'zinc'
                       }
                     >
                       {mcp.status}
                     </Badge>
                     <Button
-                      color={mcp.status === 'published' ? 'red' : 'teal'}
-                      className="h-8"
+                      color={mcp.status === 'published' ? 'red' : 'green'}
                       onClick={() =>
                         handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')
                       }
                       disabled={mcp.status === 'archived'}
                     >
-                      <Power className="mr-2 h-4 w-4" />
+                      <Power data-slot="icon" />
                       {mcp.status === 'published' ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -166,40 +181,35 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No MCPs found</p>
+            <p className="text-sm/6 text-zinc-500">No MCPs found</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Confirmation Dialog */}
       <Alert open={confirmDialogOpen} onClose={setConfirmDialogOpen}>
-        
-          
-            <AlertTitle>
-              {selectedTarget?.enabled ? 'Disable' : 'Enable'} {selectedTarget?.target}?
-            </AlertTitle>
-            <AlertDescription>
-              {selectedTarget?.enabled
-                ? 'This will immediately block all requests from this entity. Active connections may be terminated.'
-                : 'This will re-enable access for this entity.'}
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSelectedTarget(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleConfirm}
-              className={
-                selectedTarget?.enabled
-                  ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                  : ''
-              }
-            >
-              {selectedTarget?.enabled ? 'Disable' : 'Enable'}
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>
+          {selectedTarget?.enabled ? 'Disable' : 'Enable'} {selectedTarget?.target}?
+        </AlertTitle>
+        <AlertDescription>
+          {selectedTarget?.enabled
+            ? 'This will immediately block all requests from this entity. Active connections may be terminated.'
+            : 'This will re-enable access for this entity.'}
+        </AlertDescription>
+        <AlertActions>
+          <Button
+            plain
+            onClick={() => {
+              setConfirmDialogOpen(false);
+              setSelectedTarget(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleConfirm}>
+            {selectedTarget?.enabled ? 'Disable' : 'Enable'}
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );

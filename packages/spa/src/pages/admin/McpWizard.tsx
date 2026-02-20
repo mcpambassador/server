@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Divider } from '@/components/catalyst/divider';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -123,9 +125,10 @@ export function McpWizard() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Create New MCP</h1>
-        <p className="text-sm text-muted-foreground">Multi-step wizard for MCP catalog entry</p>
+      {/* Header */}
+      <div>
+        <Heading>Create New MCP</Heading>
+        <Text>Multi-step wizard for MCP catalog entry</Text>
       </div>
 
       {/* Step Indicator */}
@@ -135,21 +138,21 @@ export function McpWizard() {
             <div
               className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
                 index <= currentStep
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-muted bg-background'
+                  ? 'border-zinc-900 bg-zinc-900 text-white'
+                  : 'border-zinc-300 bg-white text-zinc-500'
               }`}
             >
               {index < currentStep ? <CheckCircle className="h-5 w-5" /> : index + 1}
             </div>
             <div className="ml-2 text-sm">
-              <p className={index <= currentStep ? 'font-medium' : 'text-muted-foreground'}>
+              <p className={index <= currentStep ? 'font-medium text-zinc-900' : 'text-zinc-500'}>
                 {step}
               </p>
             </div>
             {index < STEPS.length - 1 && (
               <div
                 className={`h-0.5 w-16 mx-4 ${
-                  index < currentStep ? 'bg-primary' : 'bg-muted'
+                  index < currentStep ? 'bg-zinc-900' : 'bg-zinc-200'
                 }`}
               />
             )}
@@ -157,22 +160,21 @@ export function McpWizard() {
         ))}
       </div>
 
-      {/* Step Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{STEPS[currentStep]}</CardTitle>
-          <CardDescription>
-            {currentStep === 0 && 'Enter basic MCP information'}
-            {currentStep === 1 && 'Configure MCP runtime settings'}
-            {currentStep === 2 && 'Validate MCP configuration'}
-            {currentStep === 3 && 'Review and publish'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Step Content Panel */}
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">{STEPS[currentStep]}</h3>
+        <p className="text-sm/6 text-zinc-500 mb-6">
+          {currentStep === 0 && 'Enter basic MCP information'}
+          {currentStep === 1 && 'Configure MCP runtime settings'}
+          {currentStep === 2 && 'Validate MCP configuration'}
+          {currentStep === 3 && 'Review and publish'}
+        </p>
+
+        <div className="space-y-4">
           {/* Step 0: Basic Info */}
           {currentStep === 0 && (
             <>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Internal Name * (e.g., github, slack)</Label>
                 <Input
                   value={formData.name}
@@ -180,7 +182,7 @@ export function McpWizard() {
                   placeholder="github"
                 />
               </Field>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Display Name *</Label>
                 <Input
                   value={formData.display_name}
@@ -188,7 +190,7 @@ export function McpWizard() {
                   placeholder="GitHub"
                 />
               </Field>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Description</Label>
                 <Textarea
                   value={formData.description}
@@ -197,7 +199,7 @@ export function McpWizard() {
                   placeholder="Interact with GitHub repositories and issues"
                 />
               </Field>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Icon URL</Label>
                 <Input
                   value={formData.icon_url}
@@ -205,7 +207,7 @@ export function McpWizard() {
                   placeholder="https://..."
                 />
               </Field>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Transport Type</Label>
                 <select
                   value={formData.transport_type}
@@ -215,14 +217,14 @@ export function McpWizard() {
                       transport_type: e.target.value as any,
                     })
                   }
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
                 >
                   <option value="stdio">stdio</option>
                   <option value="http">http</option>
                   <option value="sse">sse</option>
                 </select>
               </Field>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Isolation Mode</Label>
                 <select
                   value={formData.isolation_mode}
@@ -232,7 +234,7 @@ export function McpWizard() {
                       isolation_mode: e.target.value as any,
                     })
                   }
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
                 >
                   <option value="shared">shared</option>
                   <option value="per_user">per_user</option>
@@ -244,7 +246,7 @@ export function McpWizard() {
           {/* Step 1: Configuration */}
           {currentStep === 1 && (
             <>
-              <Field className="space-y-2">
+              <Field>
                 <Label>Configuration (JSON) *</Label>
                 <Textarea
                   value={formData.config}
@@ -267,7 +269,7 @@ export function McpWizard() {
                 </Label>
               </CheckboxField>
               {formData.requires_user_credentials && (
-                <Field className="space-y-2">
+                <Field>
                   <Label>Credential Schema (JSON)</Label>
                   <Textarea
                     value={formData.credential_schema}
@@ -288,7 +290,7 @@ export function McpWizard() {
             <div className="space-y-4">
               {!validationResult ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">
+                  <p className="text-zinc-500">
                     Click "Next" to validate the MCP configuration
                   </p>
                 </div>
@@ -296,19 +298,19 @@ export function McpWizard() {
                 <>
                   <div
                     className={`flex items-center gap-2 p-4 rounded-lg ${
-                      validationResult.valid ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'
+                      validationResult.valid ? 'bg-green-50' : 'bg-red-50'
                     }`}
                   >
                     {validationResult.valid ? (
                       <CheckCircle className="h-6 w-6 text-green-600" />
                     ) : (
-                      <AlertTriangle className="h-6 w-6 text-destructive" />
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
                     )}
                     <div>
-                      <p className="font-semibold">
+                      <p className="font-semibold text-zinc-900">
                         Validation {validationResult.valid ? 'Passed' : 'Failed'}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-zinc-500">
                         {validationResult.valid
                           ? `Discovered ${validationResult.tools_discovered.length} tools`
                           : `${validationResult.errors.length} error(s) found`}
@@ -318,10 +320,10 @@ export function McpWizard() {
 
                   {validationResult.errors.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-destructive mb-2">Errors</h4>
+                      <h4 className="font-medium text-red-600 mb-2">Errors</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {validationResult.errors.map((err: string, i: number) => (
-                          <li key={i} className="text-sm text-destructive">
+                          <li key={i} className="text-sm text-red-600">
                             {err}
                           </li>
                         ))}
@@ -331,10 +333,10 @@ export function McpWizard() {
 
                   {validationResult.warnings.length > 0 && (
                     <div>
-                      <h4 className="font-medium text-yellow-600 mb-2">Warnings</h4>
+                      <h4 className="font-medium text-amber-600 mb-2">Warnings</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {validationResult.warnings.map((warn: string, i: number) => (
-                          <li key={i} className="text-sm text-yellow-600">
+                          <li key={i} className="text-sm text-amber-600">
                             {warn}
                           </li>
                         ))}
@@ -344,14 +346,14 @@ export function McpWizard() {
 
                   {validationResult.tools_discovered.length > 0 && (
                     <div>
-                      <h4 className="font-medium mb-2">
+                      <h4 className="font-medium text-zinc-900 mb-2">
                         Discovered Tools ({validationResult.tools_discovered.length})
                       </h4>
                       <div className="grid gap-2">
                         {validationResult.tools_discovered.map((tool: any, i: number) => (
-                          <div key={i} className="border rounded p-2">
-                            <p className="font-mono text-sm font-medium">{tool.name}</p>
-                            <p className="text-xs text-muted-foreground">{tool.description}</p>
+                          <div key={i} className="rounded-lg bg-zinc-50 p-3">
+                            <p className="font-mono text-sm font-medium text-zinc-900">{tool.name}</p>
+                            <p className="text-xs text-zinc-500">{tool.description}</p>
                           </div>
                         ))}
                       </div>
@@ -364,71 +366,71 @@ export function McpWizard() {
 
           {/* Step 3: Review */}
           {currentStep === 3 && (
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Summary</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Name</p>
-                    <p className="font-medium">{formData.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Display Name</p>
-                    <p className="font-medium">{formData.display_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Transport</p>
-                    <p className="font-medium">{formData.transport_type}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Isolation</p>
-                    <p className="font-medium">{formData.isolation_mode}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Validation Status</p>
+            <div className="space-y-6">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Name</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900">{formData.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Display Name</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900">{formData.display_name}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Transport</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900">{formData.transport_type}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Isolation</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900">{formData.isolation_mode}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Validation Status</dt>
+                  <dd>
                     <Badge
-                      color={validationResult?.valid ? 'emerald' : 'red'}
+                      color={validationResult?.valid ? 'green' : 'red'}
                     >
                       {validationResult?.valid ? 'Valid' : 'Invalid'}
                     </Badge>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Tools Discovered</p>
-                    <p className="font-medium">
-                      {validationResult?.tools_discovered.length || 0}
-                    </p>
-                  </div>
+                  </dd>
                 </div>
-              </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500">Tools Discovered</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900">
+                    {validationResult?.tools_discovered.length || 0}
+                  </dd>
+                </div>
+              </dl>
 
-              <div className="border-t pt-4">
-                <p className="text-sm text-muted-foreground mb-4">
+              <Divider />
+
+              <div>
+                <p className="text-sm/6 text-zinc-500 mb-4">
                   You can now publish this MCP to make it available to users, or save it as a
                   draft for later.
                 </p>
                 <div className="flex gap-2">
                   {validationResult?.valid && (
-                    <Button className="h-8" onClick={handlePublish} disabled={publishMcp.isPending}>
+                    <Button onClick={handlePublish} disabled={publishMcp.isPending}>
                       <CheckCircle className="mr-2 h-4 w-4" />
                       {publishMcp.isPending ? 'Publishing...' : 'Publish MCP'}
                     </Button>
                   )}
-                  <Button color="zinc" className="h-8" onClick={handleSaveDraft}>
+                  <Button color="zinc" onClick={handleSaveDraft}>
                     Save as Draft
                   </Button>
                 </div>
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Navigation Buttons */}
       {currentStep < 3 && (
         <div className="flex justify-between">
           <Button
             color="zinc"
-            className="h-8"
             onClick={handleBack}
             disabled={currentStep === 0}
           >
@@ -436,7 +438,6 @@ export function McpWizard() {
             Back
           </Button>
           <Button
-            className="h-8"
             onClick={handleNext}
             disabled={
               (currentStep === 1 && createMcp.isPending) ||
