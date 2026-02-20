@@ -1,39 +1,19 @@
-import * as React from 'react';
 import { Outlet } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
-import { Header } from './Header';
-import { MobileNav } from './MobileNav';
-import { useSidebar } from '@/stores/sidebar';
-import { cn } from '@/lib/utils';
+import { SidebarLayout } from '@/components/catalyst/sidebar-layout';
+import { AppSidebar } from './AppSidebar';
+import { AppNavbar } from './AppNavbar';
 
 export function AppShell() {
-  const { collapsed } = useSidebar();
-  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-
   return (
-    <div className="relative flex h-screen overflow-hidden">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
-
-      {/* Mobile Navigation */}
-      <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-
-      {/* Main Content */}
-      <div
-        className={cn(
-          'flex flex-1 flex-col transition-all duration-300',
-          collapsed ? 'md:pl-12' : 'md:pl-60'
-        )}
-      >
-        <Header onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="mx-auto max-w-6xl">
-            <Outlet />
-          </div>
-        </main>
-      </div>
-    </div>
+    <SidebarLayout
+      sidebar={
+        <div className="dark h-full">
+          <AppSidebar />
+        </div>
+      }
+      navbar={<AppNavbar />}
+    >
+      <Outlet />
+    </SidebarLayout>
   );
 }
