@@ -101,8 +101,6 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/audit-fi
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/dist ./packages/server/dist
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/package.json ./packages/server/
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/node_modules ./packages/server/node_modules
-COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/views ./packages/server/views
-COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/server/public ./packages/server/public
 
 # M24.9: Copy SPA dist (React app)
 COPY --from=builder --chown=mcpambassador:mcpambassador /build/packages/spa/dist /app/public/spa

@@ -49,6 +49,7 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
     root: spaDistPath,
     prefix: '/app/',
     decorateReply: false, // Avoid conflict with admin server's static
+    wildcard: true, // Serve index.html for SPA routes that don't match files
     setHeaders: (res, filepath) => {
       // Cache static assets but not index.html
       if (filepath.endsWith('.html')) {
@@ -61,12 +62,6 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
         res.setHeader('Cache-Control', 'public, max-age=2592000');
       }
     },
-  });
-  
-  // SPA catch-all: /app/* → index.html
-  // This must come AFTER all API routes so it doesn't intercept API calls
-  fastify.get('/app/*', async (_request, reply) => {
-    return reply.sendFile('index.html');
   });
   
   // Root redirect to SPA (SPA-001 fix: check auth before redirect)

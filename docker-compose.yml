@@ -49,8 +49,9 @@ services:
       # Logging
       MCP_AMBASSADOR_LOG_LEVEL: ${LOG_LEVEL:-info}
       
-      # Production mode (override with NODE_ENV env var for dev/test)
-      NODE_ENV: ${NODE_ENV:-production}
+      # Development mode to enable default seed users (admin/admin123, qa-tester/test1234)
+      # Set to 'production' for production deployments (no default users)
+      NODE_ENV: development
       
       # Admin authentication (optional - for testing/dev)
       # Leave unset for production: admin key will be auto-generated on first boot
