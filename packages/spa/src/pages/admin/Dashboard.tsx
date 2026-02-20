@@ -179,7 +179,7 @@ export function Dashboard() {
 
       {/* Recent Audit Events */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
-        <div className="px-4 py-5 sm:px-6 border-b border-zinc-950/5 dark:border-white/10 flex items-center justify-between">
+        <div className="px-4 py-5 sm:p-6 border-b border-zinc-950/5 dark:border-white/10 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Recent Audit Events</h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Last 10 system events</p>

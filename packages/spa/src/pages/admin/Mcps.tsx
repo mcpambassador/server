@@ -97,7 +97,7 @@ export function McpsAdmin() {
 
       {/* Status Filter */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-zinc-700">Status:</span>
+        <span className="text-sm font-medium text-zinc-700 dark:text-white">Status:</span>
         <Listbox
           name="status"
           value={statusFilter || ''}
@@ -121,7 +121,7 @@ export function McpsAdmin() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
         <Table className="mt-4 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
           <TableHead>
             <TableRow>
@@ -142,31 +142,31 @@ export function McpsAdmin() {
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
                     <TableCell>
-                      <div className="h-4 w-32 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-32 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -192,11 +192,11 @@ export function McpsAdmin() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-sm font-mono text-zinc-900">
+                    <code className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-sm font-mono text-zinc-900 dark:text-white">
                       {mcp.name}
                     </code>
                   </TableCell>
-                  <TableCell className="text-zinc-700">{mcp.transport_type}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.transport_type}</TableCell>
                   <TableCell>
                     <Badge
                       color={
@@ -227,8 +227,8 @@ export function McpsAdmin() {
                       <span className="text-zinc-500">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-zinc-700">{mcp.isolation_mode}</TableCell>
-                  <TableCell className="text-zinc-700">
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.isolation_mode}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">
                     {new Date(mcp.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
