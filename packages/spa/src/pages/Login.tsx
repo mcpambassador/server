@@ -46,7 +46,7 @@ export function Login() {
           {/* Brand mark */}
           <div className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-900">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
                 <span className="font-mono text-lg font-bold text-white">M</span>
               </div>
               <div className="flex items-baseline gap-1">

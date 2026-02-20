@@ -87,12 +87,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <SidebarItem href="/app/dashboard">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
             <span className="font-mono text-sm font-bold text-white">M</span>
           </div>
           <SidebarLabel>
             <div className="flex items-baseline gap-1">
-              <span className="font-mono text-sm font-bold text-teal-500">MCP</span>
+              <span className="font-mono text-sm font-bold text-blue-500">MCP</span>
               <span className="font-semibold">Ambassador</span>
             </div>
           </SidebarLabel>
@@ -139,7 +139,7 @@ export function AppSidebar() {
       <SidebarFooter>
         <Dropdown>
           <DropdownButton as={SidebarItem}>
-            <Avatar initials={userInitials} className="size-8 bg-zinc-700 text-white" />
+            <Avatar initials={userInitials} className="size-8 bg-slate-700 text-white" />
             <SidebarLabel>{session?.user.username}</SidebarLabel>
           </DropdownButton>
           <DropdownMenu anchor="top start">
