@@ -1,16 +1,12 @@
 import { useState } from 'react';
 import { AlertTriangle, Key, Trash2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
-import { DataTable, type ColumnDef } from '@/components/data/DataTable';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { useDownstream, useAdminSessions, useKillSession, useRotateHmac, useRotateCredentialKey } from '@/api/hooks/use-admin';
 import type { Session } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -59,82 +55,40 @@ export function Settings() {
     }
   };
 
-  const sessionColumns: ColumnDef<Session>[] = [
-    {
-      header: 'Username',
-      accessor: 'username',
-    },
-    {
-      header: 'User ID',
-      accessor: 'user_id',
-      cell: (session) => <code className="text-xs">{session.user_id}</code>,
-    },
-    {
-      header: 'IP Address',
-      accessor: 'ip_address',
-      cell: (session) => <code className="text-xs">{session.ip_address || '—'}</code>,
-    },
-    {
-      header: 'Created',
-      accessor: 'created_at',
-      cell: (session) => new Date(session.created_at).toLocaleString(),
-    },
-    {
-      header: 'Expires',
-      accessor: 'expires_at',
-      cell: (session) => new Date(session.expires_at).toLocaleString(),
-    },
-    {
-      header: 'Actions',
-      accessor: 'session_id',
-      cell: (session) => (
-        <Button
-                    className="p-1"
-          onClick={() => {
-            setSessionToKill(session);
-            setKillSessionDialogOpen(true);
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ),
-    },
-  ];
+  const sessionList = Array.isArray(sessions) ? sessions : (sessions?.data ?? []);
 
   return (
     <div className="space-y-6">
-      <div className="pb-4 border-b border-border mb-6">
-        <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          System configuration and dangerous operations
-        </p>
+      {/* Header */}
+      <div>
+        <Heading>Settings</Heading>
+        <Text>System configuration and dangerous operations</Text>
       </div>
 
       {/* System Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Status</CardTitle>
-          <CardDescription>Current system health metrics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {downstream ? (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Downstream Connections</p>
-                <p className="text-2xl font-bold">
-                  {downstream.healthy_connections}/{downstream.total_connections}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Tools</p>
-                <p className="text-2xl font-bold">{downstream.total_tools}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Health Status</p>
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">System Status</h3>
+        <p className="mt-1 text-sm/6 text-zinc-500">Current system health metrics</p>
+        
+        {downstream ? (
+          <div className="mt-6 grid grid-cols-3 gap-6">
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Downstream Connections</p>
+              <p className="mt-2 text-2xl font-semibold text-zinc-900">
+                {downstream.healthy_connections}/{downstream.total_connections}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Total Tools</p>
+              <p className="mt-2 text-2xl font-semibold text-zinc-900">{downstream.total_tools}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-zinc-500">Health Status</p>
+              <div className="mt-2">
                 <Badge
                   color={
                     downstream.healthy_connections === downstream.total_connections
-                      ? 'emerald'
+                      ? 'green'
                       : 'red'
                   }
                 >
@@ -144,151 +98,183 @@ export function Settings() {
                 </Badge>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No system data available</p>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-zinc-500">No system data available</p>
+        )}
+      </div>
 
       {/* Active Sessions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Active Sessions</CardTitle>
-          <CardDescription>Currently authenticated user sessions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={sessionColumns}
-            data={Array.isArray(sessions) ? sessions : []}
-            isLoading={sessionsLoading}
-            emptyMessage="No active sessions"
-          />
-        </CardContent>
-      </Card>
+      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <h3 className="text-base/7 font-semibold text-zinc-900">Active Sessions</h3>
+        <p className="mt-1 text-sm/6 text-zinc-500">Currently authenticated user sessions</p>
+        
+        <div className="mt-6">
+          {sessionsLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-12 animate-pulse rounded-lg bg-zinc-100" />
+              ))}
+            </div>
+          ) : sessionList.length === 0 ? (
+            <p className="text-sm text-zinc-500">No active sessions</p>
+          ) : (
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeader>Username</TableHeader>
+                  <TableHeader>User ID</TableHeader>
+                  <TableHeader>IP Address</TableHeader>
+                  <TableHeader>Created</TableHeader>
+                  <TableHeader>Expires</TableHeader>
+                  <TableHeader>Actions</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sessionList.map((session) => (
+                  <TableRow key={session.session_id}>
+                    <TableCell className="font-medium">{session.username}</TableCell>
+                    <TableCell>
+                      <code className="text-xs font-mono text-zinc-600">{session.user_id}</code>
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs font-mono text-zinc-600">
+                        {session.ip_address || '—'}
+                      </code>
+                    </TableCell>
+                    <TableCell className="text-zinc-600">
+                      {new Date(session.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-zinc-600">
+                      {new Date(session.expires_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        plain
+                        onClick={() => {
+                          setSessionToKill(session);
+                          setKillSessionDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
 
       {/* Dangerous Operations */}
-      <Card className="border-destructive">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-destructive">Dangerous Operations</CardTitle>
-          </div>
-          <CardDescription>
-            These operations can disrupt service. Use with extreme caution.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-destructive rounded-lg">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Key className="h-4 w-4" />
-                <p className="font-medium">Rotate HMAC Secret</p>
+      <div className="rounded-lg bg-white p-6 ring-1 ring-red-200">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-600" />
+          <h3 className="text-base/7 font-semibold text-red-900">Dangerous Operations</h3>
+        </div>
+        <p className="mt-1 text-sm/6 text-red-700">
+          These operations can disrupt service. Use with extreme caution.
+        </p>
+
+        <div className="mt-4 space-y-4">
+          {/* Rotate HMAC Secret */}
+          <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Key className="h-4 w-4 text-red-700" />
+                <p className="font-medium text-red-900">Rotate HMAC Secret</p>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-red-700">
                 Invalidates all existing API keys. Clients must obtain new keys.
               </p>
             </div>
             <Button
               color="red"
-              className="h-8"
               onClick={() => setHmacDialogOpen(true)}
               disabled={rotateHmac.isPending}
             >
-              <Shield className="mr-2 h-4 w-4" />
+              <Shield className="h-4 w-4" />
               Rotate
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 border border-destructive rounded-lg">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Key className="h-4 w-4" />
-                <p className="font-medium">Rotate Credential Encryption Key</p>
+          {/* Rotate Credential Encryption Key */}
+          <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Key className="h-4 w-4 text-red-700" />
+                <p className="font-medium text-red-900">Rotate Credential Encryption Key</p>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-red-700">
                 Re-encrypts all stored credentials with a new key. May cause temporary service
                 disruption.
               </p>
             </div>
             <Button
               color="red"
-              className="h-8"
               onClick={() => setCredKeyDialogOpen(true)}
               disabled={rotateCredentialKey.isPending}
             >
-              <Shield className="mr-2 h-4 w-4" />
+              <Shield className="h-4 w-4" />
               Rotate
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* HMAC Rotation Confirmation */}
       <Alert open={hmacDialogOpen} onClose={setHmacDialogOpen}>
-        
-          
-            <AlertTitle>Rotate HMAC Secret?</AlertTitle>
-            <AlertDescription>
-              This will invalidate ALL existing API keys. All clients will need to generate new
-              keys. This action cannot be undone.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setHmacDialogOpen(false)}>Cancel</Button>
-            <Button color="red"
-              onClick={handleRotateHmac}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Rotate HMAC Secret
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Rotate HMAC Secret?</AlertTitle>
+        <AlertDescription>
+          This will invalidate ALL existing API keys. All clients will need to generate new
+          keys. This action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setHmacDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleRotateHmac}>
+            Rotate HMAC Secret
+          </Button>
+        </AlertActions>
       </Alert>
 
       {/* Credential Key Rotation Confirmation */}
       <Alert open={credKeyDialogOpen} onClose={setCredKeyDialogOpen}>
-        
-          
-            <AlertTitle>Rotate Credential Encryption Key?</AlertTitle>
-            <AlertDescription>
-              This will re-encrypt all stored user credentials. The operation may take several
-              seconds. Users may experience brief service disruption.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setCredKeyDialogOpen(false)}>Cancel</Button>
-            <Button color="red"
-              onClick={handleRotateCredentialKey}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Rotate Credential Key
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Rotate Credential Encryption Key?</AlertTitle>
+        <AlertDescription>
+          This will re-encrypt all stored user credentials. The operation may take several
+          seconds. Users may experience brief service disruption.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setCredKeyDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleRotateCredentialKey}>
+            Rotate Credential Key
+          </Button>
+        </AlertActions>
       </Alert>
 
       {/* Kill Session Confirmation */}
       <Alert open={killSessionDialogOpen} onClose={setKillSessionDialogOpen}>
-        
-          
-            <AlertTitle>Kill Session?</AlertTitle>
-            <AlertDescription>
-              This will immediately terminate the session for {sessionToKill?.username}. They
-              will be logged out.
-            </AlertDescription>
-          
-          <AlertActions>
-            <Button plain onClick={() => setSessionToKill(null)}>
-              Cancel
-            </Button>
-            <Button color="red"
-              onClick={handleKillSession}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Kill Session
-            </Button>
-          </AlertActions>
-        
+        <AlertTitle>Kill Session?</AlertTitle>
+        <AlertDescription>
+          This will immediately terminate the session for {sessionToKill?.username}. They
+          will be logged out.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => {
+            setKillSessionDialogOpen(false);
+            setSessionToKill(null);
+          }}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleKillSession}>
+            Kill Session
+          </Button>
+        </AlertActions>
       </Alert>
     </div>
   );
