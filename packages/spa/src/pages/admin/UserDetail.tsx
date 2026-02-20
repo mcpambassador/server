@@ -1,9 +1,9 @@
 import { useParams } from 'react-router-dom';
 import { ArrowLeft, Shield, Key, User } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
-import { Button } from '@/components/catalyst/button';
+import { Heading } from '@/components/catalyst/heading';
+import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/catalyst/skeleton';
+import { Button } from '@/components/catalyst/button';
 import { Divider } from '@/components/catalyst/divider';
 import { useAdminUser, useAdminGroups, useAuditEvents } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -25,8 +25,8 @@ export function UserDetail() {
   if (userLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
+        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200" />
+        <div className="animate-pulse h-48 w-full rounded bg-zinc-200" />
       </div>
     );
   }
@@ -35,177 +35,181 @@ export function UserDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/users">
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft data-slot="icon" />
           Back to Users
         </Button>
-        <Card>
-          <CardHeader>
-            <CardTitle>User Not Found</CardTitle>
-            <CardDescription>
-              The requested user could not be found.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-8 text-center">
+          <Heading level={3}>User Not Found</Heading>
+          <Text className="mt-2">The requested user could not be found.</Text>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Button plain className="h-8" href="/app/admin/users">
-        <ArrowLeft className="mr-2 h-4 w-4" />
+      <Button plain href="/app/admin/users">
+        <ArrowLeft data-slot="icon" />
         Back to Users
       </Button>
 
-      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
-        <div>
-          <h1 className="text-xl font-semibold">{user.username}</h1>
-          <p className="text-sm text-muted-foreground">{user.display_name || 'No display name'}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {user.is_admin && (
-            <Badge color="teal">
-              <Shield className="mr-1 h-3 w-3" />
-              Admin
+      {/* Header */}
+      <div>
+        <div className="flex items-start justify-between">
+          <div>
+            <Heading>{user.username}</Heading>
+            <Text className="mt-1">{user.display_name || 'No display name'}</Text>
+          </div>
+          <div className="flex items-center gap-2">
+            {user.is_admin && (
+              <Badge color="blue">
+                <Shield data-slot="icon" />
+                Admin
+              </Badge>
+            )}
+            <Badge color={user.status === 'active' ? 'green' : 'zinc'}>
+              {user.status}
             </Badge>
-          )}
-          <Badge color={user.status === 'active' ? 'emerald' : 'zinc'}>
-            {user.status}
-          </Badge>
+          </div>
         </div>
       </div>
 
-      {/* User Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>User Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+      {/* User Information */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-6 py-4 border-b border-zinc-950/5">
+          <Heading level={2}>User Information</Heading>
+        </div>
+        <div className="px-6 py-6">
+          <dl className="grid gap-6 sm:grid-cols-2">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">User ID</p>
-              <p className="text-sm font-mono">{user.user_id}</p>
+              <dt className="text-sm font-medium text-zinc-500">User ID</dt>
+              <dd className="mt-1 text-sm text-zinc-900">
+                <Text className="font-mono">{user.user_id}</Text>
+              </dd>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Username</p>
-              <p className="text-sm">{user.username}</p>
+              <dt className="text-sm font-medium text-zinc-500">Username</dt>
+              <dd className="mt-1 text-sm text-zinc-900">{user.username}</dd>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Email</p>
-              <p className="text-sm">{user.email || '—'}</p>
+              <dt className="text-sm font-medium text-zinc-500">Email</dt>
+              <dd className="mt-1 text-sm text-zinc-900">{user.email || '—'}</dd>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Display Name</p>
-              <p className="text-sm">{user.display_name || '—'}</p>
+              <dt className="text-sm font-medium text-zinc-500">Display Name</dt>
+              <dd className="mt-1 text-sm text-zinc-900">{user.display_name || '—'}</dd>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Created</p>
-              <p className="text-sm">{new Date(user.created_at).toLocaleString()}</p>
+              <dt className="text-sm font-medium text-zinc-500">Created</dt>
+              <dd className="mt-1 text-sm text-zinc-900">
+                {new Date(user.created_at).toLocaleString()}
+              </dd>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Last Login</p>
-              <p className="text-sm">
+              <dt className="text-sm font-medium text-zinc-500">Last Login</dt>
+              <dd className="mt-1 text-sm text-zinc-900">
                 {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : '—'}
-              </p>
+              </dd>
             </div>
-          </div>
-          <Divider />
+          </dl>
+          <Divider className="my-6" />
           <div className="flex gap-2">
-            <Button color="zinc" className="h-8">
-              <Key className="mr-2 h-4 w-4" />
+            <Button color="zinc">
+              <Key data-slot="icon" />
               Reset Password
             </Button>
-            <Button color="zinc" className="h-8">
-              <User className="mr-2 h-4 w-4" />
+            <Button color="zinc">
+              <User data-slot="icon" />
               Edit User
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Groups Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Group Memberships</CardTitle>
-          <CardDescription>Groups this user belongs to</CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Group Memberships */}
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-6 py-4 border-b border-zinc-950/5">
+          <Heading level={2}>Group Memberships</Heading>
+          <Text className="mt-1">Groups this user belongs to</Text>
+        </div>
+        <div className="px-6 py-6">
           {groupsLoading ? (
             <div className="space-y-2">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
+              <div className="animate-pulse h-16 w-full rounded bg-zinc-200" />
+              <div className="animate-pulse h-16 w-full rounded bg-zinc-200" />
             </div>
           ) : userGroups.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {userGroups.map((group: any) => (
                 <div
                   key={group.group_id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="flex items-center justify-between rounded-lg border border-zinc-950/5 p-4"
                 >
                   <div>
-                    <p className="font-medium">{group.name}</p>
-                    <p className="text-sm text-muted-foreground">{group.description}</p>
+                    <Text className="font-medium text-zinc-900">{group.name}</Text>
+                    <Text className="text-sm text-zinc-500">{group.description}</Text>
                   </div>
-                  <Button color="zinc" className="h-8" href={`/app/admin/groups/${group.group_id}`}>View</Button>
+                  <Button color="zinc" href={`/app/admin/groups/${group.group_id}`}>
+                    View
+                  </Button>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Not a member of any groups</p>
+            <Text className="text-zinc-500">Not a member of any groups</Text>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Audit log entries for this user</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+        <div className="px-6 py-4 border-b border-zinc-950/5">
+          <Heading level={2}>Recent Activity</Heading>
+          <Text className="mt-1">Audit log entries for this user</Text>
+        </div>
+        <div className="px-6 py-6">
           {auditLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
+                <div key={i} className="animate-pulse h-16 w-full rounded bg-zinc-200" />
               ))}
             </div>
           ) : auditData && auditData.data.length > 0 ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-zinc-950/5">
               {auditData.data.map((event) => (
-                <div
-                  key={event.event_id}
-                  className="flex items-center justify-between border-b pb-2 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{event.action}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {event.event_type} • {event.source_ip}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <Badge
-                      color={
-                        event.severity === 'error'
-                          ? 'red'
-                          : event.severity === 'warn'
-                          ? 'zinc'
-                          : 'zinc'
-                      }
-                    >
-                      {event.severity}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
+                <div key={event.event_id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <Text className="font-medium text-zinc-900">{event.action}</Text>
+                      <Text className="text-sm text-zinc-500">
+                        {event.event_type} • {event.source_ip}
+                      </Text>
+                    </div>
+                    <div className="ml-4 text-right">
+                      <Badge
+                        color={
+                          event.severity === 'error'
+                            ? 'red'
+                            : event.severity === 'warn'
+                            ? 'amber'
+                            : 'zinc'
+                        }
+                      >
+                        {event.severity}
+                      </Badge>
+                      <Text className="mt-1 text-xs text-zinc-500">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </Text>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No recent activity</p>
+            <Text className="text-zinc-500">No recent activity</Text>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
