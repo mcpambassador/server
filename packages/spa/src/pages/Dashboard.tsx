@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Store, UserCircle, Activity } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/catalyst/skeleton';
 import { useClients } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';

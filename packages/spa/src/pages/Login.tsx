@@ -10,7 +10,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/components/catalyst/card';
 import { authApi } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';

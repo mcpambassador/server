@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, ArrowLeft, ArrowRight } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
@@ -20,7 +20,6 @@ export function McpWizard() {
   const createMcp = useCreateMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
-  const { addToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [createdMcpId, setCreatedMcpId] = useState<string | null>(null);
@@ -42,7 +41,7 @@ export function McpWizard() {
     if (currentStep === 0) {
       // Basic validation
       if (!formData.name || !formData.display_name) {
-        addToast({ title: 'Validation', description: 'Name and Display Name are required', variant: 'red' });
+        toast.error('Validation', { description: 'Name and Display Name are required' });
         return;
       }
     }
@@ -54,7 +53,7 @@ export function McpWizard() {
         try {
           configObj = JSON.parse(formData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'red' });
+          toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
 
@@ -63,7 +62,7 @@ export function McpWizard() {
           try {
             credentialSchemaObj = JSON.parse(formData.credential_schema);
           } catch {
-            addToast({ title: 'Invalid JSON', description: 'Invalid JSON in credential schema field', variant: 'red' });
+            toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
             return;
           }
         }
@@ -82,7 +81,7 @@ export function McpWizard() {
 
         setCreatedMcpId(result.mcp_id);
       } catch (error) {
-        addToast({ title: 'Create MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+        toast.error('Create MCP failed', { description: (error as Error)?.message ?? String(error) });
         return;
       }
     }
@@ -94,7 +93,7 @@ export function McpWizard() {
         const result = await validateMcp.mutateAsync(createdMcpId);
         setValidationResult(result);
       } catch (error) {
-        addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+        toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
         return;
       }
     }
@@ -112,7 +111,7 @@ export function McpWizard() {
       await publishMcp.mutateAsync(createdMcpId);
       navigate(`/app/admin/mcps/${createdMcpId}`);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

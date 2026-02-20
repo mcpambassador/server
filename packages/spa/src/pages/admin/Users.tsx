@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Eye, Trash2, Key } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
@@ -28,7 +28,6 @@ export function UsersAdmin() {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
   const resetPassword = useResetPassword();
-  const { addToast } = useToast();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -65,7 +64,7 @@ export function UsersAdmin() {
       setCreateDialogOpen(false);
       setCreateFormData({ username: '', password: '', display_name: '', email: '', is_admin: false });
     } catch (error) {
-      addToast({ title: 'Create user failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Create user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -84,7 +83,7 @@ export function UsersAdmin() {
       setEditDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      addToast({ title: 'Update user failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Update user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -99,7 +98,7 @@ export function UsersAdmin() {
       setSelectedUser(null);
       setNewPassword('');
     } catch (error) {
-      addToast({ title: 'Reset password failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Reset password failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -110,7 +109,7 @@ export function UsersAdmin() {
       setDeleteDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      addToast({ title: 'Delete user failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Delete user failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

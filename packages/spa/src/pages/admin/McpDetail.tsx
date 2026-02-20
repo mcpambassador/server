@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/catalyst/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
@@ -28,7 +28,6 @@ export function McpDetail() {
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
   const archiveMcp = useArchiveMcp();
-  const { addToast } = useToast();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [validationResult, setValidationResult] = useState<any>(null);
@@ -48,7 +47,7 @@ export function McpDetail() {
         try {
           configObj = JSON.parse(editFormData.config);
         } catch {
-          addToast({ title: 'Invalid JSON', description: 'Invalid JSON in config field', variant: 'red' });
+          toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
       }
@@ -64,7 +63,7 @@ export function McpDetail() {
       });
       setEditDialogOpen(false);
     } catch (error) {
-      addToast({ title: 'Update MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Update MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -85,7 +84,7 @@ export function McpDetail() {
       const result = await validateMcp.mutateAsync(mcp.mcp_id);
       setValidationResult(result);
     } catch (error) {
-      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -94,7 +93,7 @@ export function McpDetail() {
     try {
       await publishMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -103,7 +102,7 @@ export function McpDetail() {
     try {
       await archiveMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -247,86 +246,88 @@ export function McpDetail() {
       )}
 
       {/* MCP Details */}
-      <Tabs defaultValue="info" className="w-full">
+      <Tabs defaultIndex={0} className="w-full">
         <TabsList>
-          <TabsTrigger value="info">Information</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger>Information</TabsTrigger>
+          <TabsTrigger>Configuration</TabsTrigger>
         </TabsList>
-        <TabsContent value="info" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>MCP Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">MCP ID</p>
-                  <p className="text-sm font-mono">{mcp.mcp_id}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Internal Name</p>
-                  <p className="text-sm font-mono">{mcp.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Display Name</p>
-                  <p className="text-sm">{mcp.display_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Transport Type</p>
-                  <p className="text-sm">{mcp.transport_type}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
-                  <p className="text-sm">{mcp.isolation_mode}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Requires Credentials</p>
-                  <p className="text-sm">{mcp.requires_user_credentials ? 'Yes' : 'No'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Created</p>
-                  <p className="text-sm">{new Date(mcp.created_at).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Updated</p>
-                  <p className="text-sm">{new Date(mcp.updated_at).toLocaleString()}</p>
-                </div>
-              </div>
-              {mcp.description && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Description</p>
-                  <p className="text-sm mt-1">{mcp.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="config" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>MCP runtime configuration (JSON)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                {JSON.stringify(mcp.config, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-          {mcp.credential_schema && (
+        <TabsPanels>
+          <TabsContent className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Credential Schema</CardTitle>
-                <CardDescription>Required user credentials schema</CardDescription>
+                <CardTitle>MCP Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">MCP ID</p>
+                    <p className="text-sm font-mono">{mcp.mcp_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Internal Name</p>
+                    <p className="text-sm font-mono">{mcp.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Display Name</p>
+                    <p className="text-sm">{mcp.display_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Transport Type</p>
+                    <p className="text-sm">{mcp.transport_type}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Isolation Mode</p>
+                    <p className="text-sm">{mcp.isolation_mode}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Requires Credentials</p>
+                    <p className="text-sm">{mcp.requires_user_credentials ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Created</p>
+                    <p className="text-sm">{new Date(mcp.created_at).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Updated</p>
+                    <p className="text-sm">{new Date(mcp.updated_at).toLocaleString()}</p>
+                  </div>
+                </div>
+                {mcp.description && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Description</p>
+                    <p className="text-sm mt-1">{mcp.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration</CardTitle>
+                <CardDescription>MCP runtime configuration (JSON)</CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                  {JSON.stringify(mcp.credential_schema, null, 2)}
+                  {JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </CardContent>
             </Card>
-          )}
-        </TabsContent>
+            {mcp.credential_schema && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Credential Schema</CardTitle>
+                  <CardDescription>Required user credentials schema</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                    {JSON.stringify(mcp.credential_schema, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </TabsPanels>
       </Tabs>
 
       {/* Edit Dialog */}

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Trash2, Plus } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/catalyst/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Label } from '@/components/catalyst/fieldset';
 import {
@@ -43,7 +43,6 @@ export function GroupDetail() {
   const removeMember = useRemoveGroupMember();
   const assignMcp = useAssignGroupMcp();
   const removeMcp = useRemoveGroupMcp();
-  const { addToast } = useToast();
 
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [addMcpDialogOpen, setAddMcpDialogOpen] = useState(false);
@@ -61,7 +60,7 @@ export function GroupDetail() {
       setAddMemberDialogOpen(false);
       setSelectedUserId('');
     } catch (error) {
-      addToast({ title: 'Add member failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Add member failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -72,7 +71,7 @@ export function GroupDetail() {
       setRemoveMemberDialogOpen(false);
       setMemberToRemove(null);
     } catch (error) {
-      addToast({ title: 'Remove member failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Remove member failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -83,7 +82,7 @@ export function GroupDetail() {
       setAddMcpDialogOpen(false);
       setSelectedMcpId('');
     } catch (error) {
-      addToast({ title: 'Assign MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Assign MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -94,7 +93,7 @@ export function GroupDetail() {
       setRemoveMcpDialogOpen(false);
       setMcpToRemove(null);
     } catch (error) {
-      addToast({ title: 'Remove MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Remove MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -245,59 +244,61 @@ export function GroupDetail() {
       </Card>
 
       {/* Tabs for Members and MCPs */}
-      <Tabs defaultValue="members" className="w-full">
+      <Tabs defaultIndex={0} className="w-full">
         <TabsList>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="mcps">MCPs</TabsTrigger>
+          <TabsTrigger>Members</TabsTrigger>
+          <TabsTrigger>MCPs</TabsTrigger>
         </TabsList>
-        <TabsContent value="members" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Group Members</CardTitle>
-                  <CardDescription>Users who belong to this group</CardDescription>
+        <TabsPanels>
+          <TabsContent className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Group Members</CardTitle>
+                    <CardDescription>Users who belong to this group</CardDescription>
+                  </div>
+                  <Button onClick={() => setAddMemberDialogOpen(true)} className="h-8">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Member
+                  </Button>
                 </div>
-                <Button onClick={() => setAddMemberDialogOpen(true)} className="h-8">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Member
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={memberColumns}
-                data={members ?? []}
-                isLoading={membersLoading}
-                emptyMessage="No members yet."
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="mcps" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Assigned MCPs</CardTitle>
-                  <CardDescription>MCPs available to this group</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  columns={memberColumns}
+                  data={members ?? []}
+                  isLoading={membersLoading}
+                  emptyMessage="No members yet."
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Assigned MCPs</CardTitle>
+                    <CardDescription>MCPs available to this group</CardDescription>
+                  </div>
+                  <Button onClick={() => setAddMcpDialogOpen(true)} className="h-8">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Assign MCP
+                  </Button>
                 </div>
-                <Button onClick={() => setAddMcpDialogOpen(true)} className="h-8">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Assign MCP
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={mcpColumns}
-                data={mcps ?? []}
-                isLoading={mcpsLoading}
-                emptyMessage="No MCPs assigned."
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  columns={mcpColumns}
+                  data={mcps ?? []}
+                  isLoading={mcpsLoading}
+                  emptyMessage="No MCPs assigned."
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </TabsPanels>
       </Tabs>
 
       {/* Add Member Dialog */}

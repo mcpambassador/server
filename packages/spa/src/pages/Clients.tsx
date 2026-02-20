@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Copy, Eye, Pause, Play, Trash2, Check } from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
-import { Alert as UIAlert, AlertDescription as UIAlertDescription } from '@/components/ui/alert';
+import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
 import {
   Alert,
   AlertBody,
@@ -251,13 +251,13 @@ export function Clients() {
             <DialogDescription>
               Save this key securely. It will only be shown once.
             </DialogDescription>
-          
-          <Alert variant="warning">
-            <AlertDescription>
+        
+          <InlineAlert color="warning">
+            <InlineAlertDescription>
               This is the only time you&apos;ll see the full API key. Copy it now and
               store it securely.
-            </AlertDescription>
-          </Alert>
+            </InlineAlertDescription>
+          </InlineAlert>
           <div className="space-y-2">
             <Label>API Key</Label>
             <div className="flex gap-2">

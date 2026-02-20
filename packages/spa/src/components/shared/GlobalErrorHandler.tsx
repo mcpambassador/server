@@ -1,12 +1,11 @@
 import * as React from 'react';
-import { useToast } from '@/components/ui/toast';
+import { toast } from 'sonner';
 
 interface Props {
   children: React.ReactNode;
 }
 
 export function GlobalErrorHandler({ children }: Props) {
-  const { addToast } = useToast();
 
   React.useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -15,9 +14,7 @@ export function GlobalErrorHandler({ children }: Props) {
       // Extract useful error message
       const message = event.reason?.message || event.reason?.toString() || 'An unexpected error occurred';
       
-      addToast({
-        variant: 'destructive',
-        title: 'Error',
+      toast.error('Error', {
         description: message,
       });
     };
@@ -25,9 +22,7 @@ export function GlobalErrorHandler({ children }: Props) {
     const handleError = (event: ErrorEvent) => {
       console.error('Unhandled error:', event.error);
       
-      addToast({
-        variant: 'destructive',
-        title: 'Error',
+      toast.error('Error', {
         description: event.message || 'An unexpected error occurred',
       });
     };
@@ -39,7 +34,7 @@ export function GlobalErrorHandler({ children }: Props) {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       window.removeEventListener('error', handleError);
     };
-  }, [addToast]);
+  }, []);
 
   return <>{children}</>;
 }

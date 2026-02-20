@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Eye, Trash2 } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
@@ -23,7 +23,6 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 export function GroupsAdmin() {
   usePageTitle('Admin - Groups');
   const { data: groups, isLoading } = useAdminGroups();
-  const { addToast } = useToast();
   const createGroup = useCreateGroup();
   const updateGroup = useUpdateGroup();
   const deleteGroup = useDeleteGroup();
@@ -52,7 +51,7 @@ export function GroupsAdmin() {
       setCreateDialogOpen(false);
       setCreateFormData({ name: '', description: '' });
     } catch (error) {
-      addToast({ title: 'Create group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Create group failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -69,7 +68,7 @@ export function GroupsAdmin() {
       setEditDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      addToast({ title: 'Update group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Update group failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -80,7 +79,7 @@ export function GroupsAdmin() {
       setDeleteDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      addToast({ title: 'Delete group failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Delete group failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

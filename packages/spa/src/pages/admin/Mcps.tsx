@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Eye, CheckCircle, Archive, Trash2, RefreshCw } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import {
@@ -28,7 +28,6 @@ export function McpsAdmin() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(undefined);
   const { data: mcpsData, isLoading } = useAdminMcps({ status: statusFilter });
-  const { addToast } = useToast();
   const deleteMcp = useDeleteMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
@@ -41,12 +40,12 @@ export function McpsAdmin() {
     try {
       const result = await validateMcp.mutateAsync(mcpId);
       if (result.valid) {
-        addToast({ title: 'Validation passed', description: `Discovered ${result.tools_discovered.length} tools.`, variant: 'emerald' });
+        toast.success('Validation passed', { description: `Discovered ${result.tools_discovered.length} tools.` });
       } else {
-        addToast({ title: 'Validation failed', description: result.errors.join(', '), variant: 'red' });
+        toast.error('Validation failed', { description: result.errors.join(', ') });
       }
     } catch (error) {
-      addToast({ title: 'Validate MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -54,7 +53,7 @@ export function McpsAdmin() {
     try {
       await publishMcp.mutateAsync(mcpId);
     } catch (error) {
-      addToast({ title: 'Publish MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -62,7 +61,7 @@ export function McpsAdmin() {
     try {
       await archiveMcp.mutateAsync(mcpId);
     } catch (error) {
-      addToast({ title: 'Archive MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -73,7 +72,7 @@ export function McpsAdmin() {
       setDeleteDialogOpen(false);
       setMcpToDelete(null);
     } catch (error) {
-      addToast({ title: 'Delete MCP failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Delete MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

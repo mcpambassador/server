@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/catalyst/skeleton';
+import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Select } from '@/components/catalyst/select';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
@@ -101,27 +101,27 @@ export function McpDetail() {
 
       {/* Credential Warning */}
       {requiresCredentials && !hasCredentials && (
-        <Alert variant="warning">
+        <InlineAlert color="warning">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Credentials Required</AlertTitle>
-          <AlertDescription>
+          <InlineAlertTitle>Credentials Required</InlineAlertTitle>
+          <InlineAlertDescription>
             This MCP requires user credentials to function.{' '}
             <Link to="/app/credentials" className="underline font-medium">
               Set credentials first
             </Link>{' '}
             before subscribing.
-          </AlertDescription>
-        </Alert>
+          </InlineAlertDescription>
+        </InlineAlert>
       )}
 
       {requiresCredentials && hasCredentials && (
-        <Alert color="emerald">
+        <InlineAlert color="success">
           <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>Credentials Configured</AlertTitle>
-          <AlertDescription>
+          <InlineAlertTitle>Credentials Configured</InlineAlertTitle>
+          <InlineAlertDescription>
             You have already configured credentials for this MCP.
-          </AlertDescription>
-        </Alert>
+          </InlineAlertDescription>
+        </InlineAlert>
       )}
 
       {/* MCP Info Card */}

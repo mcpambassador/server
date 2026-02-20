@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Power, AlertTriangle } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import {
@@ -19,7 +19,6 @@ export function KillSwitches() {
   const { data: clientsData, isLoading: clientsLoading } = useAdminClients();
   const { data: mcpsData, isLoading: mcpsLoading } = useAdminMcps();
   const killSwitch = useKillSwitch();
-  const { addToast } = useToast();
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<{ target: string; enabled: boolean } | null>(
@@ -41,7 +40,7 @@ export function KillSwitches() {
       setConfirmDialogOpen(false);
       setSelectedTarget(null);
     } catch (error) {
-      addToast({ title: 'Kill switch failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Kill switch failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

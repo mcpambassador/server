@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Key, Trash2, Shield } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/catalyst/card';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import {
@@ -23,7 +23,6 @@ export function Settings() {
   const killSession = useKillSession();
   const rotateHmac = useRotateHmac();
   const rotateCredentialKey = useRotateCredentialKey();
-  const { addToast } = useToast();
 
   const [hmacDialogOpen, setHmacDialogOpen] = useState(false);
   const [credKeyDialogOpen, setCredKeyDialogOpen] = useState(false);
@@ -34,9 +33,9 @@ export function Settings() {
     try {
       await rotateHmac.mutateAsync();
       setHmacDialogOpen(false);
-      addToast({ title: 'HMAC rotated', description: 'HMAC secret rotated successfully', variant: 'emerald' });
+      toast.success('HMAC rotated', { description: 'HMAC secret rotated successfully' });
     } catch (error) {
-      addToast({ title: 'Rotate HMAC failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Rotate HMAC failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -44,9 +43,9 @@ export function Settings() {
     try {
       await rotateCredentialKey.mutateAsync();
       setCredKeyDialogOpen(false);
-      addToast({ title: 'Credential key rotated', description: 'Credential encryption key rotated successfully', variant: 'emerald' });
+      toast.success('Credential key rotated', { description: 'Credential encryption key rotated successfully' });
     } catch (error) {
-      addToast({ title: 'Rotate credential key failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Rotate credential key failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -57,7 +56,7 @@ export function Settings() {
       setKillSessionDialogOpen(false);
       setSessionToKill(null);
     } catch (error) {
-      addToast({ title: 'Kill session failed', description: (error as Error)?.message ?? String(error), variant: 'red' });
+      toast.error('Kill session failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
