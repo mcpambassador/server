@@ -201,14 +201,14 @@ export function McpsAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">MCP Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold">MCP Management</h1>
+          <p className="text-sm text-muted-foreground">
             Administer MCP servers and configurations
           </p>
         </div>
-        <Button onClick={() => navigate('/app/admin/mcps/new')}>
+        <Button className="h-8" onClick={() => navigate('/app/admin/mcps/new')}>
           <Plus className="mr-2 h-4 w-4" />
           Create MCP
         </Button>

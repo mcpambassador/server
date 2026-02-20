@@ -136,17 +136,17 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" asChild>
+      <Button variant="ghost" className="h-8" asChild>
         <Link to="/app/admin/mcps">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to MCPs
         </Link>
       </Button>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{mcp.display_name}</h1>
-          <p className="text-muted-foreground font-mono text-sm">{mcp.name}</p>
+          <h1 className="text-xl font-semibold">{mcp.display_name}</h1>
+          <p className="text-sm text-muted-foreground font-mono">{mcp.name}</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={mcp.status === 'draft' ? 'secondary' : mcp.status === 'published' ? 'default' : 'outline'}>
@@ -156,7 +156,7 @@ export function McpDetail() {
             <Badge
               variant={
                 mcp.validation_status === 'valid'
-                  ? 'default'
+                  ? 'success'
                   : mcp.validation_status === 'invalid'
                   ? 'destructive'
                   : 'outline'
@@ -170,23 +170,23 @@ export function McpDetail() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button variant="outline" onClick={openEditDialog}>
+        <Button variant="outline" className="h-8" onClick={openEditDialog}>
           Edit MCP
         </Button>
-        <Button variant="outline" onClick={handleValidate} disabled={validateMcp.isPending}>
+        <Button variant="outline" className="h-8" onClick={handleValidate} disabled={validateMcp.isPending}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Validate
         </Button>
         {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
-          <Button onClick={handlePublish} disabled={publishMcp.isPending}>
+          <Button className="h-8" onClick={handlePublish} disabled={publishMcp.isPending}>
             <CheckCircle className="mr-2 h-4 w-4" />
-            Publish
+            {publishMcp.isPending ? 'Publishing...' : 'Publish'}
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button variant="outline" onClick={handleArchive} disabled={archiveMcp.isPending}>
+          <Button variant="outline" className="h-8" onClick={handleArchive} disabled={archiveMcp.isPending}>
             <Archive className="mr-2 h-4 w-4" />
-            Archive
+            {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
           </Button>
         )}
       </div>
@@ -382,11 +382,11 @@ export function McpDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEdit} disabled={updateMcp.isPending}>
-              Save Changes
+            <Button className="h-8" onClick={handleEdit} disabled={updateMcp.isPending}>
+              {updateMcp.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

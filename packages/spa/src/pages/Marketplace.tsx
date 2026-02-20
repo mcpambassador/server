@@ -21,11 +21,13 @@ export function Marketplace() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Marketplace</h1>
-        <p className="text-muted-foreground">
-          Discover and subscribe to MCP servers
-        </p>
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+        <div>
+          <h1 className="text-xl font-semibold">Marketplace</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Discover and subscribe to MCP servers
+          </p>
+        </div>
       </div>
 
       {/* Search */}
@@ -68,40 +70,38 @@ export function Marketplace() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredMcps.map((mcp) => (
-            <Card key={mcp.id} className="flex flex-col hover:shadow-lg transition-shadow">
-              <CardHeader>
+            <Card key={mcp.id} className="flex flex-col border border-border rounded-md p-4 hover:border-primary transition-colors">
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-lg">{mcp.name}</CardTitle>
+                  <h3 className="font-semibold text-base">{mcp.name}</h3>
                   <Package className="h-5 w-5 text-muted-foreground shrink-0" />
                 </div>
-                <CardDescription className="line-clamp-2">
+                <p className="text-sm text-muted-foreground line-clamp-2">
                   {mcp.description || 'No description available'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col justify-between space-y-4">
+                </p>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Package className="h-4 w-4" />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Package className="h-3.5 w-3.5" />
                     <span>{mcp.tools.length} tools</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="text-xs">
                       {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
                     </Badge>
                     {mcp.requiresUserCredentials && (
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className="text-xs">
                         <Key className="h-3 w-3 mr-1" />
                         Credentials
                       </Badge>
                     )}
                   </div>
                 </div>
-                <Button asChild className="w-full">
+                <Button asChild variant="outline" size="sm" className="w-full">
                   <Link to={`/app/marketplace/${mcp.id}`}>
                     View Details
                   </Link>
                 </Button>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>

@@ -42,7 +42,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background">
-      <div className="flex h-16 items-center gap-4 px-4">
+      <div className="flex h-12 items-center gap-4 px-4">
         {/* Mobile menu button */}
         <Button
           variant="ghost"
@@ -54,16 +54,14 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </Button>
 
-        {/* Title/Breadcrumb area */}
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold">MCP Ambassador</h1>
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-              <Avatar>
+            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+              <Avatar className="h-8 w-8">
                 <AvatarFallback>{userInitials}</AvatarFallback>
               </Avatar>
             </Button>

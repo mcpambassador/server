@@ -109,9 +109,9 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Settings</h1>
+        <p className="text-sm text-muted-foreground">
           System configuration and dangerous operations
         </p>
       </div>
@@ -126,21 +126,21 @@ export function Settings() {
           {downstream ? (
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Downstream Connections</p>
+                <p className="text-xs text-muted-foreground">Downstream Connections</p>
                 <p className="text-2xl font-bold">
                   {downstream.healthy_connections}/{downstream.total_connections}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Tools</p>
+                <p className="text-xs text-muted-foreground">Total Tools</p>
                 <p className="text-2xl font-bold">{downstream.total_tools}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Health Status</p>
+                <p className="text-xs text-muted-foreground">Health Status</p>
                 <Badge
                   variant={
                     downstream.healthy_connections === downstream.total_connections
-                      ? 'default'
+                      ? 'success'
                       : 'destructive'
                   }
                 >
@@ -196,6 +196,7 @@ export function Settings() {
             </div>
             <Button
               variant="destructive"
+              className="h-8"
               onClick={() => setHmacDialogOpen(true)}
               disabled={rotateHmac.isPending}
             >
@@ -217,6 +218,7 @@ export function Settings() {
             </div>
             <Button
               variant="destructive"
+              className="h-8"
               onClick={() => setCredKeyDialogOpen(true)}
               disabled={rotateCredentialKey.isPending}
             >

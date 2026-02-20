@@ -114,8 +114,8 @@ export function Clients() {
       accessor: 'status',
       cell: (client) => {
         const variant =
-          client.status === 'active' ? 'default' :
-          client.status === 'suspended' ? 'secondary' : 'destructive';
+          client.status === 'active' ? 'success' :
+          client.status === 'suspended' ? 'warning' : 'destructive';
         return <Badge variant={variant}>{client.status}</Badge>;
       },
     },
@@ -176,14 +176,14 @@ export function Clients() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Clients</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold">My Clients</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Manage your MCP API clients and credentials
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button onClick={() => setCreateDialogOpen(true)} size="sm">
           <Plus className="mr-2 h-4 w-4" />
           Create Client
         </Button>
@@ -235,6 +235,7 @@ export function Clients() {
             <Button
               variant="outline"
               onClick={() => setCreateDialogOpen(false)}
+              disabled={createClient.isPending}
             >
               Cancel
             </Button>
@@ -242,7 +243,7 @@ export function Clients() {
               onClick={handleCreate}
               disabled={!formData.client_name || createClient.isPending}
             >
-              Create
+              {createClient.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -269,14 +270,14 @@ export function Clients() {
               <Input
                 value={plaintextKey ?? ''}
                 readOnly
-                className="font-mono text-sm"
+                className="font-mono text-xs bg-muted"
               />
               <Button
                 variant="outline"
                 size="icon"
                 onClick={handleCopyKey}
               >
-                {keyCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {keyCopied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>

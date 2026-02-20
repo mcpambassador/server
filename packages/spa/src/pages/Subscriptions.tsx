@@ -5,9 +5,9 @@ export function Subscriptions() {
   usePageTitle('My Subscriptions');
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">My Subscriptions</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">My Subscriptions</h1>
+        <p className="text-sm text-muted-foreground">
           View your active MCP subscriptions
         </p>
       </div>

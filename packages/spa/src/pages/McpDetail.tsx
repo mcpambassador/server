@@ -87,15 +87,15 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/app/marketplace">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{mcp.name}</h1>
-          <p className="text-muted-foreground">{mcp.description || 'No description available'}</p>
+          <h1 className="text-xl font-semibold">{mcp.name}</h1>
+          <p className="text-sm text-muted-foreground">{mcp.description || 'No description available'}</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export function McpDetail() {
       {/* Subscribe Button */}
       <div className="flex justify-end">
         <Button
-          size="lg"
+          className="h-8"
           onClick={openSubscribeDialog}
           disabled={activeClients.length === 0 || (requiresCredentials && !hasCredentials)}
         >
@@ -260,14 +260,15 @@ export function McpDetail() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSubscribeDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setSubscribeDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleSubscribe}
               disabled={!selectedClientId || selectedTools.length === 0 || subscribe.isPending}
             >
-              Subscribe
+              {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
             </Button>
           </DialogFooter>
         </DialogContent>

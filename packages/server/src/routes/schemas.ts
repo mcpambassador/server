@@ -14,7 +14,8 @@ import { z } from 'zod';
 
 export const createClientSchema = z.object({
   client_name: z.string().min(1).max(255),
-  profile_id: z.string().uuid(),
+  profile_id: z.string().uuid().optional(),
+  expires_at: z.string().datetime().optional(),
 }).strict();
 
 export const updateClientSchema = z.object({

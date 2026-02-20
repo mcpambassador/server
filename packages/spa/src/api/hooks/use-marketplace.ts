@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../client';
-import type { PaginatedResponse, McpEntry } from '../types';
+import type { McpEntry, PaginatedResponse } from '../types';
 
 export function useMarketplace() {
   return useQuery({

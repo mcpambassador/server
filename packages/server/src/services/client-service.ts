@@ -47,7 +47,8 @@ export async function createUserClient(
   data: {
     userId: string;
     clientName: string;
-    profileId: string;
+    profileId: string | null;
+    expiresAt?: string | null;
   }
 ): Promise<ClientWithKey> {
   // Verify user exists and is active
@@ -63,13 +64,16 @@ export async function createUserClient(
     throw new Error('User is not active');
   }
 
-  // Verify profile exists
-  const profile = await db.query.tool_profiles.findFirst({
-    where: (p, { eq }) => eq(p.profile_id, data.profileId),
-  });
+  // Verify profile exists if provided
+  if (data.profileId) {
+    const profileId = data.profileId; // Type narrowing for callback
+    const profile = await db.query.tool_profiles.findFirst({
+      where: (p, { eq }) => eq(p.profile_id, profileId),
+    });
 
-  if (!profile) {
-    throw new Error('Profile not found');
+    if (!profile) {
+      throw new Error('Profile not found');
+    }
   }
 
   // Generate preshared key: amb_pk_ + 48 chars of base64url
@@ -105,7 +109,7 @@ export async function createUserClient(
     status: 'active',
     created_by: data.userId,
     created_at: nowIso,
-    expires_at: null,
+    expires_at: data.expiresAt || null,
     metadata: '{}',
   });
 

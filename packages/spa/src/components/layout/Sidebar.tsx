@@ -65,51 +65,63 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen border-r bg-background transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
+        'fixed left-0 top-0 z-40 h-screen border-r transition-all duration-300',
+        'bg-[hsl(var(--color-sidebar))] border-[hsl(var(--color-sidebar-border))]',
+        collapsed ? 'w-12' : 'w-60'
       )}
     >
       <div className="flex h-full flex-col">
         {/* Logo / Brand */}
-        <div className="flex h-16 items-center border-b px-4">
+        <div className="flex h-14 items-center border-b border-[hsl(var(--color-sidebar-border))] px-3">
           {!collapsed && (
             <Link to="/app/dashboard" className="flex items-center gap-2">
-              <Package className="h-6 w-6 text-primary" />
-              <span className="font-semibold">MCP Ambassador</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--color-sidebar-primary))]">
+                <span className="font-mono text-sm font-bold text-[hsl(var(--color-sidebar-primary-foreground))]">M</span>
+              </div>
+              <div className="flex flex-col leading-tight">
+                <div className="flex items-baseline gap-1">
+                  <span className="font-mono text-sm font-bold text-[hsl(var(--color-sidebar-primary))]">MCP</span>
+                  <span className="font-semibold text-[hsl(var(--color-sidebar-primary-foreground))]">Ambassador</span>
+                </div>
+              </div>
             </Link>
           )}
           {collapsed && (
             <Link to="/app/dashboard" className="flex items-center">
-              <Package className="h-6 w-6 text-primary" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--color-sidebar-primary))]">
+                <span className="font-mono text-sm font-bold text-[hsl(var(--color-sidebar-primary-foreground))]">M</span>
+              </div>
             </Link>
           )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {/* User Section */}
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {!collapsed && (
-              <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">
+              <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--color-sidebar-muted-foreground))]">
                 User
               </p>
             )}
             {userNavItems.map((item) => {
               const Icon = item.icon;
+              const active = isActive(item.href);
               return (
                 <Link
                   key={item.href}
                   to={item.href}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                    isActive(item.href)
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-accent hover:text-accent-foreground',
-                    collapsed && 'justify-center'
+                    'flex h-8 items-center gap-3 rounded-md px-3 text-sm transition-colors',
+                    'text-[hsl(var(--color-sidebar-foreground))]',
+                    active
+                      ? 'bg-[hsl(var(--color-sidebar-accent))] text-[hsl(var(--color-sidebar-primary))] border-l-2 border-[hsl(var(--color-sidebar-primary))]'
+                      : 'hover:bg-[hsl(var(--color-sidebar-accent))] hover:text-[hsl(var(--color-sidebar-accent-foreground))]',
+                    collapsed && 'justify-center px-0'
                   )}
                   title={collapsed ? item.title : undefined}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span>{item.title}</span>}
                 </Link>
               );
@@ -119,29 +131,31 @@ export function Sidebar() {
           {/* Admin Section */}
           {session?.user.isAdmin && (
             <>
-              <Separator className="my-4" />
-              <div className="space-y-1">
+              <Separator className="my-3 bg-[hsl(var(--color-sidebar-border))]" />
+              <div className="space-y-0.5">
                 {!collapsed && (
-                  <p className="px-3 text-xs font-semibold uppercase text-muted-foreground">
+                  <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[hsl(var(--color-sidebar-muted-foreground))]">
                     Admin
                   </p>
                 )}
                 {adminNavItems.map((item) => {
                   const Icon = item.icon;
+                  const active = isActive(item.href);
                   return (
                     <Link
                       key={item.href}
                       to={item.href}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                        isActive(item.href)
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-accent hover:text-accent-foreground',
-                        collapsed && 'justify-center'
+                        'flex h-8 items-center gap-3 rounded-md px-3 text-sm transition-colors',
+                        'text-[hsl(var(--color-sidebar-foreground))]',
+                        active
+                          ? 'bg-[hsl(var(--color-sidebar-accent))] text-[hsl(var(--color-sidebar-primary))] border-l-2 border-[hsl(var(--color-sidebar-primary))]'
+                          : 'hover:bg-[hsl(var(--color-sidebar-accent))] hover:text-[hsl(var(--color-sidebar-accent-foreground))]',
+                        collapsed && 'justify-center px-0'
                       )}
                       title={collapsed ? item.title : undefined}
                     >
-                      <Icon className="h-5 w-5 shrink-0" />
+                      <Icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
                     </Link>
                   );
@@ -152,14 +166,14 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t p-4">
-          <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
+        <div className="border-t border-[hsl(var(--color-sidebar-border))] p-3">
+          <div className={cn('flex items-center gap-2', collapsed ? 'justify-center' : 'justify-between')}>
             {!collapsed && <ThemeToggle />}
             <Button
               variant="ghost"
               size="icon"
               onClick={toggle}
-              className="shrink-0"
+              className="h-8 w-8 shrink-0 text-[hsl(var(--color-sidebar-foreground))] hover:bg-[hsl(var(--color-sidebar-accent))] hover:text-[hsl(var(--color-sidebar-accent-foreground))]"
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? (

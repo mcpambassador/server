@@ -129,14 +129,14 @@ export function AuditLogsAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold">Audit Logs</h1>
+          <p className="text-sm text-muted-foreground">
             View system audit logs and activity history
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
+        <Button variant="outline" className="h-8" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
@@ -193,10 +193,10 @@ export function AuditLogsAdmin() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleApplyFilters} size="sm">
+            <Button onClick={handleApplyFilters} className="h-8">
               Apply Filters
             </Button>
-            <Button variant="outline" onClick={handleReset} size="sm">
+            <Button variant="outline" onClick={handleReset} className="h-8">
               Reset
             </Button>
           </div>

@@ -158,14 +158,14 @@ export function GroupsAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Group Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold">Group Management</h1>
+          <p className="text-sm text-muted-foreground">
             Manage user groups and access control
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button className="h-8" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create Group
         </Button>
@@ -213,14 +213,15 @@ export function GroupsAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleCreate}
               disabled={!createFormData.name || createGroup.isPending}
             >
-              Create
+              {createGroup.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -259,11 +260,11 @@ export function GroupsAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEdit} disabled={updateGroup.isPending}>
-              Save Changes
+            <Button className="h-8" onClick={handleEdit} disabled={updateGroup.isPending}>
+              {updateGroup.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

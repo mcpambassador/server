@@ -55,9 +55,10 @@ export function ClientDetail() {
   };
 
   const handleEditTools = (subscription: Subscription) => {
-    const mcp = marketplace?.data.find(m => m.id === subscription.mcpId);
+    const mcp = marketplace?.data?.find(m => m.id === subscription.mcpId);
     setSubscriptionToEdit(subscription);
-    setSelectedTools(subscription.selectedTools ?? mcp?.tools.map(t => t.name) ?? []);
+    const allToolNames = mcp?.tools ? mcp.tools.map(t => t.name) : [];
+    setSelectedTools(subscription.selectedTools ?? allToolNames);
     setEditDialogOpen(true);
   };
 
@@ -94,8 +95,8 @@ export function ClientDetail() {
       header: 'Tools',
       accessor: 'selectedTools',
       cell: (sub) => {
-        const mcp = marketplace?.data.find(m => m.id === sub.mcpId);
-        const totalTools = mcp?.tools.length ?? 0;
+        const mcp = marketplace?.data?.find(m => m.id === sub.mcpId);
+        const totalTools = mcp?.tools?.length ?? 0;
         const selectedCount = sub.selectedTools?.length ?? totalTools;
         return (
           <span className="text-sm text-muted-foreground">
@@ -108,7 +109,7 @@ export function ClientDetail() {
       header: 'Status',
       accessor: 'status',
       cell: (sub) => (
-        <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={sub.status === 'active' ? 'success' : 'secondary'}>
           {sub.status}
         </Badge>
       ),
@@ -176,18 +177,18 @@ export function ClientDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 pb-4 border-b border-border mb-6">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/app/clients">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{client.clientName}</h1>
-          <p className="text-muted-foreground">{client.keyPrefix}</p>
+          <h1 className="text-xl font-semibold">{client.clientName}</h1>
+          <p className="text-sm text-muted-foreground">{client.keyPrefix}</p>
         </div>
         <Badge variant={
-          client.status === 'active' ? 'default' :
+          client.status === 'active' ? 'success' :
           client.status === 'suspended' ? 'secondary' : 'destructive'
         }>
           {client.status}
@@ -223,12 +224,12 @@ export function ClientDetail() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Subscriptions</h2>
-            <p className="text-muted-foreground">
+            <h2 className="text-lg font-semibold">Subscriptions</h2>
+            <p className="text-sm text-muted-foreground">
               MCPs this client is subscribed to
             </p>
           </div>
-          <Button asChild>
+          <Button className="h-8" asChild>
             <Link to="/app/marketplace">
               <Plus className="mr-2 h-4 w-4" />
               Subscribe to MCP
@@ -280,8 +281,8 @@ export function ClientDetail() {
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto space-y-3">
             {marketplace?.data
-              .find(m => m.id === subscriptionToEdit?.mcpId)
-              ?.tools.map((tool) => (
+              ?.find(m => m.id === subscriptionToEdit?.mcpId)
+              ?.tools?.map((tool) => (
                 <div key={tool.name} className="flex items-start gap-3">
                   <Checkbox
                     id={tool.name}
@@ -308,14 +309,15 @@ export function ClientDetail() {
               ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleSaveTools}
               disabled={selectedTools.length === 0 || updateSubscription.isPending}
             >
-              Save
+              {updateSubscription.isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>

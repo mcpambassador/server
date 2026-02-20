@@ -427,7 +427,7 @@ export function useAdminClients(cursor?: string, limit = 50) {
 export function useAdminSessions() {
   return useQuery({
     queryKey: ['admin', 'sessions'],
-    queryFn: () => apiClient.get<{ data: Session[] }>('/v1/admin/sessions').then(res => res.data),
+    queryFn: () => apiClient.get<PaginatedResponse<Session>>('/v1/admin/sessions'),
   });
 }
 

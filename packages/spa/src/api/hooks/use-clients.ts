@@ -22,7 +22,8 @@ export function useClients() {
 export function useClient(clientId: string) {
   return useQuery({
     queryKey: ['clients', clientId],
-    queryFn: () => apiClient.get<Client>(`/v1/users/me/clients/${clientId}`),
+    queryFn: () => apiClient.get<{ data: Client }>(`/v1/users/me/clients/${clientId}`),
+    select: (response) => response.data,
     enabled: !!clientId,
   });
 }
@@ -69,7 +70,8 @@ export function useClientSubscriptions(clientId: string) {
   return useQuery({
     queryKey: ['clients', clientId, 'subscriptions'],
     queryFn: () =>
-      apiClient.get<Subscription[]>(`/v1/users/me/clients/${clientId}/subscriptions`),
+      apiClient.get<{ data: Subscription[] }>(`/v1/users/me/clients/${clientId}/subscriptions`),
+    select: (response) => response.data,
     enabled: !!clientId,
   });
 }

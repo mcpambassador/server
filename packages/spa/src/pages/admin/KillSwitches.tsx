@@ -50,9 +50,9 @@ export function KillSwitches() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kill Switches</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Kill Switches</h1>
+        <p className="text-sm text-muted-foreground">
           Emergency controls to disable clients or MCPs
         </p>
       </div>
@@ -100,7 +100,7 @@ export function KillSwitches() {
                     </Badge>
                     <Button
                       variant={client.status === 'active' ? 'destructive' : 'default'}
-                      size="sm"
+                      className="h-8"
                       onClick={() =>
                         handleToggle(
                           `client:${client.client_id || client.id}`,
@@ -157,7 +157,7 @@ export function KillSwitches() {
                     </Badge>
                     <Button
                       variant={mcp.status === 'published' ? 'destructive' : 'default'}
-                      size="sm"
+                      className="h-8"
                       onClick={() =>
                         handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')
                       }

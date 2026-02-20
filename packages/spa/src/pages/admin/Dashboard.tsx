@@ -55,9 +55,9 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Admin Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
           System overview and quick actions
         </p>
       </div>
@@ -67,23 +67,21 @@ export function Dashboard() {
         {stats.map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+            <Card key={stat.title} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-muted-foreground">
                   {stat.title}
-                </CardTitle>
+                </p>
                 <Icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {stat.loading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                )}
-                <Link to={stat.href} className="text-xs text-muted-foreground hover:underline">
-                  View details →
-                </Link>
-              </CardContent>
+              </div>
+              {stat.loading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-bold">{stat.value}</div>
+              )}
+              <Link to={stat.href} className="text-xs text-muted-foreground hover:underline">
+                View details →
+              </Link>
             </Card>
           );
         })}
@@ -91,12 +89,12 @@ export function Dashboard() {
 
       {/* MCP Status & Downstream Health */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>MCP Status</CardTitle>
-            <CardDescription>Catalog entries by status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Card className="p-4">
+          <div className="mb-4">
+            <h3 className="font-semibold">MCP Status</h3>
+            <p className="text-xs text-muted-foreground">Catalog entries by status</p>
+          </div>
+          <div className="space-y-3">
             {mcpsLoading ? (
               <>
                 <Skeleton className="h-6 w-full" />
@@ -119,15 +117,15 @@ export function Dashboard() {
                 </div>
               </>
             )}
-          </CardContent>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Downstream Health</CardTitle>
-            <CardDescription>MCP connection status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Card className="p-4">
+          <div className="mb-4">
+            <h3 className="font-semibold">Downstream Health</h3>
+            <p className="text-xs text-muted-foreground">MCP connection status</p>
+          </div>
+          <div className="space-y-3">
             {downstreamLoading ? (
               <>
                 <Skeleton className="h-6 w-full" />
@@ -167,7 +165,7 @@ export function Dashboard() {
             ) : (
               <p className="text-sm text-muted-foreground">No downstream data available</p>
             )}
-          </CardContent>
+          </div>
         </Card>
       </div>
 
@@ -179,7 +177,7 @@ export function Dashboard() {
               <CardTitle>Recent Audit Events</CardTitle>
               <CardDescription>Last 10 system events</CardDescription>
             </div>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" className="h-8" asChild>
               <Link to="/app/admin/audit">View All</Link>
             </Button>
           </div>
@@ -236,7 +234,7 @@ export function Dashboard() {
           <CardDescription>Common administrative tasks</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
-          <Button variant="outline" asChild>
+          <Button variant="outline" className="h-8" asChild>
             <Link to="/app/admin/users">
               <Users className="mr-2 h-4 w-4" />
               Manage Users
@@ -248,7 +246,7 @@ export function Dashboard() {
               Manage Groups
             </Link>
           </Button>
-          <Button variant="outline" asChild>
+          <Button variant="outline" className="h-8" asChild>
             <Link to="/app/admin/mcps/new">
               <Package className="mr-2 h-4 w-4" />
               Create MCP

@@ -54,17 +54,17 @@ export function UserDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" asChild>
+      <Button variant="ghost" className="h-8" asChild>
         <Link to="/app/admin/users">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Users
         </Link>
       </Button>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{user.username}</h1>
-          <p className="text-muted-foreground">{user.display_name || 'No display name'}</p>
+          <h1 className="text-xl font-semibold">{user.username}</h1>
+          <p className="text-sm text-muted-foreground">{user.display_name || 'No display name'}</p>
         </div>
         <div className="flex items-center gap-2">
           {user.is_admin && (
@@ -73,7 +73,7 @@ export function UserDetail() {
               Admin
             </Badge>
           )}
-          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+          <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
             {user.status}
           </Badge>
         </div>
@@ -115,11 +115,11 @@ export function UserDetail() {
           </div>
           <Separator />
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" className="h-8">
               <Key className="mr-2 h-4 w-4" />
               Reset Password
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" className="h-8">
               <User className="mr-2 h-4 w-4" />
               Edit User
             </Button>
@@ -150,7 +150,7 @@ export function UserDetail() {
                     <p className="font-medium">{group.name}</p>
                     <p className="text-sm text-muted-foreground">{group.description}</p>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" className="h-8" asChild>
                     <Link to={`/app/admin/groups/${group.group_id}`}>View</Link>
                   </Button>
                 </div>

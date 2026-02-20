@@ -83,10 +83,22 @@ export async function registerClientRoutes(
       try {
         const body = createClientSchema.parse(request.body);
 
+        // Auto-assign 'all-tools' profile if not provided
+        let profileId = body.profile_id || null;
+        if (!profileId) {
+          const defaultProfile = await db.query.tool_profiles.findFirst({
+            where: (p, { eq }) => eq(p.name, 'all-tools'),
+          });
+          if (defaultProfile) {
+            profileId = defaultProfile.profile_id;
+          }
+        }
+
         const result = await createUserClient(db, {
           userId,
           clientName: body.client_name,
-          profileId: body.profile_id,
+          profileId,
+          expiresAt: body.expires_at || null,
         });
 
         // Transform response to match SPA expectations

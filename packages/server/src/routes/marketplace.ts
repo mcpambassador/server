@@ -26,6 +26,7 @@ export interface MarketplaceRoutesConfig {
  *
  * Routes:
  * - GET /v1/marketplace - Browse published MCPs accessible to user
+ * - GET /v1/marketplace/:id - Get details of a specific MCP
  */
 export async function registerMarketplaceRoutes(
   fastify: FastifyInstance,
@@ -123,6 +124,81 @@ export async function registerMarketplaceRoutes(
         return reply.status(500).send({
           error: 'Internal Server Error',
           message: 'Failed to fetch marketplace MCPs',
+        });
+      }
+    }
+  );
+
+  // ==========================================================================
+  // GET /v1/marketplace/:id - Get MCP details
+  // ==========================================================================
+  fastify.get<{ Params: { id: string } }>(
+    '/v1/marketplace/:id',
+    { preHandler: requireUserSession },
+    async (request, reply) => {
+      // Get user ID from session
+      const userId = request.session.userId;
+      if (!userId) {
+        return reply.status(401).send({
+          error: 'Unauthorized',
+          message: 'User session required',
+        });
+      }
+
+      const mcpId = request.params.id;
+
+      try {
+        // Get all accessible MCPs for the user and check if this one is accessible
+        const accessibleMcps = await getAccessibleMcps(db, userId);
+        const mcp = accessibleMcps.find(m => m.mcp_id === mcpId);
+
+        if (!mcp) {
+          return reply.status(404).send({
+            error: 'Not Found',
+            message: 'MCP not found or not accessible',
+          });
+        }
+
+        // Transform to API format (same as list endpoint)
+        let tools = [];
+        try {
+          const catalogData = typeof mcp.tool_catalog === 'string'
+            ? JSON.parse(mcp.tool_catalog)
+            : mcp.tool_catalog;
+          tools = Array.isArray(catalogData) ? catalogData : [];
+        } catch (err) {
+          console.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+        }
+
+        let credentialSchema = undefined;
+        if (mcp.credential_schema) {
+          try {
+            credentialSchema = typeof mcp.credential_schema === 'string'
+              ? JSON.parse(mcp.credential_schema)
+              : mcp.credential_schema;
+          } catch (err) {
+            console.warn(`[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`, err);
+          }
+        }
+
+        const response = {
+          id: mcp.mcp_id,
+          name: mcp.display_name || mcp.name,
+          description: mcp.description || undefined,
+          isolationMode: mcp.isolation_mode as 'shared' | 'per-user',
+          requiresUserCredentials: mcp.requires_user_credentials || false,
+          credentialSchema,
+          tools,
+          createdAt: mcp.created_at,
+          updatedAt: mcp.updated_at,
+        };
+
+        return reply.send(response);
+      } catch (err) {
+        console.error('[Marketplace] Error fetching MCP details:', err);
+        return reply.status(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch MCP details',
         });
       }
     }

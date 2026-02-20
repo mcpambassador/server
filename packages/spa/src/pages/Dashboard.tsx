@@ -17,11 +17,13 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome to MCP Ambassador
-        </p>
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Welcome to MCP Ambassador
+          </p>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -86,40 +88,43 @@ export function Dashboard() {
             Your most recently created API clients
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {clientsLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-0">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <div key={i} className="border-b last:border-b-0 px-6 py-3">
+                  <Skeleton className="h-4 w-full" />
+                </div>
               ))}
             </div>
           ) : clients && clients.length > 0 ? (
-            <div className="space-y-2">
+            <div className="divide-y">
               {clients.slice(0, 5).map((client) => (
                 <Link
                   key={client.id}
                   to={`/app/clients/${client.id}`}
-                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent transition-colors"
+                  className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <UserCircle className="h-8 w-8 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{client.clientName}</p>
-                      <p className="text-sm text-muted-foreground">{client.keyPrefix}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <UserCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{client.clientName}</p>
+                      <p className="text-xs text-muted-foreground">{client.keyPrefix}</p>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs text-muted-foreground shrink-0">
                     {new Date(client.createdAt).toLocaleDateString()}
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="text-center py-6">
+            <div className="text-center py-8 px-6">
+              <UserCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground mb-4">
                 No clients yet. Create your first API client to get started.
               </p>
-              <Button asChild>
+              <Button asChild size="sm">
                 <Link to="/app/clients">Create Client</Link>
               </Button>
             </div>
@@ -135,27 +140,17 @@ export function Dashboard() {
             Common tasks to get you started
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Button asChild variant="outline" className="h-auto flex-col items-start p-4">
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
             <Link to="/app/clients">
-              <UserCircle className="h-8 w-8 mb-2" />
-              <div className="text-left">
-                <div className="font-semibold">Create Client</div>
-                <div className="text-sm text-muted-foreground">
-                  Generate a new API key
-                </div>
-              </div>
+              <UserCircle className="mr-2 h-4 w-4" />
+              Create Client
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-auto flex-col items-start p-4">
+          <Button asChild variant="outline" size="sm">
             <Link to="/app/marketplace">
-              <Store className="h-8 w-8 mb-2" />
-              <div className="text-left">
-                <div className="font-semibold">Browse Marketplace</div>
-                <div className="text-sm text-muted-foreground">
-                  Discover available MCPs
-                </div>
-              </div>
+              <Store className="mr-2 h-4 w-4" />
+              Browse Marketplace
             </Link>
           </Button>
         </CardContent>

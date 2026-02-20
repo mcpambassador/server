@@ -124,9 +124,9 @@ export function McpWizard() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Create New MCP</h1>
-        <p className="text-muted-foreground">Multi-step wizard for MCP catalog entry</p>
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Create New MCP</h1>
+        <p className="text-sm text-muted-foreground">Multi-step wizard for MCP catalog entry</p>
       </div>
 
       {/* Step Indicator */}
@@ -396,7 +396,7 @@ export function McpWizard() {
                   <div>
                     <p className="text-muted-foreground">Validation Status</p>
                     <Badge
-                      variant={validationResult?.valid ? 'default' : 'destructive'}
+                      variant={validationResult?.valid ? 'success' : 'destructive'}
                     >
                       {validationResult?.valid ? 'Valid' : 'Invalid'}
                     </Badge>
@@ -417,12 +417,12 @@ export function McpWizard() {
                 </p>
                 <div className="flex gap-2">
                   {validationResult?.valid && (
-                    <Button onClick={handlePublish} disabled={publishMcp.isPending}>
+                    <Button className="h-8" onClick={handlePublish} disabled={publishMcp.isPending}>
                       <CheckCircle className="mr-2 h-4 w-4" />
-                      Publish MCP
+                      {publishMcp.isPending ? 'Publishing...' : 'Publish MCP'}
                     </Button>
                   )}
-                  <Button variant="outline" onClick={handleSaveDraft}>
+                  <Button variant="outline" className="h-8" onClick={handleSaveDraft}>
                     Save as Draft
                   </Button>
                 </div>
@@ -437,6 +437,7 @@ export function McpWizard() {
         <div className="flex justify-between">
           <Button
             variant="outline"
+            className="h-8"
             onClick={handleBack}
             disabled={currentStep === 0}
           >
@@ -444,13 +445,17 @@ export function McpWizard() {
             Back
           </Button>
           <Button
+            className="h-8"
             onClick={handleNext}
             disabled={
               (currentStep === 1 && createMcp.isPending) ||
               (currentStep === 2 && validateMcp.isPending)
             }
           >
-            Next
+            {(currentStep === 1 && createMcp.isPending) ||
+            (currentStep === 2 && validateMcp.isPending)
+              ? 'Loading...'
+              : 'Next'}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,13 +47,24 @@ export function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Package className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold">MCP Ambassador</span>
+      <Card className="w-full max-w-md border-border">
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col items-center gap-3">
+            {/* Brand mark */}
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                <span className="font-mono text-base font-bold text-primary-foreground">M</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-lg font-bold text-primary">MCP</span>
+                <span className="text-lg font-semibold">Ambassador</span>
+              </div>
+            </div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+              Protocol Gateway
+            </p>
           </div>
-          <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
+          <CardTitle className="text-xl text-center">Welcome back</CardTitle>
           <CardDescription className="text-center">
             Enter your credentials to access your account
           </CardDescription>

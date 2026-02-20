@@ -210,16 +210,16 @@ export function GroupDetail() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" asChild>
+      <Button variant="ghost" className="h-8" asChild>
         <Link to="/app/admin/groups">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Groups
         </Link>
       </Button>
 
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{group.name}</h1>
-        <p className="text-muted-foreground">{group.description || 'No description'}</p>
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">{group.name}</h1>
+        <p className="text-sm text-muted-foreground">{group.description || 'No description'}</p>
       </div>
 
       {/* Group Info Card */}
@@ -263,7 +263,7 @@ export function GroupDetail() {
                   <CardTitle>Group Members</CardTitle>
                   <CardDescription>Users who belong to this group</CardDescription>
                 </div>
-                <Button onClick={() => setAddMemberDialogOpen(true)} size="sm">
+                <Button onClick={() => setAddMemberDialogOpen(true)} className="h-8">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Member
                 </Button>
@@ -287,7 +287,7 @@ export function GroupDetail() {
                   <CardTitle>Assigned MCPs</CardTitle>
                   <CardDescription>MCPs available to this group</CardDescription>
                 </div>
-                <Button onClick={() => setAddMcpDialogOpen(true)} size="sm">
+                <Button onClick={() => setAddMcpDialogOpen(true)} className="h-8">
                   <Plus className="mr-2 h-4 w-4" />
                   Assign MCP
                 </Button>
@@ -331,11 +331,11 @@ export function GroupDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMemberDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setAddMemberDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddMember} disabled={!selectedUserId || addMember.isPending}>
-              Add Member
+            <Button className="h-8" onClick={handleAddMember} disabled={!selectedUserId || addMember.isPending}>
+              {addMember.isPending ? 'Adding...' : 'Add Member'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -367,11 +367,11 @@ export function GroupDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddMcpDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setAddMcpDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAssignMcp} disabled={!selectedMcpId || assignMcp.isPending}>
-              Assign MCP
+            <Button className="h-8" onClick={handleAssignMcp} disabled={!selectedMcpId || assignMcp.isPending}>
+              {assignMcp.isPending ? 'Assigning...' : 'Assign MCP'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -99,7 +99,7 @@ export function Credentials() {
           {cred.hasCredentials ? (
             <>
               <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <Badge variant="default">Configured</Badge>
+              <Badge variant="success">Configured</Badge>
             </>
           ) : (
             <>
@@ -153,9 +153,9 @@ export function Credentials() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Credentials</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Credentials</h1>
+        <p className="text-sm text-muted-foreground">
           Manage credentials for MCPs that require authentication
         </p>
       </div>
@@ -218,17 +218,18 @@ export function Credentials() {
             })}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleSave}
               disabled={
                 Object.values(credentialFields).every(v => !v) ||
                 setCredentials.isPending
               }
             >
-              Save Credentials
+              {setCredentials.isPending ? 'Saving...' : 'Save Credentials'}
             </Button>
           </DialogFooter>
         </DialogContent>

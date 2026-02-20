@@ -161,7 +161,7 @@ export function UsersAdmin() {
       header: 'Status',
       accessor: 'status',
       cell: (user) => (
-        <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={user.status === 'active' ? 'success' : 'secondary'}>
           {user.status}
         </Badge>
       ),
@@ -221,14 +221,14 @@ export function UsersAdmin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-semibold">User Management</h1>
+          <p className="text-sm text-muted-foreground">
             Manage system users and permissions
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
+        <Button className="h-8" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create User
         </Button>
@@ -309,16 +309,17 @@ export function UsersAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setCreateDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleCreate}
               disabled={
                 !createFormData.username || !createFormData.password || createUser.isPending
               }
             >
-              Create
+              {createUser.isPending ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -386,11 +387,11 @@ export function UsersAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEdit} disabled={updateUser.isPending}>
-              Save Changes
+            <Button className="h-8" onClick={handleEdit} disabled={updateUser.isPending}>
+              {updateUser.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -417,14 +418,15 @@ export function UsersAdmin() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+            <Button variant="outline" className="h-8" onClick={() => setResetDialogOpen(false)}>
               Cancel
             </Button>
             <Button
+              className="h-8"
               onClick={handleResetPassword}
               disabled={!newPassword || resetPassword.isPending}
             >
-              Reset Password
+              {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -72,9 +72,9 @@ export function Profile() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">
+      <div className="pb-4 border-b border-border mb-6">
+        <h1 className="text-xl font-semibold">Profile</h1>
+        <p className="text-sm text-muted-foreground">
           Manage your account settings and preferences
         </p>
       </div>
@@ -212,6 +212,7 @@ export function Profile() {
 
             <Button
               type="submit"
+              className="h-8"
               disabled={
                 !passwordForm.current_password ||
                 !passwordForm.new_password ||
@@ -219,7 +220,7 @@ export function Profile() {
                 changePassword.isPending
               }
             >
-              Change Password
+              {changePassword.isPending ? 'Changing...' : 'Change Password'}
             </Button>
           </form>
         </CardContent>

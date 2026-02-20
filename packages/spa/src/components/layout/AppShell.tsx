@@ -24,12 +24,14 @@ export function AppShell() {
       <div
         className={cn(
           'flex flex-1 flex-col transition-all duration-300',
-          collapsed ? 'md:pl-16' : 'md:pl-64'
+          collapsed ? 'md:pl-12' : 'md:pl-60'
         )}
       >
         <Header onMenuClick={() => setMobileNavOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Outlet />
+          <div className="mx-auto max-w-6xl">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
