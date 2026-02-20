@@ -1,4 +1,7 @@
+'use client'
+
 import * as Headless from '@headlessui/react'
+import { motion } from 'motion/react'
 import React, { useState } from 'react'
 import { NavbarItem } from './navbar'
 
@@ -52,7 +55,9 @@ export function SidebarLayout({
   return (
     <div className="relative isolate flex min-h-svh w-full bg-white max-lg:flex-col lg:bg-zinc-100 dark:bg-slate-900 dark:lg:bg-slate-950">
       {/* Sidebar on desktop */}
-      <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden">{sidebar}</div>
+      <motion.div layoutScroll className="fixed inset-y-0 left-0 w-64 max-lg:hidden">
+        {sidebar}
+      </motion.div>
 
       {/* Sidebar on mobile */}
       <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)}>

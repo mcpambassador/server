@@ -1,18 +1,21 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Store,
-  Users as UsersIcon,
-  Package,
-  ScrollText,
-  UserCircle,
-  KeyRound,
-  Power,
-  Settings as SettingsIcon,
-  UserPlus,
-  User,
-  LogOut,
-} from 'lucide-react';
+  HomeIcon,
+  BuildingStorefrontIcon,
+  UserCircleIcon,
+  KeyIcon,
+  UsersIcon,
+  UserGroupIcon,
+  CubeIcon,
+  DocumentTextIcon,
+  PowerIcon,
+  Cog6ToothIcon,
+} from '@heroicons/react/20/solid';
+import {
+  UserCircleIcon as UserCircleIcon16,
+  ArrowRightStartOnRectangleIcon,
+  ChevronUpIcon,
+} from '@heroicons/react/16/solid';
 import {
   Sidebar,
   SidebarHeader,
@@ -22,35 +25,41 @@ import {
   SidebarItem,
   SidebarLabel,
   SidebarHeading,
-  SidebarDivider,
+  SidebarSpacer,
 } from '@/components/catalyst/sidebar';
 import { Avatar } from '@/components/catalyst/avatar';
-import { Dropdown, DropdownButton, DropdownMenu, DropdownItem, DropdownDivider } from '@/components/catalyst/dropdown';
+import { 
+  Dropdown, 
+  DropdownButton, 
+  DropdownMenu, 
+  DropdownItem, 
+  DropdownDivider,
+  DropdownLabel,
+} from '@/components/catalyst/dropdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
-import { useNavigate } from 'react-router-dom';
 
 interface NavItem {
   title: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType;
 }
 
 const userNavItems: NavItem[] = [
-  { title: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboard },
-  { title: 'Marketplace', href: '/app/marketplace', icon: Store },
-  { title: 'My Clients', href: '/app/clients', icon: UserCircle },
-  { title: 'Credentials', href: '/app/credentials', icon: KeyRound },
+  { title: 'Dashboard', href: '/app/dashboard', icon: HomeIcon },
+  { title: 'Marketplace', href: '/app/marketplace', icon: BuildingStorefrontIcon },
+  { title: 'My Clients', href: '/app/clients', icon: UserCircleIcon },
+  { title: 'Credentials', href: '/app/credentials', icon: KeyIcon },
 ];
 
 const adminNavItems: NavItem[] = [
-  { title: 'Dashboard', href: '/app/admin/dashboard', icon: LayoutDashboard },
+  { title: 'Admin Dashboard', href: '/app/admin/dashboard', icon: HomeIcon },
   { title: 'Users', href: '/app/admin/users', icon: UsersIcon },
-  { title: 'Groups', href: '/app/admin/groups', icon: UserPlus },
-  { title: 'MCPs', href: '/app/admin/mcps', icon: Package },
-  { title: 'Audit Logs', href: '/app/admin/audit', icon: ScrollText },
-  { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: Power },
-  { title: 'Settings', href: '/app/admin/settings', icon: SettingsIcon },
+  { title: 'Groups', href: '/app/admin/groups', icon: UserGroupIcon },
+  { title: 'MCPs', href: '/app/admin/mcps', icon: CubeIcon },
+  { title: 'Audit Logs', href: '/app/admin/audit', icon: DocumentTextIcon },
+  { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: PowerIcon },
+  { title: 'Settings', href: '/app/admin/settings', icon: Cog6ToothIcon },
 ];
 
 export function AppSidebar() {
@@ -108,7 +117,7 @@ export function AppSidebar() {
             const active = isActive(item.href);
             return (
               <SidebarItem key={item.href} href={item.href} current={active}>
-                <Icon data-slot="icon" />
+                <Icon />
                 <SidebarLabel>{item.title}</SidebarLabel>
               </SidebarItem>
             );
@@ -117,40 +126,49 @@ export function AppSidebar() {
 
         {/* Admin Section */}
         {session?.user.isAdmin && (
-          <>
-            <SidebarDivider />
-            <SidebarSection>
-              <SidebarHeading>Admin</SidebarHeading>
-              {adminNavItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <SidebarItem key={item.href} href={item.href} current={active}>
-                    <Icon data-slot="icon" />
-                    <SidebarLabel>{item.title}</SidebarLabel>
-                  </SidebarItem>
-                );
-              })}
-            </SidebarSection>
-          </>
+          <SidebarSection>
+            <SidebarHeading>Admin</SidebarHeading>
+            {adminNavItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <SidebarItem key={item.href} href={item.href} current={active}>
+                  <Icon />
+                  <SidebarLabel>{item.title}</SidebarLabel>
+                </SidebarItem>
+              );
+            })}
+          </SidebarSection>
         )}
+
+        <SidebarSpacer />
       </SidebarBody>
 
-      <SidebarFooter>
+      <SidebarFooter className="max-lg:hidden">
         <Dropdown>
           <DropdownButton as={SidebarItem}>
-            <Avatar initials={userInitials} className="size-8 bg-slate-700 text-white" />
-            <SidebarLabel>{session?.user.username}</SidebarLabel>
+            <span className="flex min-w-0 items-center gap-3">
+              <Avatar initials={userInitials} className="size-10 bg-slate-700 text-white" square alt="" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">
+                  {session?.user.username}
+                </span>
+                <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
+                  {session?.user.email || 'user@mcpambassador.com'}
+                </span>
+              </span>
+            </span>
+            <ChevronUpIcon />
           </DropdownButton>
           <DropdownMenu anchor="top start">
             <DropdownItem href="/app/profile">
-              <User data-slot="icon" />
-              Profile
+              <UserCircleIcon16 />
+              <DropdownLabel>Profile</DropdownLabel>
             </DropdownItem>
             <DropdownDivider />
             <DropdownItem onClick={handleLogout}>
-              <LogOut data-slot="icon" />
-              Log out
+              <ArrowRightStartOnRectangleIcon />
+              <DropdownLabel>Log out</DropdownLabel>
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
