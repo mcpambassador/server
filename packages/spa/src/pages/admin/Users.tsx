@@ -8,7 +8,7 @@ import { Badge } from '@/components/catalyst/badge';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
   Alert,
   AlertBody,
@@ -289,18 +289,18 @@ export function UsersAdmin() {
                 }
               />
             </div>
-            <div className="flex items-center space-x-2">
+            <CheckboxField>
               <Checkbox
-                id="is_admin"
+                name="is_admin"
                 checked={createFormData.is_admin}
-                onCheckedChange={(checked) =>
-                  setCreateFormData({ ...createFormData, is_admin: checked as boolean })
+                onChange={(checked) =>
+                  setCreateFormData({ ...createFormData, is_admin: checked })
                 }
               />
-              <Label htmlFor="is_admin" className="cursor-pointer">
+              <Label className="cursor-pointer">
                 Administrator
               </Label>
-            </div>
+            </CheckboxField>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setCreateDialogOpen(false)}>
@@ -367,18 +367,18 @@ export function UsersAdmin() {
                 <option value="suspended">Suspended</option>
               </select>
             </div>
-            <div className="flex items-center space-x-2">
+            <CheckboxField>
               <Checkbox
-                id="edit_is_admin"
+                name="edit_is_admin"
                 checked={editFormData.is_admin}
-                onCheckedChange={(checked) =>
-                  setEditFormData({ ...editFormData, is_admin: checked as boolean })
+                onChange={(checked) =>
+                  setEditFormData({ ...editFormData, is_admin: checked })
                 }
               />
-              <Label htmlFor="edit_is_admin" className="cursor-pointer">
+              <Label className="cursor-pointer">
                 Administrator
               </Label>
-            </div>
+            </CheckboxField>
           </div>
           <DialogActions>
             <Button color="zinc" className="h-8" onClick={() => setEditDialogOpen(false)}>

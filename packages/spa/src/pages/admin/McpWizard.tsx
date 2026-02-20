@@ -7,8 +7,8 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/catalyst/textarea';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -262,18 +262,18 @@ export function McpWizard() {
                   placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
                 />
               </div>
-              <div className="flex items-center space-x-2">
+              <CheckboxField>
                 <Checkbox
-                  id="requires_user_credentials"
+                  name="requires_user_credentials"
                   checked={formData.requires_user_credentials}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, requires_user_credentials: checked as boolean })
+                  onChange={(checked) =>
+                    setFormData({ ...formData, requires_user_credentials: checked })
                   }
                 />
-                <Label htmlFor="requires_user_credentials" className="cursor-pointer">
+                <Label className="cursor-pointer">
                   Requires User Credentials
                 </Label>
-              </div>
+              </CheckboxField>
               {formData.requires_user_credentials && (
                 <div className="space-y-2">
                   <Label htmlFor="credential_schema">Credential Schema (JSON)</Label>

@@ -13,7 +13,7 @@ import {
   AlertTitle,
 } from '@/components/catalyst/alert';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
 import { DataTable, type ColumnDef } from '@/components/data/DataTable';
 import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
@@ -278,11 +278,11 @@ export function ClientDetail() {
             {marketplace?.data
               ?.find(m => m.id === subscriptionToEdit?.mcpId)
               ?.tools?.map((tool) => (
-                <div key={tool.name} className="flex items-start gap-3">
+                <CheckboxField key={tool.name}>
                   <Checkbox
-                    id={tool.name}
+                    name={tool.name}
                     checked={selectedTools.includes(tool.name)}
-                    onCheckedChange={(checked) => {
+                    onChange={(checked) => {
                       if (checked) {
                         setSelectedTools([...selectedTools, tool.name]);
                       } else {
@@ -291,7 +291,7 @@ export function ClientDetail() {
                     }}
                   />
                   <div className="flex-1">
-                    <Label htmlFor={tool.name} className="font-medium cursor-pointer">
+                    <Label className="font-medium cursor-pointer">
                       {tool.name}
                     </Label>
                     {tool.description && (
@@ -300,7 +300,7 @@ export function ClientDetail() {
                       </p>
                     )}
                   </div>
-                </div>
+                </CheckboxField>
               ))}
           </div>
           <DialogActions>

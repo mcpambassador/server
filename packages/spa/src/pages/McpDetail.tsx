@@ -7,8 +7,8 @@ import { Badge } from '@/components/catalyst/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Select } from '@/components/catalyst/select';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
@@ -210,17 +210,13 @@ export function McpDetail() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Select Client</Label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeClients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.clientName} ({client.keyPrefix})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} name="client">
+                <option value="">Choose a client</option>
+                {activeClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.clientName} ({client.keyPrefix})
+                  </option>
+                ))}
               </Select>
             </div>
 
@@ -231,11 +227,11 @@ export function McpDetail() {
               </p>
               <div className="max-h-64 overflow-y-auto space-y-3 border rounded-md p-4">
                 {mcp.tools.map((tool) => (
-                  <div key={tool.name} className="flex items-start gap-3">
+                  <CheckboxField key={tool.name}>
                     <Checkbox
-                      id={tool.name}
+                      name={tool.name}
                       checked={selectedTools.includes(tool.name)}
-                      onCheckedChange={(checked) => {
+                      onChange={(checked) => {
                         if (checked) {
                           setSelectedTools([...selectedTools, tool.name]);
                         } else {
@@ -244,7 +240,7 @@ export function McpDetail() {
                       }}
                     />
                     <div className="flex-1">
-                      <Label htmlFor={tool.name} className="font-medium cursor-pointer">
+                      <Label className="font-medium cursor-pointer">
                         {tool.name}
                       </Label>
                       {tool.description && (
@@ -253,7 +249,7 @@ export function McpDetail() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </CheckboxField>
                 ))}
               </div>
             </div>

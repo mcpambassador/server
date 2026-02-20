@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogBody, DialogDescription, DialogActions,  DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@/components/catalyst/textarea';
 import {
   useAdminMcp,
   useUpdateMcp,

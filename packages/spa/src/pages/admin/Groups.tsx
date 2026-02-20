@@ -7,7 +7,7 @@ import { Button } from '@/components/catalyst/button';
 import { Dialog, DialogBody, DialogDescription, DialogActions, DialogTitle } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Label } from '@/components/catalyst/fieldset';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@/components/catalyst/textarea';
 import {
   Alert,
   AlertBody,
