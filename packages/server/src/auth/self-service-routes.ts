@@ -46,15 +46,15 @@ export async function registerSelfServiceRoutes(
       }
 
       return reply.status(200).send(wrapSuccess({
-        user_id: user.user_id,
+        id: user.user_id,
         username: user.username,
-        display_name: user.display_name,
+        displayName: user.display_name,
         email: user.email,
         status: user.status,
-        is_admin: user.is_admin,
-        auth_source: user.auth_source,
-        created_at: user.created_at,
-        last_login_at: user.last_login_at,
+        isAdmin: user.is_admin,
+        authSource: user.auth_source,
+        createdAt: user.created_at,
+        lastLoginAt: user.last_login_at,
       }));
     }
   );

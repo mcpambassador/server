@@ -17,6 +17,7 @@ import {
   listUserClients,
   getUserClient,
   suspendUserClient,
+  reactivateUserClient,
   revokeUserClient,
   updateUserClientName,
 } from '../services/client-service.js';
@@ -198,6 +199,8 @@ export async function registerClientRoutes(
 
         if (body.status === 'suspended') {
           await suspendUserClient(db, userId, params.clientId);
+        } else if (body.status === 'active') {
+          await reactivateUserClient(db, userId, params.clientId);
         }
 
         const client = await getUserClient(db, userId, params.clientId);

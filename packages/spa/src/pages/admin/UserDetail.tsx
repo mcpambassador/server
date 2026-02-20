@@ -5,22 +5,18 @@ import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Divider } from '@/components/catalyst/divider';
-import { useAdminUser, useAdminGroups, useAuditEvents } from '@/api/hooks/use-admin';
+import { useAdminUser, useAdminUserGroups, useAuditEvents } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function UserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const { data: user, isLoading: userLoading } = useAdminUser(userId!);
   usePageTitle(user ? `Admin - ${user.username}` : 'Admin - User Details');
-  const { data: groupsData, isLoading: groupsLoading } = useAdminGroups();
+  const { data: userGroups = [], isLoading: groupsLoading } = useAdminUserGroups(userId!);
   const { data: auditData, isLoading: auditLoading } = useAuditEvents({
     user_id: userId,
     limit: 20,
   });
-
-  // Filter groups to find which ones this user belongs to
-  // Note: This is a simplified approach. In production, you'd have a dedicated endpoint
-  const userGroups = (groupsData?.data ?? []).filter((_g) => false);
 
   if (userLoading) {
     return (
