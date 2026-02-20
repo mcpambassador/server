@@ -211,3 +211,57 @@ Final phase of the Catalyst UI migration. After all components and pages were mi
 **Status:** Ready for code review and merge to main
 
 ---
+
+## Admin MCPs Page Rebuild — February 20, 2026
+
+**File:** `packages/spa/src/pages/admin/Mcps.tsx`  
+**Pattern:** Tables with inline filtering, multi-action rows, and conditional buttons
+
+### Key Patterns Applied
+
+1. **Inline native selects for filters** — Used styled native `<select>` with Catalyst selectmenu pattern (rounded-lg, border-none, ring-1 ring-zinc-950/10, focus:ring-2). Simpler than custom dropdown components and provides built-in accessibility.
+
+2. **Conditional action button rendering** — Each table row shows different actions based on MCP status and validation state:
+   - View (always)
+   - Validate (always)
+   - Publish (only if draft + valid)
+   - Archive (only if published)
+   - Delete (only if draft)
+   
+   This pattern scales well — each condition is explicit and self-documenting.
+
+3. **Monospace code display for identifiers** — Internal names shown as `<code className="rounded bg-zinc-100 px-1.5 py-0.5 text-sm font-mono text-zinc-900">` for visual distinction from display names.
+
+4. **Multi-badge status columns** — Two badge columns (Status, Validation) with different color schemes. Status uses zinc/green, Validation uses green/red/zinc. Clear visual hierarchy.
+
+5. **Loading state with animate-pulse** — 5 skeleton rows during fetch, each cell with appropriate width mockup (h-4 w-* rounded bg-zinc-200). More realistic than solid placeholders.
+
+### Migration Notes
+
+- Badge color mapping changed from `teal` (ShadCN) to `green` (Catalyst) for published/valid states
+- Alert actions now use `color="red"` prop instead of className for destructive buttons
+- All plain buttons properly marked with `plain` prop (not `variant="ghost"`)
+- Status filter dropdown uses same styling as form selects for consistency
+
+---
+
+---
+
+## February 20, 2026 — Kill Switches Page Catalyst Rebuild
+
+### What We Learned
+
+1. **Loading states with animate-pulse divs are more polished than text messages.** The old pattern `<p className="text-sm text-muted-foreground">Loading clients...</p>` was functional but unpolished. The new pattern renders 3 skeleton rows with `animate-pulse` and `bg-zinc-200` mimicking the actual content layout. This is the Catalyst Application UI block pattern and provides better visual feedback during load.
+
+2. **Confirmation dialogs should use semantic color props, not custom className overrides.** The old Alert had `className="bg-destructive text-destructive-foreground hover:bg-destructive/90"` on the confirm button. This violated the design system by using old CSS variables. Catalyst's `color="red"` prop handles all styling semantically and works with the light theme.
+
+3. **Empty state messages should be consistently styled.** Changed from `text-muted-foreground` to `text-zinc-500` for "No clients found" / "No MCPs found" messages. This aligns with the light theme design system and removes CSS variable dependencies.
+
+4. **Icon slot convention improves Catalyst Button consistency.** Power icons now use `<Power data-slot="icon" />` instead of manual className sizing and margins (`className="mr-2 h-4 w-4"`). This delegates sizing and spacing to Catalyst's internal slot system and ensures consistent button layouts across the app.
+
+5. **Warning banners should use Tailwind color utilities for color theming.** The red warning banner now uses `bg-red-50`, `ring-red-200`, `text-red-600`, `text-red-900`, and `text-red-700` for a cohesive red theme. This is more maintainable than referencing a `destructive` CSS variable that may change meaning or not exist in the light theme.
+
+### Recommendation
+
+When rebuilding pages with Catalyst Application UI blocks, prioritize proper loading states (skeleton UIs) and semantic color props over custom className overrides. The icon slot convention (`data-slot="icon"`) should be adopted project-wide for all Catalyst Button usage.
+
