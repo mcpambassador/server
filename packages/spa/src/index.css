@@ -1,123 +1,16 @@
 @import "tailwindcss";
 
 /* ============================================================
-   MCP Ambassador Design System — v2.0
-   ============================================================ */
-
-@theme {
-  /* ---- Base ---- */
-  --color-background: 0 0% 99%;
-  --color-foreground: 240 10% 3.9%;
-  --color-card: 0 0% 100%;
-  --color-card-foreground: 240 10% 3.9%;
-  --color-popover: 0 0% 100%;
-  --color-popover-foreground: 240 10% 3.9%;
-
-  /* ---- Brand (teal) ---- */
-  --color-primary: 175 84% 26%;
-  --color-primary-foreground: 0 0% 100%;
-
-  /* ---- Neutral ---- */
-  --color-secondary: 240 5% 96%;
-  --color-secondary-foreground: 240 6% 10%;
-  --color-muted: 240 5% 96%;
-  --color-muted-foreground: 240 4% 46%;
-
-  /* ---- Accent (teal tint) ---- */
-  --color-accent: 175 50% 93%;
-  --color-accent-foreground: 175 84% 20%;
-
-  /* ---- Destructive ---- */
-  --color-destructive: 0 84% 60%;
-  --color-destructive-foreground: 0 0% 100%;
-
-  /* ---- Edges ---- */
-  --color-border: 240 6% 90%;
-  --color-input: 240 6% 90%;
-  --color-ring: 175 84% 26%;
-
-  /* ---- Radius ---- */
-  --radius: 0.375rem;
-
-  /* ---- Sidebar (always dark) ---- */
-  --color-sidebar: 240 10% 5.5%;
-  --color-sidebar-foreground: 240 5% 64%;
-  --color-sidebar-primary: 172 66% 50%;
-  --color-sidebar-primary-foreground: 0 0% 98%;
-  --color-sidebar-accent: 240 6% 10%;
-  --color-sidebar-accent-foreground: 0 0% 93%;
-  --color-sidebar-muted-foreground: 240 5% 42%;
-  --color-sidebar-border: 240 6% 11%;
-  --color-sidebar-ring: 172 66% 50%;
-
-  /* ---- Status / Semantic ---- */
-  --color-success: 142 76% 36%;
-  --color-success-foreground: 0 0% 100%;
-  --color-warning: 38 92% 50%;
-  --color-warning-foreground: 38 92% 14%;
-  --color-info: 217 91% 60%;
-  --color-info-foreground: 0 0% 100%;
-}
-
-/* ============================================================
-   DARK MODE
-   ============================================================ */
-
-.dark {
-  --color-background: 240 10% 3.9%;
-  --color-foreground: 0 0% 98%;
-  --color-card: 240 6% 7%;
-  --color-card-foreground: 0 0% 98%;
-  --color-popover: 240 6% 7%;
-  --color-popover-foreground: 0 0% 98%;
-
-  --color-primary: 172 66% 50%;
-  --color-primary-foreground: 240 10% 3.9%;
-
-  --color-secondary: 240 4% 15.5%;
-  --color-secondary-foreground: 0 0% 98%;
-  --color-muted: 240 4% 15.5%;
-  --color-muted-foreground: 240 5% 64%;
-
-  --color-accent: 174 45% 11%;
-  --color-accent-foreground: 172 66% 60%;
-
-  --color-destructive: 0 72% 51%;
-  --color-destructive-foreground: 0 0% 98%;
-
-  --color-border: 240 4% 16%;
-  --color-input: 240 4% 16%;
-  --color-ring: 172 66% 50%;
-
-  --color-sidebar: 240 10% 4.2%;
-  --color-sidebar-foreground: 240 5% 64%;
-  --color-sidebar-primary: 172 66% 50%;
-  --color-sidebar-primary-foreground: 0 0% 98%;
-  --color-sidebar-accent: 240 6% 10%;
-  --color-sidebar-accent-foreground: 0 0% 93%;
-  --color-sidebar-muted-foreground: 240 5% 42%;
-  --color-sidebar-border: 240 6% 9%;
-  --color-sidebar-ring: 172 66% 50%;
-
-  --color-success: 142 71% 45%;
-  --color-success-foreground: 142 76% 6%;
-  --color-warning: 38 92% 50%;
-  --color-warning-foreground: 38 92% 14%;
-  --color-info: 217 91% 65%;
-  --color-info-foreground: 217 91% 8%;
-}
-
-/* ============================================================
-   BASE LAYER
+   MCP Ambassador — Catalyst Design System
+   ============================================================
+   
+   Using Tailwind CSS v4 with Catalyst UI components.
+   All color tokens are provided by Tailwind's default palette.
    ============================================================ */
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-white text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     font-variant-numeric: normal;
   }
