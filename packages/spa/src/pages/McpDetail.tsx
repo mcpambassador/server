@@ -282,7 +282,7 @@ export function McpDetail() {
                   <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                     Leave all selected to enable all tools
                   </Text>
-                  <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
+                  <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
                     {mcp.tools.map((tool) => (
                       <CheckboxField key={tool.name}>
                         <Checkbox
@@ -296,16 +296,9 @@ export function McpDetail() {
                             }
                           }}
                         />
-                        <div className="flex-1">
-                          <Label className="font-medium cursor-pointer">
-                            {tool.name}
-                          </Label>
-                          {tool.description && (
-                            <Text className="text-sm text-zinc-500 mt-1">
-                              {tool.description}
-                            </Text>
-                          )}
-                        </div>
+                        <Label className="font-medium cursor-pointer">
+                          {tool.name}
+                        </Label>
                       </CheckboxField>
                     ))}
                   </div>

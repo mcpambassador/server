@@ -162,17 +162,24 @@ export async function listUserClients(db: DatabaseClient, userId: string) {
  * @param db Database client
  * @param userId User UUID
  * @param clientId Client UUID
+ * @param isAdmin Whether the requesting user has admin privileges
  * @returns Client record
  * @throws Error if not found or user doesn't own the client
  */
 export async function getUserClient(
   db: DatabaseClient,
   userId: string,
-  clientId: string
+  clientId: string,
+  isAdmin: boolean = false
 ) {
+  // Admin users can view any client, regular users only their own
+  const whereClause = isAdmin
+    ? eq(clients.client_id, clientId)
+    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
+
   const [client] = await compatSelect(db)
     .from(clients)
-    .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)))
+    .where(whereClause)
     .limit(1);
 
   if (!client) {
@@ -188,22 +195,29 @@ export async function getUserClient(
  * @param db Database client
  * @param userId User UUID (for ownership verification)
  * @param clientId Client UUID
+ * @param isAdmin Whether the requesting user has admin privileges
  */
 export async function suspendUserClient(
   db: DatabaseClient,
   userId: string,
-  clientId: string
+  clientId: string,
+  isAdmin: boolean = false
 ): Promise<void> {
-  // Verify ownership
-  const client = await getUserClient(db, userId, clientId);
+  // Verify ownership (admins can suspend any client)
+  const client = await getUserClient(db, userId, clientId, isAdmin);
 
   if (client.status !== 'active') {
     throw new Error('Invalid state transition: only active clients can be suspended');
   }
 
+  // Update using only client_id for admins, or both client_id and user_id for regular users
+  const whereClause = isAdmin
+    ? eq(clients.client_id, clientId)
+    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
+
   await compatUpdate(db, clients)
     .set({ status: 'suspended' })
-    .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)));
+    .where(whereClause);
 
   console.log(`[ClientService] User ${userId} suspended client ${clientId}`);
 }
@@ -214,22 +228,29 @@ export async function suspendUserClient(
  * @param db Database client
  * @param userId User UUID (for ownership verification)
  * @param clientId Client UUID
+ * @param isAdmin Whether the requesting user has admin privileges
  */
 export async function reactivateUserClient(
   db: DatabaseClient,
   userId: string,
-  clientId: string
+  clientId: string,
+  isAdmin: boolean = false
 ): Promise<void> {
-  // Verify ownership
-  const client = await getUserClient(db, userId, clientId);
+  // Verify ownership (admins can reactivate any client)
+  const client = await getUserClient(db, userId, clientId, isAdmin);
 
   if (client.status !== 'suspended') {
     throw new Error('Invalid state transition: only suspended clients can be reactivated');
   }
 
+  // Update using only client_id for admins, or both client_id and user_id for regular users
+  const whereClause = isAdmin
+    ? eq(clients.client_id, clientId)
+    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
+
   await compatUpdate(db, clients)
     .set({ status: 'active' })
-    .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)));
+    .where(whereClause);
 
   console.log(`[ClientService] User ${userId} reactivated client ${clientId}`);
 }
@@ -240,23 +261,30 @@ export async function reactivateUserClient(
  * @param db Database client
  * @param userId User UUID (for ownership verification)
  * @param clientId Client UUID
+ * @param isAdmin Whether the requesting user has admin privileges
  */
 export async function revokeUserClient(
   db: DatabaseClient,
   userId: string,
-  clientId: string
+  clientId: string,
+  isAdmin: boolean = false
 ): Promise<void> {
-  // Verify ownership
-  await getUserClient(db, userId, clientId);
+  // Verify ownership (admins can revoke any client)
+  await getUserClient(db, userId, clientId, isAdmin);
 
   const now = new Date().toISOString();
+
+  // Update using only client_id for admins, or both client_id and user_id for regular users
+  const whereClause = isAdmin
+    ? eq(clients.client_id, clientId)
+    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
   // CR-M4: Wrap in transaction for atomicity
   await compatTransaction(db, async () => {
     // Update client status
     await compatUpdate(db, clients)
       .set({ status: 'revoked' })
-      .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)));
+      .where(whereClause);
 
     // Cascade subscriptions to 'removed'
     await compatUpdate(db, client_mcp_subscriptions)
@@ -274,19 +302,26 @@ export async function revokeUserClient(
  * @param userId User UUID (for ownership verification)
  * @param clientId Client UUID
  * @param clientName New client name
+ * @param isAdmin Whether the requesting user has admin privileges
  */
 export async function updateUserClientName(
   db: DatabaseClient,
   userId: string,
   clientId: string,
-  clientName: string
+  clientName: string,
+  isAdmin: boolean = false
 ): Promise<void> {
-  // Verify ownership
-  await getUserClient(db, userId, clientId);
+  // Verify ownership (admins can update any client)
+  await getUserClient(db, userId, clientId, isAdmin);
+
+  // Update using only client_id for admins, or both client_id and user_id for regular users
+  const whereClause = isAdmin
+    ? eq(clients.client_id, clientId)
+    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
   await compatUpdate(db, clients)
     .set({ client_name: clientName })
-    .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)));
+    .where(whereClause);
 
   console.log(`[ClientService] User ${userId} updated client ${clientId} name`);
 }

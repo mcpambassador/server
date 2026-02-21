@@ -210,6 +210,7 @@ export function ClientDetail() {
                             onClick={() => handleEditTools(sub)}
                             className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                             aria-label="Edit tools"
+                            title="Edit tool selection"
                           >
                             <Cog6ToothIcon className="size-4" />
                           </button>
@@ -221,6 +222,7 @@ export function ClientDetail() {
                             disabled={unsubscribe.isPending}
                             className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                             aria-label="Unsubscribe"
+                            title="Unsubscribe from this MCP"
                           >
                             <TrashIcon className="size-4" />
                           </button>

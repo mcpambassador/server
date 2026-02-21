@@ -148,10 +148,11 @@ export async function registerClientRoutes(
     },
     async (request, reply) => {
       const userId = request.session.userId!;
+      const isAdmin = request.session.isAdmin || false;
       const params = clientIdParamsSchema.parse(request.params);
 
       try {
-        const client = await getUserClient(db, userId, params.clientId);
+        const client = await getUserClient(db, userId, params.clientId, isAdmin);
 
         // Transform to camelCase
         return reply.status(200).send({
@@ -188,22 +189,23 @@ export async function registerClientRoutes(
     },
     async (request, reply) => {
       const userId = request.session.userId!;
+      const isAdmin = request.session.isAdmin || false;
       const params = clientIdParamsSchema.parse(request.params);
 
       try {
         const body = updateClientSchema.parse(request.body);
 
         if (body.client_name) {
-          await updateUserClientName(db, userId, params.clientId, body.client_name);
+          await updateUserClientName(db, userId, params.clientId, body.client_name, isAdmin);
         }
 
         if (body.status === 'suspended') {
-          await suspendUserClient(db, userId, params.clientId);
+          await suspendUserClient(db, userId, params.clientId, isAdmin);
         } else if (body.status === 'active') {
-          await reactivateUserClient(db, userId, params.clientId);
+          await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
 
-        const client = await getUserClient(db, userId, params.clientId);
+        const client = await getUserClient(db, userId, params.clientId, isAdmin);
 
         // Transform to camelCase
         return reply.status(200).send({
@@ -245,10 +247,11 @@ export async function registerClientRoutes(
     },
     async (request, reply) => {
       const userId = request.session.userId!;
+      const isAdmin = request.session.isAdmin || false;
       const params = clientIdParamsSchema.parse(request.params);
 
       try {
-        await revokeUserClient(db, userId, params.clientId);
+        await revokeUserClient(db, userId, params.clientId, isAdmin);
 
         return reply.status(204).send();
       } catch (error: any) {
