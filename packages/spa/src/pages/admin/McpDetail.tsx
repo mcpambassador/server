@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -8,6 +8,7 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
@@ -19,6 +20,7 @@ import {
   useDiscoverTools,
   usePublishMcp,
   useArchiveMcp,
+  useDeleteMcp,
 } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -31,9 +33,12 @@ export function McpDetail() {
   const discoverTools = useDiscoverTools();
   const publishMcp = usePublishMcp();
   const archiveMcp = useArchiveMcp();
+  const deleteMcp = useDeleteMcp();
+  const navigate = useNavigate();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [validationResult, setValidationResult] = useState<any>(null);
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
@@ -106,16 +111,25 @@ export function McpDetail() {
         }
       }
 
+      // Build update payload — only include non-structural fields for published MCPs
+      const updateData: Record<string, unknown> = {
+        display_name: editFormData.display_name || undefined,
+        description: editFormData.description || undefined,
+        icon_url: editFormData.icon_url || undefined,
+        config: configObj,
+      };
+
+      // Structural fields (blocked for published MCPs by backend)
+      if (mcp.status !== 'published') {
+        updateData.requires_user_credentials = editFormData.requires_user_credentials;
+        if (credSchemaObj) {
+          updateData.credential_schema = credSchemaObj;
+        }
+      }
+
       await updateMcp.mutateAsync({
         mcpId: mcp.mcp_id,
-        data: {
-          display_name: editFormData.display_name || undefined,
-          description: editFormData.description || undefined,
-          icon_url: editFormData.icon_url || undefined,
-          config: configObj,
-          requires_user_credentials: editFormData.requires_user_credentials,
-          credential_schema: credSchemaObj,
-        },
+        data: updateData as any,
       });
       setEditDialogOpen(false);
     } catch (error) {
@@ -207,6 +221,18 @@ export function McpDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!mcp) return;
+    try {
+      await deleteMcp.mutateAsync(mcp.mcp_id);
+      setDeleteDialogOpen(false);
+      toast.success('MCP deleted');
+      navigate('/app/admin/mcps');
+    } catch (error) {
+      toast.error('Delete MCP failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -287,6 +313,12 @@ export function McpDetail() {
           <Button color="zinc" onClick={handleArchive} disabled={archiveMcp.isPending}>
             <ArchiveBoxIcon data-slot="icon" />
             {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
+          </Button>
+        )}
+        {(mcp.status === 'draft' || mcp.status === 'archived') && (
+          <Button color="red" onClick={() => setDeleteDialogOpen(true)} disabled={deleteMcp.isPending}>
+            <TrashIcon data-slot="icon" />
+            Delete
           </Button>
         )}
       </div>
@@ -536,19 +568,21 @@ export function McpDetail() {
               />
             </Field>
             
-            {/* Requires User Credentials checkbox */}
-            <CheckboxField>
-              <Checkbox
-                checked={editFormData.requires_user_credentials}
-                onChange={(checked: boolean) =>
-                  setEditFormData({ ...editFormData, requires_user_credentials: checked })
-                }
-              />
-              <Label>Requires User Credentials</Label>
-            </CheckboxField>
+            {/* Requires User Credentials checkbox — hidden for published MCPs (structural field) */}
+            {mcp.status !== 'published' && (
+              <CheckboxField>
+                <Checkbox
+                  checked={editFormData.requires_user_credentials}
+                  onChange={(checked: boolean) =>
+                    setEditFormData({ ...editFormData, requires_user_credentials: checked })
+                  }
+                />
+                <Label>Requires User Credentials</Label>
+              </CheckboxField>
+            )}
 
-            {/* Credential Schema (shown only when requires_user_credentials is true) */}
-            {editFormData.requires_user_credentials && (
+            {/* Credential Schema (shown only when requires_user_credentials is true and not published) */}
+            {mcp.status !== 'published' && editFormData.requires_user_credentials && (
               <Field>
                 <Label>Credential Schema (JSON)</Label>
                 <Textarea
@@ -610,6 +644,20 @@ export function McpDetail() {
           </DialogActions>
         </DialogBody>
       </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
+        <AlertTitle>Delete MCP?</AlertTitle>
+        <AlertDescription>
+          This will permanently delete &ldquo;{mcp?.display_name}&rdquo;. This action cannot be undone.
+        </AlertDescription>
+        <AlertActions>
+          <Button plain onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button color="red" onClick={handleDelete} disabled={deleteMcp.isPending}>
+            {deleteMcp.isPending ? 'Deleting...' : 'Delete'}
+          </Button>
+        </AlertActions>
+      </Alert>
     </div>
   );
 }

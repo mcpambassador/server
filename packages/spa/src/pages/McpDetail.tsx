@@ -42,12 +42,11 @@ export function McpDetail() {
   const requiresCredentials = mcp?.requiresUserCredentials ?? false;
 
   const credentialFields = useMemo(() => {
-    const credStatus = credentials?.find(c => c.mcpId === mcpId);
-    if (!credStatus?.credentialSchema) return [];
+    if (!mcp?.credentialSchema) return [];
     try {
-      const schema = typeof credStatus.credentialSchema === 'string'
-        ? JSON.parse(credStatus.credentialSchema)
-        : credStatus.credentialSchema;
+      const schema = typeof mcp.credentialSchema === 'string'
+        ? JSON.parse(mcp.credentialSchema as string)
+        : mcp.credentialSchema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
       return Object.entries(props).map(([key, value]: [string, any]) => ({
@@ -59,7 +58,7 @@ export function McpDetail() {
     } catch {
       return [];
     }
-  }, [credentials, mcpId]);
+  }, [mcp]);
 
   const handleSubscribe = async () => {
     if (!selectedClientId || !mcpId) return;

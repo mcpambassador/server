@@ -267,8 +267,8 @@ export function McpsAdmin() {
                           <ArchiveBoxIcon />
                         </Button>
                       )}
-                      {/* Delete (draft only) */}
-                      {mcp.status === 'draft' && (
+                      {/* Delete (draft or archived) */}
+                      {(mcp.status === 'draft' || mcp.status === 'archived') && (
                         <Button
                           plain
                           title="Delete"
@@ -293,8 +293,8 @@ export function McpsAdmin() {
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Are you sure?</AlertTitle>
         <AlertDescription>
-          This will permanently delete the MCP &quot;{mcpToDelete?.display_name}&quot;. Only draft
-          MCPs can be deleted. This action cannot be undone.
+          This will permanently delete the MCP &quot;{mcpToDelete?.display_name}&quot;. Draft and
+          archived MCPs can be deleted. This action cannot be undone.
         </AlertDescription>
         <AlertActions>
           <Button
