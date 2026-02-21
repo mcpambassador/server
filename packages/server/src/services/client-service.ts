@@ -11,7 +11,7 @@
 import crypto from 'crypto';
 import argon2 from 'argon2';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { clients, client_mcp_subscriptions, compatInsert, compatUpdate, compatSelect, compatTransaction } from '@mcpambassador/core';
+import { clients, client_mcp_subscriptions, compatInsert, compatUpdate, compatSelect, compatDelete, compatTransaction } from '@mcpambassador/core';
 import { eq, and } from 'drizzle-orm';
 
 // CR-L3: Define constant for client key generation
@@ -272,27 +272,23 @@ export async function revokeUserClient(
   // Verify ownership (admins can revoke any client)
   await getUserClient(db, userId, clientId, isAdmin);
 
-  const now = new Date().toISOString();
-
-  // Update using only client_id for admins, or both client_id and user_id for regular users
-  const whereClause = isAdmin
-    ? eq(clients.client_id, clientId)
-    : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
-
+  // Hard delete: permanently remove client and cascade delete subscriptions
   // CR-M4: Wrap in transaction for atomicity
   await compatTransaction(db, async () => {
-    // Update client status
-    await compatUpdate(db, clients)
-      .set({ status: 'revoked' })
-      .where(whereClause);
-
-    // Cascade subscriptions to 'removed'
-    await compatUpdate(db, client_mcp_subscriptions)
-      .set({ status: 'removed', updated_at: now })
+    // First delete all subscriptions for this client
+    await compatDelete(db, client_mcp_subscriptions)
       .where(eq(client_mcp_subscriptions.client_id, clientId));
+
+    // Then delete the client itself
+    // Use only client_id for admins, or both client_id and user_id for regular users
+    const whereClause = isAdmin
+      ? eq(clients.client_id, clientId)
+      : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
+
+    await compatDelete(db, clients).where(whereClause);
   });
 
-  console.log(`[ClientService] User ${userId} revoked client ${clientId} and cascaded subscriptions`);
+  console.log(`[ClientService] User ${userId} deleted client ${clientId} and cascaded subscriptions`);
 }
 
 /**

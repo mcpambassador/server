@@ -193,7 +193,7 @@ export function Clients() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button plain href={`/app/clients/${client.id}`}>
+                      <Button plain href={`/app/clients/${client.id}`} title="View client details">
                         <EyeIcon data-slot="icon" />
                       </Button>
                       {client.status !== 'revoked' && (
@@ -201,6 +201,7 @@ export function Clients() {
                           plain
                           onClick={() => handleToggleStatus(client)}
                           disabled={updateClient.isPending}
+                          title={client.status === 'active' ? 'Suspend client' : 'Reactivate client'}
                         >
                           {client.status === 'active' ? (
                             <PauseIcon data-slot="icon" />
@@ -216,6 +217,7 @@ export function Clients() {
                           setDeleteDialogOpen(true);
                         }}
                         disabled={deleteClient.isPending}
+                        title="Delete this client"
                       >
                         <TrashIcon data-slot="icon" />
                       </Button>
