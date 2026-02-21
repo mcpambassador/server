@@ -123,10 +123,14 @@ export class SharedMcpManager {
 
       // Add transport-specific fields from catalog config
       if (entry.transport_type === 'stdio') {
-        // Command is stored as separate command and args in catalog, but DownstreamMcpConfig expects command array
-        const command = config.command as string;
-        const args = (config.args as string[]) || [];
-        mcpConfig.command = [command, ...args];
+        // Command is stored as an array in catalog (e.g., ["npx", "-y", "package@version"])
+        const command = config.command;
+        if (Array.isArray(command)) {
+          mcpConfig.command = command as string[];
+        } else {
+          // Fallback: if stored as string (legacy), split it
+          mcpConfig.command = [config.command as string];
+        }
 
         if (config.env) {
           mcpConfig.env = config.env as Record<string, string>;

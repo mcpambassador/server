@@ -263,18 +263,53 @@ export class AmbassadorServer {
     console.log('[Server] AAA providers initialized');
     console.log('[Server] Pipeline initialized (available for M6.5)');
 
-    // Initialize downstream MCP connections
-    console.log(
-      `[Server] Initializing ${this.config.downstreamMcps.length} downstream MCP connections...`
+    // Load published shared MCPs from database catalog
+    // This replaces the legacy YAML config approach (config.downstreamMcps)
+    const { listMcpCatalogEntries } = await import('./services/mcp-catalog-service.js');
+    const catalogResult = await listMcpCatalogEntries(
+      this.db!,
+      { status: 'published', isolation_mode: 'shared' },
+      { limit: 100 } // Load up to 100 MCPs
     );
-    await this.mcpManager.initialize(this.config.downstreamMcps);
+    console.log(`[Server] Found ${catalogResult.entries.length} published shared MCPs in catalog`);
 
-    // M17: Initialize per-user MCP pool with same configs
+    // Initialize downstream MCP connections from catalog
+    await this.mcpManager.initializeFromCatalog(this.db!, catalogResult.entries);
+
+    // Extract configs for UserMcpPool (convert catalog entries back to DownstreamMcpConfig format)
+    // This is needed because UserMcpPool expects the old config format
+    const mcpConfigs: DownstreamMcpConfig[] = catalogResult.entries.map(entry => {
+      const config = JSON.parse(entry.config) as Record<string, unknown>;
+      const mcpConfig: DownstreamMcpConfig = {
+        name: entry.name,
+        transport: entry.transport_type as 'stdio' | 'http' | 'sse',
+      };
+      
+      if (entry.transport_type === 'stdio') {
+        // Command is stored as an array in catalog
+        const command = config.command;
+        if (Array.isArray(command)) {
+          mcpConfig.command = command as string[];
+        } else {
+          mcpConfig.command = [config.command as string];
+        }
+        if (config.env) mcpConfig.env = config.env as Record<string, string>;
+        if (config.cwd) mcpConfig.cwd = config.cwd as string;
+      } else if (entry.transport_type === 'http' || entry.transport_type === 'sse') {
+        mcpConfig.url = config.url as string;
+        if (config.headers) mcpConfig.headers = config.headers as Record<string, string>;
+        if (config.timeout_ms) mcpConfig.timeout_ms = config.timeout_ms as number;
+      }
+      
+      return mcpConfig;
+    });
+
+    // M17: Initialize per-user MCP pool with catalog-based configs
     // SEC-M17-001: Must be created BEFORE SessionLifecycleManager
     // SEC-M17-005: Use configurable limits instead of hardcoded values
     console.log('[Server] Initializing per-user MCP pool...');
     this.userPool = new UserMcpPool({
-      mcpConfigs: this.config.downstreamMcps,
+      mcpConfigs,
       maxInstancesPerUser: this.config.maxMcpInstancesPerUser,
       maxTotalInstances: this.config.maxTotalMcpInstances,
       healthCheckIntervalMs: 60000,
