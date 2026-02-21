@@ -186,7 +186,7 @@ export function McpsAdmin() {
                   <TableCell>
                     <Link
                       to={`/app/admin/mcps/${mcp.mcp_id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="font-medium text-zinc-900 dark:text-white hover:underline"
                     >
                       {mcp.display_name}
                     </Link>
