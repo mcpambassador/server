@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   PlusIcon, 
@@ -18,12 +18,13 @@ import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import {
   useAdminMcps,
+  useAdminMcpHealth,
   useDeleteMcp,
   useValidateMcp,
   usePublishMcp,
   useArchiveMcp,
 } from '@/api/hooks/use-admin';
-import type { McpCatalogEntry } from '@/api/types';
+import type { McpCatalogEntry, McpHealthEntry } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function McpsAdmin() {
@@ -31,10 +32,22 @@ export function McpsAdmin() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(undefined);
   const { data: mcpsData, isLoading } = useAdminMcps({ status: statusFilter });
+  const { data: healthData } = useAdminMcpHealth();
   const deleteMcp = useDeleteMcp();
   const validateMcp = useValidateMcp();
   const publishMcp = usePublishMcp();
   const archiveMcp = useArchiveMcp();
+
+  // Build a lookup map from MCP internal name to health entry
+  const healthByName = useMemo(() => {
+    const map = new Map<string, McpHealthEntry>();
+    if (healthData?.shared) {
+      for (const entry of healthData.shared) {
+        map.set(entry.name, entry);
+      }
+    }
+    return map;
+  }, [healthData]);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [mcpToDelete, setMcpToDelete] = useState<McpCatalogEntry | null>(null);
@@ -130,6 +143,7 @@ export function McpsAdmin() {
               <TableHeader>Transport</TableHeader>
               <TableHeader>Status</TableHeader>
               <TableHeader>Validation</TableHeader>
+              <TableHeader>Health</TableHeader>
               <TableHeader>Isolation</TableHeader>
               <TableHeader>Created</TableHeader>
               <TableHeader>Actions</TableHeader>
@@ -160,6 +174,9 @@ export function McpsAdmin() {
                       <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
                       <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
@@ -175,7 +192,7 @@ export function McpsAdmin() {
             ) : mcps.length === 0 ? (
               // Empty state
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-zinc-500">
+                <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
                   No MCPs yet.
                 </TableCell>
               </TableRow>
@@ -226,6 +243,38 @@ export function McpsAdmin() {
                     ) : (
                       <span className="text-zinc-500">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const health = healthByName.get(mcp.name);
+                      if (!health) {
+                        return <span className="text-zinc-400 dark:text-zinc-500">—</span>;
+                      }
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`inline-block size-2 rounded-full ${
+                              health.connected
+                                ? 'bg-green-500'
+                                : 'bg-red-500'
+                            }`}
+                            title={health.connected ? 'Connected' : 'Disconnected'}
+                          />
+                          <span className={`text-sm ${
+                            health.connected
+                              ? 'text-green-700 dark:text-green-400'
+                              : 'text-red-700 dark:text-red-400'
+                          }`}>
+                            {health.connected ? 'Online' : 'Offline'}
+                          </span>
+                          {health.detail.toolCount != null && health.detail.toolCount > 0 && (
+                            <Badge color="zinc" className="ml-1">
+                              {health.detail.toolCount} tools
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.isolation_mode}</TableCell>
                   <TableCell className="text-zinc-700 dark:text-zinc-300">

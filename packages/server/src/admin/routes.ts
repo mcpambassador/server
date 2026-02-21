@@ -24,6 +24,7 @@ import { registerAdminClientRoutes } from './client-routes.js';
 import { registerAdminSessionRoutes } from './session-routes.js';
 import { registerAdminSecurityRoutes } from './security-routes.js';
 import { registerAdminAuditRoutes } from './audit-routes.js';
+import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
@@ -144,6 +145,12 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
   // Audit and observability (2 endpoints: audit events, downstream status)
   fastify.register(registerAdminAuditRoutes, { dataDir, mcpManager });
+
+  // MCP Health monitoring (3 endpoints: health summary, instances, restart)
+  fastify.register(registerAdminHealthRoutes, {
+    mcpManager,
+    userPool,
+  });
 
   // User management (6 endpoints)
   fastify.register(registerAdminUserRoutes, { db, audit, userPool });

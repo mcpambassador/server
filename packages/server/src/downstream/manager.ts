@@ -282,6 +282,38 @@ export class SharedMcpManager {
   }
 
   /**
+   * Get a specific connection by MCP name
+   */
+  getConnection(name: string): StdioMcpConnection | HttpMcpConnection | undefined {
+    return this.connections.get(name);
+  }
+
+  /**
+   * Get all connection names
+   */
+  getConnectionNames(): string[] {
+    return Array.from(this.connections.keys());
+  }
+
+  /**
+   * Restart a specific MCP connection
+   */
+  async restartMcp(name: string): Promise<void> {
+    const connection = this.connections.get(name);
+    if (!connection) {
+      throw new Error(`MCP not found: ${name}`);
+    }
+
+    console.log(`[SharedMcpManager] Restarting MCP: ${name}`);
+
+    await connection.stop();
+    await connection.start();
+    await this.aggregateTools();
+
+    console.log(`[SharedMcpManager] Restarted MCP: ${name}, connected: ${connection.isConnected()}`);
+  }
+
+  /**
    * Refresh tool lists for all MCPs
    */
   async refreshAll(): Promise<void> {

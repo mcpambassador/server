@@ -50,6 +50,7 @@ export class StdioMcpConnection extends EventEmitter {
   private toolCache: ToolDescriptor[] | null = null;
   private isHealthy = false;
   private processExited = false;
+  private startedAt: number | null = null;
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -68,6 +69,12 @@ export class StdioMcpConnection extends EventEmitter {
    */
   async start(): Promise<void> {
     console.log(`[MCP:${this.config.name}] Starting stdio process...`);
+    
+    // Reset state for restart support
+    this.processExited = false;
+    this.isHealthy = false;
+    this.messageBuffer = '';
+    this.toolCache = null;
 
     const [cmd, ...args] = this.config.command!;
 
@@ -155,6 +162,7 @@ export class StdioMcpConnection extends EventEmitter {
     }
 
     this.isHealthy = true;
+    this.startedAt = Date.now();
     console.log(`[MCP:${this.config.name}] Started successfully`);
   }
 
@@ -387,7 +395,9 @@ export class StdioMcpConnection extends EventEmitter {
       this.process = null;
     }
 
+    this.startedAt = null;
     this.isHealthy = false;
+    this.processExited = false;
     console.log(`[MCP:${this.config.name}] Stopped`);
   }
 
@@ -396,5 +406,26 @@ export class StdioMcpConnection extends EventEmitter {
    */
   isConnected(): boolean {
     return this.isHealthy && this.process !== null;
+  }
+
+  /**
+   * Get detailed health information for troubleshooting
+   */
+  getHealthDetail(): {
+    pid: number | null;
+    pendingRequests: number;
+    uptime_ms: number | null;
+    processExited: boolean;
+    toolCount: number;
+  } {
+    const uptime_ms = this.startedAt !== null ? Date.now() - this.startedAt : null;
+
+    return {
+      pid: this.process?.pid ?? null,
+      pendingRequests: this.pendingRequests.size,
+      uptime_ms,
+      processExited: this.processExited,
+      toolCount: this.toolCache?.length || 0,
+    };
   }
 }

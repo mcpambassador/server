@@ -40,6 +40,7 @@ export class HttpMcpConnection extends EventEmitter {
   private consecutiveFailures = 0;
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
   private templateUrl: string; // URL with ${ENV_VAR} placeholders for status
+  private startedAt: number | null = null;
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -211,6 +212,7 @@ export class HttpMcpConnection extends EventEmitter {
       await this.refreshToolList();
 
       this.isHealthy = true;
+      this.startedAt = Date.now();
       console.log(`[MCP:${this.config.name}] Started successfully`);
     } catch (err) {
       console.error(`[MCP:${this.config.name}] Failed to start:`, this.sanitizeError(err));
@@ -224,6 +226,7 @@ export class HttpMcpConnection extends EventEmitter {
   // eslint-disable-next-line @typescript-eslint/require-await
   async stop(): Promise<void> {
     console.log(`[MCP:${this.config.name}] Stopping HTTP connection...`);
+    this.startedAt = null;
     this.isHealthy = false;
     this.toolCache = null;
     this.emit('disconnect');
@@ -241,6 +244,46 @@ export class HttpMcpConnection extends EventEmitter {
    */
   isConnected(): boolean {
     return this.isHealthy;
+  }
+
+  /**
+   * Get detailed health information for troubleshooting
+   */
+  getHealthDetail(): {
+    consecutiveFailures: number;
+    maxFailures: number;
+    templateUrl: string | null;
+    uptime_ms: number | null;
+    toolCount: number;
+  } {
+    const uptime_ms = this.startedAt !== null ? Date.now() - this.startedAt : null;
+
+    // Redact URL to avoid exposing credentials in query params
+    const redactedUrl = (() => {
+      const url = this.config.url!;
+      // Strip query params and hash (where credentials might be exposed)
+      // Use string manipulation to preserve ${...} placeholders in path
+      const queryIndex = url.indexOf('?');
+      const hashIndex = url.indexOf('#');
+      
+      let endIndex = url.length;
+      if (queryIndex !== -1) {
+        endIndex = queryIndex;
+      }
+      if (hashIndex !== -1 && hashIndex < endIndex) {
+        endIndex = hashIndex;
+      }
+      
+      return url.substring(0, endIndex);
+    })();
+
+    return {
+      consecutiveFailures: this.consecutiveFailures,
+      maxFailures: this.MAX_CONSECUTIVE_FAILURES,
+      templateUrl: redactedUrl,
+      uptime_ms,
+      toolCount: this.toolCache?.length || 0,
+    };
   }
 
   /**

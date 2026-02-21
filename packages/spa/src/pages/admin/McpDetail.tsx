@@ -15,6 +15,8 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
   useAdminMcp,
+  useAdminMcpInstances,
+  useRestartMcp,
   useUpdateMcp,
   useValidateMcp,
   useDiscoverTools,
@@ -35,6 +37,8 @@ export function McpDetail() {
   const archiveMcp = useArchiveMcp();
   const deleteMcp = useDeleteMcp();
   const navigate = useNavigate();
+  const { data: instanceData, isLoading: healthLoading } = useAdminMcpInstances(mcp?.name ?? '');
+  const restartMcp = useRestartMcp();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
@@ -84,6 +88,19 @@ export function McpDetail() {
       return [];
     }
   }, [mcp?.credential_schema]);
+
+  // Format uptime from milliseconds to human readable
+  const formatUptime = (ms: number): string => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  };
 
   const handleEdit = async () => {
     if (!mcp) return;
@@ -230,6 +247,20 @@ export function McpDetail() {
       navigate('/app/admin/mcps');
     } catch (error) {
       toast.error('Delete MCP failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
+  const handleRestart = async () => {
+    if (!mcp) return;
+    try {
+      const result = await restartMcp.mutateAsync(mcp.name);
+      if (result.connected) {
+        toast.success('MCP Restarted', { description: `${mcp.name} is now online with ${result.tool_count} tools` });
+      } else {
+        toast.warning('MCP Restarted', { description: `${mcp.name} restarted but is not connected` });
+      }
+    } catch (error) {
+      toast.error('Restart failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -414,6 +445,7 @@ export function McpDetail() {
         <TabsList>
           <TabsTrigger>Information</TabsTrigger>
           <TabsTrigger>Configuration</TabsTrigger>
+          <TabsTrigger>Health</TabsTrigger>
         </TabsList>
         <TabsPanels>
           <TabsContent>
@@ -515,6 +547,143 @@ export function McpDetail() {
                   <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
                     {typeof mcp.credential_schema === 'string' ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2) : JSON.stringify(mcp.credential_schema, null, 2)}
                   </pre>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent>
+            <div className="space-y-6">
+              {/* Shared Connection Health */}
+              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Runtime Health</h3>
+                    <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                      Live connection status for this MCP server
+                    </p>
+                  </div>
+                  <Button
+                    color="zinc"
+                    onClick={handleRestart}
+                    disabled={restartMcp.isPending}
+                  >
+                    <ArrowPathIcon data-slot="icon" />
+                    {restartMcp.isPending ? 'Restarting...' : 'Restart'}
+                  </Button>
+                </div>
+
+                {healthLoading ? (
+                  <div className="animate-pulse h-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                ) : instanceData ? (
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                    <div>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Status</dt>
+                      <dd className="mt-1 flex items-center gap-2">
+                        <span className={`inline-block size-2.5 rounded-full ${
+                          instanceData.shared.health.status === 'healthy'
+                            ? 'bg-green-500'
+                            : instanceData.shared.health.status === 'degraded'
+                            ? 'bg-amber-500'
+                            : 'bg-red-500'
+                        }`} />
+                        <span className={`text-sm font-medium ${
+                          instanceData.shared.health.status === 'healthy'
+                            ? 'text-green-700 dark:text-green-400'
+                            : instanceData.shared.health.status === 'degraded'
+                            ? 'text-amber-700 dark:text-amber-400'
+                            : 'text-red-700 dark:text-red-400'
+                        }`}>
+                          {instanceData.shared.health.status.charAt(0).toUpperCase() + instanceData.shared.health.status.slice(1)}
+                        </span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Transport</dt>
+                      <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{instanceData.transport}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Tools Loaded</dt>
+                      <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                        {instanceData.shared.health.tool_count ?? instanceData.shared.detail.toolCount ?? '—'}
+                      </dd>
+                    </div>
+                    {instanceData.shared.detail.uptime_ms != null && (
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Uptime</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                          {formatUptime(instanceData.shared.detail.uptime_ms)}
+                        </dd>
+                      </div>
+                    )}
+                    {instanceData.shared.detail.pid != null && (
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Process ID</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono mt-1">{instanceData.shared.detail.pid}</dd>
+                      </div>
+                    )}
+                    {instanceData.shared.detail.pendingRequests != null && (
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Pending Requests</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{instanceData.shared.detail.pendingRequests}</dd>
+                      </div>
+                    )}
+                    {instanceData.shared.detail.consecutiveFailures != null && (
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Consecutive Failures</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                          {instanceData.shared.detail.consecutiveFailures} / {instanceData.shared.detail.maxFailures}
+                        </dd>
+                      </div>
+                    )}
+                    {instanceData.shared.health.last_check && (
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Last Health Check</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                          {new Date(instanceData.shared.health.last_check).toLocaleTimeString()}
+                        </dd>
+                      </div>
+                    )}
+                    {instanceData.shared.health.error && (
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <dt className="text-sm/6 font-medium text-red-500 dark:text-red-400">Error</dt>
+                        <dd className="text-sm/6 text-red-700 dark:text-red-400 font-mono mt-1 bg-red-50 dark:bg-red-500/10 p-2 rounded">
+                          {instanceData.shared.health.error}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    No runtime health data available. This MCP may not be published or connected.
+                  </p>
+                )}
+              </div>
+
+              {/* Per-User Instances */}
+              {instanceData && instanceData.user_instances.length > 0 && (
+                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white mb-4">
+                    Per-User Instances ({instanceData.user_instances.length})
+                  </h3>
+                  <div className="grid gap-3">
+                    {instanceData.user_instances.map((instance, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                        <div className="flex items-center gap-3">
+                          <span className={`inline-block size-2 rounded-full ${
+                            instance.connected ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                          <span className="text-sm font-mono text-zinc-900 dark:text-white">{instance.userId}</span>
+                          <Badge color={instance.status === 'ready' ? 'green' : instance.status === 'spawning' ? 'amber' : 'zinc'}>
+                            {instance.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+                          <span>{instance.toolCount} tools</span>
+                          <span>Spawned {new Date(instance.spawnedAt).toLocaleTimeString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

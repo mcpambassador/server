@@ -484,6 +484,40 @@ export class UserMcpPool {
   }
 
   /**
+   * Get all user instances for a specific MCP
+   */
+  getInstancesForMcp(mcpName: string): Array<{
+    userId: string;
+    status: string;
+    spawnedAt: Date;
+    connected: boolean;
+    toolCount: number;
+  }> {
+    const result: Array<{
+      userId: string;
+      status: string;
+      spawnedAt: Date;
+      connected: boolean;
+      toolCount: number;
+    }> = [];
+
+    for (const [userId, instanceSet] of this.userInstances) {
+      const connection = instanceSet.connections.get(mcpName);
+      if (connection) {
+        result.push({
+          userId,
+          status: instanceSet.status,
+          spawnedAt: instanceSet.spawnedAt,
+          connected: connection.isConnected(),
+          toolCount: connection.getTools().length,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * CR-M17-006: Register event handlers for a connection
    * Extracted helper to avoid code duplication between stdio and http setup
    */

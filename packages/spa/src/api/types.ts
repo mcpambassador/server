@@ -288,3 +288,67 @@ export interface Profile {
   created_at: string;
   updated_at: string;
 }
+
+// MCP Health Monitoring
+export interface McpHealthDetail {
+  // StdioMcpConnection detail shape
+  pid?: number | null;
+  pendingRequests?: number;
+  uptime_ms?: number | null;
+  processExited?: boolean;
+  toolCount?: number;
+  // HttpMcpConnection detail shape
+  consecutiveFailures?: number;
+  maxFailures?: number;
+  templateUrl?: string | null;
+}
+
+export interface McpHealthEntry {
+  name: string;
+  transport: 'stdio' | 'http';
+  connected: boolean;
+  detail: McpHealthDetail;
+  user_instances: number;
+}
+
+export interface McpHealthSummary {
+  timestamp: string;
+  shared: McpHealthEntry[];
+  summary: {
+    total_shared: number;
+    healthy_shared: number;
+    total_user_instances: number;
+  };
+}
+
+export interface McpInstanceUserEntry {
+  userId: string;
+  status: string;
+  spawnedAt: string;
+  connected: boolean;
+  toolCount: number;
+}
+
+export interface McpInstanceDetail {
+  name: string;
+  transport: 'stdio' | 'http';
+  shared: {
+    health: {
+      name: string;
+      transport: string;
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      last_check: string;
+      error?: string;
+      tool_count?: number;
+    };
+    detail: McpHealthDetail;
+  };
+  user_instances: McpInstanceUserEntry[];
+}
+
+export interface McpRestartResult {
+  name: string;
+  restarted: boolean;
+  connected: boolean;
+  tool_count: number;
+}

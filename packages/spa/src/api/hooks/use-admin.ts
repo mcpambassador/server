@@ -20,6 +20,9 @@ import type {
   Profile,
   PaginatedResponse,
   AdminClient,
+  McpHealthSummary,
+  McpInstanceDetail,
+  McpRestartResult,
 } from '../types';
 
 // Users
@@ -481,5 +484,35 @@ export function useRotateCredentialKey() {
   return useMutation({
     mutationFn: () =>
       apiClient.post<{ message: string; timestamp: string }>('/v1/admin/rotate-credential-key'),
+  });
+}
+
+// MCP Health Monitoring
+export function useAdminMcpHealth() {
+  return useQuery({
+    queryKey: ['admin', 'health', 'mcps'],
+    queryFn: () => apiClient.get<McpHealthSummary>('/v1/admin/health/mcps'),
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+  });
+}
+
+export function useAdminMcpInstances(mcpName: string) {
+  return useQuery({
+    queryKey: ['admin', 'health', 'mcps', mcpName, 'instances'],
+    queryFn: () => apiClient.get<McpInstanceDetail>(`/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/instances`),
+    enabled: !!mcpName,
+  });
+}
+
+export function useRestartMcp() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (mcpName: string) =>
+      apiClient.post<McpRestartResult>(`/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/restart`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'downstream'] });
+    },
   });
 }
