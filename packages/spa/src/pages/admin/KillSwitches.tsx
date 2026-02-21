@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Power, AlertTriangle } from 'lucide-react';
+import { PowerIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -48,21 +48,21 @@ export function KillSwitches() {
       </div>
 
       {/* Warning Banner */}
-      <div className="rounded-lg bg-red-50 p-4 ring-1 ring-red-200">
+      <div className="rounded-lg bg-red-50 dark:bg-red-950/50 p-4 ring-1 ring-red-200 dark:ring-red-800">
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-red-600" />
-          <h3 className="text-sm/6 font-semibold text-red-900">Warning</h3>
+          <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
+          <h3 className="text-sm/6 font-semibold text-red-900 dark:text-red-200">Warning</h3>
         </div>
-        <p className="mt-1 text-sm/6 text-red-700">
+        <p className="mt-1 text-sm/6 text-red-700 dark:text-red-300">
           Kill switches immediately disable access. Use with caution. Disabled entities will not be
           able to make requests until re-enabled.
         </p>
       </div>
 
       {/* Client Kill Switches */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">Client Kill Switches</h3>
-        <p className="text-sm/6 text-zinc-500">Disable individual API clients</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Client Kill Switches</h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable individual API clients</p>
         <div className="mt-4">
           {clientsLoading ? (
             <div className="space-y-3">
@@ -72,28 +72,28 @@ export function KillSwitches() {
                   className="flex items-center justify-between py-3 animate-pulse"
                 >
                   <div className="space-y-2">
-                    <div className="h-4 w-32 rounded bg-zinc-200" />
-                    <div className="h-3 w-24 rounded bg-zinc-200" />
+                    <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="h-5 w-16 rounded bg-zinc-200" />
-                    <div className="h-8 w-20 rounded bg-zinc-200" />
+                    <div className="h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-8 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 </div>
               ))}
             </div>
           ) : clientsData && clientsData.data.length > 0 ? (
-            <div className="divide-y divide-zinc-950/5">
+            <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
               {clientsData.data.map((client: any) => (
                 <div
                   key={client.client_id || client.id}
                   className="flex items-center justify-between py-3"
                 >
                   <div>
-                    <p className="text-sm/6 font-medium text-zinc-900">
+                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
                       {client.client_name || client.clientName}
                     </p>
-                    <p className="text-sm/6 font-mono text-zinc-500">
+                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">
                       {client.key_prefix || client.keyPrefix}
                     </p>
                   </div>
@@ -110,7 +110,7 @@ export function KillSwitches() {
                         )
                       }
                     >
-                      <Power data-slot="icon" />
+                      <PowerIcon data-slot="icon" />
                       {client.status === 'active' ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -118,15 +118,15 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm/6 text-zinc-500">No clients found</p>
+            <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">No clients found</p>
           )}
         </div>
       </div>
 
       {/* MCP Kill Switches */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">MCP Kill Switches</h3>
-        <p className="text-sm/6 text-zinc-500">Disable MCP servers system-wide</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Kill Switches</h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable MCP servers system-wide</p>
         <div className="mt-4">
           {mcpsLoading ? (
             <div className="space-y-3">
@@ -136,23 +136,23 @@ export function KillSwitches() {
                   className="flex items-center justify-between py-3 animate-pulse"
                 >
                   <div className="space-y-2">
-                    <div className="h-4 w-32 rounded bg-zinc-200" />
-                    <div className="h-3 w-24 rounded bg-zinc-200" />
+                    <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="h-5 w-16 rounded bg-zinc-200" />
-                    <div className="h-8 w-20 rounded bg-zinc-200" />
+                    <div className="h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-8 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 </div>
               ))}
             </div>
           ) : mcpsData && mcpsData.data.length > 0 ? (
-            <div className="divide-y divide-zinc-950/5">
+            <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
               {mcpsData.data.map((mcp) => (
                 <div key={mcp.mcp_id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="text-sm/6 font-medium text-zinc-900">{mcp.display_name}</p>
-                    <p className="text-sm/6 font-mono text-zinc-500">{mcp.name}</p>
+                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">{mcp.display_name}</p>
+                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">{mcp.name}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge
@@ -173,7 +173,7 @@ export function KillSwitches() {
                       }
                       disabled={mcp.status === 'archived'}
                     >
-                      <Power data-slot="icon" />
+                      <PowerIcon data-slot="icon" />
                       {mcp.status === 'published' ? 'Disable' : 'Enable'}
                     </Button>
                   </div>
@@ -181,7 +181,7 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm/6 text-zinc-500">No MCPs found</p>
+            <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">No MCPs found</p>
           )}
         </div>
       </div>

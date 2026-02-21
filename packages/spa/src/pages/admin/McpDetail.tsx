@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Archive, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -109,8 +109,8 @@ export function McpDetail() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200" />
-        <div className="animate-pulse h-48 w-full rounded bg-zinc-200" />
+        <div className="animate-pulse h-8 w-64 rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="animate-pulse h-48 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
       </div>
     );
   }
@@ -119,11 +119,11 @@ export function McpDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/mcps">
-          <ArrowLeft data-slot="icon" />
+          <ArrowLeftIcon data-slot="icon" />
           Back to MCPs
         </Button>
-        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-          <p className="text-sm/6 text-zinc-900">MCP Not Found</p>
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+          <p className="text-sm/6 text-zinc-900 dark:text-white">MCP Not Found</p>
         </div>
       </div>
     );
@@ -133,7 +133,7 @@ export function McpDetail() {
     <div className="space-y-6">
       {/* Back Button */}
       <Button plain href="/app/admin/mcps">
-        <ArrowLeft data-slot="icon" />
+        <ArrowLeftIcon data-slot="icon" />
         Back to MCPs
       </Button>
 
@@ -169,18 +169,18 @@ export function McpDetail() {
           Edit MCP
         </Button>
         <Button color="zinc" onClick={handleValidate} disabled={validateMcp.isPending}>
-          <RefreshCw data-slot="icon" />
+          <ArrowPathIcon data-slot="icon" />
           Validate
         </Button>
         {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
           <Button onClick={handlePublish} disabled={publishMcp.isPending}>
-            <CheckCircle data-slot="icon" />
+            <CheckCircleIcon data-slot="icon" />
             {publishMcp.isPending ? 'Publishing...' : 'Publish'}
           </Button>
         )}
         {mcp.status === 'published' && (
           <Button color="zinc" onClick={handleArchive} disabled={archiveMcp.isPending}>
-            <Archive data-slot="icon" />
+            <ArchiveBoxIcon data-slot="icon" />
             {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
           </Button>
         )}
@@ -188,23 +188,23 @@ export function McpDetail() {
 
       {/* Validation Results */}
       {validationResult && (
-        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5 space-y-4">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 space-y-4">
           <div className="flex items-center gap-2">
             {validationResult.valid ? (
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircleIcon className="size-5 text-green-600 dark:text-green-400" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
             )}
-            <h3 className="text-base/7 font-semibold text-zinc-900">
+            <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
               Validation {validationResult.valid ? 'Passed' : 'Failed'}
             </h3>
           </div>
           {validationResult.errors.length > 0 && (
             <div>
-              <h4 className="font-medium text-red-600 mb-2">Errors</h4>
+              <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
               <ul className="list-disc list-inside space-y-1">
                 {validationResult.errors.map((err: string, i: number) => (
-                  <li key={i} className="text-sm text-red-600">
+                  <li key={i} className="text-sm text-red-600 dark:text-red-400">
                     {err}
                   </li>
                 ))}
@@ -213,10 +213,10 @@ export function McpDetail() {
           )}
           {validationResult.warnings.length > 0 && (
             <div>
-              <h4 className="font-medium text-amber-600 mb-2">Warnings</h4>
+              <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
               <ul className="list-disc list-inside space-y-1">
                 {validationResult.warnings.map((warn: string, i: number) => (
-                  <li key={i} className="text-sm text-amber-600">
+                  <li key={i} className="text-sm text-amber-600 dark:text-amber-400">
                     {warn}
                   </li>
                 ))}
@@ -225,14 +225,14 @@ export function McpDetail() {
           )}
           {validationResult.tools_discovered.length > 0 && (
             <div>
-              <h4 className="font-medium text-zinc-900 mb-2">
+              <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
                 Discovered Tools ({validationResult.tools_discovered.length})
               </h4>
               <div className="grid gap-2">
                 {validationResult.tools_discovered.map((tool: any, i: number) => (
-                  <div key={i} className="rounded-lg bg-zinc-50 p-3">
-                    <p className="font-mono text-sm font-medium text-zinc-900">{tool.name}</p>
-                    <p className="text-xs text-zinc-500">{tool.description}</p>
+                  <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{tool.description}</p>
                   </div>
                 ))}
               </div>
@@ -249,64 +249,64 @@ export function McpDetail() {
         </TabsList>
         <TabsPanels>
           <TabsContent>
-            <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-              <h3 className="text-base/7 font-semibold text-zinc-900">MCP Information</h3>
+            <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Information</h3>
               <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">MCP ID</dt>
-                  <dd className="text-sm/6 text-zinc-900 font-mono">{mcp.mcp_id}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">MCP ID</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{mcp.mcp_id}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Internal Name</dt>
-                  <dd className="text-sm/6 text-zinc-900 font-mono">{mcp.name}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Internal Name</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{mcp.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Display Name</dt>
-                  <dd className="text-sm/6 text-zinc-900">{mcp.display_name}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.display_name}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Transport Type</dt>
-                  <dd className="text-sm/6 text-zinc-900">{mcp.transport_type}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Transport Type</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.transport_type}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Isolation Mode</dt>
-                  <dd className="text-sm/6 text-zinc-900">{mcp.isolation_mode}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Isolation Mode</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.isolation_mode}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Requires Credentials</dt>
-                  <dd className="text-sm/6 text-zinc-900">{mcp.requires_user_credentials ? 'Yes' : 'No'}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Requires Credentials</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.requires_user_credentials ? 'Yes' : 'No'}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Created</dt>
-                  <dd className="text-sm/6 text-zinc-900">{new Date(mcp.created_at).toLocaleString()}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{new Date(mcp.created_at).toLocaleString()}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500">Updated</dt>
-                  <dd className="text-sm/6 text-zinc-900">{new Date(mcp.updated_at).toLocaleString()}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Updated</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{new Date(mcp.updated_at).toLocaleString()}</dd>
                 </div>
               </dl>
               {mcp.description && (
                 <div className="mt-4">
-                  <dt className="text-sm/6 font-medium text-zinc-500">Description</dt>
-                  <dd className="text-sm/6 text-zinc-900 mt-1">{mcp.description}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Description</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{mcp.description}</dd>
                 </div>
               )}
             </div>
           </TabsContent>
           <TabsContent>
             <div className="space-y-4">
-              <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-                <h3 className="text-base/7 font-semibold text-zinc-900">Configuration</h3>
-                <p className="text-sm/6 text-zinc-500 mt-1">MCP runtime configuration (JSON)</p>
-                <pre className="mt-4 rounded-lg bg-zinc-50 p-4 overflow-x-auto text-sm font-mono text-zinc-900">
+              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Configuration</h3>
+                <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">MCP runtime configuration (JSON)</p>
+                <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
                   {JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </div>
               {mcp.credential_schema && (
-                <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-                  <h3 className="text-base/7 font-semibold text-zinc-900">Credential Schema</h3>
-                  <p className="text-sm/6 text-zinc-500 mt-1">Required user credentials schema</p>
-                  <pre className="mt-4 rounded-lg bg-zinc-50 p-4 overflow-x-auto text-sm font-mono text-zinc-900">
+                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Credential Schema</h3>
+                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Required user credentials schema</p>
+                  <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
                     {JSON.stringify(mcp.credential_schema, null, 2)}
                   </pre>
                 </div>

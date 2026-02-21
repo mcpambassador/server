@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
@@ -67,8 +67,8 @@ export function Profile() {
 
   const passwordStrength = getPasswordStrength(passwordForm.new_password);
   const strengthColor =
-    passwordStrength === 'Strong' ? 'text-green-600' :
-    passwordStrength === 'Medium' ? 'text-yellow-600' : 'text-red-600';
+    passwordStrength === 'Strong' ? 'text-green-600 dark:text-green-400' :
+    passwordStrength === 'Medium' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
 
   return (
     <div className="space-y-6">
@@ -78,70 +78,70 @@ export function Profile() {
       </div>
 
       {/* User Information */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">User Information</h3>
-        <p className="text-sm/6 text-zinc-500">Your account details</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">User Information</h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Your account details</p>
 
         {isLoading ? (
           <div className="mt-4 space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-2">
-                <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
-                <div className="h-6 w-full animate-pulse rounded bg-zinc-200" />
+                <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                <div className="h-6 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
               </div>
             ))}
           </div>
         ) : user ? (
           <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             <div>
-              <dt className="text-sm/6 font-medium text-zinc-500">Username</dt>
-              <dd className="text-sm/6 text-zinc-900">{user.username}</dd>
+              <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Username</dt>
+              <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.username}</dd>
             </div>
             {user.displayName && (
               <div>
-                <dt className="text-sm/6 font-medium text-zinc-500">Display Name</dt>
-                <dd className="text-sm/6 text-zinc-900">{user.displayName}</dd>
+                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
+                <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.displayName}</dd>
               </div>
             )}
             {user.email && (
               <div>
-                <dt className="text-sm/6 font-medium text-zinc-500">Email</dt>
-                <dd className="text-sm/6 text-zinc-900">{user.email}</dd>
+                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Email</dt>
+                <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.email}</dd>
               </div>
             )}
             <div>
-              <dt className="text-sm/6 font-medium text-zinc-500">Role</dt>
-              <dd className="text-sm/6 text-zinc-900">{user.isAdmin ? 'Administrator' : 'User'}</dd>
+              <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Role</dt>
+              <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.isAdmin ? 'Administrator' : 'User'}</dd>
             </div>
             <div>
-              <dt className="text-sm/6 font-medium text-zinc-500">Account Created</dt>
-              <dd className="text-sm/6 text-zinc-900">
+              <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Account Created</dt>
+              <dd className="text-sm/6 text-zinc-900 dark:text-white">
                 {new Date(user.createdAt).toLocaleDateString()}
               </dd>
             </div>
             {user.lastLoginAt && (
               <div>
-                <dt className="text-sm/6 font-medium text-zinc-500">Last Login</dt>
-                <dd className="text-sm/6 text-zinc-900">
+                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Last Login</dt>
+                <dd className="text-sm/6 text-zinc-900 dark:text-white">
                   {new Date(user.lastLoginAt).toLocaleString()}
                 </dd>
               </div>
             )}
           </dl>
         ) : (
-          <p className="mt-4 text-sm/6 text-zinc-500">Failed to load user information</p>
+          <p className="mt-4 text-sm/6 text-zinc-500 dark:text-zinc-400">Failed to load user information</p>
         )}
       </div>
 
       {/* Change Password */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">Change Password</h3>
-        <p className="text-sm/6 text-zinc-500">Update your password to keep your account secure</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Change Password</h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Update your password to keep your account secure</p>
 
         <form onSubmit={handlePasswordChange} className="mt-4 space-y-4">
           {passwordSuccess && (
             <InlineAlert color="success">
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircleIcon className="size-4" />
               <InlineAlertDescription>
                 Password changed successfully
               </InlineAlertDescription>
@@ -150,7 +150,7 @@ export function Profile() {
 
           {passwordError && (
             <InlineAlert color="error">
-              <AlertCircle className="h-4 w-4" />
+              <ExclamationCircleIcon className="size-4" />
               <InlineAlertDescription>{passwordError}</InlineAlertDescription>
             </InlineAlert>
           )}

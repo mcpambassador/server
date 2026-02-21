@@ -205,6 +205,32 @@ export async function suspendUserClient(
 }
 
 /**
+ * Reactivate a suspended client
+ *
+ * @param db Database client
+ * @param userId User UUID (for ownership verification)
+ * @param clientId Client UUID
+ */
+export async function reactivateUserClient(
+  db: DatabaseClient,
+  userId: string,
+  clientId: string
+): Promise<void> {
+  // Verify ownership
+  const client = await getUserClient(db, userId, clientId);
+
+  if (client.status !== 'suspended') {
+    throw new Error(`Client ${clientId} is not suspended (current status: ${client.status})`);
+  }
+
+  await compatUpdate(db, clients)
+    .set({ status: 'active' })
+    .where(and(eq(clients.client_id, clientId), eq(clients.user_id, userId)));
+
+  console.log(`[ClientService] User ${userId} reactivated client ${clientId}`);
+}
+
+/**
  * Revoke a client and cascade all subscriptions to 'removed'
  *
  * @param db Database client

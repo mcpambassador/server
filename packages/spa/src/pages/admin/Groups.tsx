@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Pencil, Trash2 } from 'lucide-react';
+import { PlusIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -96,13 +96,13 @@ export function GroupsAdmin() {
           <Text>Manage user groups and access control</Text>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <PlusIcon data-slot="icon" />
           Create Group
         </Button>
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
         <Table>
           <TableHead>
             <TableRow>
@@ -119,22 +119,22 @@ export function GroupsAdmin() {
                 {Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell>
-                      <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                      <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="animate-pulse h-4 w-48 rounded bg-zinc-200" />
+                      <div className="animate-pulse h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
-                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
-                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -146,27 +146,27 @@ export function GroupsAdmin() {
                   <TableCell>
                     <Link
                       to={`/app/admin/groups/${group.group_id}`}
-                      className="font-medium text-zinc-900 hover:text-zinc-700"
+                      className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
                     >
                       {group.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {group.description || '—'}
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {new Date(group.created_at).toLocaleDateString()}
                   </TableCell>
-                  <TableCell className="text-zinc-500">
+                  <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {new Date(group.updated_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button plain href={`/app/admin/groups/${group.group_id}`}>
-                        <Eye className="h-4 w-4" />
+                        <EyeIcon />
                       </Button>
                       <Button plain onClick={() => openEditDialog(group)}>
-                        <Pencil className="h-4 w-4" />
+                        <PencilIcon />
                       </Button>
                       <Button
                         plain
@@ -175,7 +175,7 @@ export function GroupsAdmin() {
                           setDeleteDialogOpen(true);
                         }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <TrashIcon />
                       </Button>
                     </div>
                   </TableCell>
@@ -183,7 +183,7 @@ export function GroupsAdmin() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-zinc-500">
+                <TableCell colSpan={5} className="text-center text-zinc-500 dark:text-zinc-400">
                   No groups yet.
                 </TableCell>
               </TableRow>

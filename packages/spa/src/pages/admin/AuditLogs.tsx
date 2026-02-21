@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { ArrowPathIcon } from '@heroicons/react/20/solid';
 import { Heading, Subheading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
@@ -64,13 +64,13 @@ export function AuditLogsAdmin() {
           <Text>View system audit logs and activity history</Text>
         </div>
         <Button outline onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
+          <ArrowPathIcon data-slot="icon" />
           Refresh
         </Button>
       </div>
 
       {/* Filters Panel */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
         <div className="space-y-4">
           <Subheading>Filters</Subheading>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -125,7 +125,7 @@ export function AuditLogsAdmin() {
       </div>
 
       {/* Audit Events Table */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5 overflow-hidden">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 overflow-hidden">
         <Table>
           <TableHead>
             <TableRow>
@@ -145,35 +145,35 @@ export function AuditLogsAdmin() {
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-24 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-32 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-5 w-16 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-48 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-28 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-28 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                   <TableCell>
-                    <div className="animate-pulse h-4 w-12 rounded bg-zinc-200" />
+                    <div className="animate-pulse h-4 w-12 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </TableCell>
                 </TableRow>
               ))
             ) : events.length === 0 ? (
               // Empty state
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-zinc-500">
+                <TableCell colSpan={8} className="text-center py-8 text-zinc-500 dark:text-zinc-400">
                   No audit events found.
                 </TableCell>
               </TableRow>
@@ -182,15 +182,15 @@ export function AuditLogsAdmin() {
               events.map((event) => (
                 <TableRow key={event.event_id}>
                   <TableCell>
-                    <div className="text-sm text-zinc-900">
+                    <div className="text-sm text-zinc-900 dark:text-white">
                       {new Date(event.timestamp).toLocaleDateString()}
                     </div>
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
                       {new Date(event.timestamp).toLocaleTimeString()}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <code className="text-sm font-mono text-zinc-900">
+                    <code className="text-sm font-mono text-zinc-900 dark:text-white">
                       {event.event_type}
                     </code>
                   </TableCell>
@@ -208,31 +208,31 @@ export function AuditLogsAdmin() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm text-zinc-900 max-w-sm truncate">
+                    <div className="text-sm text-zinc-900 dark:text-white max-w-sm truncate">
                       {event.action}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <code className="text-xs font-mono text-zinc-900">
+                    <code className="text-xs font-mono text-zinc-900 dark:text-white">
                       {event.user_id || '—'}
                     </code>
                   </TableCell>
                   <TableCell>
-                    <code className="text-xs font-mono text-zinc-900">
+                    <code className="text-xs font-mono text-zinc-900 dark:text-white">
                       {event.client_id || '—'}
                     </code>
                   </TableCell>
                   <TableCell>
-                    <code className="text-xs font-mono text-zinc-900">
+                    <code className="text-xs font-mono text-zinc-900 dark:text-white">
                       {event.source_ip}
                     </code>
                   </TableCell>
                   <TableCell>
                     <details className="text-xs">
-                      <summary className="cursor-pointer text-zinc-500">
+                      <summary className="cursor-pointer text-zinc-500 dark:text-zinc-400">
                         View
                       </summary>
-                      <pre className="mt-2 bg-zinc-50 p-2 rounded text-xs overflow-x-auto max-w-xs">
+                      <pre className="mt-2 bg-zinc-50 dark:bg-zinc-800 p-2 rounded text-xs overflow-x-auto max-w-xs">
                         {JSON.stringify(event.metadata, null, 2)}
                       </pre>
                     </details>
@@ -243,7 +243,7 @@ export function AuditLogsAdmin() {
           </TableBody>
         </Table>
         {nextCursor && (
-          <div className="px-4 py-3 border-t border-zinc-950/5 text-center">
+          <div className="px-4 py-3 border-t border-zinc-950/5 dark:border-white/10 text-center">
             <Button
               outline
               onClick={() =>

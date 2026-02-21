@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Key, Trash2, Shield } from 'lucide-react';
+import { ExclamationTriangleIcon, KeyIcon, TrashIcon, ShieldCheckIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -66,24 +66,24 @@ export function Settings() {
       </div>
 
       {/* System Status */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">System Status</h3>
-        <p className="mt-1 text-sm/6 text-zinc-500">Current system health metrics</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">System Status</h3>
+        <p className="mt-1 text-sm/6 text-zinc-500 dark:text-zinc-400">Current system health metrics</p>
         
         {downstream ? (
           <div className="mt-6 grid grid-cols-3 gap-6">
             <div>
-              <p className="text-xs font-medium text-zinc-500">Downstream Connections</p>
-              <p className="mt-2 text-2xl font-semibold text-zinc-900">
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Downstream Connections</p>
+              <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">
                 {downstream.healthy_connections}/{downstream.total_connections}
               </p>
             </div>
             <div>
-              <p className="text-xs font-medium text-zinc-500">Total Tools</p>
-              <p className="mt-2 text-2xl font-semibold text-zinc-900">{downstream.total_tools}</p>
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total Tools</p>
+              <p className="mt-2 text-2xl font-semibold text-zinc-900 dark:text-white">{downstream.total_tools}</p>
             </div>
             <div>
-              <p className="text-xs font-medium text-zinc-500">Health Status</p>
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Health Status</p>
               <div className="mt-2">
                 <Badge
                   color={
@@ -100,24 +100,24 @@ export function Settings() {
             </div>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-zinc-500">No system data available</p>
+          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No system data available</p>
         )}
       </div>
 
       {/* Active Sessions */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
-        <h3 className="text-base/7 font-semibold text-zinc-900">Active Sessions</h3>
-        <p className="mt-1 text-sm/6 text-zinc-500">Currently authenticated user sessions</p>
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Active Sessions</h3>
+        <p className="mt-1 text-sm/6 text-zinc-500 dark:text-zinc-400">Currently authenticated user sessions</p>
         
         <div className="mt-6">
           {sessionsLoading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-zinc-100" />
+                <div key={i} className="h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
               ))}
             </div>
           ) : sessionList.length === 0 ? (
-            <p className="text-sm text-zinc-500">No active sessions</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No active sessions</p>
           ) : (
             <Table>
               <TableHead>
@@ -135,17 +135,17 @@ export function Settings() {
                   <TableRow key={session.session_id}>
                     <TableCell className="font-medium">{session.username}</TableCell>
                     <TableCell>
-                      <code className="text-xs font-mono text-zinc-600">{session.user_id}</code>
+                      <code className="text-xs font-mono text-zinc-600 dark:text-zinc-400">{session.user_id}</code>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs font-mono text-zinc-600">
+                      <code className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
                         {session.ip_address || '—'}
                       </code>
                     </TableCell>
-                    <TableCell className="text-zinc-600">
+                    <TableCell className="text-zinc-600 dark:text-zinc-400">
                       {new Date(session.created_at).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-zinc-600">
+                    <TableCell className="text-zinc-600 dark:text-zinc-400">
                       {new Date(session.expires_at).toLocaleString()}
                     </TableCell>
                     <TableCell>
@@ -156,7 +156,7 @@ export function Settings() {
                           setKillSessionDialogOpen(true);
                         }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <TrashIcon />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -168,24 +168,24 @@ export function Settings() {
       </div>
 
       {/* Dangerous Operations */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-red-200">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-red-200 dark:ring-red-800">
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-red-600" />
-          <h3 className="text-base/7 font-semibold text-red-900">Dangerous Operations</h3>
+          <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
+          <h3 className="text-base/7 font-semibold text-red-900 dark:text-red-200">Dangerous Operations</h3>
         </div>
-        <p className="mt-1 text-sm/6 text-red-700">
+        <p className="mt-1 text-sm/6 text-red-700 dark:text-red-300">
           These operations can disrupt service. Use with extreme caution.
         </p>
 
         <div className="mt-4 space-y-4">
           {/* Rotate HMAC Secret */}
-          <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
+          <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-950/50 p-4">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-red-700" />
-                <p className="font-medium text-red-900">Rotate HMAC Secret</p>
+                <KeyIcon className="size-4 text-red-700 dark:text-red-300" />
+                <p className="font-medium text-red-900 dark:text-red-200">Rotate HMAC Secret</p>
               </div>
-              <p className="mt-1 text-sm text-red-700">
+              <p className="mt-1 text-sm text-red-700 dark:text-red-300">
                 Invalidates all existing API keys. Clients must obtain new keys.
               </p>
             </div>
@@ -194,19 +194,19 @@ export function Settings() {
               onClick={() => setHmacDialogOpen(true)}
               disabled={rotateHmac.isPending}
             >
-              <Shield className="h-4 w-4" />
+              <ShieldCheckIcon data-slot="icon" />
               Rotate
             </Button>
           </div>
 
           {/* Rotate Credential Encryption Key */}
-          <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
+          <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-950/50 p-4">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-red-700" />
-                <p className="font-medium text-red-900">Rotate Credential Encryption Key</p>
+                <KeyIcon className="size-4 text-red-700 dark:text-red-300" />
+                <p className="font-medium text-red-900 dark:text-red-200">Rotate Credential Encryption Key</p>
               </div>
-              <p className="mt-1 text-sm text-red-700">
+              <p className="mt-1 text-sm text-red-700 dark:text-red-300">
                 Re-encrypts all stored credentials with a new key. May cause temporary service
                 disruption.
               </p>
@@ -216,7 +216,7 @@ export function Settings() {
               onClick={() => setCredKeyDialogOpen(true)}
               disabled={rotateCredentialKey.isPending}
             >
-              <Shield className="h-4 w-4" />
+              <ShieldCheckIcon data-slot="icon" />
               Rotate
             </Button>
           </div>

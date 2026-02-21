@@ -25,6 +25,7 @@ import { createUserSchema, updateUserSchema, resetPasswordSchema } from '../auth
 import { updateUserParamsSchema, listUsersQuerySchema } from './schemas.js';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
+import { getUserGroupsService, getGroupService } from '../services/group-service.js';
 
 /**
  * Admin user routes plugin configuration
@@ -429,6 +430,49 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       message: 'Password successfully reset',
       user_id: userId,
     }));
+  });
+
+  // ==========================================================================
+  // GET /v1/admin/users/:userId/groups - Get groups for a user
+  // ==========================================================================
+  fastify.get('/v1/admin/users/:userId/groups', async (request, reply) => {
+    try {
+      const { userId } = updateUserParamsSchema.parse(request.params);
+      
+      const userGroups = await getUserGroupsService(db, userId);
+      
+      // Enrich with group details
+      const enrichedGroups = await Promise.all(
+        userGroups.map(async (ug) => {
+          try {
+            const group = await getGroupService(db, ug.group_id);
+            return {
+              group_id: ug.group_id,
+              name: group.name,
+              description: group.description,
+              assigned_at: ug.assigned_at,
+            };
+          } catch (err) {
+            // If group lookup fails, include basic info
+            return {
+              group_id: ug.group_id,
+              name: 'Unknown',
+              description: null,
+              assigned_at: ug.assigned_at,
+            };
+          }
+        })
+      );
+      
+      return reply.send(wrapSuccess(enrichedGroups));
+    } catch (err: any) {
+      if (err.name === 'ZodError') {
+        return reply.status(400).send(
+          wrapError(ErrorCodes.BAD_REQUEST, 'Invalid user ID format')
+        );
+      }
+      throw err;
+    }
   });
 
   done();

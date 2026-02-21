@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Copy, Eye, Pause, Play, Trash2, Check } from 'lucide-react';
+import {
+  PlusIcon,
+  ClipboardDocumentIcon,
+  EyeIcon,
+  PauseIcon,
+  PlayIcon,
+  TrashIcon,
+  CheckIcon,
+} from '@heroicons/react/20/solid';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Heading } from '@/components/catalyst/heading';
@@ -117,21 +125,21 @@ export function Clients() {
           </p>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus data-slot="icon" />
+          <PlusIcon data-slot="icon" />
           Create Client
         </Button>
       </div>
 
       {/* Table Section */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
         {isLoading ? (
           <div className="p-6 space-y-4">
-            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
-            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
-            <div className="animate-pulse h-10 w-full rounded bg-zinc-200" />
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+            <div className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
           </div>
         ) : !clients || clients.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500">
+          <div className="p-12 text-center text-zinc-500 dark:text-zinc-400">
             No clients yet. Create your first client to get started.
           </div>
         ) : (
@@ -152,13 +160,13 @@ export function Clients() {
                   <TableCell>
                     <Link
                       to={`/app/clients/${client.id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="font-medium text-zinc-900 dark:text-white hover:underline"
                     >
                       {client.clientName}
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <code className="text-sm text-zinc-500">
+                    <code className="text-sm text-zinc-500 dark:text-zinc-400">
                       {client.keyPrefix}
                     </code>
                   </TableCell>
@@ -186,7 +194,7 @@ export function Clients() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button plain href={`/app/clients/${client.id}`}>
-                        <Eye data-slot="icon" />
+                        <EyeIcon data-slot="icon" />
                       </Button>
                       {client.status !== 'revoked' && (
                         <Button
@@ -195,9 +203,9 @@ export function Clients() {
                           disabled={updateClient.isPending}
                         >
                           {client.status === 'active' ? (
-                            <Pause data-slot="icon" />
+                            <PauseIcon data-slot="icon" />
                           ) : (
-                            <Play data-slot="icon" />
+                            <PlayIcon data-slot="icon" />
                           )}
                         </Button>
                       )}
@@ -209,7 +217,7 @@ export function Clients() {
                         }}
                         disabled={deleteClient.isPending}
                       >
-                        <Trash2 data-slot="icon" />
+                        <TrashIcon data-slot="icon" />
                       </Button>
                     </div>
                   </TableCell>
@@ -286,13 +294,13 @@ export function Clients() {
               <Input
                 value={plaintextKey ?? ''}
                 readOnly
-                className="font-mono text-xs bg-zinc-100"
+                className="font-mono text-xs bg-zinc-100 dark:bg-zinc-800"
               />
               <Button plain onClick={handleCopyKey}>
                 {keyCopied ? (
-                  <Check data-slot="icon" className="text-green-600" />
+                  <CheckIcon data-slot="icon" className="text-green-600 dark:text-green-400" />
                 ) : (
-                  <Copy data-slot="icon" />
+                  <ClipboardDocumentIcon data-slot="icon" />
                 )}
               </Button>
             </div>

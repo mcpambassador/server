@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Eye, CheckCircle, Archive, Trash2, RefreshCw } from 'lucide-react';
+import { 
+  PlusIcon, 
+  EyeIcon, 
+  ArrowPathIcon, 
+  ArchiveBoxIcon, 
+  TrashIcon 
+} from '@heroicons/react/20/solid';
+import { CheckCircleIcon } from '@heroicons/react/16/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import {
@@ -82,31 +90,39 @@ export function McpsAdmin() {
           <Text>Administer MCP servers and configurations</Text>
         </div>
         <Button onClick={() => navigate('/app/admin/mcps/new')}>
-          <Plus className="h-4 w-4" />
+          <PlusIcon />
           Create MCP
         </Button>
       </div>
 
       {/* Status Filter */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-zinc-700">Status:</span>
-        <select
+        <span className="text-sm font-medium text-zinc-700 dark:text-white">Status:</span>
+        <Listbox
+          name="status"
           value={statusFilter || ''}
-          onChange={(e) =>
-            setStatusFilter(e.target.value ? (e.target.value as any) : undefined)
+          onChange={(value: string) =>
+            setStatusFilter(value ? (value as any) : undefined)
           }
-          className="block rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
         >
-          <option value="">All</option>
-          <option value="draft">Draft</option>
-          <option value="published">Published</option>
-          <option value="archived">Archived</option>
-        </select>
+          <ListboxOption value="">
+            <ListboxLabel>All</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="draft">
+            <ListboxLabel>Draft</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="published">
+            <ListboxLabel>Published</ListboxLabel>
+          </ListboxOption>
+          <ListboxOption value="archived">
+            <ListboxLabel>Archived</ListboxLabel>
+          </ListboxOption>
+        </Listbox>
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-        <Table>
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <Table className="mt-4 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
           <TableHead>
             <TableRow>
               <TableHeader>Name</TableHeader>
@@ -126,31 +142,31 @@ export function McpsAdmin() {
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
                     <TableCell>
-                      <div className="h-4 w-32 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-32 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200" />
+                      <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
-                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
-                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="h-8 w-8 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -170,17 +186,17 @@ export function McpsAdmin() {
                   <TableCell>
                     <Link
                       to={`/app/admin/mcps/${mcp.mcp_id}`}
-                      className="font-medium text-zinc-900 hover:underline"
+                      className="font-medium text-zinc-900 dark:text-white hover:underline"
                     >
                       {mcp.display_name}
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-sm font-mono text-zinc-900">
+                    <code className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-sm font-mono text-zinc-900 dark:text-white">
                       {mcp.name}
                     </code>
                   </TableCell>
-                  <TableCell className="text-zinc-700">{mcp.transport_type}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.transport_type}</TableCell>
                   <TableCell>
                     <Badge
                       color={
@@ -211,15 +227,15 @@ export function McpsAdmin() {
                       <span className="text-zinc-500">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-zinc-700">{mcp.isolation_mode}</TableCell>
-                  <TableCell className="text-zinc-700">
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.isolation_mode}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">
                     {new Date(mcp.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {/* View */}
                       <Button plain href={`/app/admin/mcps/${mcp.mcp_id}`}>
-                        <Eye className="h-4 w-4" />
+                        <EyeIcon />
                       </Button>
                       {/* Validate */}
                       <Button
@@ -227,7 +243,7 @@ export function McpsAdmin() {
                         onClick={() => handleValidate(mcp.mcp_id)}
                         disabled={validateMcp.isPending}
                       >
-                        <RefreshCw className="h-4 w-4" />
+                        <ArrowPathIcon />
                       </Button>
                       {/* Publish (draft + valid only) */}
                       {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
@@ -236,7 +252,7 @@ export function McpsAdmin() {
                           onClick={() => handlePublish(mcp.mcp_id)}
                           disabled={publishMcp.isPending}
                         >
-                          <CheckCircle className="h-4 w-4" />
+                          <CheckCircleIcon />
                         </Button>
                       )}
                       {/* Archive (published only) */}
@@ -246,7 +262,7 @@ export function McpsAdmin() {
                           onClick={() => handleArchive(mcp.mcp_id)}
                           disabled={archiveMcp.isPending}
                         >
-                          <Archive className="h-4 w-4" />
+                          <ArchiveBoxIcon />
                         </Button>
                       )}
                       {/* Delete (draft only) */}
@@ -258,7 +274,7 @@ export function McpsAdmin() {
                             setDeleteDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <TrashIcon />
                         </Button>
                       )}
                     </div>

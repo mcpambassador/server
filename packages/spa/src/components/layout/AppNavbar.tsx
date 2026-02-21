@@ -1,8 +1,16 @@
 import { useNavigate } from 'react-router-dom';
-import { User, LogOut } from 'lucide-react';
-import { Navbar, NavbarSpacer } from '@/components/catalyst/navbar';
+import { UserCircleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/16/solid';
+import { Navbar, NavbarSection, NavbarSpacer, NavbarItem } from '@/components/catalyst/navbar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar } from '@/components/catalyst/avatar';
-import { Dropdown, DropdownButton, DropdownMenu, DropdownItem, DropdownDivider } from '@/components/catalyst/dropdown';
+import { 
+  Dropdown, 
+  DropdownButton, 
+  DropdownMenu, 
+  DropdownItem, 
+  DropdownDivider,
+  DropdownLabel,
+} from '@/components/catalyst/dropdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 
@@ -32,22 +40,25 @@ export function AppNavbar() {
   return (
     <Navbar>
       <NavbarSpacer />
-      <Dropdown>
-        <DropdownButton as="div" className="cursor-pointer">
-          <Avatar initials={userInitials} className="size-8 bg-slate-700 text-white" />
-        </DropdownButton>
-        <DropdownMenu anchor="bottom end">
-          <DropdownItem href="/app/profile">
-            <User data-slot="icon" />
-            Profile
-          </DropdownItem>
-          <DropdownDivider />
-          <DropdownItem onClick={handleLogout}>
-            <LogOut data-slot="icon" />
-            Log out
-          </DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
+      <NavbarSection>
+        <ThemeToggle />
+        <Dropdown>
+          <DropdownButton as={NavbarItem}>
+            <Avatar initials={userInitials} className="bg-slate-700 text-white" square />
+          </DropdownButton>
+          <DropdownMenu anchor="bottom end">
+            <DropdownItem href="/app/profile">
+              <UserCircleIcon />
+              <DropdownLabel>Profile</DropdownLabel>
+            </DropdownItem>
+            <DropdownDivider />
+            <DropdownItem onClick={handleLogout}>
+              <ArrowRightStartOnRectangleIcon />
+              <DropdownLabel>Log out</DropdownLabel>
+            </DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
+      </NavbarSection>
     </Navbar>
   );
 }

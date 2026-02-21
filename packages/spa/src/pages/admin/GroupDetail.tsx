@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Trash2, Plus } from 'lucide-react';
+import { ArrowLeftIcon, TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/componen
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import {
   useAdminGroup,
   useGroupMembers,
@@ -94,8 +95,8 @@ export function GroupDetail() {
   if (groupLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-64 animate-pulse rounded bg-zinc-200" />
-        <div className="h-48 w-full animate-pulse rounded bg-zinc-200" />
+        <div className="h-8 w-64 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="h-48 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
       </div>
     );
   }
@@ -104,10 +105,10 @@ export function GroupDetail() {
     return (
       <div className="space-y-6">
         <Button plain href="/app/admin/groups">
-          <ArrowLeft data-slot="icon" />
+          <ArrowLeftIcon data-slot="icon" />
           Back to Groups
         </Button>
-        <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
           <Heading>Group Not Found</Heading>
         </div>
       </div>
@@ -118,7 +119,7 @@ export function GroupDetail() {
     <div className="space-y-6">
       {/* Back Button */}
       <Button plain href="/app/admin/groups">
-        <ArrowLeft data-slot="icon" />
+        <ArrowLeftIcon data-slot="icon" />
         Back to Groups
       </Button>
 
@@ -129,24 +130,24 @@ export function GroupDetail() {
       </div>
 
       {/* Group Information Panel */}
-      <div className="rounded-lg bg-white p-6 ring-1 ring-zinc-950/5">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
         <Heading level={2}>Group Information</Heading>
         <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Group ID</dt>
-            <dd className="mt-1 text-sm font-mono text-zinc-900">{group.group_id}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Group ID</dt>
+            <dd className="mt-1 text-sm font-mono text-zinc-900 dark:text-white">{group.group_id}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Name</dt>
-            <dd className="mt-1 text-sm text-zinc-900">{group.name}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Name</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{group.name}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Created</dt>
-            <dd className="mt-1 text-sm text-zinc-900">{new Date(group.created_at).toLocaleString()}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{new Date(group.created_at).toLocaleString()}</dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500">Updated</dt>
-            <dd className="mt-1 text-sm text-zinc-900">{new Date(group.updated_at).toLocaleString()}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Updated</dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{new Date(group.updated_at).toLocaleString()}</dd>
           </div>
         </dl>
       </div>
@@ -160,23 +161,23 @@ export function GroupDetail() {
         <TabsPanels>
           {/* Members Tab */}
           <TabsContent className="space-y-4">
-            <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-              <div className="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4">
+            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <div className="flex items-center justify-between border-b border-zinc-950/5 dark:border-white/10 px-6 py-4">
                 <div>
                   <Heading level={2}>Group Members</Heading>
                   <Text>Users who belong to this group</Text>
                 </div>
                 <Button onClick={() => setAddMemberDialogOpen(true)}>
-                  <Plus data-slot="icon" />
+                  <PlusIcon data-slot="icon" />
                   Add Member
                 </Button>
               </div>
               <div className="p-6">
                 {membersLoading ? (
                   <div className="space-y-3">
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 ) : !members || members.length === 0 ? (
                   <div className="py-12 text-center">
@@ -198,15 +199,15 @@ export function GroupDetail() {
                           <TableCell>
                             <Link
                               to={`/app/admin/users/${member.user_id}`}
-                              className="font-medium text-zinc-900 hover:underline"
+                              className="font-medium text-zinc-900 dark:text-white hover:underline"
                             >
                               {member.username}
                             </Link>
                           </TableCell>
-                          <TableCell className="text-zinc-500">
+                          <TableCell className="text-zinc-500 dark:text-zinc-400">
                             {member.display_name || '—'}
                           </TableCell>
-                          <TableCell className="text-zinc-500">
+                          <TableCell className="text-zinc-500 dark:text-zinc-400">
                             {new Date(member.added_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
@@ -217,7 +218,7 @@ export function GroupDetail() {
                                 setRemoveMemberDialogOpen(true);
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <TrashIcon />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -231,23 +232,23 @@ export function GroupDetail() {
 
           {/* MCPs Tab */}
           <TabsContent className="space-y-4">
-            <div className="rounded-lg bg-white ring-1 ring-zinc-950/5">
-              <div className="flex items-center justify-between border-b border-zinc-950/5 px-6 py-4">
+            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <div className="flex items-center justify-between border-b border-zinc-950/5 dark:border-white/10 px-6 py-4">
                 <div>
                   <Heading level={2}>Assigned MCPs</Heading>
                   <Text>MCPs available to this group</Text>
                 </div>
                 <Button onClick={() => setAddMcpDialogOpen(true)}>
-                  <Plus data-slot="icon" />
+                  <PlusIcon data-slot="icon" />
                   Assign MCP
                 </Button>
               </div>
               <div className="p-6">
                 {mcpsLoading ? (
                   <div className="space-y-3">
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
-                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                    <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 ) : !mcps || mcps.length === 0 ? (
                   <div className="py-12 text-center">
@@ -269,15 +270,15 @@ export function GroupDetail() {
                           <TableCell>
                             <Link
                               to={`/app/admin/mcps/${mcp.mcp_id}`}
-                              className="font-medium text-zinc-900 hover:underline"
+                              className="font-medium text-zinc-900 dark:text-white hover:underline"
                             >
                               {mcp.display_name}
                             </Link>
                           </TableCell>
-                          <TableCell className="text-zinc-500">
+                          <TableCell className="text-zinc-500 dark:text-zinc-400">
                             {mcp.transport_type}
                           </TableCell>
-                          <TableCell className="text-zinc-500">
+                          <TableCell className="text-zinc-500 dark:text-zinc-400">
                             {mcp.isolation_mode}
                           </TableCell>
                           <TableCell>
@@ -288,7 +289,7 @@ export function GroupDetail() {
                                 setRemoveMcpDialogOpen(true);
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <TrashIcon />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -309,18 +310,18 @@ export function GroupDetail() {
         <DialogBody>
           <Field>
             <Label>User</Label>
-            <select
+            <Listbox
+              name="user-select"
+              placeholder="Select a user..."
               value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
+              onChange={(value: string) => setSelectedUserId(value)}
             >
-              <option value="">Select a user...</option>
               {allUsers?.data.map((user) => (
-                <option key={user.user_id} value={user.user_id}>
-                  {user.username} {user.display_name && `(${user.display_name})`}
-                </option>
+                <ListboxOption key={user.user_id} value={user.user_id}>
+                  <ListboxLabel>{user.username} {user.display_name && `(${user.display_name})`}</ListboxLabel>
+                </ListboxOption>
               ))}
-            </select>
+            </Listbox>
           </Field>
         </DialogBody>
         <DialogActions>
@@ -340,18 +341,18 @@ export function GroupDetail() {
         <DialogBody>
           <Field>
             <Label>MCP</Label>
-            <select
+            <Listbox
+              name="mcp-select"
+              placeholder="Select an MCP..."
               value={selectedMcpId}
-              onChange={(e) => setSelectedMcpId(e.target.value)}
-              className="block w-full rounded-lg border-none bg-white py-1.5 px-3 text-sm/6 text-zinc-900 ring-1 ring-zinc-950/10 focus:ring-2 focus:ring-zinc-950/20"
+              onChange={(value: string) => setSelectedMcpId(value)}
             >
-              <option value="">Select an MCP...</option>
               {allMcps?.data.filter(m => m.status === 'published').map((mcp) => (
-                <option key={mcp.mcp_id} value={mcp.mcp_id}>
-                  {mcp.display_name} ({mcp.transport_type})
-                </option>
+                <ListboxOption key={mcp.mcp_id} value={mcp.mcp_id}>
+                  <ListboxLabel>{mcp.display_name} ({mcp.transport_type})</ListboxLabel>
+                </ListboxOption>
               ))}
-            </select>
+            </Listbox>
           </Field>
         </DialogBody>
         <DialogActions>
