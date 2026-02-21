@@ -275,9 +275,17 @@ export class AmbassadorServer {
     // Initialize downstream MCP connections from catalog
     await this.mcpManager.initializeFromCatalog(this.db!, catalogResult.entries);
 
+    // M26: Also load per-user MCPs for UserMcpPool
+    const perUserResult = await listMcpCatalogEntries(
+      this.db!,
+      { status: 'published', isolation_mode: 'per_user' },
+      { limit: 100 }
+    );
+    console.log(`[Server] Found ${perUserResult.entries.length} published per-user MCPs in catalog`);
+
     // Extract configs for UserMcpPool (convert catalog entries back to DownstreamMcpConfig format)
     // This is needed because UserMcpPool expects the old config format
-    const mcpConfigs: DownstreamMcpConfig[] = catalogResult.entries.map(entry => {
+    const mcpConfigs: DownstreamMcpConfig[] = perUserResult.entries.map(entry => {
       const config = JSON.parse(entry.config) as Record<string, unknown>;
       const mcpConfig: DownstreamMcpConfig = {
         name: entry.name,
@@ -612,6 +620,93 @@ export class AmbassadorServer {
   }
 
   /**
+   * Load and prepare user credentials for MCP spawning
+   * 
+   * Queries user_mcp_credentials, decrypts credentials using the vault,
+   * and maps them to environment variables according to each MCP's credential_schema.
+   * 
+   * @param userId User UUID
+   * @returns Map of MCP name to environment variables
+   */
+  private async loadUserCredentialsForMcps(userId: string): Promise<Map<string, Record<string, string>>> {
+    if (!this.credentialVault || !this.db) {
+      return new Map(); // Vault not initialized, return empty map
+    }
+
+    try {
+      // Get user's vault_salt
+      const user = await this.db.query.users.findFirst({
+        where: (users, { eq }) => eq(users.user_id, userId),
+      });
+
+      if (!user?.vault_salt) {
+        console.warn(`[Server] User ${userId} has no vault_salt, skipping credential loading`);
+        return new Map();
+      }
+
+      // Load all credentials for this user
+      const { listCredentialsForUser, getMcpEntryById } = await import('@mcpambassador/core');
+      const credentials = await listCredentialsForUser(this.db, userId);
+
+      if (credentials.length === 0) {
+        return new Map();
+      }
+
+      const envMap = new Map<string, Record<string, string>>();
+
+      for (const cred of credentials) {
+        try {
+          // Get MCP catalog entry for credential schema
+          const mcpEntry = await getMcpEntryById(this.db, cred.mcp_id);
+          if (!mcpEntry) {
+            console.warn(`[Server] MCP ${cred.mcp_id} not found in catalog, skipping credential`);
+            continue;
+          }
+
+          // Decrypt credentials
+          const decryptedJson = this.credentialVault.decrypt(
+            user.vault_salt,
+            cred.encrypted_credentials,
+            cred.encryption_iv
+          );
+          const decryptedCreds = JSON.parse(decryptedJson) as Record<string, string>;
+
+          // Parse credential schema
+          const schema = typeof mcpEntry.credential_schema === 'string'
+            ? JSON.parse(mcpEntry.credential_schema)
+            : mcpEntry.credential_schema;
+
+          // Map credential fields to environment variables according to schema
+          const envVars: Record<string, string> = {};
+          if (schema && typeof schema === 'object' && schema.properties) {
+            for (const [fieldName, fieldDef] of Object.entries(schema.properties as Record<string, any>)) {
+              const envVarName = fieldDef.env_var;
+              const credValue = decryptedCreds[fieldName];
+
+              if (envVarName && credValue) {
+                envVars[envVarName] = credValue;
+              }
+            }
+          }
+
+          if (Object.keys(envVars).length > 0) {
+            envMap.set(mcpEntry.name, envVars);
+            console.log(`[Server] Loaded ${Object.keys(envVars).length} credential env vars for MCP ${mcpEntry.name}`);
+          }
+        } catch (err) {
+          console.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
+          // Continue processing other credentials
+        }
+      }
+
+      return envMap;
+    } catch (err) {
+      console.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
+      return new Map();
+    }
+  }
+
+  /**
    * Register all route handlers
    * Per Architecture §7.2:
    * - /v1/mcp/* - MCP JSON-RPC (tool catalog, invocation)
@@ -662,7 +757,9 @@ export class AmbassadorServer {
 
           if (sessionRecord?.user_id) {
             try {
-              await this.userPool.spawnForUser(sessionRecord.user_id);
+              // M26: Load user credentials and inject into per-user MCPs
+              const credentialEnvs = await this.loadUserCredentialsForMcps(sessionRecord.user_id);
+              await this.userPool.spawnForUser(sessionRecord.user_id, credentialEnvs);
             } catch (err) {
               // Log but don't fail registration — user just won't have per-user MCPs
               this.fastify!.log.error({ err, userId: sessionRecord.user_id }, '[Server] Failed to spawn per-user MCPs');
@@ -757,7 +854,9 @@ export class AmbassadorServer {
           const userId = sessionRecord.user_id;
           if (userId && !this.userPool.hasActiveInstances(userId)) {
             try {
-              await this.userPool.spawnForUser(userId);
+              // M26: Load user credentials and inject into per-user MCPs
+              const credentialEnvs = await this.loadUserCredentialsForMcps(userId);
+              await this.userPool.spawnForUser(userId, credentialEnvs);
             } catch (err) {
               this.fastify!.log.error({ err, userId }, '[Server] Failed to respawn per-user MCPs on reactivation');
             }
