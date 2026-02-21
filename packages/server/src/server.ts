@@ -655,10 +655,7 @@ export class AmbassadorServer {
             sessionConfig
           );
 
-          // Build protocol-compliant response
-          reply.status(201).send(result);
-
-          // M17.3: Spawn per-user MCP pool for this user
+          // M17.3: Spawn per-user MCP pool for this user BEFORE sending response
           // Extract userId from session context (body contains session_id, need to look up)
           const sessionRecord = await this.db!.query.user_sessions.findFirst({
             where: (sessions, { eq }) => eq(sessions.session_id, result.session_id),
@@ -672,15 +669,18 @@ export class AmbassadorServer {
               this.fastify!.log.error({ err, userId: sessionRecord.user_id }, '[Server] Failed to spawn per-user MCPs');
             }
           }
+
+          // Build protocol-compliant response
+          return reply.status(201).send(result);
         } catch (err) {
           if (err instanceof AmbassadorError) {
-            reply.status(err.statusCode).send({
+            return reply.status(err.statusCode).send({
               error: err.code,
               message: err.message,
             });
           } else {
             this.fastify!.log.error({ err }, '[Server] Session registration error');
-            reply.status(500).send({
+            return reply.status(500).send({
               error: 'registration_failed',
               message: 'Failed to register session',
             });
@@ -702,11 +702,10 @@ export class AmbassadorServer {
         const lastHeartbeat = this.heartbeatRateLimit.get(session.session_id);
         const now = Date.now();
         if (lastHeartbeat && now - lastHeartbeat < 5000) {
-          reply.status(429).send({
+          return reply.status(429).send({
             error: 'rate_limit_exceeded',
             message: 'Heartbeat rate limit: max 1 per 5 seconds',
           });
-          return;
         }
 
         // Update rate limit tracker
@@ -718,20 +717,18 @@ export class AmbassadorServer {
         });
 
         if (!sessionRecord) {
-          reply.status(404).send({
+          return reply.status(404).send({
             error: 'session_not_found',
             message: 'Session not found',
           });
-          return;
         }
 
         // Don't allow heartbeat on expired sessions — check both status AND time-based expiry (SR-M15-001)
         if (sessionRecord.status === 'expired' || new Date(sessionRecord.expires_at).getTime() < now) {
-          reply.status(410).send({
+          return reply.status(410).send({
             error: 'session_expired',
             message: 'Session expired, re-register required',
           });
-          return;
         }
 
         const nowIso = new Date(now).toISOString();
@@ -803,20 +800,20 @@ export class AmbassadorServer {
           },
         });
 
-        reply.send({
+        return reply.send({
           status: 'ok',
           session_status: updates.status || sessionRecord.status,
           expires_at: newExpiryIso,
         });
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
-          reply.status(401).send({
+          return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required',
           });
         } else {
           this.fastify!.log.error({ err }, '[Server] Heartbeat error');
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'heartbeat_failed',
             message: 'Failed to process heartbeat',
           });
@@ -836,11 +833,10 @@ export class AmbassadorServer {
         const { connectionId } = request.params as { connectionId: string };
 
         if (!connectionId) {
-          reply.status(400).send({
+          return reply.status(400).send({
             error: 'validation_error',
             message: 'Connection ID required',
           });
-          return;
         }
 
         // Get connection record
@@ -849,20 +845,18 @@ export class AmbassadorServer {
         });
 
         if (!connection) {
-          reply.status(404).send({
+          return reply.status(404).send({
             error: 'connection_not_found',
             message: 'Connection not found',
           });
-          return;
         }
 
         // Verify connection belongs to authenticated session
         if (connection.session_id !== session.session_id) {
-          reply.status(403).send({
+          return reply.status(403).send({
             error: 'forbidden',
             message: 'Connection does not belong to authenticated session',
           });
-          return;
         }
 
         // Mark connection as disconnected
@@ -892,19 +886,19 @@ export class AmbassadorServer {
           },
         });
 
-        reply.send({
+        return reply.send({
           status: 'disconnected',
           connection_id: connectionId,
         });
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
-          reply.status(401).send({
+          return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required',
           });
         } else {
           this.fastify!.log.error({ err }, '[Server] Disconnect error');
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'disconnect_failed',
             message: 'Failed to disconnect connection',
           });
@@ -914,7 +908,7 @@ export class AmbassadorServer {
 
     // Legacy route: redirect /v1/clients/register to 410 Gone
     this.fastify.post('/v1/clients/register', async (_request, reply) => {
-      reply.status(410).send({
+      return reply.status(410).send({
         error: 'endpoint_retired',
         message:
           'API key authentication is retired. Use POST /v1/sessions/register with preshared key instead.',
@@ -926,7 +920,7 @@ export class AmbassadorServer {
     // ==========================================================================
 
     this.fastify.post('/v1/clients/:id/rotate-key', async (_request, reply) => {
-      reply.status(410).send({
+      return reply.status(410).send({
         error: 'endpoint_retired',
         message:
           'API key rotation is retired. Sessions are managed automatically with preshared keys.',
@@ -952,21 +946,19 @@ export class AmbassadorServer {
         // are available. Use session.profile_id (or fallback to attributes.profile_id)
         const profileId = session.profile_id || session.attributes.profile_id;
         if (!profileId) {
-          reply.status(403).send({
+          return reply.status(403).send({
             error: 'Forbidden',
             message: 'No profile assigned to session',
           });
-          return;
         }
 
         const profile = await getEffectiveProfile(this.db, profileId);
 
         if (!profile) {
-          reply.status(403).send({
+          return reply.status(403).send({
             error: 'Forbidden',
             message: 'Profile not found',
           });
-          return;
         }
 
         // M17.4: Get aggregated tool catalog from tool router (shared + per-user)
@@ -980,11 +972,10 @@ export class AmbassadorServer {
             { sessionId: session.session_id },
             '[Server] Session record not found for authenticated session'
           );
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Session state inconsistent',
           });
-          return;
         }
         const userId = sessionRecord.user_id ?? '';
         const aggregatedTools = this.toolRouter.getToolCatalog(userId);
@@ -1020,17 +1011,17 @@ export class AmbassadorServer {
           timestamp: new Date().toISOString(),
         };
 
-        reply.send(response);
+        return reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
-          reply.status(401).send({
+          return reply.status(401).send({
             error: 'Unauthorized',
             message:
               'Valid session token required. Include X-Session-Token header.',
           });
         } else {
           console.error('[/v1/tools] Error:', err);
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Failed to retrieve tool catalog',
           });
@@ -1044,37 +1035,33 @@ export class AmbassadorServer {
         // F-SEC-M6 condition: Enforce Content-Type
         const contentType = request.headers['content-type'];
         if (!contentType || !contentType.includes('application/json')) {
-          reply.status(415).send({
+          return reply.status(415).send({
             error: 'Unsupported Media Type',
             message: 'Content-Type must be application/json',
           });
-          return;
         }
 
         // Validate request body
         const body = request.body as any;
         if (!body || typeof body !== 'object') {
-          reply.status(400).send({
+          return reply.status(400).send({
             error: 'Bad Request',
             message: 'Request body must be a JSON object',
           });
-          return;
         }
 
         if (!body.tool || typeof body.tool !== 'string') {
-          reply.status(400).send({
+          return reply.status(400).send({
             error: 'Bad Request',
             message: 'Missing or invalid "tool" field',
           });
-          return;
         }
 
         if (!body.arguments || typeof body.arguments !== 'object') {
-          reply.status(400).send({
+          return reply.status(400).send({
             error: 'Bad Request',
             message: 'Missing or invalid "arguments" field',
           });
-          return;
         }
 
         // Authenticate request
@@ -1082,11 +1069,10 @@ export class AmbassadorServer {
 
         // F-SEC-M5-007: Validate client_id from session (defense-in-depth)
         if (!session.client_id || typeof session.client_id !== 'string') {
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Invalid session context',
           });
-          return;
         }
 
         // Transform protocol request → pipeline internal request
@@ -1122,11 +1108,10 @@ export class AmbassadorServer {
             { sessionId: session.session_id },
             '[Server] Session record not found for authenticated session'
           );
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Session state inconsistent',
           });
-          return;
         }
         const userId = sessionRec.user_id ?? '';
 
@@ -1153,33 +1138,32 @@ export class AmbassadorServer {
 
         // Invoke through AAA pipeline (with null check for pipeline)
         if (!this.pipeline) {
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Pipeline not initialized',
           });
-          return;
         }
 
         const response = await this.pipeline.invoke(pipelineRequest, authRequest, router);
 
-        reply.send(response);
+        return reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
-          reply.status(401).send({
+          return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
           // F-SEC-M6-021 remediation: Use instanceof instead of string matching
-          reply.status(403).send({
+          return reply.status(403).send({
             error: 'Forbidden',
             message: 'Access denied',
           });
         } else {
           console.error('[/v1/tools/invoke] Error:', err);
           // F-SEC-M5-009: Generic error message (don't expose internals)
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Tool invocation failed',
           });
@@ -1213,20 +1197,20 @@ export class AmbassadorServer {
         // Authentication required (F-SEC-M6.6 remediation)
         await this.authenticate(request);
 
-        reply.send({
+        return reply.send({
           status: 'ok',
           version: '0.1.0',
           mcp_status: this.mcpManager.getStatus(),
         });
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
-          reply.status(401).send({
+          return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
           console.error('[/v1/admin/health] Error:', err);
-          reply.status(500).send({
+          return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Health check failed',
           });
