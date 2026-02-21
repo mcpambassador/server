@@ -120,7 +120,7 @@ export function McpWizard() {
   const handleDiscoverStep = async () => {
     if (!createdMcpId) return;
     try {
-      const result = await discoverTools.mutateAsync(createdMcpId);
+      const result = await discoverTools.mutateAsync({ mcpId: createdMcpId });
       setDiscoveryResult(result);
       if (result.status === 'success') {
         toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });

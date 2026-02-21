@@ -305,7 +305,10 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   // ==========================================================================
   // POST /v1/admin/mcps/:mcpId/discover - Trigger tool discovery
   // ==========================================================================
-  fastify.post<{ Params: { mcpId: string } }>(
+  fastify.post<{
+    Params: { mcpId: string };
+    Body: { credentials?: Record<string, string> };
+  }>(
     '/v1/admin/mcps/:mcpId/discover',
     async (request, reply) => {
       const params = mcpParamsSchema.parse(request.params);
@@ -316,8 +319,42 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         // Get entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);
 
-        // Run tool discovery
-        const result = await discoverTools(entry);
+        // Extract credentials from request body
+        const credentials = request.body?.credentials;
+
+        // Validate credentials if provided for credential-gated MCP
+        if (credentials && entry.requires_user_credentials && entry.credential_schema) {
+          let credentialSchema: { required?: string[]; properties?: Record<string, unknown> };
+          try {
+            credentialSchema = JSON.parse(entry.credential_schema) as {
+              required?: string[];
+              properties?: Record<string, unknown>;
+            };
+          } catch (err) {
+            return reply.status(400).send(
+              wrapError(
+                ErrorCodes.BAD_REQUEST,
+                `Failed to parse credential_schema: ${err instanceof Error ? err.message : String(err)}`
+              )
+            );
+          }
+
+          // Check that all required fields are present
+          const requiredFields = credentialSchema.required ?? [];
+          const providedFields = Object.keys(credentials);
+          const missingFields = requiredFields.filter((field) => !providedFields.includes(field));
+          if (missingFields.length > 0) {
+            return reply.status(400).send(
+              wrapError(
+                ErrorCodes.BAD_REQUEST,
+                `Missing required credential fields: ${missingFields.join(', ')}`
+              )
+            );
+          }
+        }
+
+        // Run tool discovery with optional credentials
+        const result = await discoverTools(entry, credentials);
 
         // If successful, update tool catalog in DB
         if (result.status === 'success') {
@@ -340,6 +377,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
             tool_count: result.tool_count,
             error_code: result.error_code,
             duration_ms: result.duration_ms,
+            credentials_provided: !!credentials,
           },
         });
 

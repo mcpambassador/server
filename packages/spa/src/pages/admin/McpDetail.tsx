@@ -32,6 +32,8 @@ export function McpDetail() {
   const archiveMcp = useArchiveMcp();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [validationResult, setValidationResult] = useState<any>(null);
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
 
@@ -54,6 +56,26 @@ export function McpDetail() {
       return [];
     }
   }, [mcp?.tool_catalog]);
+
+  // Parse credential schema for credential-gated MCPs
+  const credentialFields = useMemo(() => {
+    if (!mcp?.credential_schema) return [];
+    try {
+      const schema = typeof mcp.credential_schema === 'string'
+        ? JSON.parse(mcp.credential_schema)
+        : mcp.credential_schema;
+      const props = schema?.properties || {};
+      const required = schema?.required || [];
+      return Object.entries(props).map(([key, value]: [string, any]) => ({
+        key,
+        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        required: required.includes(key),
+        sensitive: /key|secret|token|password/i.test(key),
+      }));
+    } catch {
+      return [];
+    }
+  }, [mcp?.credential_schema]);
 
   const handleEdit = async () => {
     if (!mcp) return;
@@ -112,8 +134,27 @@ export function McpDetail() {
   const handleDiscover = async () => {
     if (!mcp) return;
     try {
-      const result = await discoverTools.mutateAsync(mcp.mcp_id);
+      const result = await discoverTools.mutateAsync({ mcpId: mcp.mcp_id });
       setDiscoveryResult(result);
+      if (result.status === 'success') {
+        toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });
+      } else if (result.status === 'skipped') {
+        toast.info('Tool Discovery', { description: result.message || 'Discovery skipped' });
+      } else {
+        toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
+      }
+    } catch (error) {
+      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
+  const handleCredentialDiscover = async () => {
+    if (!mcp) return;
+    try {
+      const result = await discoverTools.mutateAsync({ mcpId: mcp.mcp_id, credentials: credentialValues });
+      setDiscoveryResult(result);
+      setCredentialDialogOpen(false);
+      setCredentialValues({});
       if (result.status === 'success') {
         toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });
       } else if (result.status === 'skipped') {
@@ -210,7 +251,7 @@ export function McpDetail() {
           <ArrowPathIcon data-slot="icon" />
           Validate
         </Button>
-        <Button color="zinc" onClick={handleDiscover} disabled={discoverTools.isPending || mcp.validation_status !== 'valid'}>
+        <Button color="zinc" onClick={mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) : handleDiscover} disabled={discoverTools.isPending || (!mcp.requires_user_credentials && mcp.validation_status !== 'valid')}>
           <MagnifyingGlassIcon data-slot="icon" />
           {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
         </Button>
@@ -377,8 +418,8 @@ export function McpDetail() {
                     Tools available from this MCP server
                   </p>
                 </div>
-                {(!parsedTools.length) && mcp.validation_status === 'valid' && (
-                  <Button color="zinc" onClick={handleDiscover} disabled={discoverTools.isPending}>
+                {(!parsedTools.length) && (mcp.requires_user_credentials || mcp.validation_status === 'valid') && (
+                  <Button color="zinc" onClick={mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) : handleDiscover} disabled={discoverTools.isPending}>
                     <MagnifyingGlassIcon data-slot="icon" />
                     {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
                   </Button>
@@ -479,6 +520,43 @@ export function McpDetail() {
             </Button>
             <Button onClick={handleEdit} disabled={updateMcp.isPending}>
               {updateMcp.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </Dialog>
+
+      {/* Credential Dialog for Tool Discovery */}
+      <Dialog open={credentialDialogOpen} onClose={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
+        <DialogBody>
+          <DialogTitle>Provide Credentials for Discovery</DialogTitle>
+          <DialogDescription>
+            This MCP requires credentials to connect. Enter temporary credentials below — they will NOT be stored and are used only for this discovery attempt.
+          </DialogDescription>
+          <div className="space-y-4 mt-4">
+            {credentialFields.map((field) => (
+              <Field key={field.key}>
+                <Label>
+                  {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+                </Label>
+                <Input
+                  type={field.sensitive ? 'password' : 'text'}
+                  value={credentialValues[field.key] || ''}
+                  onChange={(e) => setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  placeholder={field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`}
+                />
+              </Field>
+            ))}
+          </div>
+          <DialogActions>
+            <Button color="zinc" onClick={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCredentialDiscover}
+              disabled={discoverTools.isPending || credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())}
+            >
+              <MagnifyingGlassIcon data-slot="icon" />
+              {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
             </Button>
           </DialogActions>
         </DialogBody>

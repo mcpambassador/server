@@ -15,7 +15,7 @@ import type { McpCatalogEntry } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { HttpMcpConnection } from '../downstream/http-connection.js';
 import type { DownstreamMcpConfig, ToolDescriptor } from '../downstream/types.js';
-import { validateToolName } from '../downstream/types.js';
+import { validateToolName, BLOCKED_ENV_VARS } from '../downstream/types.js';
 
 /**
  * Error codes for tool discovery failures
@@ -86,29 +86,88 @@ export const MAX_TOOLS = 500;
  *
  * All errors are caught and returned as DiscoveryResult with status='error'.
  * This function never throws.
+ *
+ * @param entry - MCP catalog entry
+ * @param adminCredentials - Optional admin-provided credentials for credential-gated MCPs.
+ *                           Keys are field names from credential_schema, values are the credential values.
  */
-export async function discoverTools(entry: McpCatalogEntry): Promise<DiscoveryResult> {
+export async function discoverTools(
+  entry: McpCatalogEntry,
+  adminCredentials?: Record<string, string>
+): Promise<DiscoveryResult> {
   const startTime = Date.now();
   const warnings: string[] = [];
 
   try {
     // Precondition 1: Check if MCP requires user credentials
+    let credentialEnvVars: Record<string, string> | undefined;
     if (entry.requires_user_credentials) {
-      return {
-        status: 'skipped',
-        tools_discovered: [],
-        tool_count: 0,
-        error_code: 'credential_required',
-        message:
-          'This MCP requires user credentials. Tool discovery is skipped during admin setup. Tools will be discovered when a user provides their credentials.',
-        discovered_at: new Date().toISOString(),
-        duration_ms: Date.now() - startTime,
-        warnings,
-      };
+      // If admin provided credentials, map them to env vars
+      if (adminCredentials && Object.keys(adminCredentials).length > 0) {
+        credentialEnvVars = {};
+
+        // Parse credential_schema to get env var mappings
+        let credentialSchema: Record<string, unknown> | undefined;
+        if (entry.credential_schema) {
+          try {
+            credentialSchema = JSON.parse(entry.credential_schema) as Record<string, unknown>;
+          } catch (err) {
+            return {
+              status: 'error',
+              tools_discovered: [],
+              tool_count: 0,
+              error_code: 'internal_error',
+              message: `Failed to parse credential_schema: ${err instanceof Error ? err.message : String(err)}`,
+              discovered_at: new Date().toISOString(),
+              duration_ms: Date.now() - startTime,
+              warnings,
+            };
+          }
+        }
+
+        // Map credential fields to env vars
+        const properties = credentialSchema?.properties as Record<string, { env_var?: string }> | undefined;
+        for (const [fieldName, fieldValue] of Object.entries(adminCredentials)) {
+          // Look up env_var mapping in credential_schema
+          const envVarName = properties?.[fieldName]?.env_var ?? fieldName;
+
+          // Security check: block dangerous env vars
+          if (BLOCKED_ENV_VARS.includes(envVarName.toUpperCase())) {
+            return {
+              status: 'error',
+              tools_discovered: [],
+              tool_count: 0,
+              error_code: 'internal_error',
+              message: `Credential field '${fieldName}' maps to blocked environment variable '${envVarName}'`,
+              discovered_at: new Date().toISOString(),
+              duration_ms: Date.now() - startTime,
+              warnings,
+            };
+          }
+
+          credentialEnvVars[envVarName] = fieldValue;
+        }
+
+        // Skip the validation_status check when admin provides credentials for testing
+        // Admin is explicitly testing with their own credentials
+      } else {
+        // No credentials provided - return skipped result
+        return {
+          status: 'skipped',
+          tools_discovered: [],
+          tool_count: 0,
+          error_code: 'credential_required',
+          message:
+            'This MCP requires user credentials. Tool discovery is skipped during admin setup. Tools will be discovered when a user provides their credentials.',
+          discovered_at: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          warnings,
+        };
+      }
     }
 
-    // Precondition 2: Check validation status
-    if (entry.validation_status !== 'valid') {
+    // Precondition 2: Check validation status (skip if admin provided credentials for credential-gated MCP)
+    if (!credentialEnvVars && entry.validation_status !== 'valid') {
       return {
         status: 'error',
         tools_discovered: [],
@@ -149,6 +208,11 @@ export async function discoverTools(entry: McpCatalogEntry): Promise<DiscoveryRe
       headers: configObj.headers as Record<string, string> | undefined,
       timeout_ms: (configObj.timeout_ms as number) ?? 30_000,
     };
+
+    // Merge admin-provided credential env vars if present
+    if (credentialEnvVars) {
+      dsConfig.env = { ...dsConfig.env, ...credentialEnvVars };
+    }
 
     // Create connection based on transport
     let connection: StdioMcpConnection | HttpMcpConnection;

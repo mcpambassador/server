@@ -297,9 +297,9 @@ export function useDiscoverTools() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (mcpId: string) =>
-      apiClient.post<DiscoveryResult>(`/v1/admin/mcps/${mcpId}/discover`),
-    onSuccess: (_, mcpId) => {
+    mutationFn: ({ mcpId, credentials }: { mcpId: string; credentials?: Record<string, string> }) =>
+      apiClient.post<DiscoveryResult>(`/v1/admin/mcps/${mcpId}/discover`, { credentials }),
+    onSuccess: (_, { mcpId }) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
       queryClient.invalidateQueries({ queryKey: ['marketplace'] });
