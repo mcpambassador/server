@@ -257,7 +257,23 @@ export async function verifySessionToken(
     throw new Error('Session expired');
   }
 
-  // 6. Get latest active connection for this session
+  // 6. Resolve client_id from session metadata
+  let clientId: string | null = null;
+  try {
+    const metadata = typeof session.metadata === 'string'
+      ? JSON.parse(session.metadata)
+      : session.metadata;
+    if (metadata && typeof metadata === 'object' && typeof metadata.client_id === 'string') {
+      clientId = metadata.client_id;
+    }
+  } catch {
+    // Ignore metadata parse errors and handle as missing client binding below
+  }
+
+  if (!clientId) {
+    throw new Error('Session missing client binding');
+  }
+
   const latestConnection = await db.query.session_connections.findFirst({
     where: (conns, { eq, and }) =>
       and(eq(conns.session_id, session.session_id), eq(conns.status, 'connected')),
@@ -269,6 +285,7 @@ export async function verifySessionToken(
 
   return {
     session_id: session.session_id,
+    client_id: clientId,
     user_id: session.user_id,
     profile_id: session.profile_id,
     connection_id: latestConnection?.connection_id,

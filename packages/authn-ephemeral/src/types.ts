@@ -45,6 +45,7 @@ export interface GeneratedSessionToken {
  */
 export interface VerifiedSession {
   session_id: string;
+  client_id: string;
   user_id: string;
   profile_id: string;
   connection_id?: string;

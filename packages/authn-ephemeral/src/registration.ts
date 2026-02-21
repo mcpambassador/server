@@ -30,6 +30,18 @@ import {
 import { validateClientKey, generateSessionToken } from './token.js';
 import type { RegistrationRequest, RegistrationResponse } from './types.js';
 
+function extractSessionClientId(metadata: unknown): string | null {
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    if (parsed && typeof parsed === 'object' && typeof (parsed as any).client_id === 'string') {
+      return (parsed as any).client_id;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
 /**
  * Rate limiter state (in-memory)
  * Maps IP address -> { count, window_start, failures }
@@ -126,8 +138,8 @@ export async function registerSession(
     // 2. Validate preshared key
     const validatedKey = await validateClientKey(db, body.preshared_key);
 
-    // 3. Check for existing active session for this user
-    const existingSession = await db.query.user_sessions.findFirst({
+    // 3. Check for existing active sessions for this user
+    const existingSessions = await db.query.user_sessions.findMany({
       where: (sessions, { eq, and, or }) =>
         and(
           eq(sessions.user_id, validatedKey.user_id),
@@ -140,9 +152,16 @@ export async function registerSession(
       orderBy: (sessions, { desc }) => [desc(sessions.last_activity_at)],
     });
 
-    if (existingSession) {
+    // Reuse is only allowed for the same client_id binding.
+    // This prevents cross-client session reuse causing stale/wrong tool catalogs.
+    const reusableSession = existingSessions.find(session => {
+      const sessionClientId = extractSessionClientId(session.metadata);
+      return sessionClientId === validatedKey.client_id;
+    });
+
+    if (reusableSession) {
       // Session reuse: verify profile_id matches (SEC-V2-007)
-      if (existingSession.profile_id !== validatedKey.profile_id) {
+      if (reusableSession.profile_id !== validatedKey.profile_id) {
         // M-001 fix: Don't call recordFailure here — the catch block handles it uniformly
         // L-001 fix: Don't expose internal profile IDs in error response
         throw new AmbassadorError(
@@ -153,13 +172,13 @@ export async function registerSession(
       }
 
       logger.info(
-        `[authn-ephemeral] Reusing existing session ${existingSession.session_id} for user ${validatedKey.user_id}`
+        `[authn-ephemeral] Reusing existing session ${reusableSession.session_id} for user ${validatedKey.user_id}`
       );
 
       // Generate fresh session token for reused session
       const { token, tokenHash, nonce } = generateSessionToken(
         hmacSecret,
-        existingSession.session_id
+        reusableSession.session_id
       );
 
       // Update session with new token
@@ -170,14 +189,15 @@ export async function registerSession(
           token_nonce: nonce,
           last_activity_at: now,
           status: 'active', // Reactivate if idle/spinning_down
+          metadata: JSON.stringify({ client_id: validatedKey.client_id }),
         })
-        .where(eq(user_sessions.session_id, existingSession.session_id));
+        .where(eq(user_sessions.session_id, reusableSession.session_id));
 
       // Insert new connection record
       const connectionId = uuidv4();
       await compatInsert(db, session_connections).values({
         connection_id: connectionId,
-        session_id: existingSession.session_id,
+        session_id: reusableSession.session_id,
         friendly_name: body.friendly_name,
         host_tool: body.host_tool,
         connected_at: now,
@@ -189,10 +209,10 @@ export async function registerSession(
       clearFailures(sourceIp);
 
       return {
-        session_id: existingSession.session_id,
+        session_id: reusableSession.session_id,
         session_token: token,
-        expires_at: existingSession.expires_at,
-        profile_id: existingSession.profile_id,
+        expires_at: reusableSession.expires_at,
+        profile_id: reusableSession.profile_id,
         connection_id: connectionId,
       };
     }
@@ -217,7 +237,7 @@ export async function registerSession(
       expires_at: expiresAt,
       idle_timeout_seconds: config.idleTimeoutSeconds,
       spindown_delay_seconds: config.spindownDelaySeconds,
-      metadata: '{}',
+      metadata: JSON.stringify({ client_id: validatedKey.client_id }),
     });
 
     // Insert connection record

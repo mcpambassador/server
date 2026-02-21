@@ -22,7 +22,6 @@ import {
   type AuditProvider,
   type SessionContext,
   type PipelineToolInvocationRequest,
-  getEffectiveProfile,
   AuthorizationError,
   AmbassadorError,
   user_sessions,
@@ -942,22 +941,10 @@ export class AmbassadorServer {
           throw new Error('Server not properly initialized');
         }
 
-        // In ephemeral auth, session.profile_id and session.attributes.profile_id
-        // are available. Use session.profile_id (or fallback to attributes.profile_id)
-        const profileId = session.profile_id || session.attributes.profile_id;
-        if (!profileId) {
-          return reply.status(403).send({
-            error: 'Forbidden',
-            message: 'No profile assigned to session',
-          });
-        }
-
-        const profile = await getEffectiveProfile(this.db, profileId);
-
-        if (!profile) {
-          return reply.status(403).send({
-            error: 'Forbidden',
-            message: 'Profile not found',
+        if (!session.client_id || typeof session.client_id !== 'string') {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
           });
         }
 
@@ -978,7 +965,11 @@ export class AmbassadorServer {
           });
         }
         const userId = sessionRecord.user_id ?? '';
-        const aggregatedTools = this.toolRouter.getToolCatalog(userId);
+        const aggregatedTools = await this.toolRouter.getIsolationAwareToolCatalog(
+          this.db,
+          userId,
+          session.client_id
+        );
 
         // Filter tools based on client's profile
         // Check each tool against allowed_tools (glob patterns) and denied_tools
@@ -1114,6 +1105,14 @@ export class AmbassadorServer {
           });
         }
         const userId = sessionRec.user_id ?? '';
+        const clientId = session.client_id;
+
+        if (!clientId || typeof clientId !== 'string') {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
+          });
+        }
 
         const router = async (toolName: string, args: Record<string, unknown>) => {
           const mcpRequest = {
@@ -1121,18 +1120,35 @@ export class AmbassadorServer {
             arguments: args,
           };
 
-          const mcpResponse = await this.toolRouter.invokeTool(userId, mcpRequest);
+          const allowedTools = await this.toolRouter.getIsolationAwareToolCatalog(
+            this.db!,
+            userId,
+            clientId
+          );
 
-          // CR-M17-003: Get MCP name from tool catalog with null check
-          const tool = this.toolRouter.getToolDescriptor(userId, toolName);
-          if (!tool) {
-            console.warn(`[/v1/tools/invoke] Tool descriptor not found for ${toolName}`);
+          const allowedTool = allowedTools.find(tool => tool.name === toolName);
+          if (!allowedTool) {
+            throw new AuthorizationError('Tool not subscribed for this client');
+          }
+
+          // Route to the exact allowed MCP source to avoid name-collision bypasses
+          // (e.g., shared and per-user MCP exposing the same tool name).
+          const sharedTool = this.mcpManager.getToolDescriptor(toolName);
+          const userTool = this.userPool.getToolDescriptor(userId, toolName);
+
+          let mcpResponse;
+          if (sharedTool?.source_mcp === allowedTool.source_mcp) {
+            mcpResponse = await this.mcpManager.invokeTool(mcpRequest);
+          } else if (userTool?.source_mcp === allowedTool.source_mcp) {
+            mcpResponse = await this.userPool.invokeTool(userId, mcpRequest);
+          } else {
+            throw new AuthorizationError('Tool source does not match client subscription');
           }
 
           return {
             content: mcpResponse.content,
             isError: mcpResponse.isError,
-            mcpServer: tool?.source_mcp,
+            mcpServer: allowedTool.source_mcp,
           };
         };
 

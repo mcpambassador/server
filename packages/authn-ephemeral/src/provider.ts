@@ -82,7 +82,7 @@ export class EphemeralAuthProvider implements AuthenticationProvider {
 
       const session: SessionContext = {
         session_id: verified.session_id,
-        client_id: verified.connection_id || verified.session_id, // Fallback to session_id if no connection
+        client_id: verified.client_id,
         user_id: verified.user_id,
         auth_method: this.id,
         groups: [], // Groups will be populated from user table in future milestones
