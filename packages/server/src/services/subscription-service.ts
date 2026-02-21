@@ -14,6 +14,7 @@ import {
   getSubscription,
   listSubscriptionsForClient,
   updateSubscription as updateSubscriptionRepo,
+  removeSubscription as removeSubscriptionRepo,
   listUserGroups,
   listMcpsForGroup,
   getMcpEntryById,
@@ -278,10 +279,8 @@ export async function removeSubscription(
     throw new Error('Subscription does not belong to this client');
   }
 
-  // Soft delete: mark as removed
-  await updateSubscriptionRepo(db, data.subscriptionId, {
-    status: 'removed',
-  });
+  // Hard delete: permanently remove subscription
+  await removeSubscriptionRepo(db, data.subscriptionId);
 
   console.log(`[SubscriptionService] Removed subscription ${data.subscriptionId}`);
 }
