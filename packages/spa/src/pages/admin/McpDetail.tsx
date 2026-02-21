@@ -11,6 +11,7 @@ import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } fro
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import {
   useAdminMcp,
   useUpdateMcp,
@@ -42,6 +43,8 @@ export function McpDetail() {
     description: '',
     icon_url: '',
     config: '',
+    requires_user_credentials: false,
+    credential_schema: '',
   });
 
   // Parse tool_catalog from JSON string (admin API returns raw DB row)
@@ -92,6 +95,17 @@ export function McpDetail() {
         configObj = typeof mcp.config === 'string' ? JSON.parse(mcp.config) : mcp.config;
       }
 
+      // Parse credential schema if provided
+      let credSchemaObj: Record<string, unknown> | undefined;
+      if (editFormData.requires_user_credentials && editFormData.credential_schema.trim()) {
+        try {
+          credSchemaObj = JSON.parse(editFormData.credential_schema);
+        } catch {
+          toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
+          return;
+        }
+      }
+
       await updateMcp.mutateAsync({
         mcpId: mcp.mcp_id,
         data: {
@@ -99,6 +113,8 @@ export function McpDetail() {
           description: editFormData.description || undefined,
           icon_url: editFormData.icon_url || undefined,
           config: configObj,
+          requires_user_credentials: editFormData.requires_user_credentials,
+          credential_schema: credSchemaObj,
         },
       });
       setEditDialogOpen(false);
@@ -117,6 +133,12 @@ export function McpDetail() {
         typeof mcp.config === 'string'
           ? JSON.stringify(JSON.parse(mcp.config), null, 2)
           : JSON.stringify(mcp.config, null, 2),
+      requires_user_credentials: mcp.requires_user_credentials || false,
+      credential_schema: mcp.credential_schema
+        ? (typeof mcp.credential_schema === 'string'
+          ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2)
+          : JSON.stringify(mcp.credential_schema, null, 2))
+        : '',
     });
     setEditDialogOpen(true);
   };
@@ -513,6 +535,33 @@ export function McpDetail() {
                 className="font-mono"
               />
             </Field>
+            
+            {/* Requires User Credentials checkbox */}
+            <CheckboxField>
+              <Checkbox
+                checked={editFormData.requires_user_credentials}
+                onChange={(checked: boolean) =>
+                  setEditFormData({ ...editFormData, requires_user_credentials: checked })
+                }
+              />
+              <Label>Requires User Credentials</Label>
+            </CheckboxField>
+
+            {/* Credential Schema (shown only when requires_user_credentials is true) */}
+            {editFormData.requires_user_credentials && (
+              <Field>
+                <Label>Credential Schema (JSON)</Label>
+                <Textarea
+                  value={editFormData.credential_schema}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, credential_schema: e.target.value })
+                  }
+                  rows={8}
+                  className="font-mono"
+                  placeholder='{\n  "type": "object",\n  "required": ["api_key"],\n  "properties": {\n    "api_key": {\n      "type": "string",\n      "description": "API Key"\n    }\n  }\n}'
+                />
+              </Field>
+            )}
           </div>
           <DialogActions>
             <Button color="zinc" onClick={() => setEditDialogOpen(false)}>

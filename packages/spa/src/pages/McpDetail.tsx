@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
   CubeIcon,
@@ -15,9 +15,10 @@ import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } fro
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Field, Label } from '@/components/catalyst/fieldset';
+import { Input } from '@/components/catalyst/input';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
-import { useCredentialStatus } from '@/api/hooks/use-credentials';
+import { useCredentialStatus, useSetCredentials } from '@/api/hooks/use-credentials';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function McpDetail() {
@@ -28,14 +29,37 @@ export function McpDetail() {
   const { data: clients } = useClients();
   const { data: credentials } = useCredentialStatus();
   const subscribe = useSubscribe();
+  const setCredentials = useSetCredentials();
 
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
+  const [credentialStep, setCredentialStep] = useState(true);
 
   const activeClients = clients?.filter(c => c.status === 'active') ?? [];
   const hasCredentials = credentials?.find(c => c.mcpId === mcpId)?.hasCredentials ?? false;
   const requiresCredentials = mcp?.requiresUserCredentials ?? false;
+
+  const credentialFields = useMemo(() => {
+    const credStatus = credentials?.find(c => c.mcpId === mcpId);
+    if (!credStatus?.credentialSchema) return [];
+    try {
+      const schema = typeof credStatus.credentialSchema === 'string'
+        ? JSON.parse(credStatus.credentialSchema)
+        : credStatus.credentialSchema;
+      const props = schema?.properties || {};
+      const required = schema?.required || [];
+      return Object.entries(props).map(([key, value]: [string, any]) => ({
+        key,
+        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        required: required.includes(key),
+        sensitive: /key|secret|token|password/i.test(key),
+      }));
+    } catch {
+      return [];
+    }
+  }, [credentials, mcpId]);
 
   const handleSubscribe = async () => {
     if (!selectedClientId || !mcpId) return;
@@ -55,9 +79,24 @@ export function McpDetail() {
     }
   };
 
+  const handleSaveCredentials = async () => {
+    if (!mcpId) return;
+    try {
+      await setCredentials.mutateAsync({
+        mcpId,
+        data: { credentials: credentialValues },
+      });
+      setCredentialStep(false);
+    } catch (error) {
+      console.error('Failed to set credentials:', error);
+    }
+  };
+
   const openSubscribeDialog = () => {
     if (mcp) {
       setSelectedTools(mcp.tools.map(t => t.name));
+      setCredentialValues({});
+      setCredentialStep(requiresCredentials && !hasCredentials);
       setSubscribeDialogOpen(true);
     }
   };
@@ -103,11 +142,7 @@ export function McpDetail() {
           <ExclamationCircleIcon className="size-4" />
           <InlineAlertTitle>Credentials Required</InlineAlertTitle>
           <InlineAlertDescription>
-            This MCP requires user credentials to function.{' '}
-            <Link to="/app/credentials" className="underline font-medium">
-              Set credentials first
-            </Link>{' '}
-            before subscribing.
+            This MCP requires credentials. You'll be prompted to enter them when you subscribe.
           </InlineAlertDescription>
         </InlineAlert>
       )}
@@ -179,7 +214,7 @@ export function McpDetail() {
       <div className="flex justify-end">
         <Button
           onClick={openSubscribeDialog}
-          disabled={activeClients.length === 0 || (requiresCredentials && !hasCredentials)}
+          disabled={activeClients.length === 0}
         >
           <CubeIcon data-slot="icon" />
           Subscribe to this MCP
@@ -189,69 +224,108 @@ export function McpDetail() {
       {/* Subscribe Dialog */}
       <Dialog open={subscribeDialogOpen} onClose={setSubscribeDialogOpen}>
         <DialogBody>
-          <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
-          <DialogDescription>
-            Select a client and choose which tools to enable
-          </DialogDescription>
-
-          <div className="mt-6 space-y-4">
-            <Field>
-              <Label>Select Client</Label>
-              <Listbox placeholder="Choose a client" value={selectedClientId} onChange={(value: string) => setSelectedClientId(value)} name="client">
-                {activeClients.map((client) => (
-                  <ListboxOption key={client.id} value={client.id}>
-                    <ListboxLabel>{client.clientName} ({client.keyPrefix})</ListboxLabel>
-                  </ListboxOption>
-                ))}
-              </Listbox>
-            </Field>
-
-            <Field>
-              <Label>Select Tools (optional)</Label>
-              <Text className="text-sm text-zinc-500 dark:text-zinc-400">
-                Leave all selected to enable all tools
-              </Text>
-              <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-                {mcp.tools.map((tool) => (
-                  <CheckboxField key={tool.name}>
-                    <Checkbox
-                      name={tool.name}
-                      checked={selectedTools.includes(tool.name)}
-                      onChange={(checked) => {
-                        if (checked) {
-                          setSelectedTools([...selectedTools, tool.name]);
-                        } else {
-                          setSelectedTools(selectedTools.filter(t => t !== tool.name));
-                        }
-                      }}
+          {credentialStep ? (
+            <>
+              {/* Step 1: Credential Entry */}
+              <DialogTitle>Credentials Required for {mcp.name}</DialogTitle>
+              <DialogDescription>
+                Enter your credentials to connect to this MCP server.
+              </DialogDescription>
+              <div className="mt-6 space-y-4">
+                {credentialFields.map((field) => (
+                  <Field key={field.key}>
+                    <Label>
+                      {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+                    </Label>
+                    <Input
+                      type={field.sensitive ? 'password' : 'text'}
+                      value={credentialValues[field.key] || ''}
+                      onChange={(e) => setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`}
                     />
-                    <div className="flex-1">
-                      <Label className="font-medium cursor-pointer">
-                        {tool.name}
-                      </Label>
-                      {tool.description && (
-                        <Text className="text-sm text-zinc-500 mt-1">
-                          {tool.description}
-                        </Text>
-                      )}
-                    </div>
-                  </CheckboxField>
+                  </Field>
                 ))}
               </div>
-            </Field>
-          </div>
+              <DialogActions>
+                <Button color="zinc" onClick={() => setSubscribeDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveCredentials}
+                  disabled={setCredentials.isPending || credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())}
+                >
+                  {setCredentials.isPending ? 'Saving...' : 'Continue'}
+                </Button>
+              </DialogActions>
+            </>
+          ) : (
+            <>
+              {/* Step 2: Client + Tool Selection */}
+              <DialogTitle>Subscribe to {mcp.name}</DialogTitle>
+              <DialogDescription>
+                Select a client and choose which tools to enable
+              </DialogDescription>
 
-          <DialogActions>
-            <Button color="zinc" onClick={() => setSubscribeDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubscribe}
-              disabled={!selectedClientId || selectedTools.length === 0 || subscribe.isPending}
-            >
-              {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
-            </Button>
-          </DialogActions>
+              <div className="mt-6 space-y-4">
+                <Field>
+                  <Label>Select Client</Label>
+                  <Listbox placeholder="Choose a client" value={selectedClientId} onChange={(value: string) => setSelectedClientId(value)} name="client">
+                    {activeClients.map((client) => (
+                      <ListboxOption key={client.id} value={client.id}>
+                        <ListboxLabel>{client.clientName} ({client.keyPrefix})</ListboxLabel>
+                      </ListboxOption>
+                    ))}
+                  </Listbox>
+                </Field>
+
+                <Field>
+                  <Label>Select Tools (optional)</Label>
+                  <Text className="text-sm text-zinc-500 dark:text-zinc-400">
+                    Leave all selected to enable all tools
+                  </Text>
+                  <div className="max-h-64 overflow-y-auto space-y-3 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
+                    {mcp.tools.map((tool) => (
+                      <CheckboxField key={tool.name}>
+                        <Checkbox
+                          name={tool.name}
+                          checked={selectedTools.includes(tool.name)}
+                          onChange={(checked) => {
+                            if (checked) {
+                              setSelectedTools([...selectedTools, tool.name]);
+                            } else {
+                              setSelectedTools(selectedTools.filter(t => t !== tool.name));
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <Label className="font-medium cursor-pointer">
+                            {tool.name}
+                          </Label>
+                          {tool.description && (
+                            <Text className="text-sm text-zinc-500 mt-1">
+                              {tool.description}
+                            </Text>
+                          )}
+                        </div>
+                      </CheckboxField>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+
+              <DialogActions>
+                <Button color="zinc" onClick={() => setSubscribeDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubscribe}
+                  disabled={!selectedClientId || selectedTools.length === 0 || subscribe.isPending}
+                >
+                  {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
+                </Button>
+              </DialogActions>
+            </>
+          )}
         </DialogBody>
       </Dialog>
     </div>

@@ -189,13 +189,46 @@ export async function registerCredentialRoutes(
         });
       }
 
+      // Get user's client IDs
+      const userClients = await db.query.clients.findMany({
+        where: (clients, { eq }) => eq(clients.user_id, userId),
+        columns: { client_id: true },
+      });
+      
+      const userClientIds = userClients.map((c: { client_id: string }) => c.client_id);
+
+      // Get subscribed MCP IDs (only if user has clients)
+      const subscribedMcpIds = new Set<string>();
+      if (userClientIds.length > 0) {
+        const subscriptions = await db.query.client_mcp_subscriptions.findMany({
+          where: (sub, { and, eq, inArray }) => and(
+            inArray(sub.client_id, userClientIds),
+            eq(sub.status, 'active')
+          ),
+          columns: { mcp_id: true },
+        });
+        
+        for (const sub of subscriptions) {
+          subscribedMcpIds.add(sub.mcp_id);
+        }
+      }
+
+      // Combine subscribed MCPs with MCPs that have credentials
+      const allowedMcpIds = new Set<string>([
+        ...subscribedMcpIds,
+        ...credMap.keys(),
+      ]);
+
       // Get all MCPs that require credentials
       const allMcps = await db.query.mcp_catalog.findMany({
         where: (mcp_catalog, { eq }) => eq(mcp_catalog.requires_user_credentials, true),
       });
 
+      // Filter to only MCPs user is subscribed to or has credentials for
+      const filteredMcps = allMcps.filter(mcp => allowedMcpIds.has(mcp.mcp_id));
+
       // Build response array - transform to camelCase
-      const result = allMcps.map(mcp => {
+      const result = filteredMcps.map(mcp => {
         const credInfo = credMap.get(mcp.mcp_id);
         return {
           mcpId: mcp.mcp_id,

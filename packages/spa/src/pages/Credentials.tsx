@@ -30,17 +30,40 @@ export function Credentials() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMcp, setSelectedMcp] = useState<CredentialStatus | null>(null);
   const [credentialFields, setCredentialFields] = useState<Record<string, string>>({});
+  const [parsedFields, setParsedFields] = useState<Array<{
+    key: string;
+    label: string;
+    required: boolean;
+    sensitive: boolean;
+  }>>([]);
 
   const handleEdit = (mcp: CredentialStatus) => {
     setSelectedMcp(mcp);
-    // Initialize fields from schema
-    const schema = mcp.credentialSchema as Record<string, { type: string }> | undefined;
-    if (schema) {
-      const fields: Record<string, string> = {};
-      Object.keys(schema).forEach(key => {
-        fields[key] = '';
+    // Parse credential schema to extract properties
+    try {
+      const schema = typeof mcp.credentialSchema === 'string'
+        ? JSON.parse(mcp.credentialSchema)
+        : mcp.credentialSchema;
+      const props = schema?.properties || {};
+      const required = schema?.required || [];
+      const fields = Object.entries(props).map(([key, value]: [string, any]) => ({
+        key,
+        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        required: required.includes(key),
+        sensitive: /key|secret|token|password/i.test(key),
+      }));
+      setParsedFields(fields);
+      
+      // Initialize credential fields with empty strings
+      const initialFields: Record<string, string> = {};
+      fields.forEach(f => {
+        initialFields[f.key] = '';
       });
-      setCredentialFields(fields);
+      setCredentialFields(initialFields);
+    } catch (error) {
+      console.error('Failed to parse credential schema:', error);
+      setParsedFields([]);
+      setCredentialFields({});
     }
     setEditDialogOpen(true);
   };
@@ -219,32 +242,26 @@ export function Credentials() {
           Enter the required credentials. They will be stored securely and never displayed.
         </DialogDescription>
         <div className="mt-4 space-y-4">
-          {selectedMcp && Object.keys(
-            (selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>) ?? {}
-          ).map((key) => {
-            const schema = selectedMcp.credentialSchema as Record<string, { type: string; description?: string }>;
-            const field = schema?.[key];
-            if (!field) return null;
-            return (
-              <Field key={key}>
-                <Label>{key}</Label>
-                {field.description && (
-                  <Text className="text-zinc-500">{field.description}</Text>
-                )}
-                <Input
-                  type={field.type === 'password' ? 'password' : 'text'}
-                  value={credentialFields[key] ?? ''}
-                  onChange={(e) =>
-                    setCredentialFields({
-                      ...credentialFields,
-                      [key]: e.target.value,
-                    })
-                  }
-                  placeholder={selectedMcp.hasCredentials ? '(unchanged)' : ''}
-                />
-              </Field>
-            );
-          })}
+          {parsedFields.map((field) => (
+            <Field key={field.key}>
+              <Label>
+                {field.label}
+                {field.required && <span className="text-red-600 dark:text-red-400"> *</span>}
+              </Label>
+              <Input
+                type={field.sensitive ? 'password' : 'text'}
+                value={credentialFields[field.key] ?? ''}
+                onChange={(e) =>
+                  setCredentialFields({
+                    ...credentialFields,
+                    [field.key]: e.target.value,
+                  })
+                }
+                placeholder={selectedMcp?.hasCredentials ? '(unchanged)' : ''}
+                required={field.required}
+              />
+            </Field>
+          ))}
         </div>
         <DialogActions>
           <Button plain onClick={() => setEditDialogOpen(false)}>
