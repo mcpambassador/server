@@ -25,7 +25,7 @@ import {
   listMcpsForGroup,
   getMcpEntryById,
 } from '@mcpambassador/core';
-import type { Group, UserGroup, McpGroupAccess } from '@mcpambassador/core';
+import type { Group, UserGroup, McpCatalogEntry } from '@mcpambassador/core';
 import { getUserById } from '../auth/user-auth.js';
 
 /**
@@ -212,7 +212,7 @@ export async function removeUserFromGroupService(
 export async function listGroupMembersService(
   db: DatabaseClient,
   groupId: string
-): Promise<UserGroup[]> {
+): Promise<Array<{ user_id: string; username: string; display_name: string | null; added_at: string }>> {
   return listGroupMembers(db, groupId);
 }
 
@@ -287,6 +287,6 @@ export async function removeMcpFromGroupService(
 export async function listMcpsForGroupService(
   db: DatabaseClient,
   groupId: string
-): Promise<McpGroupAccess[]> {
+): Promise<McpCatalogEntry[]> {
   return listMcpsForGroup(db, groupId);
 }

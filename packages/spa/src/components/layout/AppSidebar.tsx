@@ -12,6 +12,7 @@ import {
   Cog6ToothIcon,
   SunIcon,
   MoonIcon,
+  QueueListIcon,
 } from '@heroicons/react/20/solid';
 import {
   UserCircleIcon as UserCircleIcon16,
@@ -52,6 +53,7 @@ const userNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/app/dashboard', icon: HomeIcon },
   { title: 'Marketplace', href: '/app/marketplace', icon: BuildingStorefrontIcon },
   { title: 'My Clients', href: '/app/clients', icon: UserCircleIcon },
+  { title: 'Subscriptions', href: '/app/subscriptions', icon: QueueListIcon },
   { title: 'Credentials', href: '/app/credentials', icon: KeyIcon },
 ];
 

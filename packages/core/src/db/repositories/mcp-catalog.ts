@@ -307,11 +307,16 @@ export async function listGroupsForMcp(
  *
  * @param db Database client
  * @param group_id Group UUID
- * @returns Array of MCP-group access associations
+ * @returns Array of enriched MCP entries with catalog details
  */
 export async function listMcpsForGroup(
   db: DatabaseClient,
   group_id: string
-): Promise<McpGroupAccess[]> {
-  return compatSelect(db).from(mcp_group_access).where(eq(mcp_group_access.group_id, group_id));
+): Promise<McpCatalogEntry[]> {
+  const rows = await compatSelect(db)
+    .from(mcp_group_access)
+    .innerJoin(mcp_catalog, eq(mcp_group_access.mcp_id, mcp_catalog.mcp_id))
+    .where(eq(mcp_group_access.group_id, group_id));
+
+  return rows.map((row: any) => row.mcp_catalog);
 }

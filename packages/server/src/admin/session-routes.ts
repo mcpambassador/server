@@ -102,11 +102,26 @@ export const registerAdminSessionRoutes: FastifyPluginCallback<AdminSessionRoute
       })
     );
 
+    // Enrich with usernames
+    const userIds = [...new Set(sessionsWithConnections.map(s => s.user_id))];
+    const userRows = userIds.length > 0
+      ? await db.query.users.findMany({
+          where: (u, { inArray }) => inArray(u.user_id, userIds),
+          columns: { user_id: true, username: true },
+        })
+      : [];
+    const userMap = new Map(userRows.map(u => [u.user_id, u.username]));
+
+    const enrichedSessions = sessionsWithConnections.map(session => ({
+      ...session,
+      username: userMap.get(session.user_id) ?? null,
+    }));
+
     return reply.send(
-      createPaginationEnvelope(sessionsWithConnections, {
+      createPaginationEnvelope(enrichedSessions, {
         has_more: hasMore,
         next_cursor: nextCursor,
-        total_count: sessionsWithConnections.length,
+        total_count: enrichedSessions.length,
       })
     );
   });

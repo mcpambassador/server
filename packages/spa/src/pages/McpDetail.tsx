@@ -14,7 +14,7 @@ import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/compone
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
-import { Label } from '@/components/catalyst/fieldset';
+import { Field, Label } from '@/components/catalyst/fieldset';
 import { useMcpDetail } from '@/api/hooks/use-marketplace';
 import { useClients, useSubscribe } from '@/api/hooks/use-clients';
 import { useCredentialStatus } from '@/api/hooks/use-credentials';
@@ -195,7 +195,7 @@ export function McpDetail() {
           </DialogDescription>
 
           <div className="mt-6 space-y-4">
-            <div className="space-y-2">
+            <Field>
               <Label>Select Client</Label>
               <Listbox placeholder="Choose a client" value={selectedClientId} onChange={(value: string) => setSelectedClientId(value)} name="client">
                 {activeClients.map((client) => (
@@ -204,9 +204,9 @@ export function McpDetail() {
                   </ListboxOption>
                 ))}
               </Listbox>
-            </div>
+            </Field>
 
-            <div className="space-y-2">
+            <Field>
               <Label>Select Tools (optional)</Label>
               <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                 Leave all selected to enable all tools
@@ -238,7 +238,7 @@ export function McpDetail() {
                   </CheckboxField>
                 ))}
               </div>
-            </div>
+            </Field>
           </div>
 
           <DialogActions>

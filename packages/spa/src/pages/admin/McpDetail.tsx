@@ -199,7 +199,7 @@ export function McpDetail() {
               Validation {validationResult.valid ? 'Passed' : 'Failed'}
             </h3>
           </div>
-          {validationResult.errors.length > 0 && (
+          {validationResult.errors?.length > 0 && (
             <div>
               <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
               <ul className="list-disc list-inside space-y-1">
@@ -211,7 +211,7 @@ export function McpDetail() {
               </ul>
             </div>
           )}
-          {validationResult.warnings.length > 0 && (
+          {validationResult.warnings?.length > 0 && (
             <div>
               <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
               <ul className="list-disc list-inside space-y-1">
@@ -223,7 +223,7 @@ export function McpDetail() {
               </ul>
             </div>
           )}
-          {validationResult.tools_discovered.length > 0 && (
+          {validationResult.tools_discovered?.length > 0 && (
             <div>
               <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
                 Discovered Tools ({validationResult.tools_discovered.length})
@@ -299,7 +299,7 @@ export function McpDetail() {
                 <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Configuration</h3>
                 <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">MCP runtime configuration (JSON)</p>
                 <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
-                  {JSON.stringify(mcp.config, null, 2)}
+                  {typeof mcp.config === 'string' ? JSON.stringify(JSON.parse(mcp.config), null, 2) : JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </div>
               {mcp.credential_schema && (
@@ -307,7 +307,7 @@ export function McpDetail() {
                   <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Credential Schema</h3>
                   <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Required user credentials schema</p>
                   <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
-                    {JSON.stringify(mcp.credential_schema, null, 2)}
+                    {typeof mcp.credential_schema === 'string' ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2) : JSON.stringify(mcp.credential_schema, null, 2)}
                   </pre>
                 </div>
               )}

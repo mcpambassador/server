@@ -13,6 +13,7 @@ import type { DatabaseClient } from '../client.js';
 import {
   groups,
   user_groups,
+  users,
   type Group,
   type NewGroup,
   type UserGroup,
@@ -207,13 +208,23 @@ export async function removeUserFromGroup(
  *
  * @param db Database client
  * @param group_id Group UUID
- * @returns Array of user-group associations
+ * @returns Array of enriched group members with user details
  */
 export async function listGroupMembers(
   db: DatabaseClient,
   group_id: string
-): Promise<UserGroup[]> {
-  return compatSelect(db).from(user_groups).where(eq(user_groups.group_id, group_id));
+): Promise<Array<{ user_id: string; username: string; display_name: string | null; added_at: string }>> {
+  const rows = await compatSelect(db)
+    .from(user_groups)
+    .innerJoin(users, eq(user_groups.user_id, users.user_id))
+    .where(eq(user_groups.group_id, group_id));
+
+  return rows.map((row: any) => ({
+    user_id: row.user_groups.user_id,
+    username: row.users.username,
+    display_name: row.users.display_name ?? null,
+    added_at: row.user_groups.assigned_at,
+  }));
 }
 
 /**

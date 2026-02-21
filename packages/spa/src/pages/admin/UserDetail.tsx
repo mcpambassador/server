@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { ArrowLeftIcon, ShieldCheckIcon, KeyIcon, UserIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -6,12 +7,29 @@ import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Divider } from '@/components/catalyst/divider';
 import { useAdminUser, useAdminUserGroups, useAuditEvents } from '@/api/hooks/use-admin';
+import { useUpdateUser, useResetPassword } from '@/api/hooks/use-admin';
+import { toast } from 'sonner';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Field, Label } from '@/components/catalyst/fieldset';
+import { Input } from '@/components/catalyst/input';
+import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function UserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const { data: user, isLoading: userLoading } = useAdminUser(userId!);
   usePageTitle(user ? `Admin - ${user.username}` : 'Admin - User Details');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<{ display_name: string; email: string; is_admin: boolean }>({
+    display_name: '',
+    email: '',
+    is_admin: false,
+  });
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
+  const updateUser = useUpdateUser();
+  const resetPassword = useResetPassword();
   const { data: userGroups = [], isLoading: groupsLoading } = useAdminUserGroups(userId!);
   const { data: auditData, isLoading: auditLoading } = useAuditEvents({
     user_id: userId,
@@ -110,11 +128,21 @@ export function UserDetail() {
           </dl>
           <Divider className="my-6" />
           <div className="flex gap-2">
-            <Button color="zinc">
+            <Button color="zinc" onClick={() => setResetDialogOpen(true)}>
               <KeyIcon data-slot="icon" />
               Reset Password
             </Button>
-            <Button color="zinc">
+            <Button
+              color="zinc"
+              onClick={() => {
+                setEditFormData({
+                  display_name: user.display_name || '',
+                  email: user.email || '',
+                  is_admin: Boolean(user.is_admin),
+                });
+                setEditDialogOpen(true);
+              }}
+            >
               <UserIcon data-slot="icon" />
               Edit User
             </Button>
@@ -206,6 +234,88 @@ export function UserDetail() {
           )}
         </div>
       </div>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
+        <DialogBody>
+          <DialogTitle>Edit User</DialogTitle>
+          <DialogDescription>Update user information</DialogDescription>
+          <div className="space-y-4 mt-4">
+            <Field>
+              <Label>Display Name</Label>
+              <Input
+                value={editFormData.display_name}
+                onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
+              />
+            </Field>
+            <Field>
+              <Label>Email</Label>
+              <Input value={editFormData.email} onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })} />
+            </Field>
+            <CheckboxField>
+              <Checkbox
+                name="is_admin"
+                checked={editFormData.is_admin}
+                onChange={(checked) => setEditFormData({ ...editFormData, is_admin: checked })}
+              />
+              <Label>Administrator</Label>
+            </CheckboxField>
+          </div>
+          <DialogActions>
+            <Button color="zinc" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await updateUser.mutateAsync({ userId: user.user_id, data: {
+                    display_name: editFormData.display_name || undefined,
+                    email: editFormData.email || undefined,
+                    is_admin: editFormData.is_admin,
+                  } });
+                  toast.success('User updated');
+                  setEditDialogOpen(false);
+                } catch (error) {
+                  toast.error('Failed to update user', { description: (error as Error)?.message ?? String(error) });
+                }
+              }}
+              disabled={updateUser.isPending}
+            >
+              {updateUser.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
+        <DialogBody>
+          <DialogTitle>Reset Password</DialogTitle>
+          <DialogDescription>Set a new password for this user</DialogDescription>
+          <div className="space-y-4 mt-4">
+            <Field>
+              <Label>New Password</Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </Field>
+          </div>
+          <DialogActions>
+            <Button color="zinc" onClick={() => setResetDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await resetPassword.mutateAsync({ userId: user.user_id, newPassword });
+                  toast.success('Password reset');
+                  setResetDialogOpen(false);
+                  setNewPassword('');
+                } catch (error) {
+                  toast.error('Failed to reset password', { description: (error as Error)?.message ?? String(error) });
+                }
+              }}
+              disabled={resetPassword.isPending}
+            >
+              {resetPassword.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </Dialog>
     </div>
   );
 }
