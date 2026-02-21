@@ -195,7 +195,11 @@ export async function suspendUserClient(
   clientId: string
 ): Promise<void> {
   // Verify ownership
-  await getUserClient(db, userId, clientId);
+  const client = await getUserClient(db, userId, clientId);
+
+  if (client.status !== 'active') {
+    throw new Error('Invalid state transition: only active clients can be suspended');
+  }
 
   await compatUpdate(db, clients)
     .set({ status: 'suspended' })
@@ -220,7 +224,7 @@ export async function reactivateUserClient(
   const client = await getUserClient(db, userId, clientId);
 
   if (client.status !== 'suspended') {
-    throw new Error(`Client ${clientId} is not suspended (current status: ${client.status})`);
+    throw new Error('Invalid state transition: only suspended clients can be reactivated');
   }
 
   await compatUpdate(db, clients)

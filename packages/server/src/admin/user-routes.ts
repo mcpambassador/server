@@ -439,28 +439,28 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
     try {
       const { userId } = updateUserParamsSchema.parse(request.params);
       
+      // Verify user exists before fetching groups
+      const user = await db.query.users.findFirst({
+        where: (u, { eq }) => eq(u.user_id, userId),
+      });
+      if (!user) {
+        return reply.status(404).send(
+          wrapError(ErrorCodes.NOT_FOUND, 'User not found')
+        );
+      }
+
       const userGroups = await getUserGroupsService(db, userId);
       
       // Enrich with group details
       const enrichedGroups = await Promise.all(
         userGroups.map(async (ug) => {
-          try {
-            const group = await getGroupService(db, ug.group_id);
-            return {
-              group_id: ug.group_id,
-              name: group.name,
-              description: group.description,
-              assigned_at: ug.assigned_at,
-            };
-          } catch (err) {
-            // If group lookup fails, include basic info
-            return {
-              group_id: ug.group_id,
-              name: 'Unknown',
-              description: null,
-              assigned_at: ug.assigned_at,
-            };
-          }
+          const group = await getGroupService(db, ug.group_id);
+          return {
+            group_id: ug.group_id,
+            name: group.name,
+            description: group.description,
+            assigned_at: ug.assigned_at,
+          };
         })
       );
       

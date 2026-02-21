@@ -225,6 +225,11 @@ export async function registerClientRoutes(
             wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
           );
         }
+        if (error.message.includes('Invalid state transition')) {
+          return reply.status(409).send(
+            wrapError(ErrorCodes.CONFLICT, error.message)
+          );
+        }
         throw error;
       }
     }
