@@ -9,7 +9,7 @@
 # - No unnecessary build tools in final image
 #
 # Build: docker build -t mcpambassador-server:latest .
-# Run:   docker run -p 8443:8443 -v mcpambassador-data:/data mcpambassador-server
+# Run:   docker-compose up -d  (see docker-compose.yml for bind mount config)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -118,11 +118,12 @@ COPY --from=builder --chown=mcpambassador:mcpambassador /build/package.json ./
 RUN mkdir -p ./config
 COPY --chown=mcpambassador:mcpambassador config/ambassador-server.example.yaml ./config/ambassador-server.example.yaml
 
-# Create data directory with proper permissions
-# This is the ONLY writable directory (for database, certs, audit logs)
-RUN mkdir -p /data && \
-    chown -R mcpambassador:mcpambassador /data && \
-    chmod 700 /data
+# Create data and config directories with proper permissions
+# /data = writable (database, certs, audit logs, secrets)
+# /config = read-only mount point for configuration files
+RUN mkdir -p /data /config && \
+    chown -R mcpambassador:mcpambassador /data /config && \
+    chmod 700 /data /config
 
 # Set environment variables
 ENV NODE_ENV=production \
@@ -147,8 +148,8 @@ EXPOSE 9443
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 
-# Volume for persistent data
-VOLUME ["/data"]
+# Volume mount points for bind mounts
+VOLUME ["/data", "/config"]
 
 # Start server
 CMD ["node", "packages/server/dist/bin/server.js"]

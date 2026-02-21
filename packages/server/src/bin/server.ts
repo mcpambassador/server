@@ -104,12 +104,14 @@ Examples:
 
 /**
  * Find config file by checking multiple locations in order
- * 1. {dataDir}/config/ambassador-server.yaml (user's custom config in volume)
- * 2. /app/config/ambassador-server.example.yaml (bundled default - Docker only)
- * 3. {cwd}/config/ambassador-server.example.yaml (local dev)
+ * 1. /config/ambassador-server.yaml (dedicated config mount - Docker bind mount)
+ * 2. {dataDir}/config/ambassador-server.yaml (legacy location for backwards compatibility)
+ * 3. /app/config/ambassador-server.example.yaml (bundled default - Docker only)
+ * 4. {cwd}/config/ambassador-server.example.yaml (local dev)
  */
 function findConfigFile(dataDir: string): string | null {
   const candidates = [
+    '/config/ambassador-server.yaml',
     path.join(dataDir, 'config', 'ambassador-server.yaml'),
     '/app/config/ambassador-server.example.yaml',
     path.join(process.cwd(), 'config', 'ambassador-server.example.yaml'),
@@ -244,6 +246,7 @@ async function main() {
   } else {
     console.warn('[Server] No config file found - starting without downstream MCPs');
     console.log('[Server] Checked locations:');
+    console.log('  - /config/ambassador-server.yaml');
     console.log(`  - ${path.join(dataDir, 'config', 'ambassador-server.yaml')}`);
     console.log('  - /app/config/ambassador-server.example.yaml');
     console.log(`  - ${path.join(process.cwd(), 'config', 'ambassador-server.example.yaml')}`);

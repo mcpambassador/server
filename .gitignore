@@ -30,6 +30,10 @@ coverage/
 *.db-wal
 data/
 
+# Docker bind mount directories (runtime data)
+cache/
+config/ambassador-server.yaml
+
 # Admin session secrets (F-SEC-M10-001)
 .session-secret
 
