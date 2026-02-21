@@ -43,7 +43,7 @@ export function McpsAdmin() {
     try {
       const result = await validateMcp.mutateAsync(mcpId);
       if (result.valid) {
-        toast.success('Validation passed', { description: `Discovered ${result.tools_discovered.length} tools.` });
+        toast.success('Validation passed');
       } else {
         toast.error('Validation failed', { description: result.errors.join(', ') });
       }
@@ -234,12 +234,13 @@ export function McpsAdmin() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {/* View */}
-                      <Button plain href={`/app/admin/mcps/${mcp.mcp_id}`}>
+                      <Button plain title="View Details" href={`/app/admin/mcps/${mcp.mcp_id}`}>
                         <EyeIcon />
                       </Button>
                       {/* Validate */}
                       <Button
                         plain
+                        title="Validate"
                         onClick={() => handleValidate(mcp.mcp_id)}
                         disabled={validateMcp.isPending}
                       >
@@ -259,6 +260,7 @@ export function McpsAdmin() {
                       {mcp.status === 'published' && (
                         <Button
                           plain
+                          title="Archive"
                           onClick={() => handleArchive(mcp.mcp_id)}
                           disabled={archiveMcp.isPending}
                         >
@@ -269,6 +271,7 @@ export function McpsAdmin() {
                       {mcp.status === 'draft' && (
                         <Button
                           plain
+                          title="Delete"
                           onClick={() => {
                             setMcpToDelete(mcp);
                             setDeleteDialogOpen(true);

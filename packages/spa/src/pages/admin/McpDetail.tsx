@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid';
+import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -15,6 +15,7 @@ import {
   useAdminMcp,
   useUpdateMcp,
   useValidateMcp,
+  useDiscoverTools,
   usePublishMcp,
   useArchiveMcp,
 } from '@/api/hooks/use-admin';
@@ -26,11 +27,13 @@ export function McpDetail() {
   usePageTitle(mcp ? `Admin - ${mcp.name}` : 'Admin - MCP Details');
   const updateMcp = useUpdateMcp();
   const validateMcp = useValidateMcp();
+  const discoverTools = useDiscoverTools();
   const publishMcp = usePublishMcp();
   const archiveMcp = useArchiveMcp();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [validationResult, setValidationResult] = useState<any>(null);
+  const [discoveryResult, setDiscoveryResult] = useState<any>(null);
 
   const [editFormData, setEditFormData] = useState({
     display_name: '',
@@ -39,10 +42,23 @@ export function McpDetail() {
     config: '',
   });
 
+  // Parse tool_catalog from JSON string (admin API returns raw DB row)
+  const parsedTools = useMemo(() => {
+    if (!mcp?.tool_catalog) return [];
+    try {
+      const catalog = typeof mcp.tool_catalog === 'string'
+        ? JSON.parse(mcp.tool_catalog)
+        : mcp.tool_catalog;
+      return Array.isArray(catalog) ? catalog : [];
+    } catch {
+      return [];
+    }
+  }, [mcp?.tool_catalog]);
+
   const handleEdit = async () => {
     if (!mcp) return;
     try {
-      let configObj = mcp.config;
+      let configObj: Record<string, unknown>;
       if (editFormData.config) {
         try {
           configObj = JSON.parse(editFormData.config);
@@ -50,6 +66,8 @@ export function McpDetail() {
           toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
+      } else {
+        configObj = typeof mcp.config === 'string' ? JSON.parse(mcp.config) : mcp.config;
       }
 
       await updateMcp.mutateAsync({
@@ -73,7 +91,10 @@ export function McpDetail() {
       display_name: mcp.display_name,
       description: mcp.description || '',
       icon_url: mcp.icon_url || '',
-      config: JSON.stringify(mcp.config, null, 2),
+      config:
+        typeof mcp.config === 'string'
+          ? JSON.stringify(JSON.parse(mcp.config), null, 2)
+          : JSON.stringify(mcp.config, null, 2),
     });
     setEditDialogOpen(true);
   };
@@ -85,6 +106,23 @@ export function McpDetail() {
       setValidationResult(result);
     } catch (error) {
       toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
+  const handleDiscover = async () => {
+    if (!mcp) return;
+    try {
+      const result = await discoverTools.mutateAsync(mcp.mcp_id);
+      setDiscoveryResult(result);
+      if (result.status === 'success') {
+        toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });
+      } else if (result.status === 'skipped') {
+        toast.info('Tool Discovery', { description: result.message || 'Discovery skipped' });
+      } else {
+        toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
+      }
+    } catch (error) {
+      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -172,6 +210,10 @@ export function McpDetail() {
           <ArrowPathIcon data-slot="icon" />
           Validate
         </Button>
+        <Button color="zinc" onClick={handleDiscover} disabled={discoverTools.isPending || mcp.validation_status !== 'valid'}>
+          <MagnifyingGlassIcon data-slot="icon" />
+          {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
+        </Button>
         {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
           <Button onClick={handlePublish} disabled={publishMcp.isPending}>
             <CheckCircleIcon data-slot="icon" />
@@ -241,6 +283,37 @@ export function McpDetail() {
         </div>
       )}
 
+      {/* Discovery Results */}
+      {discoveryResult && (
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 space-y-4">
+          <div className="flex items-center gap-2">
+            {discoveryResult.status === 'success' ? (
+              <CheckCircleIcon className="size-5 text-green-600 dark:text-green-400" />
+            ) : (
+              <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
+            )}
+            <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+              Tool Discovery — {discoveryResult.status === 'success' ? `${discoveryResult.tool_count} tools found` : discoveryResult.status === 'skipped' ? 'Skipped' : 'Failed'}
+            </h3>
+          </div>
+          {discoveryResult.message && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{discoveryResult.message}</p>
+          )}
+          {discoveryResult.tools_discovered?.length > 0 && (
+            <div className="grid gap-2">
+              {discoveryResult.tools_discovered.map((tool: any, i: number) => (
+                <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                  <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
+                  {tool.description && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* MCP Details */}
       <Tabs defaultIndex={0} className="w-full">
         <TabsList>
@@ -290,6 +363,44 @@ export function McpDetail() {
                   <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Description</dt>
                   <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{mcp.description}</dd>
                 </div>
+              )}
+            </div>
+
+            {/* Tools Section */}
+            <div className="mt-6 rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                    Discovered Tools {mcp.tool_count != null ? `(${mcp.tool_count})` : ''}
+                  </h3>
+                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                    Tools available from this MCP server
+                  </p>
+                </div>
+                {(!parsedTools.length) && mcp.validation_status === 'valid' && (
+                  <Button color="zinc" onClick={handleDiscover} disabled={discoverTools.isPending}>
+                    <MagnifyingGlassIcon data-slot="icon" />
+                    {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
+                  </Button>
+                )}
+              </div>
+              {parsedTools.length > 0 ? (
+                <div className="grid gap-2">
+                  {parsedTools.map((tool: any, i: number) => (
+                    <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                      <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
+                      {tool.description && (
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {mcp.validation_status === 'valid'
+                    ? 'No tools discovered yet. Click "Discover Tools" to connect to the MCP server and find available tools.'
+                    : 'Validate the MCP configuration first, then discover tools.'}
+                </p>
               )}
             </div>
           </TabsContent>

@@ -158,9 +158,11 @@ export async function updateMcpCatalogEntry(
   if (updates.credential_schema !== undefined)
     payload.credential_schema = JSON.stringify(updates.credential_schema);
 
-  // Reset validation status when config changes
+  // Reset validation status and tool catalog when config changes
   if (updates.config || updates.transport_type) {
     payload.validation_status = 'pending';
+    payload.tool_catalog = '[]';
+    payload.tool_count = 0;
   }
 
   await updateMcpEntry(db, mcpId, payload);

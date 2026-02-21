@@ -183,12 +183,16 @@ export interface McpCatalogEntry {
   description?: string;
   icon_url?: string;
   transport_type: 'stdio' | 'http' | 'sse';
-  config: Record<string, unknown>;
+  config: Record<string, unknown> | string;
   isolation_mode: 'shared' | 'per_user';
   status: 'draft' | 'published' | 'archived';
   validation_status?: 'pending' | 'valid' | 'invalid';
   requires_user_credentials: boolean;
   credential_schema?: Record<string, unknown>;
+  tool_catalog?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+  tool_count?: number;
+  validation_result?: Record<string, unknown>;
+  last_validated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -220,7 +224,22 @@ export interface ValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
-  tools_discovered: Array<{ name: string; description?: string }>;
+  tools_discovered?: Array<{ name: string; description?: string }>;
+}
+
+export interface DiscoveryResult {
+  status: 'success' | 'skipped' | 'error';
+  tools_discovered: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+  tool_count: number;
+  error_code?: string;
+  message?: string;
+  discovered_at: string;
+  duration_ms: number;
+  server_info?: {
+    name?: string;
+    version?: string;
+    protocolVersion?: string;
+  };
 }
 
 export interface AuditEvent {

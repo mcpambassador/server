@@ -246,6 +246,33 @@ export async function updateValidationStatus(
 }
 
 /**
+ * Update tool catalog for an MCP entry after discovery
+ *
+ * @param db Database client
+ * @param mcp_id MCP UUID
+ * @param tools Array of discovered tool descriptors
+ * @param tool_count Number of tools discovered
+ */
+export async function updateToolCatalog(
+  db: DatabaseClient,
+  mcp_id: string,
+  tools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>,
+  tool_count: number
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  await compatUpdate(db, mcp_catalog)
+    .set({
+      tool_catalog: JSON.stringify(tools),
+      tool_count: tool_count,
+      updated_at: now,
+    })
+    .where(eq(mcp_catalog.mcp_id, mcp_id));
+
+  console.log(`[db:mcp-catalog] Tool catalog updated: ${mcp_id} (${tool_count} tools)`);
+}
+
+/**
  * Grant group access to MCP
  *
  * @param db Database client

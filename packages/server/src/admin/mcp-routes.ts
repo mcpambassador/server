@@ -10,7 +10,7 @@
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
-import { updateValidationStatus } from '@mcpambassador/core'; 
+import { updateValidationStatus, updateToolCatalog } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
 import {
@@ -29,6 +29,7 @@ import {
   publishMcpCatalogEntry,
 } from '../services/mcp-catalog-service.js';
 import { validateMcpConfig } from '../services/mcp-validator.js';
+import { discoverTools } from '../services/tool-discovery-engine.js';
 
 /**
  * Admin MCP routes plugin configuration
@@ -286,6 +287,59 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
             validation_status: result.valid ? 'valid' : 'invalid',
             error_count: result.errors.length,
             warning_count: result.warnings.length,
+          },
+        });
+
+        return reply.send({ ok: true, data: result });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not found')) {
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, err.message)
+          );
+        }
+        throw err;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // POST /v1/admin/mcps/:mcpId/discover - Trigger tool discovery
+  // ==========================================================================
+  fastify.post<{ Params: { mcpId: string } }>(
+    '/v1/admin/mcps/:mcpId/discover',
+    async (request, reply) => {
+      const params = mcpParamsSchema.parse(request.params);
+      const sourceIp = request.ip || '127.0.0.1';
+      const nowIso = new Date().toISOString();
+
+      try {
+        // Get entry
+        const entry = await getMcpCatalogEntry(db, params.mcpId);
+
+        // Run tool discovery
+        const result = await discoverTools(entry);
+
+        // If successful, update tool catalog in DB
+        if (result.status === 'success') {
+          await updateToolCatalog(db, params.mcpId, result.tools_discovered, result.tool_count);
+        }
+
+        // Emit audit event
+        await audit.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action',
+          severity: result.status === 'success' ? 'info' : 'warn',
+          client_id: undefined,
+          user_id: undefined,
+          source_ip: sourceIp,
+          action: 'mcp_tools_discovered',
+          metadata: {
+            mcp_id: params.mcpId,
+            status: result.status,
+            tool_count: result.tool_count,
+            error_code: result.error_code,
+            duration_ms: result.duration_ms,
           },
         });
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/20/solid';
+import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Divider } from '@/components/catalyst/divider';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
-import { useCreateMcp, useValidateMcp, usePublishMcp } from '@/api/hooks/use-admin';
+import { useCreateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
@@ -22,11 +22,13 @@ export function McpWizard() {
   const navigate = useNavigate();
   const createMcp = useCreateMcp();
   const validateMcp = useValidateMcp();
+  const discoverTools = useDiscoverTools();
   const publishMcp = usePublishMcp();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [createdMcpId, setCreatedMcpId] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
+  const [discoveryResult, setDiscoveryResult] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -90,13 +92,9 @@ export function McpWizard() {
     }
 
     if (currentStep === 2) {
-      // Validate the MCP
-      if (!createdMcpId) return;
-      try {
-        const result = await validateMcp.mutateAsync(createdMcpId);
-        setValidationResult(result);
-      } catch (error) {
-        toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+      // Ensure validation passed before proceeding to review
+      if (!validationResult?.valid) {
+        toast.error('Validation Required', { description: 'Please validate the MCP configuration before proceeding' });
         return;
       }
     }
@@ -106,6 +104,34 @@ export function McpWizard() {
 
   const handleBack = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const handleValidateStep = async () => {
+    if (!createdMcpId) return;
+    try {
+      const result = await validateMcp.mutateAsync(createdMcpId);
+      setValidationResult(result);
+      setDiscoveryResult(null);
+    } catch (error) {
+      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
+  const handleDiscoverStep = async () => {
+    if (!createdMcpId) return;
+    try {
+      const result = await discoverTools.mutateAsync(createdMcpId);
+      setDiscoveryResult(result);
+      if (result.status === 'success') {
+        toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });
+      } else if (result.status === 'skipped') {
+        toast.info('Tool Discovery', { description: result.message || 'Discovery skipped for credential-gated MCP' });
+      } else {
+        toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
+      }
+    } catch (error) {
+      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
+    }
   };
 
   const handlePublish = async () => {
@@ -296,81 +322,132 @@ export function McpWizard() {
             </>
           )}
 
-          {/* Step 2: Validate */}
+          {/* Step 2: Validate & Discover */}
           {currentStep === 2 && (
             <div className="space-y-4">
-              {!validationResult ? (
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <Button color="zinc" onClick={handleValidateStep} disabled={validateMcp.isPending}>
+                  <ArrowPathIcon data-slot="icon" />
+                  {validateMcp.isPending ? 'Validating...' : 'Validate Configuration'}
+                </Button>
+                <Button
+                  color="zinc"
+                  onClick={handleDiscoverStep}
+                  disabled={discoverTools.isPending || !validationResult?.valid}
+                  title={!validationResult?.valid ? 'Validate first before discovering tools' : undefined}
+                >
+                  <MagnifyingGlassIcon data-slot="icon" />
+                  {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
+                </Button>
+              </div>
+
+              {/* Validation Result */}
+              {validationResult && (
+                <div
+                  className={`flex items-center gap-2 p-4 rounded-lg ${
+                    validationResult.valid ? 'bg-green-50 dark:bg-green-950/50' : 'bg-red-50 dark:bg-red-950/50'
+                  }`}
+                >
+                  {validationResult.valid ? (
+                    <CheckCircleIcon className="size-6 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <ExclamationTriangleIcon className="size-6 text-red-600 dark:text-red-400" />
+                  )}
+                  <div>
+                    <p className="font-semibold text-zinc-900 dark:text-white">
+                      Validation {validationResult.valid ? 'Passed' : 'Failed'}
+                    </p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {validationResult.valid
+                        ? 'Configuration is valid. You can now discover tools.'
+                        : `${validationResult.errors?.length || 0} error(s) found`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Validation Errors */}
+              {validationResult?.errors?.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResult.errors.map((err: string, i: number) => (
+                      <li key={i} className="text-sm text-red-600 dark:text-red-400">{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Validation Warnings */}
+              {validationResult?.warnings?.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationResult.warnings.map((warn: string, i: number) => (
+                      <li key={i} className="text-sm text-amber-600 dark:text-amber-400">{warn}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Discovery Result */}
+              {discoveryResult && (
+                <div
+                  className={`flex items-center gap-2 p-4 rounded-lg ${
+                    discoveryResult.status === 'success'
+                      ? 'bg-blue-50 dark:bg-blue-950/50'
+                      : discoveryResult.status === 'skipped'
+                      ? 'bg-amber-50 dark:bg-amber-950/50'
+                      : 'bg-red-50 dark:bg-red-950/50'
+                  }`}
+                >
+                  {discoveryResult.status === 'success' ? (
+                    <MagnifyingGlassIcon className="size-6 text-blue-600 dark:text-blue-400" />
+                  ) : (
+                    <ExclamationTriangleIcon className="size-6 text-amber-600 dark:text-amber-400" />
+                  )}
+                  <div>
+                    <p className="font-semibold text-zinc-900 dark:text-white">
+                      {discoveryResult.status === 'success'
+                        ? `Discovered ${discoveryResult.tool_count} tools`
+                        : discoveryResult.status === 'skipped'
+                        ? 'Discovery Skipped'
+                        : 'Discovery Failed'}
+                    </p>
+                    {discoveryResult.message && (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">{discoveryResult.message}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Discovered Tools List */}
+              {discoveryResult?.tools_discovered?.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
+                    Discovered Tools ({discoveryResult.tools_discovered.length})
+                  </h4>
+                  <div className="grid gap-2 max-h-64 overflow-y-auto">
+                    {discoveryResult.tools_discovered.map((tool: any, i: number) => (
+                      <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                        <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
+                        {tool.description && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Guidance text when nothing done yet */}
+              {!validationResult && !discoveryResult && (
                 <div className="text-center py-8">
                   <p className="text-zinc-500 dark:text-zinc-400">
-                    Click "Next" to validate the MCP configuration
+                    Click "Validate Configuration" to check the MCP setup, then "Discover Tools" to connect and find available tools.
                   </p>
                 </div>
-              ) : (
-                <>
-                  <div
-                    className={`flex items-center gap-2 p-4 rounded-lg ${
-                      validationResult.valid ? 'bg-green-50 dark:bg-green-950/50' : 'bg-red-50 dark:bg-red-950/50'
-                    }`}
-                  >
-                    {validationResult.valid ? (
-                      <CheckCircleIcon className="size-6 text-green-600 dark:text-green-400" />
-                    ) : (
-                      <ExclamationTriangleIcon className="size-6 text-red-600 dark:text-red-400" />
-                    )}
-                    <div>
-                      <p className="font-semibold text-zinc-900 dark:text-white">
-                        Validation {validationResult.valid ? 'Passed' : 'Failed'}
-                      </p>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {validationResult.valid
-                          ? `Discovered ${validationResult.tools_discovered.length} tools`
-                          : `${validationResult.errors.length} error(s) found`}
-                      </p>
-                    </div>
-                  </div>
-
-                  {validationResult.errors.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
-                      <ul className="list-disc list-inside space-y-1">
-                        {validationResult.errors.map((err: string, i: number) => (
-                          <li key={i} className="text-sm text-red-600 dark:text-red-400">
-                            {err}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validationResult.warnings.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
-                      <ul className="list-disc list-inside space-y-1">
-                        {validationResult.warnings.map((warn: string, i: number) => (
-                          <li key={i} className="text-sm text-amber-600 dark:text-amber-400">
-                            {warn}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validationResult.tools_discovered.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
-                        Discovered Tools ({validationResult.tools_discovered.length})
-                      </h4>
-                      <div className="grid gap-2">
-                        {validationResult.tools_discovered.map((tool: any, i: number) => (
-                          <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                            <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{tool.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
               )}
             </div>
           )}
@@ -408,7 +485,7 @@ export function McpWizard() {
                 <div>
                   <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Tools Discovered</dt>
                   <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
-                    {validationResult?.tools_discovered.length || 0}
+                    {discoveryResult?.tool_count ?? 0}
                   </dd>
                 </div>
               </dl>

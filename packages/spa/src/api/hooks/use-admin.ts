@@ -12,6 +12,7 @@ import type {
   CreateMcpRequest,
   UpdateMcpRequest,
   ValidationResult,
+  DiscoveryResult,
   AuditEvent,
   Session,
   DownstreamStatus,
@@ -289,6 +290,20 @@ export function useValidateMcp() {
   return useMutation({
     mutationFn: (mcpId: string) =>
       apiClient.post<ValidationResult>(`/v1/admin/mcps/${mcpId}/validate`),
+  });
+}
+
+export function useDiscoverTools() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (mcpId: string) =>
+      apiClient.post<DiscoveryResult>(`/v1/admin/mcps/${mcpId}/discover`),
+    onSuccess: (_, mcpId) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
+      queryClient.invalidateQueries({ queryKey: ['marketplace'] });
+    },
   });
 }
 

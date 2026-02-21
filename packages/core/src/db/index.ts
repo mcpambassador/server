@@ -84,6 +84,7 @@ export {
   deleteMcpEntry,
   publishMcpEntry,
   updateValidationStatus,
+  updateToolCatalog,
   grantGroupAccess,
   revokeGroupAccess,
   listGroupsForMcp,
