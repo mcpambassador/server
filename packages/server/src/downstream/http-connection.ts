@@ -156,8 +156,26 @@ export class HttpMcpConnection extends EventEmitter {
         chunks.push(value);
       }
 
-      // Combine chunks and parse JSON
+      // Combine chunks and parse response
       const responseText = Buffer.concat(chunks).toString('utf-8');
+      
+      // Check if response is SSE format (some MCP servers return text/event-stream)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        // Parse SSE format: extract JSON from "data: {...}" lines
+        const lines = responseText.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonData = line.substring(6); // Remove "data: " prefix
+            const jsonResponse = JSON.parse(jsonData);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+            return jsonResponse;
+          }
+        }
+        throw new Error('SSE response missing data field');
+      }
+      
+      // Plain JSON response
       const jsonResponse = JSON.parse(responseText);
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
