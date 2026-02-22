@@ -219,6 +219,8 @@ CREATE TABLE IF NOT EXISTS `mcp_catalog` (
 	`isolation_mode` text DEFAULT 'shared' NOT NULL,
 	`requires_user_credentials` integer DEFAULT false NOT NULL,
 	`credential_schema` text DEFAULT '{}' NOT NULL,
+	`auth_type` text DEFAULT 'none' NOT NULL,
+	`oauth_config` text DEFAULT '{}' NOT NULL,
 	`tool_catalog` text DEFAULT '[]' NOT NULL,
 	`tool_count` integer DEFAULT 0 NOT NULL,
 	`status` text DEFAULT 'draft' NOT NULL,
@@ -284,6 +286,9 @@ CREATE TABLE IF NOT EXISTS `user_mcp_credentials` (
 	`mcp_id` text NOT NULL REFERENCES `mcp_catalog`(`mcp_id`) ON DELETE CASCADE ON UPDATE CASCADE,
 	`encrypted_credentials` text NOT NULL,
 	`encryption_iv` text NOT NULL,
+	`credential_type` text DEFAULT 'static' NOT NULL,
+	`oauth_status` text,
+	`expires_at` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );

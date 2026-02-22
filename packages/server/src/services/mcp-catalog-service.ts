@@ -42,6 +42,8 @@ export async function createMcpCatalogEntry(
     isolation_mode?: 'shared' | 'per_user';
     requires_user_credentials?: boolean;
     credential_schema?: Record<string, unknown>;
+    auth_type?: 'none' | 'static' | 'oauth2';
+    oauth_config?: Record<string, unknown>;
   }
 ): Promise<McpCatalogEntry> {
   // Validate unique name
@@ -61,6 +63,8 @@ export async function createMcpCatalogEntry(
     isolation_mode: data.isolation_mode || 'shared',
     requires_user_credentials: data.requires_user_credentials ?? false,
     credential_schema: data.credential_schema ? JSON.stringify(data.credential_schema) : '{}',
+    auth_type: data.auth_type || 'none',
+    oauth_config: data.oauth_config ? JSON.stringify(data.oauth_config) : '{}',
     tool_catalog: '[]',
     tool_count: 0,
     status: 'draft',
@@ -125,6 +129,8 @@ export async function updateMcpCatalogEntry(
     isolation_mode?: 'shared' | 'per_user';
     requires_user_credentials?: boolean;
     credential_schema?: Record<string, unknown>;
+    auth_type?: 'none' | 'static' | 'oauth2';
+    oauth_config?: Record<string, unknown>;
   }
 ): Promise<void> {
   // Verify entry exists
@@ -157,6 +163,9 @@ export async function updateMcpCatalogEntry(
     payload.requires_user_credentials = updates.requires_user_credentials;
   if (updates.credential_schema !== undefined)
     payload.credential_schema = JSON.stringify(updates.credential_schema);
+  if (updates.auth_type !== undefined) payload.auth_type = updates.auth_type;
+  if (updates.oauth_config !== undefined)
+    payload.oauth_config = JSON.stringify(updates.oauth_config);
 
   // Reset validation status and tool catalog when config changes
   if (updates.config || updates.transport_type) {

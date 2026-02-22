@@ -12,7 +12,6 @@ import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
-import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
@@ -64,8 +63,18 @@ export function McpDetail() {
     config: '',
     transport_type: 'stdio' as 'stdio' | 'http' | 'sse',
     isolation_mode: 'shared' as 'shared' | 'per_user',
+    auth_type: 'none' as 'none' | 'static' | 'oauth2',
     requires_user_credentials: false,
     credential_schema: '',
+    // OAuth fields
+    oauth_auth_url: '',
+    oauth_token_url: '',
+    oauth_scopes: '',
+    oauth_client_id_env: '',
+    oauth_client_secret_env: '',
+    oauth_access_token_env_var: '',
+    oauth_revocation_url: '',
+    oauth_extra_params: '',
   });
 
   // Parse tool_catalog from JSON string (admin API returns raw DB row)
@@ -129,14 +138,47 @@ export function McpDetail() {
         configObj = typeof mcp.config === 'string' ? JSON.parse(mcp.config) : mcp.config;
       }
 
-      // Parse credential schema if provided
+      // Parse credential schema if provided (for static auth)
       let credSchemaObj: Record<string, unknown> | undefined;
-      if (editFormData.requires_user_credentials && editFormData.credential_schema.trim()) {
+      if (editFormData.auth_type === 'static' && editFormData.credential_schema.trim()) {
         try {
           credSchemaObj = JSON.parse(editFormData.credential_schema);
         } catch {
           toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
           return;
+        }
+      }
+
+      // Build OAuth config if auth_type is oauth2
+      let oauthConfigObj: Record<string, unknown> | undefined;
+      if (editFormData.auth_type === 'oauth2') {
+        if (!editFormData.oauth_auth_url.trim() || !editFormData.oauth_token_url.trim() ||
+            !editFormData.oauth_scopes.trim() || !editFormData.oauth_client_id_env.trim() ||
+            !editFormData.oauth_client_secret_env.trim() || !editFormData.oauth_access_token_env_var.trim()) {
+          toast.error('OAuth Configuration', { description: 'Please fill all required OAuth fields' });
+          return;
+        }
+
+        oauthConfigObj = {
+          auth_url: editFormData.oauth_auth_url.trim(),
+          token_url: editFormData.oauth_token_url.trim(),
+          scopes: editFormData.oauth_scopes.trim(),
+          client_id_env: editFormData.oauth_client_id_env.trim(),
+          client_secret_env: editFormData.oauth_client_secret_env.trim(),
+          access_token_env_var: editFormData.oauth_access_token_env_var.trim(),
+        };
+
+        if (editFormData.oauth_revocation_url.trim()) {
+          oauthConfigObj.revocation_url = editFormData.oauth_revocation_url.trim();
+        }
+
+        if (editFormData.oauth_extra_params.trim()) {
+          try {
+            oauthConfigObj.extra_params = JSON.parse(editFormData.oauth_extra_params);
+          } catch {
+            toast.error('Invalid JSON', { description: 'Extra parameters must be valid JSON' });
+            return;
+          }
         }
       }
 
@@ -152,9 +194,13 @@ export function McpDetail() {
       if (mcp.status !== 'published') {
         updateData.transport_type = editFormData.transport_type;
         updateData.isolation_mode = editFormData.isolation_mode;
-        updateData.requires_user_credentials = editFormData.requires_user_credentials;
+        updateData.auth_type = editFormData.auth_type;
+        updateData.requires_user_credentials = editFormData.auth_type !== 'none';
         if (credSchemaObj) {
           updateData.credential_schema = credSchemaObj;
+        }
+        if (oauthConfigObj) {
+          updateData.oauth_config = oauthConfigObj;
         }
       }
 
@@ -170,6 +216,17 @@ export function McpDetail() {
 
   const openEditDialog = () => {
     if (!mcp) return;
+
+    // Parse OAuth config if present
+    let oauthConfig: any = {};
+    if (mcp.oauth_config) {
+      try {
+        oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : mcp.oauth_config;
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
     setEditFormData({
       display_name: mcp.display_name,
       description: mcp.description || '',
@@ -180,12 +237,21 @@ export function McpDetail() {
           : JSON.stringify(mcp.config, null, 2),
       transport_type: mcp.transport_type || 'stdio',
       isolation_mode: mcp.isolation_mode || 'shared',
+      auth_type: mcp.auth_type || 'none',
       requires_user_credentials: mcp.requires_user_credentials || false,
       credential_schema: mcp.credential_schema
         ? (typeof mcp.credential_schema === 'string'
           ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2)
           : JSON.stringify(mcp.credential_schema, null, 2))
         : '',
+      oauth_auth_url: oauthConfig.auth_url || '',
+      oauth_token_url: oauthConfig.token_url || '',
+      oauth_scopes: oauthConfig.scopes || '',
+      oauth_client_id_env: oauthConfig.client_id_env || '',
+      oauth_client_secret_env: oauthConfig.client_secret_env || '',
+      oauth_access_token_env_var: oauthConfig.access_token_env_var || '',
+      oauth_revocation_url: oauthConfig.revocation_url || '',
+      oauth_extra_params: oauthConfig.extra_params ? JSON.stringify(oauthConfig.extra_params, null, 2) : '',
     });
     setEditDialogOpen(true);
   };
@@ -374,7 +440,18 @@ export function McpDetail() {
           <ArrowPathIcon data-slot="icon" />
           Validate
         </Button>
-        <Button color="zinc" onClick={mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) : handleDiscover} disabled={discoverTools.isPending || (!mcp.requires_user_credentials && mcp.validation_status !== 'valid')}>
+        <Button 
+          color="zinc" 
+          onClick={
+            // OAuth MCPs: use admin's stored credential directly
+            mcp.auth_type === 'oauth2' ? handleDiscover :
+            // Static credential MCPs: open credential dialog
+            mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) :
+            // No credentials needed: discover directly
+            handleDiscover
+          } 
+          disabled={discoverTools.isPending || (!mcp.requires_user_credentials && mcp.validation_status !== 'valid')}
+        >
           <MagnifyingGlassIcon data-slot="icon" />
           {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
         </Button>
@@ -517,6 +594,12 @@ export function McpDetail() {
                   <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.isolation_mode}</dd>
                 </div>
                 <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Auth Type</dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                    {mcp.auth_type === 'oauth2' ? 'OAuth 2.0' : mcp.auth_type === 'static' ? 'Static Credentials' : 'None'}
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Requires Credentials</dt>
                   <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.requires_user_credentials ? 'Yes' : 'No'}</dd>
                 </div>
@@ -549,7 +632,18 @@ export function McpDetail() {
                   </p>
                 </div>
                 {(!parsedTools.length) && (mcp.requires_user_credentials || mcp.validation_status === 'valid') && (
-                  <Button color="zinc" onClick={mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) : handleDiscover} disabled={discoverTools.isPending}>
+                  <Button 
+                    color="zinc" 
+                    onClick={
+                      // OAuth MCPs: use admin's stored credential
+                      mcp.auth_type === 'oauth2' ? handleDiscover :
+                      // Static credential MCPs: open credential dialog
+                      mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) :
+                      // No credentials needed: discover directly
+                      handleDiscover
+                    } 
+                    disabled={discoverTools.isPending}
+                  >
                     <MagnifyingGlassIcon data-slot="icon" />
                     {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
                   </Button>
@@ -584,6 +678,62 @@ export function McpDetail() {
                   {typeof mcp.config === 'string' ? JSON.stringify(JSON.parse(mcp.config), null, 2) : JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </div>
+              {mcp.auth_type === 'oauth2' && mcp.oauth_config && (() => {
+                let oauthConfig: any = {};
+                try {
+                  oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : mcp.oauth_config;
+                } catch {
+                  return null;
+                }
+                return (
+                  <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
+                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">OAuth 2.0 Configuration</h3>
+                    <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Server-managed OAuth settings</p>
+                    <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4">
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Authorization URL</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.auth_url}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Token URL</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.token_url}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Scopes</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.scopes}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client ID Environment Variable</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.client_id_env}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client Secret Environment Variable</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.client_secret_env}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Access Token Environment Variable</dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.access_token_env_var}</dd>
+                      </div>
+                      {oauthConfig.revocation_url && (
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Revocation URL</dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.revocation_url}</dd>
+                        </div>
+                      )}
+                      {oauthConfig.extra_params && (
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Extra Parameters</dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                            <pre className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 overflow-x-auto text-xs font-mono">
+                              {JSON.stringify(oauthConfig.extra_params, null, 2)}
+                            </pre>
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                );
+              })()}
               {mcp.credential_schema && (
                 <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                   <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Credential Schema</h3>
@@ -881,36 +1031,110 @@ export function McpDetail() {
                     <ListboxOption value="per_user"><ListboxLabel>per_user</ListboxLabel></ListboxOption>
                   </Listbox>
                 </Field>
+
+                <Field>
+                  <Label>Authentication Type</Label>
+                  <Listbox
+                    name="auth-type"
+                    value={editFormData.auth_type}
+                    onChange={(value: string) =>
+                      setEditFormData({ ...editFormData, auth_type: value as 'none' | 'static' | 'oauth2' })
+                    }
+                  >
+                    <ListboxOption value="none"><ListboxLabel>None</ListboxLabel></ListboxOption>
+                    <ListboxOption value="static"><ListboxLabel>Static Credentials</ListboxLabel></ListboxOption>
+                    <ListboxOption value="oauth2"><ListboxLabel>OAuth 2.0</ListboxLabel></ListboxOption>
+                  </Listbox>
+                </Field>
+
+                {/* Static auth: show credential schema */}
+                {editFormData.auth_type === 'static' && (
+                  <Field>
+                    <Label>Credential Schema (JSON)</Label>
+                    <Textarea
+                      value={editFormData.credential_schema}
+                      onChange={(e) =>
+                        setEditFormData({ ...editFormData, credential_schema: e.target.value })
+                      }
+                      rows={8}
+                      className="font-mono"
+                      placeholder='{\n  "type": "object",\n  "required": ["api_key"],\n  "properties": {\n    "api_key": {\n      "type": "string",\n      "description": "API Key"\n    }\n  }\n}'
+                    />
+                  </Field>
+                )}
+
+                {/* OAuth2 auth: show OAuth config fields */}
+                {editFormData.auth_type === 'oauth2' && (
+                  <>
+                    <Field>
+                      <Label>Authorization URL *</Label>
+                      <Input
+                        value={editFormData.oauth_auth_url}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_auth_url: e.target.value })}
+                        placeholder="https://accounts.google.com/o/oauth2/v2/auth"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Token URL *</Label>
+                      <Input
+                        value={editFormData.oauth_token_url}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_token_url: e.target.value })}
+                        placeholder="https://oauth2.googleapis.com/token"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Scopes *</Label>
+                      <Input
+                        value={editFormData.oauth_scopes}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_scopes: e.target.value })}
+                        placeholder="openid email profile"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Client ID Env Var *</Label>
+                      <Input
+                        value={editFormData.oauth_client_id_env}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_client_id_env: e.target.value })}
+                        placeholder="GOOGLE_OAUTH_CLIENT_ID"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Client Secret Env Var *</Label>
+                      <Input
+                        value={editFormData.oauth_client_secret_env}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_client_secret_env: e.target.value })}
+                        placeholder="GOOGLE_OAUTH_CLIENT_SECRET"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Access Token Env Var *</Label>
+                      <Input
+                        value={editFormData.oauth_access_token_env_var}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_access_token_env_var: e.target.value })}
+                        placeholder="GOOGLE_ACCESS_TOKEN"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Revocation URL</Label>
+                      <Input
+                        value={editFormData.oauth_revocation_url}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_revocation_url: e.target.value })}
+                        placeholder="https://oauth2.googleapis.com/revoke"
+                      />
+                    </Field>
+                    <Field>
+                      <Label>Extra Parameters (JSON)</Label>
+                      <Textarea
+                        value={editFormData.oauth_extra_params}
+                        onChange={(e) => setEditFormData({ ...editFormData, oauth_extra_params: e.target.value })}
+                        rows={4}
+                        className="font-mono text-sm"
+                        placeholder='{"access_type": "offline"}'
+                      />
+                    </Field>
+                  </>
+                )}
               </>
-            )}
-
-            {/* Requires User Credentials checkbox — hidden for published MCPs (structural field) */}
-            {mcp.status !== 'published' && (
-              <CheckboxField>
-                <Checkbox
-                  checked={editFormData.requires_user_credentials}
-                  onChange={(checked: boolean) =>
-                    setEditFormData({ ...editFormData, requires_user_credentials: checked })
-                  }
-                />
-                <Label>Requires User Credentials</Label>
-              </CheckboxField>
-            )}
-
-            {/* Credential Schema (shown only when requires_user_credentials is true and not published) */}
-            {mcp.status !== 'published' && editFormData.requires_user_credentials && (
-              <Field>
-                <Label>Credential Schema (JSON)</Label>
-                <Textarea
-                  value={editFormData.credential_schema}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, credential_schema: e.target.value })
-                  }
-                  rows={8}
-                  className="font-mono"
-                  placeholder='{\n  "type": "object",\n  "required": ["api_key"],\n  "properties": {\n    "api_key": {\n      "type": "string",\n      "description": "API Key"\n    }\n  }\n}'
-                />
-              </Field>
             )}
           </div>
           <DialogActions>
@@ -924,15 +1148,16 @@ export function McpDetail() {
         </DialogBody>
       </Dialog>
 
-      {/* Credential Dialog for Tool Discovery */}
-      <Dialog open={credentialDialogOpen} onClose={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
-        <DialogBody>
-          <DialogTitle>Provide Credentials for Discovery</DialogTitle>
-          <DialogDescription>
-            This MCP requires credentials to connect. Enter temporary credentials below — they will NOT be stored and are used only for this discovery attempt.
-          </DialogDescription>
-          <div className="space-y-4 mt-4">
-            {credentialFields.map((field) => (
+      {/* Credential Dialog for Tool Discovery (Static Auth Only) */}
+      {mcp?.auth_type !== 'oauth2' && (
+        <Dialog open={credentialDialogOpen} onClose={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
+          <DialogBody>
+            <DialogTitle>Provide Credentials for Discovery</DialogTitle>
+            <DialogDescription>
+              This MCP requires credentials to connect. Enter temporary credentials below — they will NOT be stored and are used only for this discovery attempt.
+            </DialogDescription>
+            <div className="space-y-4 mt-4">
+              {credentialFields.map((field) => (
               <Field key={field.key}>
                 <Label>
                   {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
@@ -960,6 +1185,7 @@ export function McpDetail() {
           </DialogActions>
         </DialogBody>
       </Dialog>
+      )}
 
       {/* Delete confirmation dialog */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>

@@ -500,6 +500,13 @@ export const mcp_catalog = sqliteTable(
       .notNull()
       .default(false),
     credential_schema: text('credential_schema').notNull().default('{}'),
+    // ADR-014: OAuth 2.0 authentication support
+    auth_type: text('auth_type', {
+      enum: ['none', 'static', 'oauth2'],
+    })
+      .notNull()
+      .default('none'),
+    oauth_config: text('oauth_config').notNull().default('{}'), // JSON: OAuthConfig
     tool_catalog: text('tool_catalog').notNull().default('[]'),
     tool_count: integer('tool_count').notNull().default(0),
     status: text('status', {
@@ -601,6 +608,16 @@ export const user_mcp_credentials = sqliteTable(
       .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     encrypted_credentials: text('encrypted_credentials').notNull(),
     encryption_iv: text('encryption_iv').notNull(),
+    // ADR-014: OAuth 2.0 credential type discriminator
+    credential_type: text('credential_type', {
+      enum: ['static', 'oauth2'],
+    })
+      .notNull()
+      .default('static'),
+    oauth_status: text('oauth_status', {
+      enum: ['active', 'expired', 'revoked'],
+    }), // nullable — only for OAuth credentials
+    expires_at: text('expires_at'), // ISO 8601, nullable — token expiry for OAuth
     created_at: text('created_at').notNull(),
     updated_at: text('updated_at').notNull(),
   },
@@ -612,6 +629,49 @@ export const user_mcp_credentials = sqliteTable(
 );
 
 /**
+ * oauth_states table
+ *
+ * Transient storage for OAuth 2.0 authorization flow state.
+ * Each row represents an in-progress OAuth flow.
+ * Rows expire after 10 minutes and are cleaned up by a periodic job.
+ *
+ * @see ADR-014: Generic OAuth 2.0 Downstream Credentials
+ */
+export const oauth_states = sqliteTable(
+  'oauth_states',
+  {
+    /** Random UUID v4 — sent as the `state` parameter to the OAuth provider */
+    state: text('state').primaryKey().notNull(),
+
+    /** User who initiated the flow */
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade' }),
+
+    /** MCP catalog entry being connected */
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade' }),
+
+    /** PKCE code_verifier (43–128 char random string, stored server-side only) */
+    code_verifier: text('code_verifier').notNull(),
+
+    /** The redirect_uri used in the authorization request (must match callback exactly) */
+    redirect_uri: text('redirect_uri').notNull(),
+
+    /** When this state was created (ISO 8601) */
+    created_at: text('created_at').notNull(),
+
+    /** When this state expires (ISO 8601, created_at + 10 minutes) */
+    expires_at: text('expires_at').notNull(),
+  },
+  (table) => ({
+    userIdx: index('idx_oauth_states_user_id').on(table.user_id),
+    expiresIdx: index('idx_oauth_states_expires_at').on(table.expires_at),
+  })
+);
+
+/**
  * Drizzle relations (for ORM query joins)
  */
 export const usersRelations = relations(users, ({ many }) => ({
@@ -619,6 +679,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   user_sessions: many(user_sessions),
   user_groups: many(user_groups),
   user_mcp_credentials: many(user_mcp_credentials),
+  oauth_states: many(oauth_states),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
@@ -658,6 +719,7 @@ export const mcpCatalogRelations = relations(mcp_catalog, ({ many }) => ({
   mcp_group_access: many(mcp_group_access),
   subscriptions: many(client_mcp_subscriptions),
   user_credentials: many(user_mcp_credentials),
+  oauth_states: many(oauth_states),
 }));
 
 export const mcpGroupAccessRelations = relations(mcp_group_access, ({ one }) => ({
@@ -673,6 +735,11 @@ export const clientMcpSubscriptionsRelations = relations(client_mcp_subscription
 export const userMcpCredentialsRelations = relations(user_mcp_credentials, ({ one }) => ({
   user: one(users, { fields: [user_mcp_credentials.user_id], references: [users.user_id] }),
   mcp: one(mcp_catalog, { fields: [user_mcp_credentials.mcp_id], references: [mcp_catalog.mcp_id] }),
+}));
+
+export const oauthStatesRelations = relations(oauth_states, ({ one }) => ({
+  user: one(users, { fields: [oauth_states.user_id], references: [users.user_id] }),
+  mcp: one(mcp_catalog, { fields: [oauth_states.mcp_id], references: [mcp_catalog.mcp_id] }),
 }));
 
 /**
@@ -704,10 +771,82 @@ export type ClientMcpSubscription = typeof client_mcp_subscriptions.$inferSelect
 export type NewClientMcpSubscription = typeof client_mcp_subscriptions.$inferInsert;
 export type UserMcpCredential = typeof user_mcp_credentials.$inferSelect;
 export type NewUserMcpCredential = typeof user_mcp_credentials.$inferInsert;
+export type OAuthState = typeof oauth_states.$inferSelect;
+export type NewOAuthState = typeof oauth_states.$inferInsert;
 
 /**
  * JSON-typed interfaces for metadata fields
  */
+
+/**
+ * ADR-014: OAuth 2.0 configuration stored as JSON in mcp_catalog.oauth_config
+ */
+export interface OAuthConfig {
+  /** Authorization endpoint URL (e.g., "https://accounts.google.com/o/oauth2/v2/auth") */
+  auth_url: string;
+
+  /** Token endpoint URL (e.g., "https://oauth2.googleapis.com/token") */
+  token_url: string;
+
+  /** Space-delimited OAuth scopes */
+  scopes: string;
+
+  /**
+   * Environment variable name containing the OAuth client ID.
+   * Resolved at runtime from process.env. NOT a literal client_id.
+   * Example: "GOOGLE_OAUTH_CLIENT_ID"
+   */
+  client_id_env: string;
+
+  /**
+   * Environment variable name containing the OAuth client secret.
+   * Resolved at runtime from process.env. NOT a literal secret.
+   * Example: "GOOGLE_OAUTH_CLIENT_SECRET"
+   */
+  client_secret_env: string;
+
+  /**
+   * Optional revocation endpoint URL.
+   * If absent, token revocation is skipped on disconnect.
+   */
+  revocation_url?: string;
+
+  /**
+   * Extra query parameters to include on the authorization request.
+   * Handles provider-specific requirements without code changes.
+   * Example: { "access_type": "offline", "prompt": "consent" } for Google.
+   */
+  extra_params?: Record<string, string>;
+
+  /**
+   * The env var name used to inject the access_token into the MCP child process.
+   * Maps the OAuth access_token to the env var the MCP server expects.
+   * Example: "GOOGLE_ACCESS_TOKEN" or "SALESFORCE_ACCESS_TOKEN"
+   */
+  access_token_env_var: string;
+}
+
+/**
+ * OAuth 2.0 token set returned by providers
+ */
+export interface OAuthTokenSet {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expires_in: number;
+  scope?: string;
+}
+
+/**
+ * Encrypted blob structure for OAuth credentials in user_mcp_credentials.encrypted_credentials
+ */
+export interface OAuthCredentialBlob {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  scope: string;
+  expires_at: string; // ISO 8601
+}
 export interface ClientMetadata {
   os?: string;
   ide_version?: string;

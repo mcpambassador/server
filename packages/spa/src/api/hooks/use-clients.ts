@@ -89,6 +89,8 @@ export function useSubscribe() {
       apiClient.post<Subscription>(`/v1/users/me/clients/${clientId}/subscriptions`, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clients', variables.clientId, 'subscriptions'] });
+      // M26.6: Also invalidate credentials so the Credentials page shows newly-subscribed OAuth MCPs
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
     },
   });
 }
@@ -124,6 +126,7 @@ export function useUnsubscribe() {
       apiClient.delete(`/v1/users/me/clients/${clientId}/subscriptions/${subscriptionId}`),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clients', variables.clientId, 'subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['credentials'] });
     },
   });
 }

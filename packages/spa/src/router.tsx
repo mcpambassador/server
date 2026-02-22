@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
@@ -24,10 +24,20 @@ import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
 import { Settings } from '@/pages/admin/Settings';
 
+// Redirect component for OAuth callback
+function ConnectionsRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/app/credentials${location.search}`} replace />;
+}
+
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/connections',
+    element: <ConnectionsRedirect />,
   },
   {
     path: '/app',

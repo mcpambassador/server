@@ -41,8 +41,18 @@ export function McpWizard() {
     transport_type: 'stdio' as 'stdio' | 'http' | 'sse',
     isolation_mode: 'shared' as 'shared' | 'per_user',
     config: '{\n  \n}',
+    auth_type: 'none' as 'none' | 'static' | 'oauth2',
     requires_user_credentials: false,
     credential_schema: '{\n  \n}',
+    // OAuth config fields
+    oauth_auth_url: '',
+    oauth_token_url: '',
+    oauth_scopes: '',
+    oauth_client_id_env: '',
+    oauth_client_secret_env: '',
+    oauth_access_token_env_var: '',
+    oauth_revocation_url: '',
+    oauth_extra_params: '',
   });
 
   const handleNext = async () => {
@@ -107,14 +117,62 @@ export function McpWizard() {
         }
         setErrors({});
 
+        // Build auth-related fields based on auth_type
         let credentialSchemaObj: Record<string, unknown> | undefined;
-        if (formData.requires_user_credentials) {
-          try {
-            credentialSchemaObj = JSON.parse(formData.credential_schema);
-          } catch {
-            setErrors({ credential_schema: 'Invalid JSON in credential schema field' });
-            toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
+        let oauthConfigObj: Record<string, unknown> | undefined;
+        let requiresUserCredentials = false;
+        let authType = formData.auth_type;
+
+        if (authType === 'static') {
+          requiresUserCredentials = true;
+          if (formData.credential_schema.trim()) {
+            try {
+              credentialSchemaObj = JSON.parse(formData.credential_schema);
+            } catch {
+              setErrors({ credential_schema: 'Invalid JSON in credential schema field' });
+              toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
+              return;
+            }
+          }
+        } else if (authType === 'oauth2') {
+          requiresUserCredentials = true;
+          // Validate OAuth required fields
+          const oauthErrors: Record<string, string> = {};
+          if (!formData.oauth_auth_url.trim()) oauthErrors.oauth_auth_url = 'Authorization URL is required';
+          if (!formData.oauth_token_url.trim()) oauthErrors.oauth_token_url = 'Token URL is required';
+          if (!formData.oauth_scopes.trim()) oauthErrors.oauth_scopes = 'Scopes are required';
+          if (!formData.oauth_client_id_env.trim()) oauthErrors.oauth_client_id_env = 'Client ID env var is required';
+          if (!formData.oauth_client_secret_env.trim()) oauthErrors.oauth_client_secret_env = 'Client secret env var is required';
+          if (!formData.oauth_access_token_env_var.trim()) oauthErrors.oauth_access_token_env_var = 'Access token env var is required';
+
+          if (Object.keys(oauthErrors).length > 0) {
+            setErrors(oauthErrors);
+            toast.error('OAuth Configuration', { description: 'Please fill all required OAuth fields' });
             return;
+          }
+
+          // Build OAuth config object
+          oauthConfigObj = {
+            auth_url: formData.oauth_auth_url.trim(),
+            token_url: formData.oauth_token_url.trim(),
+            scopes: formData.oauth_scopes.trim(),
+            client_id_env: formData.oauth_client_id_env.trim(),
+            client_secret_env: formData.oauth_client_secret_env.trim(),
+            access_token_env_var: formData.oauth_access_token_env_var.trim(),
+          };
+
+          if (formData.oauth_revocation_url.trim()) {
+            oauthConfigObj.revocation_url = formData.oauth_revocation_url.trim();
+          }
+
+          if (formData.oauth_extra_params.trim()) {
+            try {
+              oauthConfigObj.extra_params = JSON.parse(formData.oauth_extra_params);
+            } catch {
+              setErrors({ oauth_extra_params: 'Invalid JSON in extra parameters' });
+              toast.error('Invalid JSON', { description: 'Extra parameters must be valid JSON' });
+              return;
+            }
           }
         }
 
@@ -129,8 +187,10 @@ export function McpWizard() {
               transport_type: formData.transport_type,
               isolation_mode: formData.isolation_mode,
               config: configObj,
-              requires_user_credentials: formData.requires_user_credentials,
+              auth_type: authType,
+              requires_user_credentials: requiresUserCredentials,
               credential_schema: credentialSchemaObj,
+              oauth_config: oauthConfigObj,
             },
           });
         } else {
@@ -143,8 +203,10 @@ export function McpWizard() {
             transport_type: formData.transport_type,
             isolation_mode: formData.isolation_mode,
             config: configObj,
-            requires_user_credentials: formData.requires_user_credentials,
+            auth_type: authType,
+            requires_user_credentials: requiresUserCredentials,
             credential_schema: credentialSchemaObj,
+            oauth_config: oauthConfigObj,
           });
 
           setCreatedMcpId(result.mcp_id);
@@ -382,33 +444,174 @@ export function McpWizard() {
                 />
                 {errors.config && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.config}</p>}
               </Field>
-              <CheckboxField>
-                <Checkbox
-                  name="requires_user_credentials"
-                  checked={formData.requires_user_credentials}
-                  onChange={(checked) =>
-                    setFormData({ ...formData, requires_user_credentials: checked })
+
+              <Field>
+                <Label>Authentication Type</Label>
+                <Listbox
+                  name="auth-type"
+                  value={formData.auth_type}
+                  onChange={(value: string) =>
+                    setFormData({
+                      ...formData,
+                      auth_type: value as 'none' | 'static' | 'oauth2',
+                    })
                   }
-                />
-                <Label className="cursor-pointer">
-                  Requires User Credentials
-                </Label>
-              </CheckboxField>
-              {formData.requires_user_credentials && (
-                <Field>
-                  <Label>Credential Schema (JSON)</Label>
-                  <Textarea
-                    value={formData.credential_schema}
-                    onChange={(e) =>
-                      setFormData({ ...formData, credential_schema: e.target.value })
-                    }
-                    rows={8}
-                    className="font-mono text-sm"
-                    placeholder='{ "api_key": { "type": "string", "description": "API Key" } }'
-                    aria-invalid={!!errors.credential_schema}
-                  />
-                  {errors.credential_schema && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.credential_schema}</p>}
-                </Field>
+                >
+                  <ListboxOption value="none">
+                    <ListboxLabel>None (no authentication)</ListboxLabel>
+                  </ListboxOption>
+                  <ListboxOption value="static">
+                    <ListboxLabel>Static Credentials (user provides API keys)</ListboxLabel>
+                  </ListboxOption>
+                  <ListboxOption value="oauth2">
+                    <ListboxLabel>OAuth 2.0 (server-managed OAuth flow)</ListboxLabel>
+                  </ListboxOption>
+                </Listbox>
+              </Field>
+
+              {formData.auth_type === 'static' && (
+                <>
+                  <CheckboxField>
+                    <Checkbox
+                      name="requires_user_credentials"
+                      checked={true}
+                      disabled={true}
+                    />
+                    <Label className="cursor-pointer">
+                      Requires User Credentials (enabled for static auth)
+                    </Label>
+                  </CheckboxField>
+                  <Field>
+                    <Label>Credential Schema (JSON)</Label>
+                    <Textarea
+                      value={formData.credential_schema}
+                      onChange={(e) =>
+                        setFormData({ ...formData, credential_schema: e.target.value })
+                      }
+                      rows={8}
+                      className="font-mono text-sm"
+                      placeholder='{ "type": "object", "required": ["api_key"], "properties": { "api_key": { "type": "string", "description": "API Key" } } }'
+                      aria-invalid={!!errors.credential_schema}
+                    />
+                    {errors.credential_schema && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.credential_schema}</p>}
+                  </Field>
+                </>
+              )}
+
+              {formData.auth_type === 'oauth2' && (
+                <>
+                  <Field>
+                    <Label>Authorization URL *</Label>
+                    <Input
+                      value={formData.oauth_auth_url}
+                      onChange={(e) => setFormData({ ...formData, oauth_auth_url: e.target.value })}
+                      placeholder="https://accounts.google.com/o/oauth2/v2/auth"
+                      aria-invalid={!!errors.oauth_auth_url}
+                    />
+                    {errors.oauth_auth_url && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_auth_url}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      OAuth 2.0 authorization endpoint URL
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Token URL *</Label>
+                    <Input
+                      value={formData.oauth_token_url}
+                      onChange={(e) => setFormData({ ...formData, oauth_token_url: e.target.value })}
+                      placeholder="https://oauth2.googleapis.com/token"
+                      aria-invalid={!!errors.oauth_token_url}
+                    />
+                    {errors.oauth_token_url && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_token_url}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      OAuth 2.0 token endpoint URL
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Scopes *</Label>
+                    <Input
+                      value={formData.oauth_scopes}
+                      onChange={(e) => setFormData({ ...formData, oauth_scopes: e.target.value })}
+                      placeholder="openid email profile"
+                      aria-invalid={!!errors.oauth_scopes}
+                    />
+                    {errors.oauth_scopes && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_scopes}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Space-separated OAuth scopes
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Client ID Environment Variable *</Label>
+                    <Input
+                      value={formData.oauth_client_id_env}
+                      onChange={(e) => setFormData({ ...formData, oauth_client_id_env: e.target.value })}
+                      placeholder="GOOGLE_OAUTH_CLIENT_ID"
+                      aria-invalid={!!errors.oauth_client_id_env}
+                    />
+                    {errors.oauth_client_id_env && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_client_id_env}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Name of the environment variable on the server containing the OAuth client ID (not the actual client ID)
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Client Secret Environment Variable *</Label>
+                    <Input
+                      value={formData.oauth_client_secret_env}
+                      onChange={(e) => setFormData({ ...formData, oauth_client_secret_env: e.target.value })}
+                      placeholder="GOOGLE_OAUTH_CLIENT_SECRET"
+                      aria-invalid={!!errors.oauth_client_secret_env}
+                    />
+                    {errors.oauth_client_secret_env && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_client_secret_env}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Name of the environment variable on the server containing the OAuth client secret
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Access Token Environment Variable *</Label>
+                    <Input
+                      value={formData.oauth_access_token_env_var}
+                      onChange={(e) => setFormData({ ...formData, oauth_access_token_env_var: e.target.value })}
+                      placeholder="GOOGLE_ACCESS_TOKEN"
+                      aria-invalid={!!errors.oauth_access_token_env_var}
+                    />
+                    {errors.oauth_access_token_env_var && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_access_token_env_var}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Name of the environment variable that the MCP expects for the access token
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Revocation URL (optional)</Label>
+                    <Input
+                      value={formData.oauth_revocation_url}
+                      onChange={(e) => setFormData({ ...formData, oauth_revocation_url: e.target.value })}
+                      placeholder="https://oauth2.googleapis.com/revoke"
+                    />
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      OAuth 2.0 token revocation endpoint (optional)
+                    </p>
+                  </Field>
+
+                  <Field>
+                    <Label>Extra Parameters (optional JSON)</Label>
+                    <Textarea
+                      value={formData.oauth_extra_params}
+                      onChange={(e) => setFormData({ ...formData, oauth_extra_params: e.target.value })}
+                      rows={4}
+                      className="font-mono text-sm"
+                      placeholder='{"access_type": "offline", "prompt": "consent"}'
+                      aria-invalid={!!errors.oauth_extra_params}
+                    />
+                    {errors.oauth_extra_params && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_extra_params}</p>}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      Additional OAuth parameters as JSON object
+                    </p>
+                  </Field>
+                </>
               )}
             </>
           )}
@@ -563,6 +766,18 @@ export function McpWizard() {
                   <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Isolation</dt>
                   <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.isolation_mode}</dd>
                 </div>
+                <div>
+                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Authentication Type</dt>
+                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+                    {formData.auth_type === 'none' ? 'None' : formData.auth_type === 'static' ? 'Static Credentials' : 'OAuth 2.0'}
+                  </dd>
+                </div>
+                {formData.auth_type === 'oauth2' && (
+                  <div>
+                    <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">OAuth Client ID Env</dt>
+                    <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white font-mono">{formData.oauth_client_id_env}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Validation Status</dt>
                   <dd>

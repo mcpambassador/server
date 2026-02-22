@@ -46,6 +46,8 @@ export async function createMcpEntry(
     isolation_mode: data.isolation_mode || 'shared',
     requires_user_credentials: data.requires_user_credentials ?? false,
     credential_schema: data.credential_schema || '{}',
+    auth_type: data.auth_type || 'none',
+    oauth_config: data.oauth_config || '{}',
     tool_catalog: data.tool_catalog || '[]',
     tool_count: data.tool_count || 0,
     status: data.status || 'draft',

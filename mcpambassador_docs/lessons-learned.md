@@ -265,3 +265,24 @@ Final phase of the Catalyst UI migration. After all components and pages were mi
 
 When rebuilding pages with Catalyst Application UI blocks, prioritize proper loading states (skeleton UIs) and semantic color props over custom className overrides. The icon slot convention (`data-slot="icon"`) should be adopted project-wide for all Catalyst Button usage.
 
+
+## 2026-02-22: OAuth States Repository — Drizzle ORM Operator Order
+
+**Context:** Creating CRUD repository for oauth_states table with expiration checks.
+
+**Challenge:** TypeScript error when using `lt(now, oauth_states.expires_at)`:
+```
+error TS2769: No overload matches this call.
+Argument of type 'string' is not assignable to parameter of type 'Column<...>'
+```
+
+**Root Cause:** Drizzle ORM comparison operators (`lt`, `gt`, `eq`, etc.) require the **column** as the first argument, not a literal value.
+
+**Solution:**
+- ❌ `lt(now, oauth_states.expires_at)` — TypeScript error
+- ✅ `gt(oauth_states.expires_at, now)` — Correct: "expires_at > now"
+- ✅ `lt(oauth_states.expires_at, now)` — Also valid: "expires_at < now"
+
+**Pattern:** Always put the **column reference first**, literal/value second in Drizzle comparison functions.
+
+**Impact:** Fixed immediately after first tsc run. Zero runtime issues.

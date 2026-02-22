@@ -39,6 +39,22 @@ export const BLOCKED_ENV_VARS = [
 ];
 
 /**
+ * M26.4: User MCP credentials for injection
+ * 
+ * For OAuth2 credentials:
+ * - envVars: Environment variables for stdio transport
+ * - headers: HTTP headers (e.g., Authorization: Bearer <token>) for HTTP/SSE transport
+ * 
+ * For static credentials:
+ * - envVars: Environment variables (stdio only)
+ * - headers: Empty (not applicable)
+ */
+export interface UserMcpCredentials {
+  envVars: Record<string, string>;   // For stdio transport
+  headers: Record<string, string>;   // For HTTP/SSE transport (e.g., Authorization: Bearer xyz)
+}
+
+/**
  * F-SEC-M6-001: Validate downstream MCP config for command injection risks
  */
 export function validateMcpConfig(config: DownstreamMcpConfig): void {

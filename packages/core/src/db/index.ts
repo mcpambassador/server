@@ -111,6 +111,15 @@ export {
   deleteCredentialsForMcp,
 } from './repositories/user-credentials.js';
 
+// OAuth states repository
+export {
+  createOAuthState,
+  getOAuthState,
+  consumeOAuthState,
+  cleanupExpiredStates,
+  deleteOAuthStatesForUser,
+} from './repositories/oauth-states.js';
+
 // Re-export schema types for convenience
 export type {
   Client,
@@ -133,6 +142,8 @@ export type {
   NewClientMcpSubscription,
   UserMcpCredential,
   NewUserMcpCredential,
+  OAuthState,
+  NewOAuthState,
   ClientMetadata,
   RateLimits,
   TimeWindow,

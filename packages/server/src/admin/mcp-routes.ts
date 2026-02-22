@@ -68,6 +68,8 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         isolation_mode: body.isolation_mode,
         requires_user_credentials: body.requires_user_credentials,
         credential_schema: body.credential_schema,
+        auth_type: body.auth_type,
+        oauth_config: body.oauth_config,
       });
 
       // Emit audit event
@@ -353,8 +355,11 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
           }
         }
 
-        // Run tool discovery with optional credentials
-        const result = await discoverTools(entry, credentials);
+        // Get admin userId from session for OAuth-based discovery
+        const adminUserId = request.session?.userId;
+        
+        // Run tool discovery with optional credentials and admin userId
+        const result = await discoverTools(entry, credentials, adminUserId);
 
         // If successful, update tool catalog in DB
         if (result.status === 'success') {

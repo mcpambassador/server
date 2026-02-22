@@ -31,6 +31,8 @@ import {
   compatInsert,
   compatTransaction,
   seedDevData,
+  type OAuthCredentialBlob,
+  type OAuthConfig,
 } from '@mcpambassador/core';
 import {
   EphemeralAuthProvider,
@@ -47,6 +49,7 @@ import { BoundedSessionStore } from './admin/session.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
+import type { OAuthTokenManager } from './services/oauth-token-manager.js';
 
 /**
  * MCP Ambassador Server (M6)
@@ -114,6 +117,7 @@ export class AmbassadorServer {
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
   private credentialVault: CredentialVault | null = null; // CR-H2: M26: Credential vault with proper type
+  private oauthTokenManager: OAuthTokenManager | null = null; // ADR-014: OAuth token lifecycle manager
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -239,6 +243,19 @@ export class AmbassadorServer {
     const masterKey = await keyManager.loadMasterKey();
     this.credentialVault = new CredentialVault(masterKey);
     console.log('[Server] Credential vault initialized');
+    
+    // ADR-014: Initialize OAuth token manager
+    const { OAuthTokenManager } = await import('./services/oauth-token-manager.js');
+    const callbackBaseUrl = `https://${this.config.serverName}:${this.config.adminPort}`;
+    this.oauthTokenManager = new OAuthTokenManager({
+      db: this.db,
+      vault: this.credentialVault,
+      callbackBaseUrl,
+    });
+    console.log('[Server] OAuth token manager initialized');
+    
+    // Register server instance for global access by services
+    registerServerInstance(this);
     
     // Initialize ephemeral auth provider with HMAC secret
     this.hmacSecret = getOrCreateHmacSecret(this.config.dataDir);
@@ -514,6 +531,20 @@ export class AmbassadorServer {
       db: this.db!,
     });
 
+    // ADR-014: OAuth routes
+    const { registerOAuthRoutes } = await import('./routes/oauth.js');
+    if (!this.oauthTokenManager) {
+      throw new Error('OAuth token manager not initialized before admin server');
+    }
+    const portalBaseUrl = `https://${this.config.serverName}:${this.config.adminPort}`;
+    await registerOAuthRoutes(this.adminServer, {
+      db: this.db!,
+      vault: this.credentialVault,
+      oauthManager: this.oauthTokenManager,
+      userPool: this.userPool,
+      portalBaseUrl,
+    });
+
     console.log('[Admin] User-facing API routes registered');
 
     // Register SPA handler on admin server (M29.5)
@@ -636,9 +667,9 @@ export class AmbassadorServer {
    * and maps them to environment variables according to each MCP's credential_schema.
    * 
    * @param userId User UUID
-   * @returns Map of MCP name to environment variables
+   * @returns Map of MCP name to credentials (env vars and headers)
    */
-  private async loadUserCredentialsForMcps(userId: string): Promise<Map<string, Record<string, string>>> {
+  private async loadUserCredentialsForMcps(userId: string): Promise<Map<string, import('./downstream/types.js').UserMcpCredentials>> {
     if (!this.credentialVault || !this.db) {
       return new Map(); // Vault not initialized, return empty map
     }
@@ -662,7 +693,7 @@ export class AmbassadorServer {
         return new Map();
       }
 
-      const envMap = new Map<string, Record<string, string>>();
+      const credMap = new Map<string, import('./downstream/types.js').UserMcpCredentials>();
 
       for (const cred of credentials) {
         try {
@@ -679,29 +710,128 @@ export class AmbassadorServer {
             cred.encrypted_credentials,
             cred.encryption_iv
           );
-          const decryptedCreds = JSON.parse(decryptedJson) as Record<string, string>;
-
-          // Parse credential schema
-          const schema = typeof mcpEntry.credential_schema === 'string'
-            ? JSON.parse(mcpEntry.credential_schema)
-            : mcpEntry.credential_schema;
-
-          // Map credential fields to environment variables according to schema
-          const envVars: Record<string, string> = {};
-          if (schema && typeof schema === 'object' && schema.properties) {
-            for (const [fieldName, fieldDef] of Object.entries(schema.properties as Record<string, any>)) {
-              const envVarName = fieldDef.env_var;
-              const credValue = decryptedCreds[fieldName];
-
-              if (envVarName && credValue) {
-                envVars[envVarName] = credValue;
+          
+          // ADR-014: Branch on credential_type
+          if (cred.credential_type === 'oauth2') {
+            // OAuth2 credential flow with refresh-before-spawn
+            const { compatUpdate, user_mcp_credentials } = await import('@mcpambassador/core');
+            const oauthBlob = JSON.parse(decryptedJson) as OAuthCredentialBlob;
+            
+            // Check if token is expired or within 5-minute buffer
+            const expiresAt = new Date(oauthBlob.expires_at);
+            const now = new Date();
+            const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+            
+            let accessToken = oauthBlob.access_token;
+            
+            if (expiresAt <= fiveMinutesFromNow) {
+              // Token expired or near expiry — refresh it
+              console.log(`[Server] OAuth token for MCP ${mcpEntry.name} expired or near expiry, refreshing...`);
+              
+              try {
+                // Parse oauth_config from MCP entry
+                const oauthConfig = typeof mcpEntry.oauth_config === 'string'
+                  ? JSON.parse(mcpEntry.oauth_config) as OAuthConfig
+                  : mcpEntry.oauth_config as OAuthConfig;
+                
+                if (!this.oauthTokenManager) {
+                  throw new Error('OAuth token manager not initialized');
+                }
+                
+                // Refresh the access token
+                const tokenSet = await this.oauthTokenManager.refreshAccessToken(
+                  oauthConfig,
+                  oauthBlob.refresh_token
+                );
+                
+                // Update the blob with new tokens
+                const expiresIn = tokenSet.expires_in || 31536000; // Default 1 year
+                const updatedBlob: OAuthCredentialBlob = {
+                  access_token: tokenSet.access_token,
+                  refresh_token: tokenSet.refresh_token || oauthBlob.refresh_token, // Some providers rotate
+                  token_type: tokenSet.token_type,
+                  scope: tokenSet.scope || oauthBlob.scope,
+                  expires_at: new Date(now.getTime() + expiresIn * 1000).toISOString(),
+                };
+                
+                // Re-encrypt and update in database
+                const { encryptedCredentials, iv } = this.credentialVault.encrypt(
+                  user.vault_salt,
+                  JSON.stringify(updatedBlob)
+                );
+                
+                await compatUpdate(this.db, user_mcp_credentials)
+                  .set({
+                    encrypted_credentials: encryptedCredentials,
+                    encryption_iv: iv,
+                    oauth_status: 'active',
+                    expires_at: updatedBlob.expires_at,
+                    updated_at: now.toISOString(),
+                  })
+                  .where(eq(user_mcp_credentials.credential_id, cred.credential_id));
+                
+                accessToken = updatedBlob.access_token;
+                console.log(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
+                
+              } catch (refreshErr) {
+                console.error(`[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`, refreshErr);
+                
+                // Check if token was revoked (401/invalid_grant)
+                if (refreshErr instanceof Error && refreshErr.message.includes('401')) {
+                  // Mark as revoked and skip this MCP
+                  await compatUpdate(this.db, user_mcp_credentials)
+                    .set({ oauth_status: 'revoked', updated_at: now.toISOString() })
+                    .where(eq(user_mcp_credentials.credential_id, cred.credential_id));
+                  console.warn(`[Server] OAuth token revoked for MCP ${mcpEntry.name}, skipping`);
+                }
+                
+                // Skip this MCP on refresh failure
+                continue;
               }
             }
-          }
+            
+            // Inject access_token as env var AND Authorization header
+            const oauthConfig = typeof mcpEntry.oauth_config === 'string'
+              ? JSON.parse(mcpEntry.oauth_config) as OAuthConfig
+              : mcpEntry.oauth_config as OAuthConfig;
+            
+            if (oauthConfig.access_token_env_var) {
+              const envVars: Record<string, string> = {
+                [oauthConfig.access_token_env_var]: accessToken,
+              };
+              const headers: Record<string, string> = {
+                'Authorization': `Bearer ${accessToken}`,
+              };
+              credMap.set(mcpEntry.name, { envVars, headers });
+              console.log(`[Server] Loaded OAuth credentials for MCP ${mcpEntry.name}: env var ${oauthConfig.access_token_env_var}, Authorization header`);
+            }
+            
+          } else {
+            // Static credential flow (existing logic)
+            const decryptedCreds = JSON.parse(decryptedJson) as Record<string, string>;
+            
+            // Parse credential schema
+            const schema = typeof mcpEntry.credential_schema === 'string'
+              ? JSON.parse(mcpEntry.credential_schema)
+              : mcpEntry.credential_schema;
 
-          if (Object.keys(envVars).length > 0) {
-            envMap.set(mcpEntry.name, envVars);
-            console.log(`[Server] Loaded ${Object.keys(envVars).length} credential env vars for MCP ${mcpEntry.name}`);
+            // Map credential fields to environment variables according to schema
+            const envVars: Record<string, string> = {};
+            if (schema && typeof schema === 'object' && schema.properties) {
+              for (const [fieldName, fieldDef] of Object.entries(schema.properties as Record<string, any>)) {
+                const envVarName = fieldDef.env_var;
+                const credValue = decryptedCreds[fieldName];
+
+                if (envVarName && credValue) {
+                  envVars[envVarName] = credValue;
+                }
+              }
+            }
+
+            if (Object.keys(envVars).length > 0) {
+              credMap.set(mcpEntry.name, { envVars, headers: {} });
+              console.log(`[Server] Loaded ${Object.keys(envVars).length} static credential env vars for MCP ${mcpEntry.name}`);
+            }
           }
         } catch (err) {
           console.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
@@ -709,7 +839,7 @@ export class AmbassadorServer {
         }
       }
 
-      return envMap;
+      return credMap;
     } catch (err) {
       console.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
       return new Map();
@@ -768,8 +898,8 @@ export class AmbassadorServer {
           if (sessionRecord?.user_id) {
             try {
               // M26: Load user credentials and inject into per-user MCPs
-              const credentialEnvs = await this.loadUserCredentialsForMcps(sessionRecord.user_id);
-              await this.userPool.spawnForUser(sessionRecord.user_id, credentialEnvs);
+              const userCredentials = await this.loadUserCredentialsForMcps(sessionRecord.user_id);
+              await this.userPool.spawnForUser(sessionRecord.user_id, userCredentials);
             } catch (err) {
               // Log but don't fail registration — user just won't have per-user MCPs
               this.fastify!.log.error({ err, userId: sessionRecord.user_id }, '[Server] Failed to spawn per-user MCPs');
@@ -865,8 +995,8 @@ export class AmbassadorServer {
           if (userId && !this.userPool.hasActiveInstances(userId)) {
             try {
               // M26: Load user credentials and inject into per-user MCPs
-              const credentialEnvs = await this.loadUserCredentialsForMcps(userId);
-              await this.userPool.spawnForUser(userId, credentialEnvs);
+              const userCredentials = await this.loadUserCredentialsForMcps(userId);
+              await this.userPool.spawnForUser(userId, userCredentials);
             } catch (err) {
               this.fastify!.log.error({ err, userId }, '[Server] Failed to respawn per-user MCPs on reactivation');
             }
@@ -1702,4 +1832,42 @@ export class AmbassadorServer {
     }
     return this.fastify;
   }
+}
+
+/**
+ * Module-level singleton reference for accessing server resources
+ * from services that can't receive them via dependency injection
+ */
+let serverInstance: AmbassadorServer | null = null;
+
+/**
+ * Register the server instance (called during initialize())
+ * @internal
+ */
+export function registerServerInstance(instance: AmbassadorServer): void {
+  serverInstance = instance;
+}
+
+/**
+ * Get the database client for services that need it
+ * @internal
+ */
+export function getDb(): DatabaseClient | null {
+  return serverInstance?.['db'] ?? null;
+}
+
+/**
+ * Get the credential vault for services that need it
+ * @internal
+ */
+export function getCredentialVault(): CredentialVault | null {
+  return serverInstance?.['credentialVault'] ?? null;
+}
+
+/**
+ * Get the OAuth token manager for services that need it
+ * @internal
+ */
+export function getOAuthTokenManager(): OAuthTokenManager | null {
+  return serverInstance?.['oauthTokenManager'] ?? null;
 }

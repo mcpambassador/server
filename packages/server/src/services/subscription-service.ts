@@ -85,8 +85,8 @@ export async function subscribeClientToMcp(
     throw new Error('User does not have access to this MCP');
   }
 
-  // If MCP requires user credentials, verify they exist
-  if (mcp.requires_user_credentials) {
+  // If MCP requires user credentials, verify they exist (skip for OAuth — credentials come after subscribing)
+  if (mcp.requires_user_credentials && mcp.auth_type !== 'oauth2') {
     const credential = await getCredential(db, data.userId, data.mcpId);
     if (!credential) {
       throw new Error('MCP requires user credentials, but none are stored');

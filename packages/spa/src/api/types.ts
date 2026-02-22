@@ -74,6 +74,7 @@ export interface McpEntry {
   isolationMode: 'shared' | 'per-user';
   requiresUserCredentials: boolean;
   credentialSchema?: Record<string, unknown>;
+  authType?: 'none' | 'static' | 'oauth2';
   tools: McpTool[];
   createdAt: string;
   updatedAt: string;
@@ -112,6 +113,7 @@ export interface CredentialStatus {
   hasCredentials: boolean;
   requiresCredentials: boolean;
   credentialSchema?: Record<string, unknown>;
+  authType?: 'none' | 'static' | 'oauth2';
   updatedAt?: string;
 }
 
@@ -192,6 +194,8 @@ export interface McpCatalogEntry {
   validation_status?: 'pending' | 'valid' | 'invalid';
   requires_user_credentials: boolean;
   credential_schema?: Record<string, unknown>;
+  auth_type?: 'none' | 'static' | 'oauth2';
+  oauth_config?: string | Record<string, unknown>;
   tool_catalog?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
   tool_count?: number;
   validation_result?: Record<string, unknown>;
@@ -210,6 +214,8 @@ export interface CreateMcpRequest {
   isolation_mode?: 'shared' | 'per_user';
   requires_user_credentials?: boolean;
   credential_schema?: Record<string, unknown>;
+  auth_type?: 'none' | 'static' | 'oauth2';
+  oauth_config?: Record<string, unknown>;
 }
 
 export interface UpdateMcpRequest {
@@ -221,6 +227,8 @@ export interface UpdateMcpRequest {
   isolation_mode?: 'shared' | 'per_user';
   requires_user_credentials?: boolean;
   credential_schema?: Record<string, unknown>;
+  auth_type?: 'none' | 'static' | 'oauth2';
+  oauth_config?: Record<string, unknown>;
 }
 
 export interface ValidationResult {

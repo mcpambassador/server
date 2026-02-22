@@ -235,6 +235,7 @@ export async function registerCredentialRoutes(
           mcpName: mcp.name,
           hasCredentials: credInfo ? credInfo.has_credentials : false,
           requiresCredentials: mcp.requires_user_credentials || false,
+          authType: mcp.auth_type || 'none',
           credentialSchema: mcp.credential_schema 
             ? (typeof mcp.credential_schema === 'string' 
               ? JSON.parse(mcp.credential_schema) 

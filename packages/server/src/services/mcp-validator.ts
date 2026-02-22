@@ -125,26 +125,33 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
 
   // Validate credential schema if required
   if (entry.requires_user_credentials) {
-    let credentialSchema: unknown;
-    try {
-      credentialSchema = JSON.parse(entry.credential_schema);
-    } catch (err) {
-      errors.push(
-        `Invalid credential_schema JSON: ${err instanceof Error ? err.message : 'parse error'}`
-      );
-    }
+    // Skip credential_schema validation for OAuth MCPs — they use oauth_config instead
+    if (entry.auth_type === 'oauth2') {
+      // OAuth MCPs don't use credential_schema (it's empty/null)
+      // Credentials are managed through the OAuth flow and stored in user_mcp_credentials
+    } else {
+      // Static credential validation
+      let credentialSchema: unknown;
+      try {
+        credentialSchema = JSON.parse(entry.credential_schema);
+      } catch (err) {
+        errors.push(
+          `Invalid credential_schema JSON: ${err instanceof Error ? err.message : 'parse error'}`
+        );
+      }
 
-    if (credentialSchema) {
-      // Basic JSON Schema validation
-      if (typeof credentialSchema !== 'object' || credentialSchema === null) {
-        errors.push('credential_schema must be a valid JSON Schema object');
-      } else {
-        const schema = credentialSchema as Record<string, unknown>;
-        // Check for at least a "type" or "properties" field
-        if (!schema.type && !schema.properties) {
-          warnings.push(
-            'credential_schema missing "type" or "properties" — may not be a valid JSON Schema'
-          );
+      if (credentialSchema) {
+        // Basic JSON Schema validation
+        if (typeof credentialSchema !== 'object' || credentialSchema === null) {
+          errors.push('credential_schema must be a valid JSON Schema object');
+        } else {
+          const schema = credentialSchema as Record<string, unknown>;
+          // Check for at least a "type" or "properties" field
+          if (!schema.type && !schema.properties) {
+            warnings.push(
+              'credential_schema missing "type" or "properties" — may not be a valid JSON Schema'
+            );
+          }
         }
       }
     }

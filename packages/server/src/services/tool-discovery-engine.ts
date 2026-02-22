@@ -11,7 +11,7 @@
  * @see Architecture §7.3: Downstream MCP Management
  */
 
-import type { McpCatalogEntry } from '@mcpambassador/core';
+import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { HttpMcpConnection } from '../downstream/http-connection.js';
 import type { DownstreamMcpConfig, ToolDescriptor } from '../downstream/types.js';
@@ -90,10 +90,12 @@ export const MAX_TOOLS = 500;
  * @param entry - MCP catalog entry
  * @param adminCredentials - Optional admin-provided credentials for credential-gated MCPs.
  *                           Keys are field names from credential_schema, values are the credential values.
+ * @param adminUserId - Optional admin user ID for OAuth-based discovery (loads admin's stored OAuth token)
  */
 export async function discoverTools(
   entry: McpCatalogEntry,
-  adminCredentials?: Record<string, string>
+  adminCredentials?: Record<string, string>,
+  adminUserId?: string
 ): Promise<DiscoveryResult> {
   const startTime = Date.now();
   const warnings: string[] = [];
@@ -101,9 +103,256 @@ export async function discoverTools(
   try {
     // Precondition 1: Check if MCP requires user credentials
     let credentialEnvVars: Record<string, string> | undefined;
+    let credentialHeaders: Record<string, string> | undefined;
+    
     if (entry.requires_user_credentials) {
-      // If admin provided credentials, map them to env vars
-      if (adminCredentials && Object.keys(adminCredentials).length > 0) {
+      // Branch 1: OAuth MCP with admin user ID (use admin's stored OAuth credential)
+      if (entry.auth_type === 'oauth2' && adminUserId) {
+        // Load admin's OAuth credential from database
+        const { getDb } = await import('../server.js');
+        const { getCredential } = await import('@mcpambassador/core');
+        const db = getDb();
+        
+        if (!db) {
+          return {
+            status: 'error',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'internal_error',
+            message: 'Database not initialized',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        const credential = await getCredential(db, adminUserId, entry.mcp_id);
+        
+        if (!credential || credential.credential_type !== 'oauth2') {
+          return {
+            status: 'skipped',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'credential_required',
+            message: 'Admin must connect their OAuth credential first. Go to User Portal to authorize this MCP.',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        // Check OAuth status
+        if (credential.oauth_status === 'revoked') {
+          return {
+            status: 'skipped',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'credential_required',
+            message: 'OAuth credential has been revoked. Please reconnect in User Portal.',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        // Decrypt the OAuth credential
+        const { getCredentialVault } = await import('../server.js');
+        const vault = getCredentialVault();
+        
+        if (!vault) {
+          return {
+            status: 'error',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'internal_error',
+            message: 'Credential vault not initialized',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        // Get user's vault_salt
+        const user = await db.query.users.findFirst({
+          where: (users, { eq }) => eq(users.user_id, adminUserId),
+        });
+        
+        if (!user?.vault_salt) {
+          return {
+            status: 'error',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'internal_error',
+            message: 'Admin user vault_salt not found',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        // Decrypt credential blob
+        let decryptedJson: string;
+        try {
+          decryptedJson = vault.decrypt(
+            user.vault_salt,
+            credential.encrypted_credentials,
+            credential.encryption_iv
+          );
+        } catch (err) {
+          console.error(`[DiscoveryEngine] Failed to decrypt admin credential for MCP ${entry.name}:`, err);
+          return {
+            status: 'error',
+            tools_discovered: [],
+            tool_count: 0,
+            error_code: 'internal_error',
+            message: 'Failed to decrypt admin credential. The credential may need to be reconnected.',
+            discovered_at: new Date().toISOString(),
+            duration_ms: Date.now() - startTime,
+            warnings,
+          };
+        }
+        
+        type OAuthCredentialBlob = {
+          access_token: string;
+          refresh_token: string;
+          token_type: string;
+          scope?: string;
+          expires_at: string;
+        };
+        
+        const oauthBlob = JSON.parse(decryptedJson) as OAuthCredentialBlob;
+        
+        // Check if token is expired or near expiry (5-minute buffer)
+        const expiresAt = new Date(oauthBlob.expires_at);
+        const now = new Date();
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+        
+        let accessToken = oauthBlob.access_token;
+        
+        if (expiresAt <= fiveMinutesFromNow) {
+          // Token expired or near expiry — refresh it
+          console.log(`[DiscoveryEngine] OAuth token for MCP ${entry.name} expired or near expiry, refreshing...`);
+          
+          try {
+            // Parse oauth_config
+            const oauthConfig = typeof entry.oauth_config === 'string'
+              ? JSON.parse(entry.oauth_config) as OAuthConfig
+              : entry.oauth_config as OAuthConfig;
+            
+            const { getOAuthTokenManager } = await import('../server.js');
+            const tokenManager = getOAuthTokenManager();
+            
+            if (!tokenManager) {
+              throw new Error('OAuth token manager not initialized');
+            }
+            
+            // Refresh the access token
+            const tokenSet = await tokenManager.refreshAccessToken(
+              oauthConfig,
+              oauthBlob.refresh_token
+            );
+            
+            // Update the blob with new tokens
+            const expiresIn = tokenSet.expires_in || 31536000; // Default 1 year
+            const updatedBlob: OAuthCredentialBlob = {
+              access_token: tokenSet.access_token,
+              refresh_token: tokenSet.refresh_token || oauthBlob.refresh_token,
+              token_type: tokenSet.token_type,
+              scope: tokenSet.scope || oauthBlob.scope,
+              expires_at: new Date(now.getTime() + expiresIn * 1000).toISOString(),
+            };
+            
+            // Re-encrypt and update in database
+            const { encryptedCredentials, iv } = vault.encrypt(
+              user.vault_salt,
+              JSON.stringify(updatedBlob)
+            );
+            
+            const { compatUpdate, user_mcp_credentials } = await import('@mcpambassador/core');
+            const { eq } = await import('drizzle-orm');
+            
+            await compatUpdate(db, user_mcp_credentials)
+              .set({
+                encrypted_credentials: encryptedCredentials,
+                encryption_iv: iv,
+                oauth_status: 'active',
+                expires_at: updatedBlob.expires_at,
+                updated_at: now.toISOString(),
+              })
+              .where(eq(user_mcp_credentials.credential_id, credential.credential_id));
+            
+            accessToken = updatedBlob.access_token;
+            console.log(`[DiscoveryEngine] Successfully refreshed OAuth token for MCP ${entry.name}`);
+            
+          } catch (refreshErr) {
+            console.error(`[DiscoveryEngine] Failed to refresh OAuth token for MCP ${entry.name}:`, refreshErr);
+            
+            // Check if token was revoked (401/invalid_grant)
+            const errorMessage = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+            const isRevoked = errorMessage.includes('401') || errorMessage.includes('invalid_grant');
+            
+            if (isRevoked) {
+              // Mark as revoked in database
+              try {
+                const { compatUpdate, user_mcp_credentials } = await import('@mcpambassador/core');
+                const { eq } = await import('drizzle-orm');
+                
+                await compatUpdate(db, user_mcp_credentials)
+                  .set({ oauth_status: 'revoked', updated_at: now.toISOString() })
+                  .where(eq(user_mcp_credentials.credential_id, credential.credential_id));
+                
+                console.warn(`[DiscoveryEngine] OAuth token revoked for MCP ${entry.name}`);
+              } catch (updateErr) {
+                console.error(`[DiscoveryEngine] Failed to mark credential as revoked:`, updateErr);
+              }
+              
+              return {
+                status: 'skipped',
+                tools_discovered: [],
+                tool_count: 0,
+                error_code: 'credential_required',
+                message: 'OAuth credential has been revoked. Please reconnect in User Portal.',
+                discovered_at: new Date().toISOString(),
+                duration_ms: Date.now() - startTime,
+                warnings,
+              };
+            }
+            
+            // For other refresh errors
+            return {
+              status: 'error',
+              tools_discovered: [],
+              tool_count: 0,
+              error_code: 'internal_error',
+              message: 'OAuth token refresh failed. Please reconnect your credential.',
+              discovered_at: new Date().toISOString(),
+              duration_ms: Date.now() - startTime,
+              warnings,
+            };
+          }
+        }
+        
+        // Inject OAuth token into transport config
+        const oauthConfigInject = typeof entry.oauth_config === 'string'
+          ? JSON.parse(entry.oauth_config) as OAuthConfig
+          : entry.oauth_config as OAuthConfig;
+        
+        // For stdio: inject token as env var
+        if (oauthConfigInject.access_token_env_var) {
+          credentialEnvVars = {
+            [oauthConfigInject.access_token_env_var]: accessToken,
+          };
+        }
+        
+        // For HTTP/SSE: inject Authorization header
+        credentialHeaders = {
+          'Authorization': `Bearer ${accessToken}`,
+        };
+        
+        console.log(`[DiscoveryEngine] Using admin's OAuth credential for MCP ${entry.name}`);
+        
+      // Branch 2: Static credentials provided by admin for testing
+      } else if (adminCredentials && Object.keys(adminCredentials).length > 0) {
         credentialEnvVars = {};
 
         // Parse credential_schema to get env var mappings
@@ -150,15 +399,19 @@ export async function discoverTools(
 
         // Skip the validation_status check when admin provides credentials for testing
         // Admin is explicitly testing with their own credentials
+      // Branch 3: No credentials available
       } else {
         // No credentials provided - return skipped result
+        const message = entry.auth_type === 'oauth2'
+          ? 'Admin must connect their OAuth credential first. Go to User Portal to authorize this MCP.'
+          : 'This MCP requires user credentials. Tool discovery is skipped during admin setup. Tools will be discovered when a user provides their credentials.';
+        
         return {
           status: 'skipped',
           tools_discovered: [],
           tool_count: 0,
           error_code: 'credential_required',
-          message:
-            'This MCP requires user credentials. Tool discovery is skipped during admin setup. Tools will be discovered when a user provides their credentials.',
+          message,
           discovered_at: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
           warnings,
@@ -212,6 +465,11 @@ export async function discoverTools(
     // Merge admin-provided credential env vars if present
     if (credentialEnvVars) {
       dsConfig.env = { ...dsConfig.env, ...credentialEnvVars };
+    }
+    
+    // Merge OAuth headers if present
+    if (credentialHeaders) {
+      dsConfig.headers = { ...dsConfig.headers, ...credentialHeaders };
     }
 
     // Create connection based on transport
@@ -329,12 +587,13 @@ export async function discoverTools(
     }
   } catch (outerErr) {
     // Catch any unexpected errors in the outer try block
+    console.error(`[DiscoveryEngine] Unexpected error during discovery for MCP ${entry.name}:`, outerErr);
     return {
       status: 'error',
       tools_discovered: [],
       tool_count: 0,
       error_code: 'internal_error',
-      message: `Unexpected error: ${outerErr instanceof Error ? outerErr.message : String(outerErr)}`,
+      message: 'An unexpected error occurred during discovery. Check server logs for details.',
       discovered_at: new Date().toISOString(),
       duration_ms: Date.now() - startTime,
       warnings: warnings.length > 0 ? warnings : undefined,

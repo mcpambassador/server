@@ -24,6 +24,11 @@ const isolationModeSchema = z.enum(['shared', 'per_user']);
 const statusSchema = z.enum(['draft', 'published', 'archived']);
 
 /**
+ * Environment variable name validator
+ */
+const envVarName = z.string().min(1).regex(/^[A-Z][A-Z0-9_]*$/, 'Must be a valid environment variable name (e.g., GOOGLE_OAUTH_CLIENT_ID)');
+
+/**
  * Create MCP catalog entry schema
  */
 export const createMcpSchema = z.object({
@@ -36,6 +41,17 @@ export const createMcpSchema = z.object({
   isolation_mode: isolationModeSchema.optional(),
   requires_user_credentials: z.boolean().optional(),
   credential_schema: z.record(z.unknown()).optional(),
+  auth_type: z.enum(['none', 'static', 'oauth2']).optional().default('none'),
+  oauth_config: z.object({
+    auth_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+    token_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+    scopes: z.string().min(1),
+    client_id_env: envVarName,
+    client_secret_env: envVarName,
+    revocation_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }).optional(),
+    extra_params: z.record(z.string()).optional(),
+    access_token_env_var: envVarName,
+  }).optional(),
 });
 
 /**
@@ -50,6 +66,17 @@ export const updateMcpSchema = z.object({
   isolation_mode: isolationModeSchema.optional(),
   requires_user_credentials: z.boolean().optional(),
   credential_schema: z.record(z.unknown()).optional(),
+  auth_type: z.enum(['none', 'static', 'oauth2']).optional(),
+  oauth_config: z.object({
+    auth_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+    token_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+    scopes: z.string().min(1),
+    client_id_env: envVarName,
+    client_secret_env: envVarName,
+    revocation_url: z.string().url().refine((url) => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }).optional(),
+    extra_params: z.record(z.string()).optional(),
+    access_token_env_var: envVarName,
+  }).optional(),
 });
 
 /**

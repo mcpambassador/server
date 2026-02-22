@@ -40,6 +40,7 @@ export function McpDetail() {
   const activeClients = clients?.filter(c => c.status === 'active') ?? [];
   const hasCredentials = credentials?.find(c => c.mcpId === mcpId)?.hasCredentials ?? false;
   const requiresCredentials = mcp?.requiresUserCredentials ?? false;
+  const isOAuthMcp = mcp?.authType === 'oauth2';
 
   const credentialFields = useMemo(() => {
     if (!mcp?.credentialSchema) return [];
@@ -95,7 +96,8 @@ export function McpDetail() {
     if (mcp) {
       setSelectedTools(mcp.tools.map(t => t.name));
       setCredentialValues({});
-      setCredentialStep(requiresCredentials && !hasCredentials);
+      // Skip credential step for OAuth MCPs or if credentials already configured
+      setCredentialStep(requiresCredentials && !hasCredentials && !isOAuthMcp);
       setSubscribeDialogOpen(true);
     }
   };
@@ -139,14 +141,18 @@ export function McpDetail() {
       {requiresCredentials && !hasCredentials && (
         <InlineAlert color="warning">
           <ExclamationCircleIcon className="size-4" />
-          <InlineAlertTitle>Credentials Required</InlineAlertTitle>
+          <InlineAlertTitle>
+            {isOAuthMcp ? 'OAuth Connection Required' : 'Credentials Required'}
+          </InlineAlertTitle>
           <InlineAlertDescription>
-            This MCP requires credentials. You'll be prompted to enter them when you subscribe.
+            {isOAuthMcp
+              ? 'This MCP uses OAuth 2.0 authentication. After subscribing, connect your account from the Credentials page.'
+              : "This MCP requires credentials. You'll be prompted to enter them when you subscribe."}
           </InlineAlertDescription>
         </InlineAlert>
       )}
 
-      {requiresCredentials && hasCredentials && (
+      {requiresCredentials && hasCredentials && !isOAuthMcp && (
         <InlineAlert color="success">
           <CheckCircleIcon className="size-4" />
           <InlineAlertTitle>Credentials Configured</InlineAlertTitle>
@@ -282,26 +288,32 @@ export function McpDetail() {
                   <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                     Leave all selected to enable all tools
                   </Text>
-                  <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-                    {mcp.tools.map((tool) => (
-                      <CheckboxField key={tool.name}>
-                        <Checkbox
-                          name={tool.name}
-                          checked={selectedTools.includes(tool.name)}
-                          onChange={(checked) => {
-                            if (checked) {
-                              setSelectedTools([...selectedTools, tool.name]);
-                            } else {
-                              setSelectedTools(selectedTools.filter(t => t !== tool.name));
-                            }
-                          }}
-                        />
-                        <Label className="font-medium cursor-pointer">
-                          {tool.name}
-                        </Label>
-                      </CheckboxField>
-                    ))}
-                  </div>
+                  {mcp.tools.length > 0 ? (
+                    <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
+                      {mcp.tools.map((tool) => (
+                        <CheckboxField key={tool.name}>
+                          <Checkbox
+                            name={tool.name}
+                            checked={selectedTools.includes(tool.name)}
+                            onChange={(checked) => {
+                              if (checked) {
+                                setSelectedTools([...selectedTools, tool.name]);
+                              } else {
+                                setSelectedTools(selectedTools.filter(t => t !== tool.name));
+                              }
+                            }}
+                          />
+                          <Label className="font-medium cursor-pointer">
+                            {tool.name}
+                          </Label>
+                        </CheckboxField>
+                      ))}
+                    </div>
+                  ) : isOAuthMcp ? (
+                    <Text className="text-sm text-zinc-500 dark:text-zinc-400">
+                      Tools will be discovered after you connect your OAuth account on the Credentials page.
+                    </Text>
+                  ) : null}
                 </Field>
               </div>
 
@@ -311,7 +323,7 @@ export function McpDetail() {
                 </Button>
                 <Button
                   onClick={handleSubscribe}
-                  disabled={!selectedClientId || selectedTools.length === 0 || subscribe.isPending}
+                  disabled={!selectedClientId || (!isOAuthMcp && selectedTools.length === 0) || subscribe.isPending}
                 >
                   {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
                 </Button>

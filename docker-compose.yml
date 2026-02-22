@@ -65,6 +65,10 @@ services:
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       
+      # ADR-014: OAuth client credentials (resolve from .env)
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      
       # Optional: Override TLS certificate paths
       # MCP_AMBASSADOR_CA_PATH: /data/certs/ca.pem
       # MCP_AMBASSADOR_CERT_PATH: /data/certs/server.pem

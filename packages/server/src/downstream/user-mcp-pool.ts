@@ -92,13 +92,13 @@ export class UserMcpPool {
    * Called when session transitions to 'active' (first connect or reconnect from suspended)
    *
    * M17.6: Enforces resource limits
-   * M26.4: Accepts optional credential environment variables for injection
+   * M26.4: Accepts optional credentials (env vars and headers) for injection
    *
    * @param userId User UUID
-   * @param credentialEnvs Optional map of MCP name → env vars to inject
+   * @param credentials Optional map of MCP name → credentials to inject
    * @throws ServiceUnavailableError if per-user or system-wide limit exceeded
    */
-  async spawnForUser(userId: string, credentialEnvs?: Map<string, Record<string, string>>): Promise<void> {
+  async spawnForUser(userId: string, credentials?: Map<string, import('./types.js').UserMcpCredentials>): Promise<void> {
     // Idempotent: if already spawned, return immediately
     const existingInstances = this.userInstances.get(userId);
     if (existingInstances && existingInstances.status === 'ready') {
@@ -159,15 +159,22 @@ export class UserMcpPool {
           // F-SEC-M6-001: Validate config before spawning
           validateMcpConfig(config);
 
-          // M26.4: Merge credential env vars if provided
+          // M26.4: Merge credentials (env vars and headers) if provided
           let finalConfig = config;
-          if (credentialEnvs && credentialEnvs.has(config.name)) {
-            const credEnvVars = credentialEnvs.get(config.name)!;
+          if (credentials && credentials.has(config.name)) {
+            const creds = credentials.get(config.name)!;
 
             // SEC-H3: Validate credential env var names against BLOCKED_ENV_VARS
-            for (const key of Object.keys(credEnvVars)) {
+            for (const key of Object.keys(creds.envVars)) {
               if (BLOCKED_ENV_VARS.includes(key.toUpperCase())) {
                 throw new Error(`Credential env var '${key}' matches blocked env var for ${config.name}`);
+              }
+            }
+
+            // Skip 'Authorization' header validation (it's expected for OAuth)
+            for (const key of Object.keys(creds.headers)) {
+              if (key !== 'Authorization' && BLOCKED_ENV_VARS.includes(key.toUpperCase())) {
+                throw new Error(`Credential header '${key}' matches blocked env var for ${config.name}`);
               }
             }
 
@@ -175,10 +182,17 @@ export class UserMcpPool {
               ...config,
               env: {
                 ...config.env,
-                ...credEnvVars,
+                ...creds.envVars,
+              },
+              headers: {
+                ...config.headers,
+                ...creds.headers,
               },
             };
-            console.log(`[UserMcpPool] Injected ${Object.keys(credEnvVars).length} credential env vars for ${config.name}`);
+            
+            const envCount = Object.keys(creds.envVars).length;
+            const headerCount = Object.keys(creds.headers).length;
+            console.log(`[UserMcpPool] Injected credentials for ${config.name}: ${envCount} env vars, ${headerCount} headers`);
           }
 
           let connection: StdioMcpConnection | HttpMcpConnection | null = null;
