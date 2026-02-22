@@ -28,6 +28,7 @@ import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
+import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
 
 /**
  * Admin routes plugin configuration
@@ -160,6 +161,13 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
   // MCP catalog management (7 endpoints)
   fastify.register(registerAdminMcpRoutes, { db, audit });
+
+  // MCP catalog hot reload (2 endpoints) - ADR-013
+  fastify.register(registerAdminCatalogReloadRoutes, {
+    db,
+    mcpManager,
+    userPool,
+  });
 
   done();
 };

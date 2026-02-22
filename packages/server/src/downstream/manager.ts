@@ -11,6 +11,30 @@ import { validateMcpConfig, validateToolName } from './types.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
+import { createHash } from 'crypto';
+
+/**
+ * ADR-013: Compute config fingerprint for change detection
+ * Hash of fields that affect runtime behavior (transport, config, isolation mode)
+ * 
+ * CANONICAL fingerprint function - used everywhere for consistency (B1 fix)
+ * Expects config to be the raw JSON string from catalog entry
+ */
+export function computeConfigFingerprint(
+  transport: string,
+  config: string,
+  isolationMode: string
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        transport_type: transport,
+        config: config,
+        isolation_mode: isolationMode,
+      })
+    )
+    .digest('hex');
+}
 
 /**
  * Downstream MCP Connection Manager
@@ -30,6 +54,7 @@ export class SharedMcpManager {
   private connections = new Map<string, StdioMcpConnection | HttpMcpConnection>();
   private toolToMcpMap = new Map<string, string>(); // tool_name -> mcp_name
   private aggregatedTools: AggregatedTool[] = [];
+  private configFingerprints = new Map<string, string>(); // ADR-013: mcp_name → sha256 of config
 
   constructor() {
     console.log('[SharedMcpManager] Initialized');
@@ -153,12 +178,23 @@ export class SharedMcpManager {
 
     // Use existing initialize() method
     await this.initialize(configs);
+
+    // ADR-013: Store fingerprints for hot reload change detection
+    for (const entry of entries) {
+      const fingerprint = computeConfigFingerprint(
+        entry.transport_type,
+        entry.config,
+        entry.isolation_mode
+      );
+      this.configFingerprints.set(entry.name, fingerprint);
+    }
   }
 
   /**
    * Aggregate tool catalogs from all MCPs
+   * ADR-013: Made public for hot reload support
    */
-  private async aggregateTools(): Promise<void> {
+  public async aggregateTools(): Promise<void> {
     this.aggregatedTools = [];
     this.toolToMcpMap.clear();
 
@@ -326,6 +362,112 @@ export class SharedMcpManager {
 
     await Promise.allSettled(refreshPromises);
     await this.aggregateTools();
+  }
+
+  /**
+   * ADR-013: Get running config fingerprints for hot reload diff
+   */
+  getRunningFingerprints(): Map<string, string> {
+    return new Map(this.configFingerprints);
+  }
+
+  /**
+   * ADR-013: Add a single MCP connection (hot reload)
+   * Creates and starts one new connection, stores fingerprint.
+   * Caller must call aggregateTools() after batch operations.
+   * 
+   * B1 fix: Accepts optional pre-computed fingerprint from catalog reloader
+   * @param config MCP configuration
+   * @param fingerprint Optional pre-computed fingerprint (if from catalog entry)
+   */
+  async addMcp(config: DownstreamMcpConfig, fingerprint?: string): Promise<void> {
+    // Validate config before spawning
+    validateMcpConfig(config);
+
+    if (this.connections.has(config.name)) {
+      throw new Error(`MCP already exists: ${config.name}`);
+    }
+
+    // Create connection based on transport type (same pattern as initialize())
+    let connection: StdioMcpConnection | HttpMcpConnection;
+
+    if (config.transport === 'stdio') {
+      connection = new StdioMcpConnection(config);
+    } else if (config.transport === 'http' || config.transport === 'sse') {
+      connection = new HttpMcpConnection(config);
+    } else {
+      throw new Error(`Unknown transport: ${config.transport as string}`);
+    }
+
+    // Start connection
+    await connection.start();
+    this.connections.set(config.name, connection);
+
+    // Register event handlers (same as initialize())
+    connection.on('disconnect', () => {
+      console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this.aggregateTools();
+    });
+
+    connection.on('error', err => {
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
+    });
+
+    // Store fingerprint (use provided one or compute from DownstreamMcpConfig)
+    if (fingerprint) {
+      // Fingerprint provided by catalog reloader (preferred path)
+      this.configFingerprints.set(config.name, fingerprint);
+    } else {
+      // Fallback: compute from DownstreamMcpConfig (for non-catalog additions)
+      const configJson = JSON.stringify({
+        transport: config.transport,
+        command: config.command,
+        env: config.env,
+        cwd: config.cwd,
+        url: config.url,
+        headers: config.headers,
+        timeout_ms: config.timeout_ms,
+      });
+      const fp = computeConfigFingerprint(config.transport, configJson, 'shared');
+      this.configFingerprints.set(config.name, fp);
+    }
+
+    console.log(`[SharedMcpManager] Added MCP: ${config.name} (${config.transport})`);
+  }
+
+  /**
+   * ADR-013: Remove a single MCP connection (hot reload)
+   * Stops and removes connection. Does NOT call aggregateTools() (caller does it).
+   */
+  async removeMcp(name: string): Promise<void> {
+    const connection = this.connections.get(name);
+
+    if (!connection) {
+      console.warn(`[SharedMcpManager] removeMcp: ${name} not found, skipping`);
+      return;
+    }
+
+    console.log(`[SharedMcpManager] Removing MCP: ${name}`);
+    await connection.stop();
+    this.connections.delete(name);
+    this.configFingerprints.delete(name);
+  }
+
+  /**
+   * ADR-013: Update a single MCP connection (hot reload)
+   * Stops old connection and starts new one with updated config.
+   * 
+   * B1 fix: Accepts optional fingerprint to pass through to addMcp
+   * @param name MCP name
+   * @param config New configuration
+   * @param fingerprint Optional pre-computed fingerprint
+   */
+  async updateMcp(name: string, config: DownstreamMcpConfig, fingerprint?: string): Promise<void> {
+    console.log(`[SharedMcpManager] Updating MCP: ${name}`);
+    await this.removeMcp(name);
+    await this.addMcp(config, fingerprint);
   }
 
   /**

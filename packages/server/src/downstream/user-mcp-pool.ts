@@ -72,6 +72,8 @@ export class UserMcpPool {
   private spawningUsers = new Set<string>(); // Lock to prevent concurrent spawn races
   private systemSpawnLock: Promise<void> = Promise.resolve(); // SEC-M17-003: System-wide spawn mutex
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate change detection
+  private storedMcpFingerprints = new Map<string, string>();
 
   constructor(config: UserMcpPoolConfig) {
     this.config = config;
@@ -535,6 +537,76 @@ export class UserMcpPool {
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       console.error(`[UserMcpPool] User ${userId} MCP ${mcpName} error:`, err);
     });
+  }
+
+  /**
+   * N1 fix: Public getter for MCP config names
+   * Used by catalog reloader for diffing without accessing private fields
+   */
+  getMcpConfigNames(): string[] {
+    return this.config.mcpConfigs.map(c => c.name);
+  }
+
+  /**
+   * ADR-013 B1 fix: Return stored catalog-derived fingerprints
+   * These are set at startup and updated via updateMcpConfigs/setMcpConfigFingerprints
+   */
+  getMcpConfigFingerprints(): Map<string, string> {
+    return new Map(this.storedMcpFingerprints);
+  }
+
+  /**
+   * ADR-013 B1 fix: Set initial fingerprints from catalog entries at startup
+   * Called by server.ts after constructing UserMcpPool from catalog data
+   */
+  setMcpConfigFingerprints(fingerprints: Map<string, string>): void {
+    this.storedMcpFingerprints = new Map(fingerprints);
+  }
+
+  /**
+   * ADR-013: Update MCP configs for future spawns (hot reload)
+   * Updates the template configs used for per-user instance spawning.
+   * Active user instances continue with old configs until sessions end.
+   *
+   * @param newConfigs New array of MCP configs from catalog
+   * @returns Summary of config changes
+   */
+  updateMcpConfigs(
+    newConfigs: DownstreamMcpConfig[],
+    newFingerprints?: Map<string, string>
+  ): { added: string[]; removed: string[]; updated: string[] } {
+    // B1+B3 fix: Use stored catalog-derived fingerprints for accurate diff
+    const oldFingerprints = this.getMcpConfigFingerprints();
+    const oldNames = new Set(this.config.mcpConfigs.map(c => c.name));
+    const newNames = new Set(newConfigs.map(c => c.name));
+
+    const added = newConfigs.filter(c => !oldNames.has(c.name)).map(c => c.name);
+    const removed = [...oldNames].filter(n => !newNames.has(n));
+
+    // B3 fix: Only mark as updated if fingerprint differs
+    const updated: string[] = [];
+    if (newFingerprints) {
+      for (const config of newConfigs) {
+        if (!oldNames.has(config.name)) continue;
+        const oldFp = oldFingerprints.get(config.name);
+        const newFp = newFingerprints.get(config.name);
+        if (oldFp !== newFp) {
+          updated.push(config.name);
+        }
+      }
+    }
+
+    // Update config and fingerprints
+    this.config.mcpConfigs = newConfigs;
+    if (newFingerprints) {
+      this.storedMcpFingerprints = new Map(newFingerprints);
+    }
+
+    console.log(
+      `[UserMcpPool] Config updated: +${added.length} -${removed.length} ~${updated.length}`
+    );
+
+    return { added, removed, updated };
   }
 
   /**

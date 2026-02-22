@@ -13,6 +13,7 @@ import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
+import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import {
   useAdminMcp,
   useAdminMcpInstances,
@@ -52,6 +53,8 @@ export function McpDetail() {
     description: '',
     icon_url: '',
     config: '',
+    transport_type: 'stdio' as 'stdio' | 'http' | 'sse',
+    isolation_mode: 'shared' as 'shared' | 'per_user',
     requires_user_credentials: false,
     credential_schema: '',
   });
@@ -138,6 +141,8 @@ export function McpDetail() {
 
       // Structural fields (blocked for published MCPs by backend)
       if (mcp.status !== 'published') {
+        updateData.transport_type = editFormData.transport_type;
+        updateData.isolation_mode = editFormData.isolation_mode;
         updateData.requires_user_credentials = editFormData.requires_user_credentials;
         if (credSchemaObj) {
           updateData.credential_schema = credSchemaObj;
@@ -164,6 +169,8 @@ export function McpDetail() {
         typeof mcp.config === 'string'
           ? JSON.stringify(JSON.parse(mcp.config), null, 2)
           : JSON.stringify(mcp.config, null, 2),
+      transport_type: mcp.transport_type || 'stdio',
+      isolation_mode: mcp.isolation_mode || 'shared',
       requires_user_credentials: mcp.requires_user_credentials || false,
       credential_schema: mcp.credential_schema
         ? (typeof mcp.credential_schema === 'string'
@@ -736,7 +743,45 @@ export function McpDetail() {
                 className="font-mono"
               />
             </Field>
-            
+            {mcp.status === 'published' && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Transport type, isolation mode, and credential settings cannot be changed for published MCPs. Archive and recreate if changes are needed.
+              </p>
+            )}
+
+            {/* Structural fields editable only for non-published (draft/archived) MCPs */}
+            {mcp.status !== 'published' && (
+              <>
+                <Field>
+                  <Label>Transport Type</Label>
+                  <Listbox
+                    name="transport-type"
+                    value={editFormData.transport_type}
+                    onChange={(value: string) =>
+                      setEditFormData({ ...editFormData, transport_type: value as any })
+                    }
+                  >
+                    <ListboxOption value="stdio"><ListboxLabel>stdio</ListboxLabel></ListboxOption>
+                    <ListboxOption value="http"><ListboxLabel>http</ListboxLabel></ListboxOption>
+                    <ListboxOption value="sse"><ListboxLabel>sse</ListboxLabel></ListboxOption>
+                  </Listbox>
+                </Field>
+                <Field>
+                  <Label>Isolation Mode</Label>
+                  <Listbox
+                    name="isolation-mode"
+                    value={editFormData.isolation_mode}
+                    onChange={(value: string) =>
+                      setEditFormData({ ...editFormData, isolation_mode: value as any })
+                    }
+                  >
+                    <ListboxOption value="shared"><ListboxLabel>shared</ListboxLabel></ListboxOption>
+                    <ListboxOption value="per_user"><ListboxLabel>per_user</ListboxLabel></ListboxOption>
+                  </Listbox>
+                </Field>
+              </>
+            )}
+
             {/* Requires User Credentials checkbox — hidden for published MCPs (structural field) */}
             {mcp.status !== 'published' && (
               <CheckboxField>

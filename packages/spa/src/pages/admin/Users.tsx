@@ -169,12 +169,20 @@ export function UsersAdmin() {
               usersData.data.map((user) => (
                 <TableRow key={user.user_id}>
                   <TableCell>
-                    <Link
-                      to={`/app/admin/users/${user.user_id}`}
-                      className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
-                    >
-                      {user.username}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/app/admin/users/${user.user_id}`}
+                        className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
+                      >
+                        {user.username}
+                      </Link>
+                      {user.username === 'admin' && (
+                        <Badge color="purple" title="System administrator account created during initial setup">System</Badge>
+                      )}
+                      {user.username === 'qa-tester' && (
+                        <Badge color="amber" title="Test account auto-created in development mode. Not present in production.">Dev Seed</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {user.display_name || '—'}

@@ -12,7 +12,7 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Divider } from '@/components/catalyst/divider';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
-import { useCreateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
+import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
@@ -21,6 +21,7 @@ export function McpWizard() {
   usePageTitle('Admin - Create MCP');
   const navigate = useNavigate();
   const createMcp = useCreateMcp();
+  const updateMcp = useUpdateMcp();
   const validateMcp = useValidateMcp();
   const discoverTools = useDiscoverTools();
   const publishMcp = usePublishMcp();
@@ -52,7 +53,7 @@ export function McpWizard() {
     }
 
     if (currentStep === 1) {
-      // Create the MCP
+      // Create or update the MCP
       try {
         let configObj: Record<string, unknown>;
         try {
@@ -72,21 +73,39 @@ export function McpWizard() {
           }
         }
 
-        const result = await createMcp.mutateAsync({
-          name: formData.name,
-          display_name: formData.display_name,
-          description: formData.description || undefined,
-          icon_url: formData.icon_url || undefined,
-          transport_type: formData.transport_type,
-          isolation_mode: formData.isolation_mode,
-          config: configObj,
-          requires_user_credentials: formData.requires_user_credentials,
-          credential_schema: credentialSchemaObj,
-        });
+        if (createdMcpId) {
+          // Update existing draft
+          await updateMcp.mutateAsync({
+            mcpId: createdMcpId,
+            data: {
+              display_name: formData.display_name,
+              description: formData.description || undefined,
+              icon_url: formData.icon_url || undefined,
+              transport_type: formData.transport_type,
+              isolation_mode: formData.isolation_mode,
+              config: configObj,
+              requires_user_credentials: formData.requires_user_credentials,
+              credential_schema: credentialSchemaObj,
+            },
+          });
+        } else {
+          // Create new MCP
+          const result = await createMcp.mutateAsync({
+            name: formData.name,
+            display_name: formData.display_name,
+            description: formData.description || undefined,
+            icon_url: formData.icon_url || undefined,
+            transport_type: formData.transport_type,
+            isolation_mode: formData.isolation_mode,
+            config: configObj,
+            requires_user_credentials: formData.requires_user_credentials,
+            credential_schema: credentialSchemaObj,
+          });
 
-        setCreatedMcpId(result.mcp_id);
+          setCreatedMcpId(result.mcp_id);
+        }
       } catch (error) {
-        toast.error('Create MCP failed', { description: (error as Error)?.message ?? String(error) });
+        toast.error(createdMcpId ? 'Update MCP failed' : 'Create MCP failed', { description: (error as Error)?.message ?? String(error) });
         return;
       }
     }
@@ -103,6 +122,11 @@ export function McpWizard() {
   };
 
   const handleBack = () => {
+    // Clear validation/discovery results when going back from step 2
+    if (currentStep === 2) {
+      setValidationResult(null);
+      setDiscoveryResult(null);
+    }
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
@@ -207,7 +231,13 @@ export function McpWizard() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="github"
+                  disabled={!!createdMcpId}
                 />
+                {createdMcpId && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                    Internal name cannot be changed after creation. Delete this draft and start over if a different name is needed.
+                  </p>
+                )}
               </Field>
               <Field>
                 <Label>Display Name *</Label>
@@ -528,11 +558,11 @@ export function McpWizard() {
           <Button
             onClick={handleNext}
             disabled={
-              (currentStep === 1 && createMcp.isPending) ||
+              (currentStep === 1 && (createMcp.isPending || updateMcp.isPending)) ||
               (currentStep === 2 && validateMcp.isPending)
             }
           >
-            {(currentStep === 1 && createMcp.isPending) ||
+            {(currentStep === 1 && (createMcp.isPending || updateMcp.isPending)) ||
             (currentStep === 2 && validateMcp.isPending)
               ? 'Loading...'
               : 'Next'}

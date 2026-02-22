@@ -321,6 +321,16 @@ export class AmbassadorServer {
       maxTotalInstances: this.config.maxTotalMcpInstances,
       healthCheckIntervalMs: 60000,
     });
+    // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate hot reload diffing
+    const { computeConfigFingerprint } = await import('./downstream/manager.js');
+    const perUserFingerprints = new Map<string, string>();
+    for (const entry of perUserResult.entries) {
+      perUserFingerprints.set(
+        entry.name,
+        computeConfigFingerprint(entry.transport_type, entry.config, entry.isolation_mode)
+      );
+    }
+    this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
     console.log('[Server] Per-user MCP pool initialized');
 

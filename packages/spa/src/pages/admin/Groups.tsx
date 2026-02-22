@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
+import { Badge } from '@/components/catalyst/badge';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
@@ -144,12 +145,17 @@ export function GroupsAdmin() {
               groups.data.map((group) => (
                 <TableRow key={group.group_id}>
                   <TableCell>
-                    <Link
-                      to={`/app/admin/groups/${group.group_id}`}
-                      className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
-                    >
-                      {group.name}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/app/admin/groups/${group.group_id}`}
+                        className="font-medium text-zinc-900 dark:text-white hover:text-zinc-700 dark:hover:text-zinc-300"
+                      >
+                        {group.name}
+                      </Link>
+                      {group.name === 'all-users' && (
+                        <Badge color="purple" title="Auto-created system group. All users are assigned by default.">System</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-zinc-500 dark:text-zinc-400">
                     {group.description || '—'}
