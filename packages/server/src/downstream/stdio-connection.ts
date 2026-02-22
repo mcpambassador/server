@@ -10,6 +10,7 @@ import type {
   ConnectionHealth,
 } from './types.js';
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
+import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
 /**
  * SEC-M9-02: Safe environment variable whitelist
@@ -51,6 +52,8 @@ export class StdioMcpConnection extends EventEmitter {
   private isHealthy = false;
   private processExited = false;
   private startedAt: number | null = null;
+  // M33.1: Error/stderr ring buffer
+  private errorBuffer = new ErrorRingBuffer(50);
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -117,11 +120,18 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle stderr (debug logs)
     // F-SEC-M6-004: Redact potential credentials in stderr
+    // M33.1: Capture stderr in error buffer
     childProcess.stderr?.on('data', (data: Buffer) => {
       const stderr = data.toString();
       const redacted = this.redactCredentials(stderr);
 
-      // Truncate to 500 chars per chunk
+      // Split by lines and push each line to error buffer
+      const lines = stderr.split('\n').filter(line => line.trim().length > 0);
+      for (const line of lines) {
+        this.errorBuffer.push(line, 'error');
+      }
+
+      // Truncate to 500 chars per chunk for console logging
       const truncated =
         redacted.length > 500 ? redacted.substring(0, 500) + '... (truncated)' : redacted;
 
@@ -130,7 +140,10 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process exit
     childProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
-      console.log(`[MCP:${this.config.name}] Process exited: code=${code} signal=${signal}`);
+      const exitMsg = `Process exited: code=${code} signal=${signal}`;
+      console.log(`[MCP:${this.config.name}] ${exitMsg}`);
+      // M33.1: Log exit to error buffer
+      this.errorBuffer.push(exitMsg, 'error');
       this.processExited = true;
       this.isHealthy = false;
       this.emit('disconnect');
@@ -139,6 +152,8 @@ export class StdioMcpConnection extends EventEmitter {
     // Handle process errors
     childProcess.on('error', (err: Error) => {
       console.error(`[MCP:${this.config.name}] Process error:`, err);
+      // M33.1: Log error to buffer
+      this.errorBuffer.push(`Process error: ${err.message}`, 'error');
       this.isHealthy = false;
       this.emit('error', err);
     });
@@ -427,5 +442,33 @@ export class StdioMcpConnection extends EventEmitter {
       processExited: this.processExited,
       toolCount: this.toolCache?.length || 0,
     };
+  }
+
+  /**
+   * M33.1: Get error/stderr history
+   */
+  getErrorHistory(): ErrorLogEntry[] {
+    return this.errorBuffer.getAll();
+  }
+
+  /**
+   * M33.1: Get most recent error entry
+   */
+  getLastError(): ErrorLogEntry | null {
+    return this.errorBuffer.getLast();
+  }
+
+  /**
+   * M33.1: Clear error history buffer
+   */
+  clearErrorHistory(): void {
+    this.errorBuffer.clear();
+  }
+
+  /**
+   * M33.1: Get error count
+   */
+  getErrorCount(): number {
+    return this.errorBuffer.getCount();
   }
 }

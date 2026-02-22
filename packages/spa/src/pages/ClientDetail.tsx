@@ -86,7 +86,7 @@ export function ClientDetail() {
 
   if (!client) {
     return (
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-8 text-center">
         <Heading level={3}>Client Not Found</Heading>
         <Text className="mt-2">The requested client could not be found.</Text>
         <div className="mt-4">
@@ -116,7 +116,7 @@ export function ClientDetail() {
       </div>
 
       {/* Client Details */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-4">Client Details</Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
@@ -151,7 +151,7 @@ export function ClientDetail() {
           </Button>
         </div>
 
-        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
           {subsLoading ? (
             <div className="p-6 space-y-3">
               <div className="animate-pulse h-6 w-full rounded bg-zinc-200 dark:bg-zinc-700" />

@@ -112,7 +112,7 @@ export function McpDetail() {
 
   if (!mcp) {
     return (
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-8 text-center">
         <Heading level={3}>MCP Not Found</Heading>
         <Text className="mt-2">The requested MCP could not be found.</Text>
         <div className="mt-4">
@@ -157,7 +157,7 @@ export function McpDetail() {
       )}
 
       {/* MCP Details Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-4">MCP Details</Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
@@ -190,7 +190,7 @@ export function McpDetail() {
       </div>
 
       {/* Tools List Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
         <Heading level={2} className="mb-2">Available Tools</Heading>
         <Text className="mb-4">Tools provided by this MCP</Text>
         {mcp.tools.length === 0 ? (

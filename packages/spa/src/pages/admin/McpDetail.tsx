@@ -24,6 +24,9 @@ import {
   usePublishMcp,
   useArchiveMcp,
   useDeleteMcp,
+  useAdminMcpLogs,
+  useClearMcpLogs,
+  useRestartUserMcp,
 } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -40,6 +43,9 @@ export function McpDetail() {
   const navigate = useNavigate();
   const { data: instanceData, isLoading: healthLoading } = useAdminMcpInstances(mcp?.name ?? '');
   const restartMcp = useRestartMcp();
+  const { data: logsData } = useAdminMcpLogs(mcp?.name ?? '');
+  const clearMcpLogs = useClearMcpLogs();
+  const restartUserMcp = useRestartUserMcp();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
@@ -271,6 +277,31 @@ export function McpDetail() {
     }
   };
 
+  const copyLogs = () => {
+    if (logsData?.entries) {
+      const text = logsData.entries.map(e => `[${e.timestamp}] ${e.level}: ${e.message}`).join('\n');
+      navigator.clipboard.writeText(text);
+      toast.success('Logs copied to clipboard');
+    }
+  };
+
+  const clearLogs = () => {
+    if (mcp) {
+      clearMcpLogs.mutate(mcp.name);
+      toast.success('Error log cleared');
+    }
+  };
+
+  const handleRestartUserInstance = async (userId: string) => {
+    if (!mcp) return;
+    try {
+      await restartUserMcp.mutateAsync({ userId, mcpName: mcp.name });
+      toast.success('User instance restarted', { description: `Restarted ${mcp.name} for user ${userId}` });
+    } catch (error) {
+      toast.error('Restart failed', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -287,7 +318,7 @@ export function McpDetail() {
           <ArrowLeftIcon data-slot="icon" />
           Back to MCPs
         </Button>
-        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
           <p className="text-sm/6 text-zinc-900 dark:text-white">MCP Not Found</p>
         </div>
       </div>
@@ -363,7 +394,7 @@ export function McpDetail() {
 
       {/* Validation Results */}
       {validationResult && (
-        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 space-y-4">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 space-y-4">
           <div className="flex items-center gap-2">
             {validationResult.valid ? (
               <CheckCircleIcon className="size-5 text-green-600 dark:text-green-400" />
@@ -418,7 +449,7 @@ export function McpDetail() {
 
       {/* Discovery Results */}
       {discoveryResult && (
-        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 space-y-4">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 space-y-4">
           <div className="flex items-center gap-2">
             {discoveryResult.status === 'success' ? (
               <CheckCircleIcon className="size-5 text-green-600 dark:text-green-400" />
@@ -456,7 +487,7 @@ export function McpDetail() {
         </TabsList>
         <TabsPanels>
           <TabsContent>
-            <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+            <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
               <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Information</h3>
               <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
@@ -501,7 +532,7 @@ export function McpDetail() {
             </div>
 
             {/* Tools Section */}
-            <div className="mt-6 rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+            <div className="mt-6 rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
@@ -540,7 +571,7 @@ export function McpDetail() {
           </TabsContent>
           <TabsContent>
             <div className="space-y-4">
-              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                 <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Configuration</h3>
                 <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">MCP runtime configuration (JSON)</p>
                 <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
@@ -548,7 +579,7 @@ export function McpDetail() {
                 </pre>
               </div>
               {mcp.credential_schema && (
-                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                   <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Credential Schema</h3>
                   <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Required user credentials schema</p>
                   <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
@@ -561,7 +592,7 @@ export function McpDetail() {
           <TabsContent>
             <div className="space-y-6">
               {/* Shared Connection Health */}
-              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Runtime Health</h3>
@@ -666,27 +697,92 @@ export function McpDetail() {
                 )}
               </div>
 
+              {/* Recent Errors */}
+              <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Recent Errors</h3>
+                    <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                      Last {logsData?.total_count ?? 0} error and stderr entries
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button color="zinc" onClick={copyLogs}>
+                      Copy
+                    </Button>
+                    <Button color="zinc" onClick={clearLogs}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                {logsData && logsData.entries.length > 0 ? (
+                  <div className="rounded-lg bg-zinc-900 text-zinc-100 font-mono text-sm p-4 overflow-auto max-h-64 space-y-0.5">
+                    {logsData.entries.map((entry, idx) => (
+                      <div key={idx} className={`${
+                        entry.level === 'error' ? 'text-red-400' :
+                        entry.level === 'warn' ? 'text-amber-400' : 'text-zinc-400'
+                      }`}>
+                        <span className="text-zinc-500">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>{' '}
+                        {entry.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-8 text-center">
+                    <CheckCircleIcon className="size-8 mx-auto text-green-500 mb-2" />
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">No recent errors</p>
+                  </div>
+                )}
+              </div>
+
               {/* Per-User Instances */}
               {instanceData && instanceData.user_instances.length > 0 && (
-                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+                <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                   <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white mb-4">
                     Per-User Instances ({instanceData.user_instances.length})
                   </h3>
                   <div className="grid gap-3">
                     {instanceData.user_instances.map((instance, i) => (
-                      <div key={i} className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                        <div className="flex items-center gap-3">
-                          <span className={`inline-block size-2 rounded-full ${
-                            instance.connected ? 'bg-green-500' : 'bg-red-500'
-                          }`} />
-                          <span className="text-sm font-mono text-zinc-900 dark:text-white">{instance.userId}</span>
-                          <Badge color={instance.status === 'ready' ? 'green' : instance.status === 'spawning' ? 'amber' : 'zinc'}>
-                            {instance.status}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-                          <span>{instance.toolCount} tools</span>
-                          <span>Spawned {new Date(instance.spawnedAt).toLocaleTimeString()}</span>
+                      <div
+                        key={i}
+                        className={`rounded-lg p-3 ${
+                          instance.error_count > 0
+                            ? 'bg-red-50 dark:bg-red-950/20 ring-1 ring-red-200 dark:ring-red-900/50'
+                            : 'bg-zinc-50 dark:bg-zinc-800'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-block size-2 rounded-full ${
+                                instance.connected ? 'bg-green-500' : 'bg-red-500'
+                              }`} />
+                              <span className="text-sm font-mono font-medium text-zinc-900 dark:text-white">{instance.userId}</span>
+                              <Badge color={instance.status === 'ready' ? 'green' : instance.status === 'spawning' ? 'amber' : 'zinc'}>
+                                {instance.status}
+                              </Badge>
+                              {instance.error_count > 0 && (
+                                <Badge color="red">{instance.error_count} errors</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+                              <span>{instance.toolCount} tools</span>
+                              <span>Spawned {new Date(instance.spawnedAt).toLocaleTimeString()}</span>
+                            </div>
+                            {instance.last_error && (
+                              <div className="text-sm text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-950/30 p-2 rounded" title={instance.last_error}>
+                                {instance.last_error.length > 120 ? `${instance.last_error.slice(0, 120)}...` : instance.last_error}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            color="zinc"
+                            onClick={() => handleRestartUserInstance(instance.userId)}
+                            disabled={restartUserMcp.isPending}
+                          >
+                            <ArrowPathIcon data-slot="icon" />
+                            Restart
+                          </Button>
                         </div>
                       </div>
                     ))}

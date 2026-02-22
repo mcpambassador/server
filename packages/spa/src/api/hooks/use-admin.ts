@@ -23,6 +23,10 @@ import type {
   McpHealthSummary,
   McpInstanceDetail,
   McpRestartResult,
+  UserMcpSummary,
+  CatalogReloadStatus,
+  CatalogApplyResult,
+  McpErrorLogResponse,
 } from '../types';
 
 // Users
@@ -511,6 +515,69 @@ export function useRestartMcp() {
     mutationFn: (mcpName: string) =>
       apiClient.post<McpRestartResult>(`/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/restart`),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'downstream'] });
+    },
+  });
+}
+
+// MCP Error Logs (M33.1)
+export function useAdminMcpLogs(mcpName: string) {
+  return useQuery({
+    queryKey: ['admin', 'health', 'logs', mcpName],
+    queryFn: () => apiClient.get<McpErrorLogResponse>(`/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/logs`),
+    enabled: !!mcpName,
+    refetchInterval: 15000, // more frequent for logs
+  });
+}
+
+export function useClearMcpLogs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mcpName: string) => apiClient.delete(`/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/logs`),
+    onSuccess: (_data, mcpName) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health', 'logs', mcpName] });
+    },
+  });
+}
+
+export function useRestartUserMcp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, mcpName }: { userId: string; mcpName: string }) =>
+      apiClient.post(`/v1/admin/health/user-mcps/${encodeURIComponent(userId)}/mcps/${encodeURIComponent(mcpName)}/restart`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'user-mcps'] });
+    },
+  });
+}
+
+// User MCP Instances (M33.2)
+export function useUserMcpInstances() {
+  return useQuery({
+    queryKey: ['admin', 'user-mcps'],
+    queryFn: () => apiClient.get<UserMcpSummary>('/v1/admin/health/user-mcps'),
+    refetchInterval: 30000,
+  });
+}
+
+// Catalog Reload Status (M33.2)
+export function useCatalogStatus() {
+  return useQuery({
+    queryKey: ['admin', 'catalog-status'],
+    queryFn: () => apiClient.get<CatalogReloadStatus>('/v1/admin/catalog/status'),
+    refetchInterval: 30000,
+  });
+}
+
+// Apply Catalog Changes (M33.2)
+export function useApplyCatalogChanges() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.post<CatalogApplyResult>('/v1/admin/catalog/apply'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'catalog-status'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'downstream'] });
     },

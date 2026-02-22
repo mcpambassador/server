@@ -41,7 +41,7 @@ export function Marketplace() {
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+            <div key={i} className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
               <div className="animate-pulse space-y-3">
                 <div className="h-6 w-3/4 rounded bg-zinc-200 dark:bg-zinc-700" />
                 <div className="h-4 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -51,7 +51,7 @@ export function Marketplace() {
           ))}
         </div>
       ) : filteredMcps.length === 0 ? (
-        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 text-center">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 text-center">
           <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">No MCPs Found</h3>
           <p className="mt-2 text-sm/6 text-zinc-500 dark:text-zinc-400">
             {searchQuery
@@ -64,7 +64,7 @@ export function Marketplace() {
           {filteredMcps.map((mcp) => (
             <div
               key={mcp.id}
-              className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10 hover:ring-zinc-950/10 dark:hover:ring-white/20 transition-shadow"
+              className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-2">

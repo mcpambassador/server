@@ -49,6 +49,8 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
         connected: boolean;
         detail: unknown;
         user_instances: number;
+        last_error: string | null; // M33.1: NEW
+        error_count: number; // M33.1: NEW
       }> = [];
 
       let totalUserInstances = 0;
@@ -72,12 +74,18 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
         // Determine transport type
         const transport = connection instanceof StdioMcpConnection ? 'stdio' : 'http';
 
+        // M33.1: Get error info
+        const lastError = connection.getLastError();
+        const errorCount = connection.getErrorCount();
+
         shared.push({
           name,
           transport,
           connected,
           detail,
           user_instances: userInstances.length,
+          last_error: lastError?.message ?? null,
+          error_count: errorCount,
         });
       }
 
@@ -130,6 +138,10 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
         // Determine transport type
         const transport = connection instanceof StdioMcpConnection ? 'stdio' : 'http';
 
+        // M33.1: Get error history
+        const stderrTail = connection.getErrorHistory();
+        const errorCount = connection.getErrorCount();
+
         // Get per-user instances
         const userInstances = userPool?.getInstancesForMcp(mcpName) ?? [];
 
@@ -140,6 +152,9 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           spawnedAt: instance.spawnedAt.toISOString(),
           connected: instance.connected,
           toolCount: instance.toolCount,
+          last_error: instance.last_error, // M33.1: NEW
+          error_count: instance.error_count, // M33.1: NEW
+          stderr_tail: instance.stderr_tail, // M33.1: NEW
         }));
 
         const response = {
@@ -148,6 +163,8 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           shared: {
             health,
             detail,
+            stderr_tail: stderrTail, // M33.1: NEW
+            error_count: errorCount, // M33.1: NEW
           },
           user_instances: formattedUserInstances,
         };
@@ -211,6 +228,89 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           wrapError(
             ErrorCodes.INTERNAL_ERROR,
             err instanceof Error ? err.message : 'Failed to restart MCP'
+          )
+        );
+      }
+    }
+  );
+
+  // ==========================================================================
+  // GET /v1/admin/health/mcps/:mcpName/logs
+  // M33.1: Get full error log for an MCP
+  // ==========================================================================
+  fastify.get<{ Params: { mcpName: string } }>(
+    '/v1/admin/health/mcps/:mcpName/logs',
+    async (request, reply) => {
+      try {
+        const { mcpName } = request.params;
+
+        // Get the shared connection
+        const connection = mcpManager.getConnection(mcpName);
+        if (!connection) {
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, `MCP not found: ${mcpName}`)
+          );
+        }
+
+        // Determine transport type
+        const transport = connection instanceof StdioMcpConnection ? 'stdio' : 'http';
+
+        // Get error history
+        const entries = connection.getErrorHistory();
+        const totalCount = connection.getErrorCount();
+
+        const response = {
+          name: mcpName,
+          transport,
+          entries,
+          total_count: totalCount,
+        };
+
+        return reply.send(wrapSuccess(response));
+      } catch (err) {
+        console.error('[admin-health] Error fetching MCP logs:', err);
+        return reply.status(500).send(
+          wrapError(
+            ErrorCodes.INTERNAL_ERROR,
+            err instanceof Error ? err.message : 'Failed to fetch MCP logs'
+          )
+        );
+      }
+    }
+  );
+
+  // ==========================================================================
+  // DELETE /v1/admin/health/mcps/:mcpName/logs
+  // M33.1: Clear error buffer for an MCP
+  // ==========================================================================
+  fastify.delete<{ Params: { mcpName: string } }>(
+    '/v1/admin/health/mcps/:mcpName/logs',
+    async (request, reply) => {
+      try {
+        const { mcpName } = request.params;
+
+        // Get the shared connection
+        const connection = mcpManager.getConnection(mcpName);
+        if (!connection) {
+          return reply.status(404).send(
+            wrapError(ErrorCodes.NOT_FOUND, `MCP not found: ${mcpName}`)
+          );
+        }
+
+        // Clear error history
+        connection.clearErrorHistory();
+
+        const response = {
+          cleared: true,
+        };
+
+        return reply.send(wrapSuccess(response));
+      } catch (err) {
+        console.error('[admin-health] Error clearing MCP logs:', err);
+        return reply.status(500).send(
+          wrapError(
+            ErrorCodes.INTERNAL_ERROR,
+            err instanceof Error ? err.message : 'Failed to clear MCP logs'
           )
         );
       }

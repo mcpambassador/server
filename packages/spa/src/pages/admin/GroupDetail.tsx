@@ -108,7 +108,7 @@ export function GroupDetail() {
           <ArrowLeftIcon data-slot="icon" />
           Back to Groups
         </Button>
-        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+        <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
           <Heading>Group Not Found</Heading>
         </div>
       </div>
@@ -130,7 +130,7 @@ export function GroupDetail() {
       </div>
 
       {/* Group Information Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <Heading level={2}>Group Information</Heading>
         <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
@@ -161,7 +161,7 @@ export function GroupDetail() {
         <TabsPanels>
           {/* Members Tab */}
           <TabsContent className="space-y-4">
-            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
               <div className="flex items-center justify-between border-b border-zinc-950/5 dark:border-white/10 px-6 py-4">
                 <div>
                   <Heading level={2}>Group Members</Heading>
@@ -232,7 +232,7 @@ export function GroupDetail() {
 
           {/* MCPs Tab */}
           <TabsContent className="space-y-4">
-            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+            <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
               <div className="flex items-center justify-between border-b border-zinc-950/5 dark:border-white/10 px-6 py-4">
                 <div>
                   <Heading level={2}>Assigned MCPs</Heading>

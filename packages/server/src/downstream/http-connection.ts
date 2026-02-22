@@ -10,6 +10,7 @@ import type {
 } from './types.js';
 import { ToolInvocationResponseSchema } from './types.js';
 import { redactUrl } from './url-utils.js';
+import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
 /**
  * HTTP-based MCP connection
@@ -41,6 +42,8 @@ export class HttpMcpConnection extends EventEmitter {
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
   private templateUrl: string; // URL with ${ENV_VAR} placeholders for status
   private startedAt: number | null = null;
+  // M33.1: Error ring buffer
+  private errorBuffer = new ErrorRingBuffer(50);
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -167,7 +170,10 @@ export class HttpMcpConnection extends EventEmitter {
       };
 
       if (response.error) {
-        throw new Error(`JSON-RPC error: ${JSON.stringify(response.error)}`);
+        const errorMsg = `JSON-RPC error: ${JSON.stringify(response.error)}`;
+        // M33.1: Log JSON-RPC errors
+        this.errorBuffer.push(errorMsg, 'error');
+        throw new Error(errorMsg);
       }
 
       // Reset failure counter on success
@@ -175,12 +181,16 @@ export class HttpMcpConnection extends EventEmitter {
 
       return response.result;
     } catch (err) {
+      // M33.1: Log connection/fetch errors
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.errorBuffer.push(`Request failed (${method}): ${errorMsg}`, 'error');
+
       // Circuit breaker: track consecutive failures
       this.consecutiveFailures++;
       if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
-        console.error(
-          `[MCP:${this.config.name}] Circuit breaker triggered after ${this.consecutiveFailures} failures`
-        );
+        const circuitMsg = `Circuit breaker triggered after ${this.consecutiveFailures} failures`;
+        console.error(`[MCP:${this.config.name}] ${circuitMsg}`);
+        this.errorBuffer.push(circuitMsg, 'error');
         this.isHealthy = false;
         this.emit('error', new Error('Circuit breaker: too many consecutive failures'));
       }
@@ -347,5 +357,33 @@ export class HttpMcpConnection extends EventEmitter {
       console.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, this.sanitizeError(err));
       throw err;
     }
+  }
+
+  /**
+   * M33.1: Get error history
+   */
+  getErrorHistory(): ErrorLogEntry[] {
+    return this.errorBuffer.getAll();
+  }
+
+  /**
+   * M33.1: Get most recent error entry
+   */
+  getLastError(): ErrorLogEntry | null {
+    return this.errorBuffer.getLast();
+  }
+
+  /**
+   * M33.1: Clear error history buffer
+   */
+  clearErrorHistory(): void {
+    this.errorBuffer.clear();
+  }
+
+  /**
+   * M33.1: Get error count
+   */
+  getErrorCount(): number {
+    return this.errorBuffer.getCount();
   }
 }

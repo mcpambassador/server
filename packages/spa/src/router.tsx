@@ -19,6 +19,7 @@ import { GroupDetail } from '@/pages/admin/GroupDetail';
 import { McpsAdmin } from '@/pages/admin/Mcps';
 import { McpDetail as AdminMcpDetail } from '@/pages/admin/McpDetail';
 import { McpWizard } from '@/pages/admin/McpWizard';
+import { UserInstances } from '@/pages/admin/UserInstances';
 import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
 import { Settings } from '@/pages/admin/Settings';
@@ -133,6 +134,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <AdminMcpDetail />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/user-instances',
+        element: (
+          <AdminRoute>
+            <UserInstances />
           </AdminRoute>
         ),
       },

@@ -29,6 +29,7 @@ import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
+import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
 
 /**
  * Admin routes plugin configuration
@@ -152,6 +153,11 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     mcpManager,
     userPool,
   });
+
+  // Per-User MCP instance visibility (4 endpoints: user-mcps list, user detail, refresh, restart) - M33.2
+  if (userPool) {
+    fastify.register(registerAdminUserMcpRoutes, { db, userPool });
+  }
 
   // User management (6 endpoints)
   fastify.register(registerAdminUserRoutes, { db, audit, userPool });

@@ -70,7 +70,7 @@ export function AuditLogsAdmin() {
       </div>
 
       {/* Filters Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
         <div className="space-y-4">
           <Subheading>Filters</Subheading>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -125,7 +125,7 @@ export function AuditLogsAdmin() {
       </div>
 
       {/* Audit Events Table */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 overflow-hidden">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 overflow-hidden">
         <Table>
           <TableHead>
             <TableRow>

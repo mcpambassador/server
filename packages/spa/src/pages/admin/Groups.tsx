@@ -103,7 +103,7 @@ export function GroupsAdmin() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <Table>
           <TableHead>
             <TableRow>

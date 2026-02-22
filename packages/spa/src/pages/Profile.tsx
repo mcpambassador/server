@@ -78,7 +78,7 @@ export function Profile() {
       </div>
 
       {/* User Information */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">User Information</h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Your account details</p>
 
@@ -134,7 +134,7 @@ export function Profile() {
       </div>
 
       {/* Change Password */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Change Password</h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Update your password to keep your account secure</p>
 

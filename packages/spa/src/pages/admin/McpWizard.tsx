@@ -212,7 +212,7 @@ export function McpWizard() {
       </div>
 
       {/* Step Content Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">{STEPS[currentStep]}</h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mb-6">
           {currentStep === 0 && 'Enter basic MCP information'}

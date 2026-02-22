@@ -494,6 +494,9 @@ export class UserMcpPool {
     spawnedAt: Date;
     connected: boolean;
     toolCount: number;
+    last_error: string | null; // M33.1: NEW
+    error_count: number; // M33.1: NEW
+    stderr_tail: import('./error-ring-buffer.js').ErrorLogEntry[]; // M33.1: NEW
   }> {
     const result: Array<{
       userId: string;
@@ -501,17 +504,30 @@ export class UserMcpPool {
       spawnedAt: Date;
       connected: boolean;
       toolCount: number;
+      last_error: string | null;
+      error_count: number;
+      stderr_tail: import('./error-ring-buffer.js').ErrorLogEntry[];
     }> = [];
 
     for (const [userId, instanceSet] of this.userInstances) {
       const connection = instanceSet.connections.get(mcpName);
       if (connection) {
+        // M33.1: Get error info from connection
+        const lastError = connection.getLastError();
+        const errorCount = connection.getErrorCount();
+        const errorHistory = connection.getErrorHistory();
+        // Limit to 20 most recent entries for listing view
+        const stderrTail = errorHistory.slice(-20);
+
         result.push({
           userId,
           status: instanceSet.status,
           spawnedAt: instanceSet.spawnedAt,
           connected: connection.isConnected(),
           toolCount: connection.getTools().length,
+          last_error: lastError?.message ?? null,
+          error_count: errorCount,
+          stderr_tail: stderrTail,
         });
       }
     }

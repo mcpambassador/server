@@ -13,6 +13,7 @@ import {
   SunIcon,
   MoonIcon,
   QueueListIcon,
+  ServerStackIcon,
 } from '@heroicons/react/20/solid';
 import {
   UserCircleIcon as UserCircleIcon16,
@@ -62,6 +63,7 @@ const adminNavItems: NavItem[] = [
   { title: 'Users', href: '/app/admin/users', icon: UsersIcon },
   { title: 'Groups', href: '/app/admin/groups', icon: UserGroupIcon },
   { title: 'MCPs', href: '/app/admin/mcps', icon: CubeIcon },
+  { title: 'User Instances', href: '/app/admin/user-instances', icon: ServerStackIcon },
   { title: 'Audit Logs', href: '/app/admin/audit', icon: DocumentTextIcon },
   { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: PowerIcon },
   { title: 'Settings', href: '/app/admin/settings', icon: Cog6ToothIcon },

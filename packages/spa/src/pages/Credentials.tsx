@@ -110,7 +110,7 @@ export function Credentials() {
       </div>
 
       {/* MCP Credentials Panel */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-6 py-5 border-b border-zinc-950/5 dark:border-white/10">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-white">MCP Credentials</h2>
           <Text className="mt-1">Some MCPs require credentials to access external services. Configure them here.</Text>

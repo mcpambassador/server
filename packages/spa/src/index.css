@@ -23,7 +23,7 @@
   }
 
   body {
-    @apply bg-white text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
+    @apply bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     font-variant-numeric: normal;
   }

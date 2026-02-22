@@ -52,7 +52,7 @@ export function UserDetail() {
           <ArrowLeftIcon data-slot="icon" />
           Back to Users
         </Button>
-        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-8 text-center">
+        <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-8 text-center">
           <Heading level={3}>User Not Found</Heading>
           <Text className="mt-2">The requested user could not be found.</Text>
         </div>
@@ -89,7 +89,7 @@ export function UserDetail() {
       </div>
 
       {/* User Information */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>User Information</Heading>
         </div>
@@ -151,7 +151,7 @@ export function UserDetail() {
       </div>
 
       {/* Group Memberships */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>Group Memberships</Heading>
           <Text className="mt-1">Groups this user belongs to</Text>
@@ -186,7 +186,7 @@ export function UserDetail() {
       </div>
 
       {/* Recent Activity */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
           <Heading level={2}>Recent Activity</Heading>
           <Text className="mt-1">Audit log entries for this user</Text>

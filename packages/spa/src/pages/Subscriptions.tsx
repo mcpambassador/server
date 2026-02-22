@@ -13,7 +13,7 @@ function ClientSubscriptionsSection({ client }: { client: Client }) {
   const { data: subscriptions, isLoading } = useClientSubscriptions(client.id);
 
   return (
-    <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 overflow-hidden">
+    <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 overflow-hidden">
       {/* Client Header */}
       <div className="px-6 py-4 border-b border-zinc-950/5 dark:border-white/10">
         <div className="flex items-center justify-between">

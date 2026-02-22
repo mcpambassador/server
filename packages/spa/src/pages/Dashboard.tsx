@@ -74,13 +74,13 @@ export function Dashboard() {
         </div>
 
         {clientsLoading ? (
-          <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10 p-6 space-y-4">
+          <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6 space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="animate-pulse h-12 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
             ))}
           </div>
         ) : clients && clients.length > 0 ? (
-          <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+          <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
             <Table>
               <TableHead>
                 <TableRow>
@@ -123,7 +123,7 @@ export function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Quick Actions</h3>
           <div className="mt-2 max-w-xl text-sm text-zinc-500 dark:text-zinc-400">

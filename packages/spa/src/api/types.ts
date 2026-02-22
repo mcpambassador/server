@@ -290,6 +290,19 @@ export interface Profile {
 }
 
 // MCP Health Monitoring
+export interface ErrorLogEntry {
+  timestamp: string;
+  message: string;
+  level: 'error' | 'warn' | 'info';
+}
+
+export interface McpErrorLogResponse {
+  name: string;
+  transport: string;
+  entries: ErrorLogEntry[];
+  total_count: number;
+}
+
 export interface McpHealthDetail {
   // StdioMcpConnection detail shape
   pid?: number | null;
@@ -309,6 +322,8 @@ export interface McpHealthEntry {
   connected: boolean;
   detail: McpHealthDetail;
   user_instances: number;
+  last_error: string | null;     // M33.1 NEW
+  error_count: number;           // M33.1 NEW
 }
 
 export interface McpHealthSummary {
@@ -327,6 +342,9 @@ export interface McpInstanceUserEntry {
   spawnedAt: string;
   connected: boolean;
   toolCount: number;
+  last_error: string | null;
+  error_count: number;
+  stderr_tail: ErrorLogEntry[];
 }
 
 export interface McpInstanceDetail {
@@ -342,6 +360,8 @@ export interface McpInstanceDetail {
       tool_count?: number;
     };
     detail: McpHealthDetail;
+    stderr_tail: ErrorLogEntry[];
+    error_count: number;
   };
   user_instances: McpInstanceUserEntry[];
 }
@@ -351,4 +371,70 @@ export interface McpRestartResult {
   restarted: boolean;
   connected: boolean;
   tool_count: number;
+}
+
+// New: Per-user instance data from GET /v1/admin/health/user-mcps (M33.2)
+export interface UserMcpInstance {
+  user_id: string;
+  username: string;
+  mcp_name: string;
+  status: 'connected' | 'disconnected' | 'error';
+  tool_count: number;
+  spawned_at: string | null;
+  uptime_ms: number | null;
+  last_error: string | null;
+  error_count: number;
+}
+
+export interface UserMcpSummary {
+  timestamp: string;
+  summary: {
+    total_instances: number;
+    active_users: number;
+    total_users: number;
+    total_tools_served: number;
+    healthy_instances: number;
+    unhealthy_instances: number;
+  };
+  instances: UserMcpInstance[];
+}
+
+// Catalog status from GET /v1/admin/catalog/status
+export interface CatalogReloadStatus {
+  has_changes: boolean;
+  shared: {
+    to_add: Array<{ name: string; transport_type: string }>;
+    to_remove: Array<{ name: string; reason: string }>;
+    to_update: Array<{ name: string; changed_fields: string[] }>;
+    unchanged: string[];
+  };
+  per_user: {
+    to_add: Array<{ name: string }>;
+    to_remove: Array<{ name: string }>;
+    to_update: Array<{ name: string }>;
+  };
+}
+
+// Result from POST /v1/admin/catalog/apply
+export interface CatalogApplyResult {
+  timestamp: string;
+  shared: {
+    added: string[];
+    removed: string[];
+    updated: string[];
+    unchanged: string[];
+    errors: Array<{ name: string; action: string; error: string }>;
+  };
+  per_user: {
+    configs_added: string[];
+    configs_removed: string[];
+    configs_updated: string[];
+    active_users_affected: number;
+    note: string;
+  };
+  summary: {
+    total_changes: number;
+    successful: number;
+    failed: number;
+  };
 }

@@ -60,7 +60,7 @@ export function KillSwitches() {
       </div>
 
       {/* Client Kill Switches */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Client Kill Switches</h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable individual API clients</p>
         <div className="mt-4">
@@ -124,7 +124,7 @@ export function KillSwitches() {
       </div>
 
       {/* MCP Kill Switches */}
-      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/5 dark:ring-white/10">
+      <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Kill Switches</h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable MCP servers system-wide</p>
         <div className="mt-4">
