@@ -42,6 +42,8 @@ export class HttpMcpConnection extends EventEmitter {
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
   private templateUrl: string; // URL with ${ENV_VAR} placeholders for status
   private startedAt: number | null = null;
+  // MCP Streamable HTTP: session ID returned by server after initialize
+  private sessionId: string | null = null;
   // M33.1: Error ring buffer
   private errorBuffer = new ErrorRingBuffer(50);
 
@@ -93,18 +95,34 @@ export class HttpMcpConnection extends EventEmitter {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
+      // Build headers per MCP Streamable HTTP spec:
+      // - Content-Type: application/json (we send JSON-RPC)
+      // - Accept: application/json, text/event-stream (server may respond with either)
+      // - Mcp-Session-Id: echoed back after initialize (required by many servers)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+        ...this.config.headers,
+      };
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.config.headers,
-        },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
         // SEC-M9-03: Never disable TLS validation (default is true)
       });
 
       clearTimeout(timeoutId);
+
+      // Capture Mcp-Session-Id from response (case-insensitive per HTTP spec)
+      const returnedSessionId = response.headers.get('mcp-session-id');
+      if (returnedSessionId) {
+        this.sessionId = returnedSessionId;
+      }
 
       // Check response status
       if (!response.ok) {
@@ -239,6 +257,7 @@ export class HttpMcpConnection extends EventEmitter {
     this.startedAt = null;
     this.isHealthy = false;
     this.toolCache = null;
+    this.sessionId = null;
     this.emit('disconnect');
   }
 

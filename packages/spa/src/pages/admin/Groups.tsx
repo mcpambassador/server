@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/20/solid';
+import { PlusIcon, EyeIcon, PencilIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { useAdminGroups, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/api/hooks/use-admin';
 import type { Group } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function GroupsAdmin() {
   usePageTitle('Admin - Groups');
@@ -152,7 +153,7 @@ export function GroupsAdmin() {
                       >
                         {group.name}
                       </Link>
-                      {group.name === 'all-users' && (
+                      {(group.is_system || group.created_by === 'system' || group.name === 'all-users') && (
                         <Badge color="purple" title="Auto-created system group. All users are assigned by default.">System</Badge>
                       )}
                     </div>
@@ -189,8 +190,16 @@ export function GroupsAdmin() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-zinc-500 dark:text-zinc-400">
-                  No groups yet.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={<UserGroupIcon className="size-6 text-zinc-400" />}
+                    title="No groups found"
+                    description="Create groups to organize users and manage MCP access."
+                    action={{
+                      label: 'Create Group',
+                      onClick: () => setCreateDialogOpen(true),
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             )}

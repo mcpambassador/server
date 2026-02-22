@@ -37,7 +37,7 @@ export const handlers = [
   
   // User profile
   http.get(`${API_BASE}/v1/users/me`, () => {
-    return HttpResponse.json({ ok: true, data: { user_id: 'u1', username: 'alice' } });
+    return HttpResponse.json({ ok: true, data: { id: 'u1', username: 'alice' } });
   }),
 
   // Credentials
@@ -53,18 +53,18 @@ export const handlers = [
 
   // Clients
   http.get(`${API_BASE}/v1/users/me/clients`, () => {
-    return HttpResponse.json({ ok: true, data: [{ client_id: 'c1', name: 'Client 1' }] });
+    return HttpResponse.json({ ok: true, data: [{ id: 'c1', clientName: 'Client 1' }] });
   }),
-  http.get(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req) => {
+  http.get(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: any) => {
     const id = req.url.pathname.split('/').pop();
-    return HttpResponse.json({ ok: true, data: { client_id: id, name: `Client ${id}` } });
+    return HttpResponse.json({ ok: true, data: { id, clientName: `Client ${id}` } });
   }),
   http.post(`${API_BASE}/v1/users/me/clients`, () => {
-    return HttpResponse.json({ ok: true, data: { client_id: 'new', name: 'new' } });
+    return HttpResponse.json({ ok: true, data: { client: { id: 'new', clientName: 'new' }, plaintext_key: 'sk' } });
   }),
-  http.patch(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req) => {
+  http.patch(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: any) => {
     const id = req.url.pathname.split('/').pop();
-    return HttpResponse.json({ ok: true, data: { client_id: id, name: 'updated' } });
+    return HttpResponse.json({ ok: true, data: { id, clientName: 'updated' } });
   }),
   http.delete(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), () => {
     return HttpResponse.json({ ok: true, data: { message: 'deleted' } });
@@ -72,10 +72,10 @@ export const handlers = [
 
   // Subscriptions
   http.get(new RegExp(`${API_BASE}/v1/users/me/clients/.*/subscriptions$`), () => {
-    return HttpResponse.json({ ok: true, data: [{ subscription_id: 's1' }] });
+    return HttpResponse.json({ ok: true, data: [{ id: 's1' }] });
   }),
   http.post(new RegExp(`${API_BASE}/v1/users/me/clients/.*/subscriptions$`), () => {
-    return HttpResponse.json({ ok: true, data: { subscription_id: 's-new', plan: 'p' } });
+    return HttpResponse.json({ ok: true, data: { id: 's-new' } });
   }),
   http.patch(new RegExp(`${API_BASE}/v1/users/me/clients/.*/subscriptions/.*$`), () => {
     return HttpResponse.json({ ok: true, data: { updated: true } });
@@ -88,9 +88,9 @@ export const handlers = [
   http.get(`${API_BASE}/v1/marketplace`, () => {
     return HttpResponse.json({ ok: true, data: { items: [] }, pagination: { cursor: null } });
   }),
-  http.get(new RegExp(`${API_BASE}/v1/marketplace/.*`), (req) => {
+  http.get(new RegExp(`${API_BASE}/v1/marketplace/.*`), (req: any) => {
     const id = req.url.pathname.split('/').pop();
-    return HttpResponse.json({ ok: true, data: { mcp_id: id, name: `MCP ${id}` } });
+    return HttpResponse.json({ ok: true, data: { id, name: `MCP ${id}` } });
   }),
 
   // Admin downstream (system status)

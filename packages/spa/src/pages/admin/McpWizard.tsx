@@ -14,6 +14,7 @@ import { Divider } from '@/components/catalyst/divider';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
 
@@ -30,6 +31,7 @@ export function McpWizard() {
   const [createdMcpId, setCreatedMcpId] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -46,10 +48,17 @@ export function McpWizard() {
   const handleNext = async () => {
     if (currentStep === 0) {
       // Basic validation
-      if (!formData.name || !formData.display_name) {
-        toast.error('Validation', { description: 'Name and Display Name are required' });
+      const nextErrors: Record<string, string> = {};
+      if (!formData.display_name) nextErrors.display_name = 'Display name is required';
+      if (!formData.name) nextErrors.name = 'Internal name is required';
+      else if (!/^[a-z0-9_]+$/.test(formData.name)) nextErrors.name = 'Internal name must be lowercase, no spaces, letters, numbers, and underscores only';
+
+      if (Object.keys(nextErrors).length > 0) {
+        setErrors(nextErrors);
+        toast.error('Validation', { description: 'Please fix the highlighted fields' });
         return;
       }
+      setErrors({});
     }
 
     if (currentStep === 1) {
@@ -59,15 +68,51 @@ export function McpWizard() {
         try {
           configObj = JSON.parse(formData.config);
         } catch {
+          setErrors({ config: 'Invalid JSON in config field' });
           toast.error('Invalid JSON', { description: 'Invalid JSON in config field' });
           return;
         }
+
+        // Transport-specific validations
+        const configErrors: Record<string, string> = {};
+        if (formData.transport_type === 'stdio') {
+          const cmd = (configObj as any).command;
+          const args = (configObj as any).args;
+          if (!cmd || typeof cmd !== 'string' || cmd.trim() === '') {
+            configErrors.config = 'Stdio config must include a non-empty "command" string';
+          }
+          if (!Array.isArray(args) || args.length === 0 || args.some((a: any) => typeof a !== 'string' || a.trim() === '')) {
+            configErrors.config = (configErrors.config ? configErrors.config + '. ' : '') + 'Stdio config must include non-empty "args" array';
+          }
+        }
+        if (formData.transport_type === 'http' || formData.transport_type === 'sse') {
+          const url = (configObj as any).url || (configObj as any).template_url || (configObj as any).endpoint;
+          if (!url || typeof url !== 'string') {
+            configErrors.config = 'HTTP/SSE config must include a URL string (e.g. "url" or "template_url")';
+          } else {
+            try {
+              // simple URL validation
+              // eslint-disable-next-line no-new
+              new URL(url);
+            } catch {
+              configErrors.config = 'Provided URL in config is not a valid URL';
+            }
+          }
+        }
+
+        if (Object.keys(configErrors).length > 0) {
+          setErrors(configErrors);
+          toast.error('Configuration Validation', { description: 'Please fix the configuration errors' });
+          return;
+        }
+        setErrors({});
 
         let credentialSchemaObj: Record<string, unknown> | undefined;
         if (formData.requires_user_credentials) {
           try {
             credentialSchemaObj = JSON.parse(formData.credential_schema);
           } catch {
+            setErrors({ credential_schema: 'Invalid JSON in credential schema field' });
             toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
             return;
           }
@@ -176,6 +221,14 @@ export function McpWizard() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: 'MCPs', href: '/app/admin/mcps' },
+          { label: 'Create New' },
+        ]}
+      />
+
       {/* Header */}
       <div>
         <Heading>Create New MCP</Heading>
@@ -232,7 +285,9 @@ export function McpWizard() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="github"
                   disabled={!!createdMcpId}
+                  aria-invalid={!!errors.name}
                 />
+                {errors.name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.name}</p>}
                 {createdMcpId && (
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                     Internal name cannot be changed after creation. Delete this draft and start over if a different name is needed.
@@ -245,7 +300,9 @@ export function McpWizard() {
                   value={formData.display_name}
                   onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                   placeholder="GitHub"
+                  aria-invalid={!!errors.display_name}
                 />
+                {errors.display_name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.display_name}</p>}
               </Field>
               <Field>
                 <Label>Description</Label>
@@ -321,7 +378,9 @@ export function McpWizard() {
                   rows={12}
                   className="font-mono text-sm"
                   placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
+                  aria-invalid={!!errors.config}
                 />
+                {errors.config && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.config}</p>}
               </Field>
               <CheckboxField>
                 <Checkbox
@@ -346,7 +405,9 @@ export function McpWizard() {
                     rows={8}
                     className="font-mono text-sm"
                     placeholder='{ "api_key": { "type": "string", "description": "API Key" } }'
+                    aria-invalid={!!errors.credential_schema}
                   />
+                  {errors.credential_schema && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.credential_schema}</p>}
                 </Field>
               )}
             </>

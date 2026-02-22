@@ -5,12 +5,15 @@ import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { useClients, useClientSubscriptions } from '@/api/hooks/use-clients';
+import { useClients, useClientSubscriptions, useUserSubscriptions } from '@/api/hooks/use-clients';
 import type { Client } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-function ClientSubscriptionsSection({ client }: { client: Client }) {
-  const { data: subscriptions, isLoading } = useClientSubscriptions(client.id);
+function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptions }: { client: Client; subscriptions?: any[] }) {
+  // If subscriptions are provided by the parent aggregate call, use them to avoid extra requests
+  const { data: subsFromHook, isLoading: hookLoading } = useClientSubscriptions(client.id);
+  const subscriptions = providedSubscriptions ?? subsFromHook;
+  const isLoading = providedSubscriptions ? false : hookLoading;
 
   return (
     <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 overflow-hidden">
@@ -106,6 +109,7 @@ function ClientSubscriptionsSection({ client }: { client: Client }) {
 export function Subscriptions() {
   usePageTitle('My Subscriptions');
   const { data: clients, isLoading } = useClients();
+  const { data: allSubscriptions } = useUserSubscriptions();
 
   const activeClients = clients?.filter(c => c.status === 'active' || c.status === 'suspended') ?? [];
 
@@ -153,7 +157,11 @@ export function Subscriptions() {
         /* Client Subscriptions Sections */
         <div className="space-y-6">
           {activeClients.map((client) => (
-            <ClientSubscriptionsSection key={client.id} client={client} />
+            <ClientSubscriptionsSection
+              key={client.id}
+              client={client}
+              subscriptions={allSubscriptions?.filter(s => s.clientId === client.id)}
+            />
           ))}
         </div>
       )}

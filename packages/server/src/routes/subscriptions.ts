@@ -17,6 +17,7 @@ import {
   subscribeClientToMcp,
   updateSubscription,
   listClientSubscriptions,
+  listUserSubscriptions,
   getSubscriptionDetail,
   removeSubscription,
 } from '../services/subscription-service.js';
@@ -80,6 +81,39 @@ export async function registerSubscriptionRoutes(
             wrapError(ErrorCodes.NOT_FOUND, 'Client not found')
           );
         }
+        throw error;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // GET /v1/users/me/subscriptions - List all subscriptions for the user (aggregate)
+  // ==========================================================================
+  fastify.get(
+    '/v1/users/me/subscriptions',
+    {
+      preHandler: requireUserSession,
+    },
+    async (request, reply) => {
+      const userId = request.session.userId!;
+
+      try {
+        const subscriptions = await listUserSubscriptions(db, userId);
+
+        // Transform to camelCase for SPA
+        const transformed = subscriptions.map((sub) => ({
+          id: sub.subscription_id,
+          clientId: sub.client_id,
+          mcpId: sub.mcp_id,
+          mcpName: sub.mcp_name,
+          selectedTools: sub.selected_tools,
+          status: sub.status,
+          createdAt: sub.subscribed_at,
+          updatedAt: sub.updated_at,
+        }));
+
+        return reply.status(200).send({ ok: true, data: transformed });
+      } catch (error: any) {
         throw error;
       }
     }

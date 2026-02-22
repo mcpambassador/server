@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PowerIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid';
+import { PowerIcon, ExclamationTriangleIcon, ServerIcon, CubeIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -8,6 +8,7 @@ import { Button } from '@/components/catalyst/button';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function KillSwitches() {
   usePageTitle('Admin - Kill Switches');
@@ -118,7 +119,11 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">No clients found</p>
+            <EmptyState
+              icon={<ServerIcon className="size-6 text-zinc-400" />}
+              title="No clients found"
+              description="API clients will appear here once they are registered."
+            />
           )}
         </div>
       </div>
@@ -181,7 +186,11 @@ export function KillSwitches() {
               ))}
             </div>
           ) : (
-            <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">No MCPs found</p>
+            <EmptyState
+              icon={<CubeIcon className="size-6 text-zinc-400" />}
+              title="No MCPs found"
+              description="MCP servers will appear here once they are configured."
+            />
           )}
         </div>
       </div>

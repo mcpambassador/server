@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, EyeIcon, TrashIcon, KeyIcon, PencilIcon } from '@heroicons/react/20/solid';
+import { PlusIcon, EyeIcon, TrashIcon, KeyIcon, PencilIcon, UsersIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -16,6 +16,7 @@ import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/list
 import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function UsersAdmin() {
   usePageTitle('Admin - Users');
@@ -242,8 +243,16 @@ export function UsersAdmin() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-zinc-500 dark:text-zinc-400 py-12">
-                  No users yet.
+                <TableCell colSpan={8}>
+                  <EmptyState
+                    icon={<UsersIcon className="size-6 text-zinc-400" />}
+                    title="No users registered"
+                    description="Create user accounts to grant access to the system."
+                    action={{
+                      label: 'Create User',
+                      onClick: () => setCreateDialogOpen(true),
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             )}

@@ -73,6 +73,14 @@ export function useClientSubscriptions(clientId: string) {
   });
 }
 
+// Aggregate subscriptions for the current user across all clients
+export function useUserSubscriptions() {
+  return useQuery({
+    queryKey: ['user', 'subscriptions'],
+    queryFn: () => apiClient.get<Subscription[]>('/v1/users/me/subscriptions'),
+  });
+}
+
 export function useSubscribe() {
   const queryClient = useQueryClient();
   

@@ -8,6 +8,7 @@ import {
   TrashIcon,
   ArrowPathRoundedSquareIcon,
   ExclamationTriangleIcon,
+  CubeIcon,
 } from '@heroicons/react/20/solid';
 import { CheckCircleIcon } from '@heroicons/react/16/solid';
 import { toast } from 'sonner';
@@ -19,6 +20,7 @@ import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/list
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   useAdminMcps,
   useAdminMcpHealth,
@@ -68,7 +70,11 @@ export function McpsAdmin() {
   }, [healthData]);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [mcpToDelete, setMcpToDelete] = useState<McpCatalogEntry | null>(null);
+  const [mcpToArchive, setMcpToArchive] = useState<McpCatalogEntry | null>(null);
+  const [mcpToPublish, setMcpToPublish] = useState<McpCatalogEntry | null>(null);
 
   const handleValidate = async (mcpId: string) => {
     try {
@@ -83,17 +89,23 @@ export function McpsAdmin() {
     }
   };
 
-  const handlePublish = async (mcpId: string) => {
+  const handlePublish = async () => {
+    if (!mcpToPublish) return;
     try {
-      await publishMcp.mutateAsync(mcpId);
+      await publishMcp.mutateAsync(mcpToPublish.mcp_id);
+      setPublishDialogOpen(false);
+      setMcpToPublish(null);
     } catch (error) {
       toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
-  const handleArchive = async (mcpId: string) => {
+  const handleArchive = async () => {
+    if (!mcpToArchive) return;
     try {
-      await archiveMcp.mutateAsync(mcpId);
+      await archiveMcp.mutateAsync(mcpToArchive.mcp_id);
+      setArchiveDialogOpen(false);
+      setMcpToArchive(null);
     } catch (error) {
       toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
@@ -273,8 +285,16 @@ export function McpsAdmin() {
             ) : mcps.length === 0 ? (
               // Empty state
               <TableRow>
-                <TableCell colSpan={9} className="h-32 text-center text-zinc-500">
-                  No MCPs yet.
+                <TableCell colSpan={9}>
+                  <EmptyState
+                    icon={<CubeIcon className="size-6 text-zinc-400" />}
+                    title="No MCPs configured yet"
+                    description="Create your first MCP server configuration to get started."
+                    action={{
+                      label: 'Create MCP',
+                      onClick: () => navigate('/app/admin/mcps/new'),
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -380,7 +400,10 @@ export function McpsAdmin() {
                       {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
                         <Button
                           plain
-                          onClick={() => handlePublish(mcp.mcp_id)}
+                          onClick={() => {
+                            setMcpToPublish(mcp);
+                            setPublishDialogOpen(true);
+                          }}
                           disabled={publishMcp.isPending}
                         >
                           <CheckCircleIcon />
@@ -391,7 +414,10 @@ export function McpsAdmin() {
                         <Button
                           plain
                           title="Archive"
-                          onClick={() => handleArchive(mcp.mcp_id)}
+                          onClick={() => {
+                            setMcpToArchive(mcp);
+                            setArchiveDialogOpen(true);
+                          }}
                           disabled={archiveMcp.isPending}
                         >
                           <ArchiveBoxIcon />
@@ -438,6 +464,53 @@ export function McpsAdmin() {
           </Button>
           <Button color="red" onClick={handleDelete}>
             Delete
+          </Button>
+        </AlertActions>
+      </Alert>
+
+      {/* Publish Confirmation Alert */}
+      <Alert open={publishDialogOpen} onClose={setPublishDialogOpen}>
+        <AlertTitle>Publish MCP?</AlertTitle>
+        <AlertDescription>
+          This will publish &quot;{mcpToPublish?.display_name}&quot; and make it available to authorized users. Ensure the configuration is correct before publishing.
+        </AlertDescription>
+        <AlertActions>
+          <Button
+            plain
+            onClick={() => {
+              setPublishDialogOpen(false);
+              setMcpToPublish(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="green" onClick={handlePublish}>
+            Publish
+          </Button>
+        </AlertActions>
+      </Alert>
+
+      {/* AlertActions>
+      </Alert>
+
+      {/* Archive Confirmation Alert */}
+      <Alert open={archiveDialogOpen} onClose={setArchiveDialogOpen}>
+        <AlertTitle>Archive MCP?</AlertTitle>
+        <AlertDescription>
+          This will archive &quot;{mcpToArchive?.display_name}&quot; and make it unavailable to users. You can re-publish it later.
+        </AlertDescription>
+        <AlertActions>
+          <Button
+            plain
+            onClick={() => {
+              setArchiveDialogOpen(false);
+              setMcpToArchive(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button color="amber" onClick={handleArchive}>
+            Archive
           </Button>
         </AlertActions>
       </Alert>

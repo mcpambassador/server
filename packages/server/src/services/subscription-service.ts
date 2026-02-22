@@ -20,6 +20,8 @@ import {
   getMcpEntryById,
   getCredential,
   mcp_catalog,
+  client_mcp_subscriptions,
+  clients,
   compatSelect,
 } from '@mcpambassador/core';
 import { getUserClient } from './client-service.js';
@@ -194,6 +196,65 @@ export async function listClientSubscriptions(
         selected_tools: typeof sub.selected_tools === 'string' 
           ? JSON.parse(sub.selected_tools)
           : sub.selected_tools,
+        status: sub.status,
+        subscribed_at: sub.subscribed_at,
+        updated_at: sub.updated_at,
+      });
+    }
+  }
+
+  return enriched;
+}
+
+/**
+ * List all subscriptions for a user's clients (aggregate)
+ * This avoids the SPA having to call the per-client endpoint N times.
+ */
+export async function listUserSubscriptions(
+  db: DatabaseClient,
+  userId: string
+): Promise<SubscriptionWithMcp[]> {
+  // Query subscriptions joined with clients for this user
+  const rows = await compatSelect(db)
+    .from(client_mcp_subscriptions)
+    .innerJoin(clients, (join: any) => join.on(clients.client_id, client_mcp_subscriptions.client_id))
+    .where(clients.user_id, userId as any);
+
+  // rows will be an array where each element is a combined object; normalize to subscription objects
+  const subscriptions: any[] = rows.map((r: any) => ({
+    subscription_id: r.subscription_id,
+    client_id: r.client_id,
+    mcp_id: r.mcp_id,
+    selected_tools: typeof r.selected_tools === 'string' ? JSON.parse(r.selected_tools) : r.selected_tools,
+    status: r.status,
+    subscribed_at: r.subscribed_at,
+    updated_at: r.updated_at,
+  }));
+
+  // Batch fetch MCP names
+  const mcpIds = subscriptions.map((s: any) => s.mcp_id);
+  const mcpMap = new Map<string, { name: string }>();
+
+  if (mcpIds.length > 0) {
+    const mcps = await compatSelect(db)
+      .from(mcp_catalog)
+      .where(inArray(mcp_catalog.mcp_id, mcpIds));
+
+    for (const mcp of mcps) {
+      mcpMap.set(mcp.mcp_id, { name: mcp.name });
+    }
+  }
+
+  const enriched: SubscriptionWithMcp[] = [];
+  for (const sub of subscriptions) {
+    const mcp = mcpMap.get(sub.mcp_id);
+    if (mcp) {
+      enriched.push({
+        subscription_id: sub.subscription_id,
+        client_id: sub.client_id,
+        mcp_id: sub.mcp_id,
+        mcp_name: mcp.name,
+        selected_tools: sub.selected_tools,
         status: sub.status,
         subscribed_at: sub.subscribed_at,
         updated_at: sub.updated_at,

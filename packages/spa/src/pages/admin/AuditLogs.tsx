@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowPathIcon } from '@heroicons/react/20/solid';
+import { ArrowPathIcon, ClipboardDocumentListIcon } from '@heroicons/react/20/solid';
 import { Heading, Subheading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
@@ -10,6 +10,7 @@ import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@
 import { useAuditEvents } from '@/api/hooks/use-admin';
 import type { AuditEvent } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function AuditLogsAdmin() {
   usePageTitle('Admin - Audit Logs');
@@ -173,8 +174,12 @@ export function AuditLogsAdmin() {
             ) : events.length === 0 ? (
               // Empty state
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-zinc-500 dark:text-zinc-400">
-                  No audit events found.
+                <TableCell colSpan={8}>
+                  <EmptyState
+                    icon={<ClipboardDocumentListIcon className="size-6 text-zinc-400" />}
+                    title="No audit events found"
+                    description="Audit logs will appear here as users interact with the system. Try adjusting your filters."
+                  />
                 </TableCell>
               </TableRow>
             ) : (

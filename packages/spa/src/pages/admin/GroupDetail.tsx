@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeftIcon, TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
+import { ArrowLeftIcon, TrashIcon, PlusIcon, UserGroupIcon, CubeIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -11,6 +11,8 @@ import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } fro
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   useAdminGroup,
   useGroupMembers,
@@ -117,11 +119,13 @@ export function GroupDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Back Button */}
-      <Button plain href="/app/admin/groups">
-        <ArrowLeftIcon data-slot="icon" />
-        Back to Groups
-      </Button>
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: 'Groups', href: '/app/admin/groups' },
+          { label: group.name },
+        ]}
+      />
 
       {/* Page Header */}
       <div className="space-y-1">
@@ -180,9 +184,15 @@ export function GroupDetail() {
                     <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 ) : !members || members.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Text>No members yet.</Text>
-                  </div>
+                  <EmptyState
+                    icon={<UserGroupIcon className="size-6 text-zinc-400" />}
+                    title="No members yet"
+                    description="Add users to this group to manage their access collectively."
+                    action={{
+                      label: 'Add Member',
+                      onClick: () => setAddMemberDialogOpen(true),
+                    }}
+                  />
                 ) : (
                   <Table>
                     <TableHead>
@@ -251,9 +261,15 @@ export function GroupDetail() {
                     <div className="h-10 w-full animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
                 ) : !mcps || mcps.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Text>No MCPs assigned.</Text>
-                  </div>
+                  <EmptyState
+                    icon={<CubeIcon className="size-6 text-zinc-400" />}
+                    title="No MCPs assigned"
+                    description="Assign MCPs to this group to make them available to all members."
+                    action={{
+                      label: 'Assign MCP',
+                      onClick: () => setAddMcpDialogOpen(true),
+                    }}
+                  />
                 ) : (
                   <Table>
                     <TableHead>

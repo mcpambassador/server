@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExclamationTriangleIcon, KeyIcon, TrashIcon, ShieldCheckIcon } from '@heroicons/react/20/solid';
+import { ExclamationTriangleIcon, KeyIcon, TrashIcon, ShieldCheckIcon, ClockIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -10,6 +10,7 @@ import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/
 import { useDownstream, useAdminSessions, useKillSession, useRotateHmac, useRotateCredentialKey } from '@/api/hooks/use-admin';
 import type { Session } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export function Settings() {
   usePageTitle('Admin - Settings');
@@ -117,7 +118,11 @@ export function Settings() {
               ))}
             </div>
           ) : sessionList.length === 0 ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No active sessions</p>
+            <EmptyState
+              icon={<ClockIcon className="size-6 text-zinc-400" />}
+              title="No active sessions"
+              description="User sessions will appear here when users are logged in."
+            />
           ) : (
             <Table>
               <TableHead>

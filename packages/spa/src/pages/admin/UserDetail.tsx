@@ -14,6 +14,7 @@ import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
 
 export function UserDetail() {
   const { userId } = useParams<{ userId: string }>();
@@ -62,10 +63,13 @@ export function UserDetail() {
 
   return (
     <div className="space-y-6">
-      <Button plain href="/app/admin/users">
-        <ArrowLeftIcon data-slot="icon" />
-        Back to Users
-      </Button>
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: 'Users', href: '/app/admin/users' },
+          { label: user.username },
+        ]}
+      />
 
       {/* Header */}
       <div>
@@ -289,7 +293,7 @@ export function UserDetail() {
       <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
         <DialogBody>
           <DialogTitle>Reset Password</DialogTitle>
-          <DialogDescription>Set a new password for this user</DialogDescription>
+          <DialogDescription>Set a new password for {user.username}. They will need to use this password to log in.</DialogDescription>
           <div className="space-y-4 mt-4">
             <Field>
               <Label>New Password</Label>
@@ -297,8 +301,9 @@ export function UserDetail() {
             </Field>
           </div>
           <DialogActions>
-            <Button color="zinc" onClick={() => setResetDialogOpen(false)}>Cancel</Button>
+            <Button color="zinc" onClick={() => { setResetDialogOpen(false); setNewPassword(''); }}>Cancel</Button>
             <Button
+              color="amber"
               onClick={async () => {
                 try {
                   await resetPassword.mutateAsync({ userId: user.user_id, newPassword });
@@ -309,9 +314,9 @@ export function UserDetail() {
                   toast.error('Failed to reset password', { description: (error as Error)?.message ?? String(error) });
                 }
               }}
-              disabled={resetPassword.isPending}
+              disabled={resetPassword.isPending || !newPassword}
             >
-              {resetPassword.isPending ? 'Saving...' : 'Save'}
+              {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
             </Button>
           </DialogActions>
         </DialogBody>

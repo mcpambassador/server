@@ -30,7 +30,7 @@ describe('API Hooks (success paths)', () => {
   it('useProfile returns profile', async () => {
     const { result } = renderHook(() => profile.useProfile(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data.username).toBe('alice');
+    expect(result.current.data!.username).toBe('alice');
   });
 
   it('useClients returns client list and useClient returns a client', async () => {
@@ -42,7 +42,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: single } = renderHook(() => clients.useClient('c1'), { wrapper: createWrapper() });
     await waitFor(() => expect(single.current.data).toBeDefined());
-    expect(single.current.data.client_id).toBe('c1');
+    expect(single.current.data!.id).toBe('c1');
   });
 
   it('create, update, delete client mutations succeed', async () => {
@@ -50,7 +50,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: create } = renderHook(() => clients.useCreateClient(), { wrapper });
     const created = await create.current.mutateAsync({ name: 'new' } as any);
-    expect(created.client_id).toBe('new' || 'new');
+    expect(created.client.id).toBe('new');
 
     // ensure explicit handlers for update/delete to avoid regex mismatches
     server.use(http.patch('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { client_id: 'c1', name: 'updated' } })));
@@ -58,7 +58,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: update } = renderHook(() => clients.useUpdateClient(), { wrapper });
     const updated = await update.current.mutateAsync({ clientId: 'c1', data: { name: 'updated' } } as any);
-    expect(updated.client_id).toBe('c1');
+    expect(updated.id).toBe('c1');
 
     const { result: del } = renderHook(() => clients.useDeleteClient(), { wrapper });
     const deleted = await del.current.mutateAsync('c1');
@@ -73,7 +73,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: subscribe } = renderHook(() => clients.useSubscribe(), { wrapper });
     const created = await subscribe.current.mutateAsync({ clientId: 'c1', data: { plan: 'p' } } as any);
-    expect(created.subscription_id).toBe('s-new');
+    expect(created.id).toBe('s-new');
 
     const { result: updateSub } = renderHook(() => clients.useUpdateSubscription(), { wrapper });
     const upd = await updateSub.current.mutateAsync({ clientId: 'c1', subscriptionId: 's1', data: { plan: 'x' } } as any);
@@ -93,7 +93,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: detail } = renderHook(() => marketplace.useMcpDetail('m1'), { wrapper: createWrapper() });
     await waitFor(() => expect(detail.current.data).toBeDefined());
-    expect(detail.current.data.mcp_id).toBe('m1');
+    expect(detail.current.data!.id).toBe('m1');
   });
 
   it('admin generic GET and mutation hooks resolve', async () => {
@@ -104,7 +104,7 @@ describe('API Hooks (success paths)', () => {
 
     const { result: createUser } = renderHook(() => admin.useCreateUser(), { wrapper });
     const cu = await createUser.current.mutateAsync({ username: 'a' } as any);
-    expect(cu.created).toBe(true);
+    expect((cu as any).created).toBe(true);
   });
 });
 

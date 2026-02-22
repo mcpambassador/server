@@ -157,6 +157,9 @@ export interface Group {
   description?: string;
   created_at: string;
   updated_at: string;
+  // Optional fields returned by the server for system/internal groups
+  created_by?: string; // e.g. 'system' for auto-created groups
+  is_system?: boolean;
 }
 
 export interface CreateGroupRequest {

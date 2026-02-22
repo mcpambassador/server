@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect } from 'vitest';
 import { server } from '../mocks/server';
 import { http, HttpResponse } from 'msw';
@@ -85,7 +85,7 @@ describe('SPA form payloads', () => {
     server.use(
       http.post('/v1/users/me/clients/c1/subscriptions', async ({ request }) => {
         captured = await request.json();
-        return HttpResponse.json({ ok: true, data: { subscription_id: 's1' } });
+        return HttpResponse.json({ ok: true, data: { id: 's1' } });
       })
     );
 

@@ -14,6 +14,8 @@ import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import {
   useAdminMcp,
   useAdminMcpInstances,
@@ -50,6 +52,7 @@ export function McpDetail() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [credentialDialogOpen, setCredentialDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
   const [validationResult, setValidationResult] = useState<any>(null);
   const [discoveryResult, setDiscoveryResult] = useState<any>(null);
@@ -246,6 +249,7 @@ export function McpDetail() {
     if (!mcp) return;
     try {
       await archiveMcp.mutateAsync(mcp.mcp_id);
+      setArchiveDialogOpen(false);
     } catch (error) {
       toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
     }
@@ -327,11 +331,13 @@ export function McpDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Back Button */}
-      <Button plain href="/app/admin/mcps">
-        <ArrowLeftIcon data-slot="icon" />
-        Back to MCPs
-      </Button>
+      {/* Breadcrumb */}
+      <Breadcrumb
+        items={[
+          { label: 'MCPs', href: '/app/admin/mcps' },
+          { label: mcp.display_name },
+        ]}
+      />
 
       {/* Header Row */}
       <div className="flex items-start justify-between">
@@ -379,9 +385,9 @@ export function McpDetail() {
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button color="zinc" onClick={handleArchive} disabled={archiveMcp.isPending}>
+          <Button color="zinc" onClick={() => setArchiveDialogOpen(true)} disabled={archiveMcp.isPending}>
             <ArchiveBoxIcon data-slot="icon" />
-            {archiveMcp.isPending ? 'Archiving...' : 'Archive'}
+            Archive
           </Button>
         )}
         {(mcp.status === 'draft' || mcp.status === 'archived') && (
@@ -968,6 +974,18 @@ export function McpDetail() {
           </Button>
         </AlertActions>
       </Alert>
+
+      {/* Archive confirmation dialog */}
+      <ConfirmDialog
+        open={archiveDialogOpen}
+        onClose={setArchiveDialogOpen}
+        title="Archive MCP?"
+        description={`This will archive "${mcp?.display_name}" and make it unavailable to users. You can re-publish it later.`}
+        confirmLabel="Archive"
+        confirmColor="amber"
+        onConfirm={handleArchive}
+        isLoading={archiveMcp.isPending}
+      />
     </div>
   );
 }
