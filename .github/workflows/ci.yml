@@ -193,17 +193,48 @@ jobs:
       - name: Install Playwright browsers
         run: cd packages/spa && npx playwright install --with-deps chromium
         
+      - name: Create required directories for Docker
+        run: |
+          mkdir -p data config cache
+          chmod 755 data config cache
+          
+      - name: Create minimal config file
+        run: |
+          cat > config/ambassador-server.yaml << 'EOF'
+          # Minimal CI configuration
+          server:
+            host: 0.0.0.0
+            port: 8443
+            admin_port: 9443
+          
+          # No downstream MCPs configured for E2E tests
+          downstream_mcps: []
+          EOF
+          
       - name: Start Docker services
         run: docker compose up -d
         
-      - name: Wait for services to be ready
+      - name: Wait for services to be healthy
         run: |
-          echo "Waiting for services to be healthy..."
-          sleep 10
-          curl --retry 30 --retry-delay 2 --retry-connrefused http://localhost:3456/health || echo "Health check failed"
+          echo "Waiting for MCP Ambassador Server to be ready..."
+          for i in {1..60}; do
+            if curl -k -f -s https://localhost:9443/health > /dev/null 2>&1; then
+              echo "Server is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/60: Server not ready yet..."
+            sleep 2
+          done
+          echo "ERROR: Server failed to become healthy after 120 seconds"
+          docker compose logs --tail=100
+          exit 1
           
       - name: Run Playwright tests
         run: cd packages/spa && npx playwright test
+        
+      - name: Docker logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
         
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
