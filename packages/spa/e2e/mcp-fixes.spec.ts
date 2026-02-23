@@ -30,9 +30,9 @@ test.describe('Validate MCP fixes', () => {
         body: JSON.stringify(body),
       });
       const data = await r.json();
-      // Publish the MCP so structural fields are locked
-      if (r.ok && data.name) {
-        await fetch(`/v1/admin/mcps/${data.name}/publish`, {
+      // Publish the MCP so structural fields are locked (mcpId is a UUID)
+      if (r.ok && data.id) {
+        await fetch(`/v1/admin/mcps/${data.id}/publish`, {
           method: 'POST',
           credentials: 'include',
         });
