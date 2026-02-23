@@ -9,37 +9,35 @@ test.describe('Validate MCP fixes', () => {
   test('Fix 1: Admin can edit published MCP metadata without structural fields', async ({ page }) => {
     await page.goto('/app/admin/mcps');
     
-    // Check if any MCPs exist; if not, create one
-    const emptyState = page.locator('text=No MCPs');
-    const hasMcps = await emptyState.count().then(c => c === 0);
+    // Wait for page to fully load — either a table row or empty state
+    await page.waitForLoadState('networkidle');
     
-    let mcpName = 'Firecrawl';
-    if (!hasMcps) {
-      // Create a test MCP via API
-      const unique = `test-mcp-${Date.now()}`;
-      await page.evaluate(async (name) => {
-        const body = {
-          name,
-          display_name: 'Test MCP for Edit',
-          transport_type: 'stdio',
-          endpoint: 'echo',
-          config: { command: ['echo', 'test'], env: {} },
-          isolation_mode: 'shared',
-          status: 'published',
-        };
-        await fetch('/v1/admin/mcps', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      }, unique);
-      await page.reload();
-      mcpName = 'Test MCP for Edit';
-    }
+    // Create a test MCP via API regardless — ensures we have one to edit
+    const unique = `test-edit-${Date.now()}`;
+    const createResult = await page.evaluate(async (name) => {
+      const body = {
+        name,
+        display_name: 'Test MCP for Edit',
+        transport_type: 'stdio',
+        endpoint: 'echo',
+        config: { command: ['echo', 'test'], env: {} },
+        isolation_mode: 'shared',
+      };
+      const r = await fetch('/v1/admin/mcps', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: r.status, ok: r.ok };
+    }, unique);
     
-    // Find the MCP
-    const mcpLink = page.getByText(mcpName).first();
+    // Reload to see the new MCP
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    
+    // Find the MCP we just created
+    const mcpLink = page.getByText('Test MCP for Edit').first();
     await expect(mcpLink).toBeVisible({ timeout: 10000 });
     await mcpLink.click();
     await expect(page.locator('h1')).toBeVisible();
@@ -51,7 +49,8 @@ test.describe('Validate MCP fixes', () => {
     // open Edit, then fill and save; intercept the PATCH on save
     await editBtn.click();
     const newDesc = `Updated via Playwright test ${Date.now()}`;
-    await page.fill('textarea#description, textarea[name="description"]', newDesc).catch(() => {});
+    // Catalyst Textarea uses <Label> + <Textarea> without id attrs
+    await page.getByLabel('Description').fill(newDesc);
     const saveBtn = page.getByRole('button', { name: 'Save' }).first();
 
     const [req] = await Promise.all([

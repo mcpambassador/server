@@ -22,7 +22,8 @@ test.describe('User Journey E2E', () => {
     const clientName = `e2e-client-${Math.floor(Math.random() * 100000)}`;
     await page.getByRole('button', { name: /Create Client/i }).click();
     await expect(page.getByText('Create New Client')).toBeVisible();
-    await page.fill('#client_name', clientName);
+    // Catalyst Input uses <Label> + <Input> without id attrs
+    await page.getByLabel('Client Name').fill(clientName);
     await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click();
 
     // 5. Verify client appears in list (and dismiss API key dialog)
@@ -58,8 +59,9 @@ test.describe('User Journey E2E', () => {
     await expect(page).toHaveURL(/app\/clients\/[^/]+/);
     await expect(page.locator('h1', { hasText: clientName })).toBeVisible();
 
-    // 10. Logout
-    await page.locator('header').getByRole('button').last().click();
+    // 10. Logout — avatar dropdown is in sidebar footer on desktop
+    const sidebar = page.locator('nav');
+    await sidebar.getByRole('button').last().click();
     await page.getByRole('menuitem', { name: 'Log out' }).click();
     await expect(page).toHaveURL(/login/, { timeout: 10000 });
   });
