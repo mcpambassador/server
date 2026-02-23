@@ -449,3 +449,62 @@ export interface CatalogApplyResult {
     failed: number;
   };
 }
+
+// Community Registry types
+export interface RegistryMcp {
+  name: string;
+  display_name: string;
+  description: string;
+  icon_url?: string;
+  transport_type: 'http' | 'stdio';
+  config: {
+    url?: string;
+    command?: string[];
+    env?: Record<string, string>;
+  };
+  auth_type: 'none' | 'static' | 'oauth2';
+  oauth_config?: {
+    auth_url: string;
+    token_url: string;
+    scopes: string;
+    client_id_env: string;
+    client_secret_env: string;
+  };
+  credential_schema?: Record<string, unknown>;
+  isolation_mode: 'shared' | 'per_user';
+  requires_user_credentials: boolean;
+  tags: string[];
+  category: string;
+  repository_url?: string;
+  documentation_url?: string;
+  version: string;
+  maintainer: string;
+  verified: boolean;
+  installed: boolean;
+  installed_mcp_id?: string;
+}
+
+export interface RegistryListResponse {
+  registry: {
+    name: string;
+    updated_at: string;
+    mcp_count: number;
+    last_fetched_at: string;
+    url: string;
+    enabled: boolean;
+  };
+  mcps: RegistryMcp[];
+}
+
+export interface RegistryInstallResponse {
+  message: string;
+  mcp_id: string;
+  name: string;
+  status: string;
+}
+
+export interface RegistryRefreshResponse {
+  message: string;
+  mcp_count: number;
+  last_fetched_at: string;
+}

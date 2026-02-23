@@ -104,6 +104,7 @@ export interface ServerConfig {
     url: string;
     refreshIntervalHours: number;
     enabled: boolean;
+    token?: string;
   };
 }
 
@@ -123,6 +124,7 @@ export class AmbassadorServer {
       url: string;
       refreshIntervalHours: number;
       enabled: boolean;
+      token?: string;
     };
   };
   private db: DatabaseClient | null = null;
@@ -156,9 +158,10 @@ export class AmbassadorServer {
       maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
       publicUrl: config.publicUrl,
       registryConfig: config.registryConfig || {
-        url: 'https://raw.githubusercontent.com/zervin/mcpambassador_community_mcps/main/registry.yaml',
+        url: 'https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml',
         refreshIntervalHours: 24,
         enabled: true,
+        token: undefined,
       },
     };
 

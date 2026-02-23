@@ -15,6 +15,7 @@ export interface RegistryConfig {
   url: string;
   refreshIntervalHours: number;
   enabled: boolean;
+  token?: string;  // Auth token for private registries (GitHub PAT, etc.)
 }
 
 export interface RegistryMcpEntry {
@@ -89,11 +90,17 @@ export class RegistryService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
+      const headers: Record<string, string> = {
+        'Accept': 'application/vnd.github.raw, text/yaml, text/plain, */*',
+        'User-Agent': 'MCPAmbassador-Registry/1.0',
+      };
+      if (this.config.token) {
+        headers['Authorization'] = `token ${this.config.token}`;
+      }
+
       const response = await fetch(this.config.url, {
         signal: controller.signal,
-        headers: {
-          'User-Agent': 'mcpambassador-server/0.1.0',
-        },
+        headers,
       });
 
       clearTimeout(timeoutId);

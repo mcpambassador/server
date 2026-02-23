@@ -226,10 +226,11 @@ function loadRegistryConfig(configPath: string | null): {
   url: string;
   refreshIntervalHours: number;
   enabled: boolean;
+  token?: string;
 } {
   // Default values
   const defaults = {
-    url: 'https://raw.githubusercontent.com/zervin/mcpambassador_community_mcps/main/registry.yaml',
+    url: 'https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml',
     refreshIntervalHours: 24,
     enabled: true,
   };
@@ -238,6 +239,7 @@ function loadRegistryConfig(configPath: string | null): {
   const envUrl = process.env.REGISTRY_URL;
   const envRefreshHours = process.env.REGISTRY_REFRESH_HOURS;
   const envEnabled = process.env.REGISTRY_ENABLED;
+  const envToken = process.env.REGISTRY_TOKEN;
 
   // Load from YAML if config file exists
   let yamlConfig: Record<string, unknown> | null = null;
@@ -261,6 +263,7 @@ function loadRegistryConfig(configPath: string | null): {
     url: envUrl || (yamlConfig?.url as string) || defaults.url,
     refreshIntervalHours: envRefreshHours ? parseInt(envRefreshHours, 10) : (yamlConfig?.refresh_interval_hours as number) || defaults.refreshIntervalHours,
     enabled: envEnabled !== undefined ? envEnabled !== 'false' : (yamlConfig?.enabled as boolean) ?? defaults.enabled,
+    token: envToken || (yamlConfig?.token as string) || undefined,
   };
 }
 

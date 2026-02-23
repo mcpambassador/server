@@ -23,6 +23,7 @@ import { UserInstances } from '@/pages/admin/UserInstances';
 import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
 import { Settings } from '@/pages/admin/Settings';
+import { Registry } from '@/pages/admin/Registry';
 
 // Redirect component for OAuth callback
 function ConnectionsRedirect() {
@@ -168,6 +169,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <KillSwitches />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/registry',
+        element: (
+          <AdminRoute>
+            <Registry />
           </AdminRoute>
         ),
       },

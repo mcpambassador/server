@@ -69,6 +69,16 @@ services:
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
       
+      # Community Registry (private repo auth)
+      REGISTRY_URL: ${REGISTRY_URL:-https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml}
+      REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
+      REGISTRY_ENABLED: ${REGISTRY_ENABLED:-true}
+      
+      # Public URL for OAuth callbacks behind reverse proxy
+      # Set this when deploying behind nginx/caddy/etc.
+      # Example: https://mcp.yourdomain.com
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      
       # Optional: Override TLS certificate paths
       # MCP_AMBASSADOR_CA_PATH: /data/certs/ca.pem
       # MCP_AMBASSADOR_CERT_PATH: /data/certs/server.pem
