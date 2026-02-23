@@ -29,16 +29,24 @@ test.describe('Validate MCP fixes', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await r.json();
+      const resp = await r.json();
+      // Response shape: { ok: true, data: { mcp_id, name, ... } }
+      const entry = resp.data;
       // Publish the MCP so structural fields are locked (mcpId is a UUID)
-      if (r.ok && data.id) {
-        await fetch(`/v1/admin/mcps/${data.id}/publish`, {
+      if (r.ok && entry?.mcp_id) {
+        const pub = await fetch(`/v1/admin/mcps/${entry.mcp_id}/publish`, {
           method: 'POST',
           credentials: 'include',
         });
+        const pubResp = await pub.json();
+        return { status: r.status, ok: r.ok, name: entry.name, published: pub.ok, pubStatus: pub.status };
       }
-      return { status: r.status, ok: r.ok, name: data.name };
+      return { status: r.status, ok: r.ok, name: entry?.name, published: false };
     }, unique);
+    
+    // Verify the MCP was published successfully
+    expect(createResult.ok, `MCP creation failed: status ${createResult.status}`).toBeTruthy();
+    expect(createResult.published, `MCP publish failed: pubStatus ${(createResult as any).pubStatus}`).toBeTruthy();
     
     // Reload to see the new MCP
     await page.reload();
