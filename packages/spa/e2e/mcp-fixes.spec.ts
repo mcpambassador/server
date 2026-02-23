@@ -32,13 +32,18 @@ test.describe('Validate MCP fixes', () => {
       const resp = await r.json();
       // Response shape: { ok: true, data: { mcp_id, name, ... } }
       const entry = resp.data;
-      // Publish the MCP so structural fields are locked (mcpId is a UUID)
+      // Validate then Publish the MCP so structural fields are locked
       if (r.ok && entry?.mcp_id) {
+        // Step 1: Validate (sets validation_status to 'valid')
+        await fetch(`/v1/admin/mcps/${entry.mcp_id}/validate`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        // Step 2: Publish (requires validation_status === 'valid')
         const pub = await fetch(`/v1/admin/mcps/${entry.mcp_id}/publish`, {
           method: 'POST',
           credentials: 'include',
         });
-        const pubResp = await pub.json();
         return { status: r.status, ok: r.ok, name: entry.name, published: pub.ok, pubStatus: pub.status };
       }
       return { status: r.status, ok: r.ok, name: entry?.name, published: false };
