@@ -89,9 +89,10 @@ test.describe('Validate MCP fixes', () => {
 
   test('Fix 2: Admin can delete archived MCPs', async ({ page }) => {
     await page.goto('/app/admin/mcps');
-    // Create a test MCP via the admin API using the logged-in session
+    
+    // Create a test MCP and move it through the full lifecycle via API
     const unique = `playwright-delete-${Date.now()}`;
-    const createResp = await page.evaluate(async (uniqueName) => {
+    const lifecycleResult = await page.evaluate(async (uniqueName) => {
       const body = {
         name: uniqueName,
         display_name: 'Playwright Delete Test',
@@ -99,38 +100,73 @@ test.describe('Validate MCP fixes', () => {
         endpoint: 'test-command',
         config: { command: ['echo','ok'], env: {} }
       };
-      const r = await fetch('/v1/admin/mcps', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      return { status: r.status, json: await r.text() };
+      
+      // Step 1: Create MCP
+      const createResp = await fetch('/v1/admin/mcps', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const createData = await createResp.json();
+      if (!createResp.ok || !createData.data?.mcp_id) {
+        return { success: false, step: 'create', status: createResp.status };
+      }
+      const mcpId = createData.data.mcp_id;
+      
+      // Step 2: Validate MCP
+      const validateResp = await fetch(`/v1/admin/mcps/${mcpId}/validate`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!validateResp.ok) {
+        return { success: false, step: 'validate', status: validateResp.status };
+      }
+      
+      // Step 3: Publish MCP
+      const publishResp = await fetch(`/v1/admin/mcps/${mcpId}/publish`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!publishResp.ok) {
+        return { success: false, step: 'publish', status: publishResp.status };
+      }
+      
+      // Step 4: Archive MCP
+      const archiveResp = await fetch(`/v1/admin/mcps/${mcpId}/archive`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!archiveResp.ok) {
+        return { success: false, step: 'archive', status: archiveResp.status };
+      }
+      
+      return { success: true, mcpId, name: uniqueName };
     }, unique);
-    // navigate back to list and locate the created MCP
+    
+    // Verify lifecycle completed successfully
+    expect(lifecycleResult.success, `MCP lifecycle failed at ${(lifecycleResult as any).step}: status ${(lifecycleResult as any).status}`).toBeTruthy();
+    
+    // Reload and navigate to the archived MCP detail page
     await page.reload();
-    const created = page.getByText('Playwright Delete Test').first();
-    await expect(created).toBeVisible({ timeout: 10000 });
-    await created.click();
-
-    // Publish then Archive via UI buttons if present
-    const publishBtn = page.getByRole('button', { name: 'Publish' }).first();
-    if (await publishBtn.isVisible().catch(() => false)) {
-      await publishBtn.click().catch(() => {});
-    }
-    const archiveBtn = page.getByRole('button', { name: 'Archive' }).first();
-    if (await archiveBtn.isVisible().catch(() => false)) {
-      await archiveBtn.click().catch(() => {});
-      // confirm archive dialog
-      const confirm = page.getByRole('button', { name: 'Confirm' }).first();
-      if (await confirm.isVisible().catch(() => false)) await confirm.click();
-    }
-
-    // Verify Delete button appears
+    await page.waitForLoadState('networkidle');
+    const mcpLink = page.getByText('Playwright Delete Test').first();
+    await expect(mcpLink).toBeVisible({ timeout: 10000 });
+    await mcpLink.click();
+    
+    // Verify Delete button appears for archived MCP
     const deleteBtn = page.getByRole('button', { name: 'Delete' }).first();
     await expect(deleteBtn).toBeVisible({ timeout: 10000 });
     await deleteBtn.click();
-    // confirm deletion
-    const confirmDel = page.getByRole('button', { name: /Delete|Confirm/ }).last();
-    if (await confirmDel.isVisible().catch(() => false)) await confirmDel.click();
-
-    // verify removed from list
+    
+    // Confirm deletion in dialog
+    const confirmDeleteBtn = page.getByRole('button', { name: 'Delete', exact: true }).last();
+    await expect(confirmDeleteBtn).toBeVisible({ timeout: 5000 });
+    await confirmDeleteBtn.click();
+    
+    // Verify MCP removed from list
     await page.goto('/app/admin/mcps');
+    await page.waitForLoadState('networkidle');
     await expect(page.getByText('Playwright Delete Test')).toHaveCount(0);
     await page.screenshot({ path: 'fix2-delete-archived.png', fullPage: true });
   });
