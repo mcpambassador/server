@@ -61,7 +61,7 @@ export function Registry() {
 
     try {
       const result = await refreshMutation.mutateAsync();
-      setSuccessMessage(`Registry refreshed: ${result.mcp_count} MCPs loaded`);
+      setSuccessMessage(`Registry refreshed: ${result.entry_count} MCPs loaded`);
     } catch (error) {
       setErrorMessage('Failed to refresh registry');
     }

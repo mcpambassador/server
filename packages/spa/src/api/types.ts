@@ -505,6 +505,6 @@ export interface RegistryInstallResponse {
 
 export interface RegistryRefreshResponse {
   message: string;
-  mcp_count: number;
+  entry_count: number;
   last_fetched_at: string;
 }
