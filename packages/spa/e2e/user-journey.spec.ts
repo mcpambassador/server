@@ -37,10 +37,10 @@ test.describe('User Journey E2E', () => {
     await expect(page.getByRole('heading', { name: 'Marketplace' })).toBeVisible();
 
     // 7. Browse available MCPs (handle empty state in CI)
-    const emptyState = page.locator('text=No MCPs');
-    const hasMcps = await emptyState.count().then(c => c === 0);
+    const noMcpsHeading = page.getByText('No MCPs Found');
+    const isEmpty = await noMcpsHeading.count().then(c => c > 0);
     
-    if (hasMcps) {
+    if (!isEmpty) {
       // 8. Click on an MCP for details
       const viewDetails = page.getByRole('link', { name: 'View Details' }).first();
       await expect(viewDetails).toBeVisible();
@@ -49,7 +49,7 @@ test.describe('User Journey E2E', () => {
       await expect(page.locator('h1')).toBeVisible();
     } else {
       // In CI, marketplace may be empty - that's okay
-      await expect(page.locator('text=No MCPs')).toBeVisible();
+      await expect(noMcpsHeading).toBeVisible();
     }
 
     // 9. Go back to client detail

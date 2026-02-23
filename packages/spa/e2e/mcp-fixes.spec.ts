@@ -29,7 +29,15 @@ test.describe('Validate MCP fixes', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      return { status: r.status, ok: r.ok };
+      const data = await r.json();
+      // Publish the MCP so structural fields are locked
+      if (r.ok && data.name) {
+        await fetch(`/v1/admin/mcps/${data.name}/publish`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      }
+      return { status: r.status, ok: r.ok, name: data.name };
     }, unique);
     
     // Reload to see the new MCP
