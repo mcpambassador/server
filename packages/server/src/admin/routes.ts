@@ -30,6 +30,8 @@ import { registerAdminGroupRoutes } from './group-routes.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
+import { registerAdminRegistryRoutes } from './registry-routes.js';
+import type { RegistryService } from '../services/registry-service.js';
 
 /**
  * Admin routes plugin configuration
@@ -42,6 +44,7 @@ export interface AdminRoutesConfig {
   killSwitchManager: KillSwitchManager;
   userPool: UserMcpPool | null;
   rotateHmacSecret: () => Promise<number>;
+  registryService: RegistryService | null;
 }
 
 /**
@@ -52,7 +55,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   opts: AdminRoutesConfig,
   done
 ) => {
-  const { db, audit, mcpManager, dataDir, killSwitchManager, userPool, rotateHmacSecret } = opts;
+  const { db, audit, mcpManager, dataDir, killSwitchManager, userPool, rotateHmacSecret, registryService } = opts;
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -167,6 +170,11 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
   // MCP catalog management (7 endpoints)
   fastify.register(registerAdminMcpRoutes, { db, audit });
+
+  // Community registry (4 endpoints)
+  if (registryService) {
+    fastify.register(registerAdminRegistryRoutes, { db, audit, registryService });
+  }
 
   // MCP catalog hot reload (2 endpoints) - ADR-013
   fastify.register(registerAdminCatalogReloadRoutes, {

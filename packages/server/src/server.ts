@@ -50,6 +50,7 @@ import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
+import type { RegistryService } from './services/registry-service.js';
 
 /**
  * MCP Ambassador Server (M6)
@@ -96,6 +97,14 @@ export interface ServerConfig {
   maxMcpInstancesPerUser?: number;
   /** Max total MCP instances system-wide (defaults to 100) - SEC-M17-005 */
   maxTotalMcpInstances?: number;
+  /** Public base URL for OAuth callbacks (overrides serverName:adminPort when behind reverse proxy) */
+  publicUrl?: string;
+  /** Community registry configuration */
+  registryConfig?: {
+    url: string;
+    refreshIntervalHours: number;
+    enabled: boolean;
+  };
 }
 
 export class AmbassadorServer {
@@ -104,7 +113,18 @@ export class AmbassadorServer {
   private mcpManager: SharedMcpManager;
   private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
-  private config: Required<ServerConfig> & { adminPort: number; adminUiEnabled: boolean; maxMcpInstancesPerUser: number; maxTotalMcpInstances: number };
+  private config: Omit<Required<ServerConfig>, 'publicUrl' | 'registryConfig'> & {
+    adminPort: number;
+    adminUiEnabled: boolean;
+    maxMcpInstancesPerUser: number;
+    maxTotalMcpInstances: number;
+    publicUrl?: string;
+    registryConfig: {
+      url: string;
+      refreshIntervalHours: number;
+      enabled: boolean;
+    };
+  };
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
@@ -118,6 +138,7 @@ export class AmbassadorServer {
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
   private credentialVault: CredentialVault | null = null; // CR-H2: M26: Credential vault with proper type
   private oauthTokenManager: OAuthTokenManager | null = null; // ADR-014: OAuth token lifecycle manager
+  private registryService: RegistryService | null = null; // Community registry service
 
   constructor(config: ServerConfig) {
     this.config = {
@@ -133,6 +154,12 @@ export class AmbassadorServer {
       adminUiEnabled: config.adminUiEnabled ?? true,
       maxMcpInstancesPerUser: config.maxMcpInstancesPerUser ?? 10,
       maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
+      publicUrl: config.publicUrl,
+      registryConfig: config.registryConfig || {
+        url: 'https://raw.githubusercontent.com/zervin/mcpambassador_community_mcps/main/registry.yaml',
+        refreshIntervalHours: 24,
+        enabled: true,
+      },
     };
 
     this.mcpManager = new SharedMcpManager();
@@ -246,13 +273,51 @@ export class AmbassadorServer {
     
     // ADR-014: Initialize OAuth token manager
     const { OAuthTokenManager } = await import('./services/oauth-token-manager.js');
-    const callbackBaseUrl = `https://${this.config.serverName}:${this.config.adminPort}`;
+    
+    // Construct OAuth callback base URL
+    let callbackBaseUrl: string;
+    if (this.config.publicUrl) {
+      // Use PUBLIC_URL if provided (for reverse proxy deployments)
+      callbackBaseUrl = this.config.publicUrl.replace(/\/+$/, ''); // Strip trailing slashes
+      
+      // Validate URL format
+      if (!callbackBaseUrl.startsWith('https://') && !callbackBaseUrl.startsWith('http://')) {
+        throw new Error('PUBLIC_URL must start with https:// or http://');
+      }
+      if (callbackBaseUrl.startsWith('http://')) {
+        console.warn('[Server] WARNING: PUBLIC_URL uses http:// instead of https:// - OAuth tokens will be transmitted insecurely');
+      }
+    } else {
+      // Fall back to serverName:adminPort for local/development deployments
+      callbackBaseUrl = `https://${this.config.serverName}:${this.config.adminPort}`;
+    }
+    
+    console.log(`[Server] OAuth callback URL: ${callbackBaseUrl}/v1/oauth/callback`);
+    
     this.oauthTokenManager = new OAuthTokenManager({
       db: this.db,
       vault: this.credentialVault,
       callbackBaseUrl,
     });
     console.log('[Server] OAuth token manager initialized');
+    
+    // Initialize community registry service
+    console.log('[Server] Initializing community registry...');
+    const { RegistryService } = await import('./services/registry-service.js');
+    this.registryService = new RegistryService(this.config.registryConfig, this.db);
+    
+    // Fetch registry on startup (non-blocking, errors are logged)
+    if (this.config.registryConfig.enabled) {
+      try {
+        await this.registryService.fetchRegistry();
+        console.log('[Server] Community registry loaded');
+      } catch (error) {
+        console.warn('[Server] Failed to load community registry on startup:', error instanceof Error ? error.message : String(error));
+        console.warn('[Server] Registry will be available after manual refresh');
+      }
+    } else {
+      console.log('[Server] Community registry disabled');
+    }
     
     // Register server instance for global access by services
     registerServerInstance(this);
@@ -483,6 +548,7 @@ export class AmbassadorServer {
       killSwitchManager: this.killSwitchManager, // CR-M10-001
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
+      registryService: this.registryService, // Community registry service
     });
 
     // Register user-facing API routes on admin server (M29.7)
@@ -1443,6 +1509,7 @@ export class AmbassadorServer {
         killSwitchManager: this.killSwitchManager, // CR-M10-001
         userPool: this.userPool, // M18: Per-user MCP pool
         rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
+        registryService: this.registryService, // Community registry service
       }
     );
 
@@ -1870,4 +1937,12 @@ export function getCredentialVault(): CredentialVault | null {
  */
 export function getOAuthTokenManager(): OAuthTokenManager | null {
   return serverInstance?.['oauthTokenManager'] ?? null;
+}
+
+/**
+ * Get the registry service for services that need it
+ * @internal
+ */
+export function getRegistryService(): RegistryService | null {
+  return serverInstance?.['registryService'] ?? null;
 }

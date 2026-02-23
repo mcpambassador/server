@@ -218,6 +218,52 @@ function loadUserPoolConfig(configPath: string): { maxInstancesPerUser?: number;
   };
 }
 
+/**
+ * Load registry config from YAML file and env vars
+ * Supports community MCP registry configuration
+ */
+function loadRegistryConfig(configPath: string | null): {
+  url: string;
+  refreshIntervalHours: number;
+  enabled: boolean;
+} {
+  // Default values
+  const defaults = {
+    url: 'https://raw.githubusercontent.com/zervin/mcpambassador_community_mcps/main/registry.yaml',
+    refreshIntervalHours: 24,
+    enabled: true,
+  };
+
+  // Check env vars first (they override YAML)
+  const envUrl = process.env.REGISTRY_URL;
+  const envRefreshHours = process.env.REGISTRY_REFRESH_HOURS;
+  const envEnabled = process.env.REGISTRY_ENABLED;
+
+  // Load from YAML if config file exists
+  let yamlConfig: Record<string, unknown> | null = null;
+  if (configPath) {
+    try {
+      const fileContent = fs.readFileSync(configPath, 'utf-8');
+      const rawConfig = yaml.parse(fileContent);
+      
+      if (rawConfig && typeof rawConfig === 'object') {
+        const serverConfig = (rawConfig as Record<string, unknown>).server;
+        if (serverConfig && typeof serverConfig === 'object') {
+          yamlConfig = (serverConfig as Record<string, unknown>).registry as Record<string, unknown> | null;
+        }
+      }
+    } catch (err) {
+      // Ignore parse errors, use defaults
+    }
+  }
+
+  return {
+    url: envUrl || (yamlConfig?.url as string) || defaults.url,
+    refreshIntervalHours: envRefreshHours ? parseInt(envRefreshHours, 10) : (yamlConfig?.refresh_interval_hours as number) || defaults.refreshIntervalHours,
+    enabled: envEnabled !== undefined ? envEnabled !== 'false' : (yamlConfig?.enabled as boolean) ?? defaults.enabled,
+  };
+}
+
 async function main() {
   const args = parseArgs();
 
@@ -252,6 +298,10 @@ async function main() {
     console.log(`  - ${path.join(process.cwd(), 'config', 'ambassador-server.example.yaml')}`);
   }
 
+  // Load registry config (supports both YAML and env vars)
+  const registryConfig = loadRegistryConfig(configFile);
+  console.log(`[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`);
+
   const server = new AmbassadorServer({
     port: args.port || (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
     host: args.host || process.env.MCP_AMBASSADOR_HOST,
@@ -261,6 +311,8 @@ async function main() {
     downstreamMcps,
     maxMcpInstancesPerUser: userPoolConfig.maxInstancesPerUser, // SEC-M17-005
     maxTotalMcpInstances: userPoolConfig.maxTotalInstances, // SEC-M17-005
+    publicUrl: process.env.PUBLIC_URL, // OAuth callback base URL for reverse proxy deployments
+    registryConfig, // Community registry configuration
   });
 
   // Handle shutdown signals
