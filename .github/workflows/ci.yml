@@ -196,7 +196,7 @@ jobs:
       - name: Create required directories for Docker
         run: |
           mkdir -p data config cache
-          chmod 755 data config cache
+          sudo chown 1000:1000 data cache
           
       - name: Create minimal config file
         run: |
