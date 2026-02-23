@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 
 const adminLinks = [
-  { name: 'Dashboard', href: '/app/admin/dashboard', heading: 'Admin Dashboard' },
+  { name: 'Admin Dashboard', href: '/app/admin/dashboard', heading: 'Admin Dashboard' },
   { name: 'Users', href: '/app/admin/users', heading: 'User Management' },
   { name: 'Groups', href: '/app/admin/groups', heading: 'Group Management' },
   { name: 'MCPs', href: '/app/admin/mcps', heading: 'MCP Management' },
@@ -24,9 +24,10 @@ test.describe('Admin Sidebar Navigation', () => {
   });
 
   test('admin links navigate and load without errors', async ({ page }) => {
-    const sidebar = page.locator('aside');
+    const sidebar = page.locator('nav');
     for (const link of adminLinks) {
-      await sidebar.locator(`a[href="${link.href}"]`).click();
+      // Find link by exact text in sidebar
+      await sidebar.getByRole('link', { name: link.name, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(link.href));
       await expect(page.getByRole('heading', { name: link.heading, exact: true })).toBeVisible();
       // Basic error checks
@@ -35,9 +36,9 @@ test.describe('Admin Sidebar Navigation', () => {
   });
 
   test('user links navigate and load without errors', async ({ page }) => {
-    const sidebar = page.locator('aside');
+    const sidebar = page.locator('nav');
     for (const link of userLinks) {
-      await sidebar.locator(`a[href="${link.href}"]`).click();
+      await sidebar.getByRole('link', { name: link.name, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(link.href));
       await expect(page.getByRole('heading', { name: link.heading, exact: true })).toBeVisible();
       await expect(page.locator('text=Not Found')).toHaveCount(0);
