@@ -36,7 +36,9 @@ function extractApiCallsFromFile(content: string) {
 }
 
 async function gatherSpaRoutes(): Promise<Array<{ method: string; path: string }>> {
-  const spaRoot = path.join(process.cwd(), 'packages', 'spa', 'src');
+  // Tests run from packages/server, so go up two levels to reach monorepo root
+  const monorepoRoot = path.join(process.cwd(), '..', '..');
+  const spaRoot = path.join(monorepoRoot, 'packages', 'spa', 'src');
 
   function collectFiles(dir: string, out: string[]) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
