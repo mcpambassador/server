@@ -66,15 +66,22 @@ export class HttpMcpConnection extends EventEmitter {
   private resolveUrl(): string {
     let url = this.config.url!;
 
-    // Replace ${ENV_VAR} patterns with process.env values
+    // Replace ${ENV_VAR} patterns with config.env first (per-user credentials), 
+    // then fall back to process.env (system-wide)
     const envVarPattern = /\$\{([A-Z0-9_]+)\}/g;
     url = url.replace(envVarPattern, (match, varName) => {
+      // M26.4: Check config.env first (per-user credential injection)
+      // Use key presence check (not truthiness) so empty-string values don't fall through to process.env
+      if (this.config.env && Object.prototype.hasOwnProperty.call(this.config.env, varName)) {
+        return this.config.env[varName] ?? '';
+      }
+      // Fall back to process.env (system-wide env vars)
       const value = process.env[varName];
       if (!value) {
         console.warn(
-          `[MCP:${this.config.name}] Environment variable ${varName} not found, using placeholder`
+          `[MCP:${this.config.name}] Environment variable ${varName} not found in config.env or process.env, using placeholder`
         );
-        return match; // Keep placeholder if env var not found
+        return match;
       }
       return value;
     });

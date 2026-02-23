@@ -9,7 +9,7 @@
 
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { getMcpEntryByName, createMcpEntry } from '@mcpambassador/core';
+import { getMcpEntryByName, createMcpEntry, getGroupByName, grantGroupAccess } from '@mcpambassador/core';
 
 export interface RegistryConfig {
   url: string;
@@ -290,9 +290,31 @@ export class RegistryService {
 
       console.log(`[RegistryService] Installed MCP '${name}' from registry (mcp_id: ${entry.mcp_id})`);
 
-      // TODO: Grant access to 'all-users' group (requires group management implementation)
+      // Grant access to 'all-users' group so the MCP can appear in the marketplace once published
+      let groupAccessGranted = true;
+      try {
+        const allUsersGroup = await getGroupByName(this.db, 'all-users');
+        if (allUsersGroup) {
+          await grantGroupAccess(this.db, {
+            mcp_id: entry.mcp_id,
+            group_id: allUsersGroup.group_id,
+            assigned_by: 'system',
+          });
+          console.log(`[RegistryService] Granted 'all-users' group access to MCP (mcp_id: ${entry.mcp_id})`);
+        } else {
+          groupAccessGranted = false;
+          console.warn("[RegistryService] 'all-users' group not found; skipping grant of group access");
+        }
+      } catch (err) {
+        groupAccessGranted = false;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[RegistryService] Failed to grant 'all-users' group access: ${msg}`);
+      }
 
       let message = `MCP '${name}' installed from registry. Status: draft.`;
+      if (!groupAccessGranted) {
+        message += ' Warning: group access could not be granted — MCP may not appear in marketplace after publishing.';
+      }
       if (registryEntry.auth_type === 'oauth2') {
         message += ' Configure OAuth credentials to activate.';
       } else if (registryEntry.auth_type === 'static') {
