@@ -38,7 +38,7 @@ describe('API Hooks (success paths)', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(Array.isArray(result.current.data)).toBe(true);
     // ensure explicit handler for single client
-    server.use(http.get('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { client_id: 'c1', name: 'Client c1' } })));
+    server.use(http.get('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { id: 'c1', clientName: 'Client c1', keyPrefix: 'amb_', status: 'active', createdAt: new Date().toISOString() } })));
 
     const { result: single } = renderHook(() => clients.useClient('c1'), { wrapper: createWrapper() });
     await waitFor(() => expect(single.current.data).toBeDefined());
@@ -53,7 +53,7 @@ describe('API Hooks (success paths)', () => {
     expect(created.client.id).toBe('new');
 
     // ensure explicit handlers for update/delete to avoid regex mismatches
-    server.use(http.patch('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { client_id: 'c1', name: 'updated' } })));
+    server.use(http.patch('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { id: 'c1', clientName: 'updated', keyPrefix: 'amb_', status: 'active', createdAt: new Date().toISOString() } })));
     server.use(http.delete('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { message: 'deleted' } })));
 
     const { result: update } = renderHook(() => clients.useUpdateClient(), { wrapper });
@@ -89,7 +89,7 @@ describe('API Hooks (success paths)', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     // Ensure explicit handler for the detail endpoint
-    server.use(http.get('/v1/marketplace/m1', () => HttpResponse.json({ ok: true, data: { mcp_id: 'm1', name: 'MCP m1' } })));
+    server.use(http.get('/v1/marketplace/m1', () => HttpResponse.json({ ok: true, data: { id: 'm1', name: 'MCP m1', description: 'Test MCP', isolationMode: 'shared', requiresUserCredentials: false, tools: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } })));
 
     const { result: detail } = renderHook(() => marketplace.useMcpDetail('m1'), { wrapper: createWrapper() });
     await waitFor(() => expect(detail.current.data).toBeDefined());

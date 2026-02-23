@@ -71,7 +71,7 @@ let UserMcpPool: any;
 
 beforeEach(async () => {
   try {
-    const mod = await import('../../../src/downstream/user-mcp-pool');
+    const mod = await import('../../../src/downstream/user-mcp-pool.js');
     UserMcpPool = mod.UserMcpPool;
   } catch (err) {
     console.error('Failed to import UserMcpPool:', err);

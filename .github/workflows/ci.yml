@@ -82,7 +82,7 @@ jobs:
           path: packages/
           
       - name: Run server tests (excluding Docker-dependent m18-e2e)
-        run: npx vitest run packages/server/tests/ --exclude='**/m18-e2e*'
+        run: pnpm --filter @mcpambassador/server exec vitest run --exclude='**/m18-e2e*'
 
   # ============================================================================
   # TIER 2: SPA Integration Tests (Vitest+MSW) - ~30s

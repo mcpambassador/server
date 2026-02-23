@@ -86,7 +86,7 @@ export const handlers = [
 
   // Marketplace
   http.get(`${API_BASE}/v1/marketplace`, () => {
-    return HttpResponse.json({ ok: true, data: { items: [] }, pagination: { cursor: null } });
+    return HttpResponse.json({ ok: true, data: [], pagination: { has_more: false, next_cursor: null, total_count: 0 } });
   }),
   http.get(new RegExp(`${API_BASE}/v1/marketplace/.*`), (req: any) => {
     const id = req.url.pathname.split('/').pop();

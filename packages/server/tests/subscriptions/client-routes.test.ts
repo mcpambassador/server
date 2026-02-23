@@ -322,7 +322,7 @@ describe('Client Routes', () => {
 
       expect(response.statusCode).toBe(204);
 
-      // Verify client is revoked
+      // Verify client is hard deleted (should return 404)
       const getResponse = await server.fastify.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}`,
@@ -331,8 +331,7 @@ describe('Client Routes', () => {
         },
       });
 
-      const body = JSON.parse(getResponse.body);
-      expect(body.data.status).toBe('revoked');
+      expect(getResponse.statusCode).toBe(404);
     });
   });
 });

@@ -57,9 +57,9 @@ describe('Self-Service Routes', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.ok).toBe(true);
-      expect(body.data.user_id).toBe(userId);
+      expect(body.data.id).toBe(userId);
       expect(body.data.username).toBe('selfserviceuser');
-      expect(body.data.display_name).toBe('Self Service User');
+      expect(body.data.displayName).toBe('Self Service User');
       expect(body.data.email).toBe('selfservice@example.com');
     });
 

@@ -41,7 +41,8 @@ VIOLATIONS=0
 echo "📋 Checking for arbitrary color values (should use design tokens)..."
 
 for pattern in 'bg-\[#[0-9a-fA-F]+\]' 'text-\[#[0-9a-fA-F]+\]' 'border-\[#[0-9a-fA-F]+\]' 'fill-\[#[0-9a-fA-F]+\]' 'stroke-\[#[0-9a-fA-F]+\]'; do
-  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" -E "$pattern" src/ 2>/dev/null || true)
+  # Exclude catalyst directory (vendored UI components)
+  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" --exclude-dir="catalyst" -E "$pattern" src/ 2>/dev/null || true)
   
   if [[ -n "$matches" ]]; then
     echo -e "${RED}❌ Found arbitrary color values:${NC}"
@@ -58,7 +59,8 @@ done
 echo "📋 Checking for arbitrary pixel font sizes (use typography scale)..."
 
 pattern='text-\[[0-9]+px\]'
-matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" -E "$pattern" src/ 2>/dev/null || true)
+# Exclude catalyst directory (vendored UI components)
+matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" --exclude-dir="catalyst" -E "$pattern" src/ 2>/dev/null || true)
 
 if [[ -n "$matches" ]]; then
   echo -e "${RED}❌ Found arbitrary pixel font sizes:${NC}"
@@ -74,7 +76,8 @@ fi
 echo "📋 Checking for !important overrides..."
 
 for pattern in '\!bg-' '\!text-' '\!p-' '\!m-' '\!border-' '\!w-' '\!h-'; do
-  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" -E "$pattern" src/ 2>/dev/null || true)
+  # Exclude catalyst directory (vendored UI components)
+  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" --exclude-dir="catalyst" -E "$pattern" src/ 2>/dev/null || true)
   
   if [[ -n "$matches" ]]; then
     echo -e "${RED}❌ Found !important overrides:${NC}"
@@ -91,7 +94,8 @@ done
 echo "📋 Checking for arbitrary spacing values (use standard scale)..."
 
 for pattern in 'p-\[[0-9]+(px|rem)\]' 'm-\[[0-9]+(px|rem)\]' 'px-\[[0-9]+(px|rem)\]' 'py-\[[0-9]+(px|rem)\]' 'gap-\[[0-9]+(px|rem)\]'; do
-  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" -E "$pattern" src/ 2>/dev/null || true)
+  # Exclude catalyst directory (vendored UI components)
+  matches=$(grep -rn --include="*.tsx" --include="*.ts" --include="*.jsx" --include="*.js" --exclude-dir="catalyst" -E "$pattern" src/ 2>/dev/null || true)
   
   if [[ -n "$matches" ]]; then
     echo -e "${RED}❌ Found arbitrary spacing values:${NC}"

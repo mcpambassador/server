@@ -407,7 +407,7 @@ describe('Subscription Routes', () => {
 
       expect(response.statusCode).toBe(204);
 
-      // Verify subscription is removed
+      // Verify subscription is hard deleted (should return 404)
       const getResponse = await server.fastify.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
@@ -416,8 +416,7 @@ describe('Subscription Routes', () => {
         },
       });
 
-      const body = JSON.parse(getResponse.body);
-      expect(body.data.status).toBe('removed');
+      expect(getResponse.statusCode).toBe(404);
     });
   });
 });
