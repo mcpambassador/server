@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/core",
-  "version": "0.1.0",
+  "version": "0.8.0-beta.1",
   "description": "MCP Ambassador Core - SPI interfaces, pipeline, config loader, database schema",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/authn-ephemeral",
-  "version": "0.1.0",
+  "version": "0.8.0-beta.1",
   "description": "MCP Ambassador - Ephemeral Session Authentication Provider",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/audit-file",
-  "version": "0.1.0",
+  "version": "0.8.0-beta.1",
   "description": "MCP Ambassador - File-based Audit Provider (JSONL)",
   "type": "module",
   "main": "./dist/index.js",

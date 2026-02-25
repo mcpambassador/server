@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/protocol",
-  "version": "0.1.0",
+  "version": "0.8.0-beta.1",
   "description": "MCP Ambassador Protocol - Type-only package defining API contracts between client and server",
   "type": "module",
   "main": "./dist/index.js",
