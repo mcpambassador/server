@@ -263,7 +263,7 @@ export function UserInstances() {
                   <TableHeader>Spawned</TableHeader>
                   <TableHeader>Uptime</TableHeader>
                   <TableHeader>Last Error</TableHeader>
-                  <TableHeader className="text-right">Actions</TableHeader>
+                  <TableHeader>Actions</TableHeader>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -313,8 +313,8 @@ export function UserInstances() {
                             <span className="text-zinc-400 dark:text-zinc-600">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <TableCell>
+                          <div className="flex items-center gap-2">
                             <Button
                               color="zinc"
                               onClick={() => handleRestart(inst)}

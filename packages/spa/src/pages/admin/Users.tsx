@@ -213,14 +213,15 @@ export function UsersAdmin() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button plain href={`/app/admin/users/${user.user_id}`}>
+                      <Button plain title="View user" href={`/app/admin/users/${user.user_id}`}>
                         <EyeIcon />
                       </Button>
-                      <Button plain onClick={() => openEditDialog(user)}>
+                      <Button plain title="Edit user" onClick={() => openEditDialog(user)}>
                         <PencilIcon />
                       </Button>
                       <Button
                         plain
+                        title="Reset password"
                         onClick={() => {
                           setSelectedUser(user);
                           setResetDialogOpen(true);
@@ -230,6 +231,7 @@ export function UsersAdmin() {
                       </Button>
                       <Button
                         plain
+                        title="Delete user"
                         onClick={() => {
                           setSelectedUser(user);
                           setDeleteDialogOpen(true);

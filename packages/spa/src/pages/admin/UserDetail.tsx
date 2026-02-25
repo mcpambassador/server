@@ -266,7 +266,7 @@ export function UserDetail() {
             </CheckboxField>
           </div>
           <DialogActions>
-            <Button color="zinc" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button plain onClick={() => setEditDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={async () => {
                 try {
@@ -301,7 +301,7 @@ export function UserDetail() {
             </Field>
           </div>
           <DialogActions>
-            <Button color="zinc" onClick={() => { setResetDialogOpen(false); setNewPassword(''); }}>Cancel</Button>
+            <Button plain onClick={() => { setResetDialogOpen(false); setNewPassword(''); }}>Cancel</Button>
             <Button
               color="amber"
               onClick={async () => {

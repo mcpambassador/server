@@ -1,6 +1,7 @@
 import { BuildingStorefrontIcon, UserCircleIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
@@ -109,16 +110,12 @@ export function Dashboard() {
             </Table>
           </div>
         ) : (
-          <div className="rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-white dark:bg-white/5 px-6 py-10 text-center">
-            <UserCircleIcon className="mx-auto size-12 text-zinc-400" />
-            <h3 className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">No clients</h3>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Get started by creating your first API client.
-            </p>
-            <div className="mt-6">
-              <Button href="/app/clients">Create Client</Button>
-            </div>
-          </div>
+          <EmptyState
+            icon={<UserCircleIcon className="size-6 text-zinc-400" />}
+            title="No clients"
+            description="Get started by creating your first API client."
+            action={{ label: 'Create Client', href: '/app/clients' }}
+          />
         )}
       </div>
 

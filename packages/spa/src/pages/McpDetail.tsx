@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeftIcon,
   CubeIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
 } from '@heroicons/react/20/solid';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
@@ -75,7 +76,7 @@ export function McpDetail() {
       setSubscribeDialogOpen(false);
       navigate(`/app/clients/${selectedClientId}`);
     } catch (error) {
-      console.error('Failed to subscribe:', error);
+      toast.error('Failed to subscribe', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -88,7 +89,7 @@ export function McpDetail() {
       });
       setCredentialStep(false);
     } catch (error) {
-      console.error('Failed to set credentials:', error);
+      toast.error('Failed to save credentials', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -127,11 +128,12 @@ export function McpDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button plain href="/app/marketplace">
-          <ArrowLeftIcon />
-        </Button>
-        <div className="flex-1">
+      <div className="space-y-2">
+        <Breadcrumb items={[
+          { label: 'Marketplace', href: '/app/marketplace' },
+          { label: mcp.name },
+        ]} />
+        <div>
           <Heading>{mcp.name}</Heading>
           <Text className="mt-1">{mcp.description || 'No description available'}</Text>
         </div>

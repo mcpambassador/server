@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowTopRightOnSquareIcon, ServerStackIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
@@ -131,28 +132,20 @@ export function Subscriptions() {
         </div>
       ) : !clients || clients.length === 0 ? (
         /* Empty State - No Clients */
-        <div className="rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-white dark:bg-white/5 px-6 py-10 text-center">
-          <ServerStackIcon className="mx-auto size-12 text-zinc-400" />
-          <h3 className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">No Clients Yet</h3>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Create a client to start subscribing to MCPs.
-          </p>
-          <div className="mt-6">
-            <Button href="/app/clients">Create Client</Button>
-          </div>
-        </div>
+        <EmptyState
+          icon={<ServerStackIcon className="size-6 text-zinc-400" />}
+          title="No Clients Yet"
+          description="Create a client to start subscribing to MCPs."
+          action={{ label: 'Create Client', href: '/app/clients' }}
+        />
       ) : activeClients.length === 0 ? (
         /* Empty State - No Active Clients */
-        <div className="rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 bg-white dark:bg-white/5 px-6 py-10 text-center">
-          <ServerStackIcon className="mx-auto size-12 text-zinc-400" />
-          <h3 className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white">No Active Clients</h3>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            All your clients are currently inactive or revoked.
-          </p>
-          <div className="mt-6">
-            <Button href="/app/clients">Manage Clients</Button>
-          </div>
-        </div>
+        <EmptyState
+          icon={<ServerStackIcon className="size-6 text-zinc-400" />}
+          title="No Active Clients"
+          description="All your clients are currently inactive or revoked."
+          action={{ label: 'Manage Clients', href: '/app/clients' }}
+        />
       ) : (
         /* Client Subscriptions Sections */
         <div className="space-y-6">

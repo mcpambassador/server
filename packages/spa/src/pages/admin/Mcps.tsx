@@ -400,6 +400,7 @@ export function McpsAdmin() {
                       {mcp.status === 'draft' && mcp.validation_status === 'valid' && (
                         <Button
                           plain
+                          title="Publish"
                           onClick={() => {
                             setMcpToPublish(mcp);
                             setPublishDialogOpen(true);

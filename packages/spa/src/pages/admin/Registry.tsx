@@ -171,13 +171,21 @@ export function Registry() {
       </div>
 
       {/* Category Filter */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
         {categories.map((category) => (
           <Badge
             key={category}
             color={selectedCategory === category ? 'blue' : 'zinc'}
             className="cursor-pointer"
+            role="button"
+            tabIndex={0}
             onClick={() => setSelectedCategory(category)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelectedCategory(category);
+              }
+            }}
           >
             {category === 'all' ? 'All Categories' : category}
           </Badge>

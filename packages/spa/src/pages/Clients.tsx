@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import {
   PlusIcon,
@@ -78,7 +79,7 @@ export function Clients() {
       setKeyDialogOpen(true);
       setFormData({ client_name: '', expires_at: '' });
     } catch (error) {
-      console.error('Failed to create client:', error);
+      toast.error('Failed to create client', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -98,7 +99,7 @@ export function Clients() {
         data: { status: newStatus },
       });
     } catch (error) {
-      console.error('Failed to update client:', error);
+      toast.error('Failed to update client', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -109,7 +110,7 @@ export function Clients() {
         setDeleteDialogOpen(false);
         setClientToDelete(null);
       } catch (error) {
-        console.error('Failed to delete client:', error);
+        toast.error('Failed to delete client', { description: (error as Error)?.message ?? String(error) });
       }
     }
   };

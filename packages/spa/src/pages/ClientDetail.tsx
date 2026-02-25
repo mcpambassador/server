@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeftIcon,
   PlusIcon,
   TrashIcon,
   Cog6ToothIcon,
 } from '@heroicons/react/20/solid';
+import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
@@ -45,7 +46,7 @@ export function ClientDetail() {
         setUnsubscribeDialogOpen(false);
         setSubscriptionToDelete(null);
       } catch (error) {
-        console.error('Failed to unsubscribe:', error);
+        toast.error('Failed to unsubscribe', { description: (error as Error)?.message ?? String(error) });
       }
     }
   };
@@ -69,7 +70,7 @@ export function ClientDetail() {
         setEditDialogOpen(false);
         setSubscriptionToEdit(null);
       } catch (error) {
-        console.error('Failed to update subscription:', error);
+        toast.error('Failed to update tool selection', { description: (error as Error)?.message ?? String(error) });
       }
     }
   };
@@ -99,20 +100,23 @@ export function ClientDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button plain href="/app/clients">
-          <ArrowLeftIcon />
-        </Button>
-        <div className="flex-1">
-          <Heading>{client.clientName}</Heading>
-          <Text className="font-mono text-sm">{client.keyPrefix}</Text>
+      <div className="space-y-2">
+        <Breadcrumb items={[
+          { label: 'Clients', href: '/app/clients' },
+          { label: client.clientName },
+        ]} />
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <Heading>{client.clientName}</Heading>
+            <Text className="font-mono text-sm">{client.keyPrefix}</Text>
+          </div>
+          <Badge color={
+            client.status === 'active' ? 'green' :
+            client.status === 'suspended' ? 'zinc' : 'red'
+          }>
+            {client.status}
+          </Badge>
         </div>
-        <Badge color={
-          client.status === 'active' ? 'green' :
-          client.status === 'suspended' ? 'zinc' : 'red'
-        }>
-          {client.status}
-        </Badge>
       </div>
 
       {/* Client Details */}
@@ -206,26 +210,20 @@ export function ClientDetail() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditTools(sub)}
-                            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-                            aria-label="Edit tools"
-                            title="Edit tool selection"
-                          >
-                            <Cog6ToothIcon className="size-4" />
-                          </button>
-                          <button
+                          <Button plain title="Edit tool selection" onClick={() => handleEditTools(sub)}>
+                            <Cog6ToothIcon />
+                          </Button>
+                          <Button
+                            plain
+                            title="Unsubscribe from this MCP"
                             onClick={() => {
                               setSubscriptionToDelete(sub.id);
                               setUnsubscribeDialogOpen(true);
                             }}
                             disabled={unsubscribe.isPending}
-                            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
-                            aria-label="Unsubscribe"
-                            title="Unsubscribe from this MCP"
                           >
-                            <TrashIcon className="size-4" />
-                          </button>
+                            <TrashIcon />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

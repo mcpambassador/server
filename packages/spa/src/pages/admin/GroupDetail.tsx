@@ -223,6 +223,7 @@ export function GroupDetail() {
                           <TableCell>
                             <Button
                               plain
+                              title="Remove member"
                               onClick={() => {
                                 setMemberToRemove(member);
                                 setRemoveMemberDialogOpen(true);
@@ -300,6 +301,7 @@ export function GroupDetail() {
                           <TableCell>
                             <Button
                               plain
+                              title="Remove MCP"
                               onClick={() => {
                                 setMcpToRemove(mcp);
                                 setRemoveMcpDialogOpen(true);

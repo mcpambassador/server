@@ -370,7 +370,7 @@ export function Dashboard() {
                 </p>
               </div>
               <div className="flex gap-2 ml-4">
-                <Button outline disabled>
+                <Button outline disabled title="Preview is not yet available">
                   Preview
                 </Button>
                 <Button

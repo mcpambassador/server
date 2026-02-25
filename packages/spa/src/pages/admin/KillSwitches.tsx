@@ -215,7 +215,7 @@ export function KillSwitches() {
           >
             Cancel
           </Button>
-          <Button color="red" onClick={handleConfirm}>
+          <Button color={selectedTarget?.enabled ? 'red' : 'green'} onClick={handleConfirm}>
             {selectedTarget?.enabled ? 'Disable' : 'Enable'}
           </Button>
         </AlertActions>

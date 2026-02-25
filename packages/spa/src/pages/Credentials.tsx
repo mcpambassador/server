@@ -243,7 +243,7 @@ export function Credentials() {
       setSelectedMcp(null);
       setCredentialFields({});
     } catch (error) {
-      console.error('Failed to set credentials:', error);
+      toast.error('Failed to save credentials', { description: (error as Error)?.message ?? String(error) });
     }
   };
 
@@ -255,7 +255,7 @@ export function Credentials() {
       setDeleteDialogOpen(false);
       setSelectedMcp(null);
     } catch (error) {
-      console.error('Failed to delete credentials:', error);
+      toast.error('Failed to delete credentials', { description: (error as Error)?.message ?? String(error) });
     }
   };
 

@@ -169,14 +169,15 @@ export function GroupsAdmin() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button plain href={`/app/admin/groups/${group.group_id}`}>
+                      <Button plain title="View group" href={`/app/admin/groups/${group.group_id}`}>
                         <EyeIcon />
                       </Button>
-                      <Button plain onClick={() => openEditDialog(group)}>
+                      <Button plain title="Edit group" onClick={() => openEditDialog(group)}>
                         <PencilIcon />
                       </Button>
                       <Button
                         plain
+                        title="Delete group"
                         onClick={() => {
                           setSelectedGroup(group);
                           setDeleteDialogOpen(true);

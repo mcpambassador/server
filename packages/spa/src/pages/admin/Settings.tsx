@@ -156,6 +156,7 @@ export function Settings() {
                     <TableCell>
                       <Button
                         plain
+                        title="Kill session"
                         onClick={() => {
                           setSessionToKill(session);
                           setKillSessionDialogOpen(true);
