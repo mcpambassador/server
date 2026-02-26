@@ -158,7 +158,7 @@ export class AmbassadorServer {
       maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
       publicUrl: config.publicUrl,
       registryConfig: config.registryConfig || {
-        url: 'https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml',
+        url: 'https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml',
         refreshIntervalHours: 24,
         enabled: true,
         token: undefined,

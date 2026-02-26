@@ -70,7 +70,7 @@ services:
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
       
       # Community Registry (private repo auth)
-      REGISTRY_URL: ${REGISTRY_URL:-https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml}
+      REGISTRY_URL: ${REGISTRY_URL:-https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml}
       REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
       REGISTRY_ENABLED: ${REGISTRY_ENABLED:-true}
       

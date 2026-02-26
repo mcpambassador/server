@@ -228,7 +228,7 @@ function loadRegistryConfig(configPath: string | null): {
 } {
   // Default values
   const defaults = {
-    url: 'https://api.github.com/repos/zervin/mcpambassador_community_mcps/contents/registry.yaml',
+    url: 'https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml',
     refreshIntervalHours: 24,
     enabled: true,
   };

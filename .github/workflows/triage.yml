@@ -1,0 +1,88 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    name: Auto-triage new issue
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Label by keyword
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const text = title + ' ' + body;
+            const labels = [];
+
+            if (text.includes('security') || text.includes('vulnerability') || text.includes('cve') || text.includes('auth')) {
+              labels.push('security');
+            }
+            if (text.includes('docker') || text.includes('container') || text.includes('deploy')) {
+              labels.push('infrastructure');
+            }
+            if (text.includes('database') || text.includes('migration') || text.includes('drizzle') || text.includes('sqlite')) {
+              labels.push('database');
+            }
+            if (text.includes('crash') || text.includes('error') || text.includes('bug') || text.includes('not working') || text.includes('broken')) {
+              labels.push('bug');
+            }
+            if (text.includes('feature') || text.includes('enhancement') || text.includes('add support') || text.includes('would be nice')) {
+              labels.push('enhancement');
+            }
+            if (text.includes('performance') || text.includes('slow') || text.includes('memory') || text.includes('latency')) {
+              labels.push('performance');
+            }
+            if (text.includes('docs') || text.includes('documentation') || text.includes('readme')) {
+              labels.push('documentation');
+            }
+
+            labels.push('needs-triage');
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+            }
+
+      - name: Acknowledge issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const isSecurity = (issue.body || '').toLowerCase().includes('security') ||
+                               (issue.title || '').toLowerCase().includes('security') ||
+                               (issue.title || '').toLowerCase().includes('vulnerability');
+
+            let message;
+            if (isSecurity) {
+              message = `Thank you for the report! 🔒
+
+**If this is a security vulnerability,** please do NOT discuss details here. Instead, use our private security disclosure channel: please email security@mcpambassador.dev or use [GitHub's private vulnerability reporting](../../security/advisories/new).
+
+If this is a general security question (not a vulnerability), we'll triage it shortly.`;
+            } else {
+              message = `Thanks for opening this issue! 👋
+
+A maintainer will review it shortly. In the meantime:
+- If you have a bug, please ensure you've included the server version (\`pnpm -w exec node -e "const p=require('./package.json');console.log(p.version)"\`) and relevant logs.
+- If you have a feature request, feel free to add detail about your use case.
+
+This issue has been automatically labeled for triage.`;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: message
+            });

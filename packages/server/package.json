@@ -2,6 +2,15 @@
   "name": "@mcpambassador/server",
   "version": "0.8.0-beta.1",
   "description": "MCP Ambassador Server - HTTP/2 + TLS server with AAA pipeline, MCP routing, admin API",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcpambassador/server.git"
+  },
+  "homepage": "https://github.com/mcpambassador/server#readme",
+  "bugs": {
+    "url": "https://github.com/mcpambassador/server/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

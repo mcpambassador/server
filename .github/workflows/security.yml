@@ -1,0 +1,87 @@
+name: Security Audit
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'packages/**/package.json'
+  schedule:
+    # Run every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run audit (fail on high/critical)
+        run: pnpm audit --audit-level=high
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  token-pattern-check:
+    name: Token Pattern Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for hardcoded token prefixes with values
+        run: |
+          # Look for hardcoded tokens (test tokens in test files are acceptable if clearly marked)
+          # Flag any amb_pk_/amb_st_/amb_ak_ that appear to be real (long alphanumeric after prefix)
+          if grep -rn --include="*.ts" -E '(amb_pk_|amb_st_|amb_ak_)[a-f0-9]{32,}' --exclude-dir=tests --exclude-dir='*.test.ts' .; then
+            echo "WARNING: Found what appear to be hardcoded token values in non-test source files."
+            echo "If these are test fixtures, move them to tests/ and add a comment."
+            exit 1
+          fi
+          echo "No hardcoded token values detected."
+
+      - name: Check for forbidden patterns
+        run: |
+          FAIL=0
+
+          # Check for eval
+          if grep -rn --include="*.ts" -E '\beval\s*\(' packages/; then
+            echo "ERROR: eval() usage found"
+            FAIL=1
+          fi
+
+          # Check for exec with template literals (shell injection risk)
+          if grep -rn --include="*.ts" -E 'exec\s*\(`' packages/; then
+            echo "ERROR: exec() with template literal found — shell injection risk"
+            FAIL=1
+          fi
+
+          if [ "$FAIL" = "1" ]; then
+            exit 1
+          fi
+          echo "Forbidden pattern check passed."
