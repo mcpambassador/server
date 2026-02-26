@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@mcpambassador/protocol": "workspace:*",
-    "argon2": "^0.31.2",
+    "argon2": "^0.44.0",
     "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.29.3",
     "pino": "^8.17.2",
