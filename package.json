@@ -42,5 +42,10 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "hono": "^4.12.3"
+    }
   }
 }

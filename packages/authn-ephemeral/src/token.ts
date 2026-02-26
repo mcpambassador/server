@@ -30,16 +30,6 @@ import type {
 } from './types.js';
 
 /**
- * Argon2id parameters (OWASP minimum per security review)
- */
-const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 19456, // 19MB
-  timeCost: 2,
-  parallelism: 1,
-};
-
-/**
  * Nonce size for session tokens (32 bytes = 256 bits)
  */
 const TOKEN_NONCE_BYTES = 32;
@@ -107,7 +97,7 @@ export async function validateClientKey(
   // 4. Verify against each candidate (early exit on first match)
   for (const candidate of validCandidates) {
     try {
-      const isValid = await argon2.verify(candidate.key_hash, rawKey, ARGON2_OPTIONS);
+      const isValid = await argon2.verify(candidate.key_hash, rawKey);
       if (isValid) {
         // Reject clients without a profile
         if (!candidate.profile_id) {
