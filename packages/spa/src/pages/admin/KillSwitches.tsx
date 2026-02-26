@@ -7,6 +7,7 @@ import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
+import type { AdminClient } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EmptyState } from '@/components/shared/EmptyState';
 
@@ -85,17 +86,17 @@ export function KillSwitches() {
             </div>
           ) : clientsData && clientsData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
-              {clientsData.data.map((client: any) => (
+              {clientsData.data.map((client: AdminClient) => (
                 <div
-                  key={client.client_id || client.id}
+                  key={client.client_id}
                   className="flex items-center justify-between py-3"
                 >
                   <div>
                     <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
-                      {client.client_name || client.clientName}
+                      {client.client_name}
                     </p>
                     <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">
-                      {client.key_prefix || client.keyPrefix}
+                      {client.key_prefix}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -106,7 +107,7 @@ export function KillSwitches() {
                       color={client.status === 'active' ? 'red' : 'green'}
                       onClick={() =>
                         handleToggle(
-                          `client:${client.client_id || client.id}`,
+                          `client:${client.client_id}`,
                           client.status === 'active'
                         )
                       }

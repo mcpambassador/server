@@ -30,6 +30,7 @@ import {
   useRestartUserMcp,
 } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import type { ValidationResult, DiscoveryResult } from '@/api/types';
 
 export function McpDetail() {
   const { mcpId } = useParams<{ mcpId: string }>();
@@ -53,8 +54,8 @@ export function McpDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
-  const [validationResult, setValidationResult] = useState<any>(null);
-  const [discoveryResult, setDiscoveryResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
 
   const [editFormData, setEditFormData] = useState({
     display_name: '',
@@ -99,16 +100,27 @@ export function McpDetail() {
         : mcp.credential_schema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
-      return Object.entries(props).map(([key, value]: [string, any]) => ({
-        key,
-        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-        required: required.includes(key),
-        sensitive: /key|secret|token|password/i.test(key),
-      }));
+      return Object.entries(props).map(([key, value]: [string, unknown]) => {
+        const v = value as Record<string, unknown> | undefined;
+        const desc = typeof v?.description === 'string' ? v!.description : undefined;
+        return {
+          key,
+          label: desc || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          required: required.includes(key),
+          sensitive: /key|secret|token|password/i.test(key),
+        };
+      });
     } catch {
       return [];
     }
   }, [mcp?.credential_schema]);
+
+  // Narrow validation/discovery results for safer access in JSX
+  const vr = validationResult as Record<string, unknown> | null;
+  const dr = discoveryResult as Record<string, unknown> | null;
+  const vrWarnings = Array.isArray(vr?.['warnings']) ? (vr!['warnings'] as string[]) : [];
+  const vrTools = Array.isArray(vr?.['tools_discovered']) ? (vr!['tools_discovered'] as unknown[]) : [];
+  const drTools = Array.isArray(dr?.['tools_discovered']) ? (dr!['tools_discovered'] as unknown[]) : [];
 
   // Format uptime from milliseconds to human readable
   const formatUptime = (ms: number): string => {
@@ -206,7 +218,7 @@ export function McpDetail() {
 
       await updateMcp.mutateAsync({
         mcpId: mcp.mcp_id,
-        data: updateData as any,
+        data: updateData,
       });
       setEditDialogOpen(false);
     } catch (error) {
@@ -218,10 +230,10 @@ export function McpDetail() {
     if (!mcp) return;
 
     // Parse OAuth config if present
-    let oauthConfig: any = {};
+    let oauthConfig: Record<string, unknown> = {};
     if (mcp.oauth_config) {
       try {
-        oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : mcp.oauth_config;
+        oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : (mcp.oauth_config as Record<string, unknown>);
       } catch {
         // Ignore parse errors
       }
@@ -244,14 +256,14 @@ export function McpDetail() {
           ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2)
           : JSON.stringify(mcp.credential_schema, null, 2))
         : '',
-      oauth_auth_url: oauthConfig.auth_url || '',
-      oauth_token_url: oauthConfig.token_url || '',
-      oauth_scopes: oauthConfig.scopes || '',
-      oauth_client_id_env: oauthConfig.client_id_env || '',
-      oauth_client_secret_env: oauthConfig.client_secret_env || '',
-      oauth_access_token_env_var: oauthConfig.access_token_env_var || '',
-      oauth_revocation_url: oauthConfig.revocation_url || '',
-      oauth_extra_params: oauthConfig.extra_params ? JSON.stringify(oauthConfig.extra_params, null, 2) : '',
+      oauth_auth_url: String(oauthConfig['auth_url'] ?? ''),
+      oauth_token_url: String(oauthConfig['token_url'] ?? ''),
+      oauth_scopes: String(oauthConfig['scopes'] ?? ''),
+      oauth_client_id_env: String(oauthConfig['client_id_env'] ?? ''),
+      oauth_client_secret_env: String(oauthConfig['client_secret_env'] ?? ''),
+      oauth_access_token_env_var: String(oauthConfig['access_token_env_var'] ?? ''),
+      oauth_revocation_url: String(oauthConfig['revocation_url'] ?? ''),
+      oauth_extra_params: oauthConfig['extra_params'] ? JSON.stringify(oauthConfig['extra_params'], null, 2) : '',
     });
     setEditDialogOpen(true);
   };
@@ -500,11 +512,11 @@ export function McpDetail() {
               </ul>
             </div>
           )}
-          {validationResult.warnings?.length > 0 && (
+          {vrWarnings.length > 0 && (
             <div>
               <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
               <ul className="list-disc list-inside space-y-1">
-                {validationResult.warnings.map((warn: string, i: number) => (
+                {vrWarnings.map((warn: string, i: number) => (
                   <li key={i} className="text-sm text-amber-600 dark:text-amber-400">
                     {warn}
                   </li>
@@ -512,18 +524,23 @@ export function McpDetail() {
               </ul>
             </div>
           )}
-          {validationResult.tools_discovered?.length > 0 && (
+          {vrTools.length > 0 && (
             <div>
               <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
-                Discovered Tools ({validationResult.tools_discovered.length})
+                Discovered Tools ({vrTools.length})
               </h4>
               <div className="grid gap-2">
-                {validationResult.tools_discovered.map((tool: any, i: number) => (
-                  <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{tool.description}</p>
-                  </div>
-                ))}
+                {vrTools.map((tool: unknown, i: number) => {
+                  const t = tool as Record<string, unknown>;
+                  const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
+                  const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                  return (
+                    <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                      <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{desc}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -531,31 +548,36 @@ export function McpDetail() {
       )}
 
       {/* Discovery Results */}
-      {discoveryResult && (
+          {dr && (
         <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 space-y-4">
           <div className="flex items-center gap-2">
-            {discoveryResult.status === 'success' ? (
+            {(dr['status'] as string) === 'success' ? (
               <CheckCircleIcon className="size-5 text-green-600 dark:text-green-400" />
             ) : (
               <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
             )}
             <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
-              Tool Discovery — {discoveryResult.status === 'success' ? `${discoveryResult.tool_count} tools found` : discoveryResult.status === 'skipped' ? 'Skipped' : 'Failed'}
+              Tool Discovery — {(dr['status'] as string) === 'success' ? `${Number(dr['tool_count'] as number) || 0} tools found` : (dr['status'] as string) === 'skipped' ? 'Skipped' : 'Failed'}
             </h3>
           </div>
-          {discoveryResult.message && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{discoveryResult.message}</p>
+          {(typeof dr['message'] === 'string') && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{dr['message'] as string}</p>
           )}
-          {discoveryResult.tools_discovered?.length > 0 && (
+          {drTools.length > 0 && (
             <div className="grid gap-2">
-              {discoveryResult.tools_discovered.map((tool: any, i: number) => (
-                <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                  <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                  {tool.description && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
-                  )}
-                </div>
-              ))}
+              {drTools.map((tool: unknown, i: number) => {
+                const t = tool as Record<string, unknown>;
+                const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
+                const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                return (
+                  <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                    {desc && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -651,14 +673,19 @@ export function McpDetail() {
               </div>
               {parsedTools.length > 0 ? (
                 <div className="grid gap-2">
-                  {parsedTools.map((tool: any, i: number) => (
-                    <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                      <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                      {tool.description && (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
-                      )}
-                    </div>
-                  ))}
+                  {parsedTools.map((tool: unknown, i: number) => {
+                    const t = tool as Record<string, unknown>;
+                    const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
+                    const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                    return (
+                      <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                        <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                        {desc && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -679,9 +706,9 @@ export function McpDetail() {
                 </pre>
               </div>
               {mcp.auth_type === 'oauth2' && mcp.oauth_config && (() => {
-                let oauthConfig: any = {};
+                let oauthConfig: Record<string, unknown> = {};
                 try {
-                  oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : mcp.oauth_config;
+                  oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : (mcp.oauth_config as Record<string, unknown>);
                 } catch {
                   return null;
                 }
@@ -692,40 +719,40 @@ export function McpDetail() {
                     <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4">
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Authorization URL</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.auth_url}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['auth_url'] ?? '')}</dd>
                       </div>
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Token URL</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.token_url}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['token_url'] ?? '')}</dd>
                       </div>
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Scopes</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.scopes}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['scopes'] ?? '')}</dd>
                       </div>
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client ID Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.client_id_env}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['client_id_env'] ?? '')}</dd>
                       </div>
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client Secret Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.client_secret_env}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['client_secret_env'] ?? '')}</dd>
                       </div>
                       <div>
                         <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Access Token Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{oauthConfig.access_token_env_var}</dd>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['access_token_env_var'] ?? '')}</dd>
                       </div>
-                      {oauthConfig.revocation_url && (
+                      {Boolean(oauthConfig['revocation_url']) && (
                         <div>
                           <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Revocation URL</dt>
-                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{oauthConfig.revocation_url}</dd>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['revocation_url'] ?? '')}</dd>
                         </div>
                       )}
-                      {oauthConfig.extra_params && (
+                      {Boolean(oauthConfig['extra_params']) && (
                         <div>
                           <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Extra Parameters</dt>
                           <dd className="text-sm/6 text-zinc-900 dark:text-white">
                             <pre className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 overflow-x-auto text-xs font-mono">
-                              {JSON.stringify(oauthConfig.extra_params, null, 2)}
+                              {JSON.stringify(oauthConfig['extra_params'], null, 2)}
                             </pre>
                           </dd>
                         </div>
@@ -1010,7 +1037,7 @@ export function McpDetail() {
                     name="transport-type"
                     value={editFormData.transport_type}
                     onChange={(value: string) =>
-                      setEditFormData({ ...editFormData, transport_type: value as any })
+                      setEditFormData({ ...editFormData, transport_type: value as 'stdio' | 'http' | 'sse' })
                     }
                   >
                     <ListboxOption value="stdio"><ListboxLabel>stdio</ListboxLabel></ListboxOption>
@@ -1024,7 +1051,7 @@ export function McpDetail() {
                     name="isolation-mode"
                     value={editFormData.isolation_mode}
                     onChange={(value: string) =>
-                      setEditFormData({ ...editFormData, isolation_mode: value as any })
+                      setEditFormData({ ...editFormData, isolation_mode: value as 'shared' | 'per_user' })
                     }
                   >
                     <ListboxOption value="shared"><ListboxLabel>shared</ListboxLabel></ListboxOption>

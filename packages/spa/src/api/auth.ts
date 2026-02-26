@@ -16,7 +16,7 @@ export const authApi = {
   async getSession(): Promise<AuthResponse | null> {
     try {
       return await apiClient.get<AuthResponse>('/v1/auth/session');
-    } catch (error) {
+    } catch {
       // 401 means no active session
       return null;
     }

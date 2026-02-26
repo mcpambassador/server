@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- file intentionally exports a router config rather than a component */
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';

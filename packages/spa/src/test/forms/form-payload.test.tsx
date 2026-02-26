@@ -32,7 +32,7 @@ function renderPage(ui: React.ReactElement, { route = '/' } = {}) {
 
 describe('SPA form payloads', () => {
   it('login form submits correct payload', async () => {
-    let captured: any = null;
+    let captured: unknown = null;
     server.use(
       http.post('/v1/auth/login', async ({ request }) => {
         captured = await request.json();
@@ -55,11 +55,12 @@ describe('SPA form payloads', () => {
   });
 
   it('create client form submits correct payload', async () => {
-    let captured: any = null;
+    let captured: unknown = null;
     server.use(
       http.post('/v1/users/me/clients', async ({ request }) => {
         captured = await request.json();
-        return HttpResponse.json({ ok: true, data: { client: { id: 'new', clientName: captured.client_name }, plaintext_key: 'k' } });
+        const cap = captured as Record<string, unknown>;
+        return HttpResponse.json({ ok: true, data: { client: { id: 'new', clientName: String(cap['client_name']) }, plaintext_key: 'k' } });
       })
     );
 
@@ -81,7 +82,7 @@ describe('SPA form payloads', () => {
   });
 
   it('subscribe mutation sends correct payload', async () => {
-    let captured: any = null;
+    let captured: unknown = null;
     server.use(
       http.post('/v1/users/me/clients/c1/subscriptions', async ({ request }) => {
         captured = await request.json();
@@ -92,7 +93,7 @@ describe('SPA form payloads', () => {
     const wrapper = createWrapper();
     const { result } = renderHook(() => clientsHooks.useSubscribe(), { wrapper });
 
-    const payload = { clientId: 'c1', data: { mcp_id: 'm1', selected_tools: ['t1', 't2'] } } as any;
+    const payload = { clientId: 'c1', data: { mcp_id: 'm1', selected_tools: ['t1', 't2'] } };
     await result.current.mutateAsync(payload);
 
     expect(captured).toEqual({ mcp_id: 'm1', selected_tools: ['t1', 't2'] });

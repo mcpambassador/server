@@ -209,12 +209,16 @@ export function Credentials() {
         : mcp.credentialSchema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
-      const fields = Object.entries(props).map(([key, value]: [string, any]) => ({
-        key,
-        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-        required: required.includes(key),
-        sensitive: /key|secret|token|password/i.test(key),
-      }));
+      const fields = Object.entries(props).map(([key, value]: [string, unknown]) => {
+        const v = value as Record<string, unknown> | undefined;
+        const desc = typeof v?.description === 'string' ? v!.description : undefined;
+        return {
+          key,
+          label: desc || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          required: required.includes(key),
+          sensitive: /key|secret|token|password/i.test(key),
+        };
+      });
       setParsedFields(fields);
       
       // Initialize credential fields with empty strings

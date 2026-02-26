@@ -168,20 +168,25 @@ export function UserDetail() {
             </div>
           ) : userGroups.length > 0 ? (
             <div className="space-y-3">
-              {userGroups.map((group: any) => (
-                <div
-                  key={group.group_id}
-                  className="flex items-center justify-between rounded-lg border border-zinc-950/5 dark:border-white/10 p-4"
-                >
-                  <div>
-                    <Text className="font-medium text-zinc-900 dark:text-white">{group.name}</Text>
-                    <Text className="text-sm text-zinc-500 dark:text-zinc-400">{group.description}</Text>
+              {userGroups.map((group: Record<string, unknown>) => {
+                const id = (group['group_id'] as string) || '';
+                const name = (group['name'] as string) || '';
+                const desc = (group['description'] as string) || '';
+                return (
+                  <div
+                    key={id}
+                    className="flex items-center justify-between rounded-lg border border-zinc-950/5 dark:border-white/10 p-4"
+                  >
+                    <div>
+                      <Text className="font-medium text-zinc-900 dark:text-white">{name}</Text>
+                      <Text className="text-sm text-zinc-500 dark:text-zinc-400">{desc}</Text>
+                    </div>
+                    <Button color="zinc" href={`/app/admin/groups/${id}`}>
+                      View
+                    </Button>
                   </div>
-                  <Button color="zinc" href={`/app/admin/groups/${group.group_id}`}>
-                    View
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <Text className="text-zinc-500 dark:text-zinc-400">Not a member of any groups</Text>

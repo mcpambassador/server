@@ -50,8 +50,9 @@ export function Profile() {
         confirm_password: '',
       });
       setTimeout(() => setPasswordSuccess(false), 5000);
-    } catch (error: any) {
-      setPasswordError(error.message || 'Failed to change password');
+    } catch (err: unknown) {
+      const e = err as Error;
+      setPasswordError(e?.message || String(err) || 'Failed to change password');
     }
   };
 

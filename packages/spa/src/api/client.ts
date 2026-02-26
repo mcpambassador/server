@@ -42,7 +42,7 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    let errorData: any;
+    let errorData: unknown;
     try {
       errorData = await response.json();
     } catch {
@@ -54,23 +54,32 @@ async function request<T>(
       );
     }
 
-    // Check if it's an envelope error response: { ok: false, error: { code, message, details? } }
-    if (errorData.ok === false && errorData.error) {
-      throw new ApiError(
-        response.status,
-        errorData.error.code || 'UNKNOWN_ERROR',
-        errorData.error.message || 'An error occurred',
-        errorData.error.message
-      );
+    // Try to interpret structured envelope: { ok: false, error: { code, message } }
+    if (typeof errorData === 'object' && errorData !== null) {
+      const ed = errorData as Record<string, unknown>;
+      const ok = ed['ok'];
+      if (ok === false && ed['error']) {
+        const err = ed['error'] as Record<string, unknown>;
+        const code = typeof err['code'] === 'string' ? err['code'] : 'UNKNOWN_ERROR';
+        const message = typeof err['message'] === 'string' ? err['message'] : String(err['message'] ?? response.statusText);
+        throw new ApiError(response.status, String(code), message, message);
+      }
+
+      // Fallback legacy fields on object
+      const legacyError = ed['error'];
+      const legacyMessage = ed['message'];
+      if (typeof legacyError === 'string' || typeof legacyMessage === 'string') {
+        throw new ApiError(
+          response.status,
+          'UNKNOWN_ERROR',
+          typeof legacyError === 'string' ? legacyError : response.statusText,
+          typeof legacyMessage === 'string' ? legacyMessage : undefined
+        );
+      }
     }
 
-    // Fallback to legacy error format: { error: string, message?: string }
-    throw new ApiError(
-      response.status,
-      'UNKNOWN_ERROR',
-      errorData.error || response.statusText,
-      errorData.message
-    );
+    // If we couldn't interpret the body, throw a generic error
+    throw new ApiError(response.status, 'UNKNOWN_ERROR', response.statusText, 'An error occurred');
   }
 
   // Handle 204 No Content

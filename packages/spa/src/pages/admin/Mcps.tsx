@@ -174,7 +174,7 @@ export function McpsAdmin() {
           name="status"
           value={statusFilter || ''}
           onChange={(value: string) =>
-            setStatusFilter(value ? (value as any) : undefined)
+            setStatusFilter(value ? (value as 'draft' | 'published' | 'archived') : undefined)
           }
         >
           <ListboxOption value="">

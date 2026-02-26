@@ -44,7 +44,7 @@ export function UserInstances() {
   const [mcpFilter, setMcpFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const instances = userMcps?.instances ?? [];
+  const instances = useMemo(() => userMcps?.instances ?? [], [userMcps]);
   const summary = userMcps?.summary;
 
   // Derive unique MCP names for filter

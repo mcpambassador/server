@@ -14,6 +14,7 @@ import { Divider } from '@/components/catalyst/divider';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import type { ValidationResult, DiscoveryResult } from '@/api/types';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
@@ -29,8 +30,8 @@ export function McpWizard() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [createdMcpId, setCreatedMcpId] = useState<string | null>(null);
-  const [validationResult, setValidationResult] = useState<any>(null);
-  const [discoveryResult, setDiscoveryResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
@@ -86,24 +87,26 @@ export function McpWizard() {
         // Transport-specific validations
         const configErrors: Record<string, string> = {};
         if (formData.transport_type === 'stdio') {
-          const cmd = (configObj as any).command;
-          const args = (configObj as any).args;
-          if (!cmd || typeof cmd !== 'string' || cmd.trim() === '') {
+          const cfg = configObj as Record<string, unknown>;
+          const cmd = cfg['command'];
+          const args = cfg['args'];
+          if (!cmd || typeof cmd !== 'string' || (cmd as string).trim() === '') {
             configErrors.config = 'Stdio config must include a non-empty "command" string';
           }
-          if (!Array.isArray(args) || args.length === 0 || args.some((a: any) => typeof a !== 'string' || a.trim() === '')) {
+          if (!Array.isArray(args) || args.length === 0 || (args as unknown[]).some((a: unknown) => typeof a !== 'string' || (a as string).trim() === '')) {
             configErrors.config = (configErrors.config ? configErrors.config + '. ' : '') + 'Stdio config must include non-empty "args" array';
           }
         }
         if (formData.transport_type === 'http' || formData.transport_type === 'sse') {
-          const url = (configObj as any).url || (configObj as any).template_url || (configObj as any).endpoint;
+          const cfg = configObj as Record<string, unknown>;
+          const url = (cfg['url'] as string) || (cfg['template_url'] as string) || (cfg['endpoint'] as string) || '';
           if (!url || typeof url !== 'string') {
             configErrors.config = 'HTTP/SSE config must include a URL string (e.g. "url" or "template_url")';
           } else {
             try {
               // simple URL validation
-              // eslint-disable-next-line no-new
-              new URL(url);
+               
+              new URL(url as string);
             } catch {
               configErrors.config = 'Provided URL in config is not a valid URL';
             }
@@ -121,7 +124,7 @@ export function McpWizard() {
         let credentialSchemaObj: Record<string, unknown> | undefined;
         let oauthConfigObj: Record<string, unknown> | undefined;
         let requiresUserCredentials = false;
-        let authType = formData.auth_type;
+        const authType = formData.auth_type;
 
         if (authType === 'static') {
           requiresUserCredentials = true;
@@ -391,7 +394,7 @@ export function McpWizard() {
                   onChange={(value: string) =>
                     setFormData({
                       ...formData,
-                      transport_type: value as any,
+                      transport_type: value as 'stdio' | 'http' | 'sse',
                     })
                   }
                 >
@@ -414,7 +417,7 @@ export function McpWizard() {
                   onChange={(value: string) =>
                     setFormData({
                       ...formData,
-                      isolation_mode: value as any,
+                      isolation_mode: value as 'shared' | 'per_user',
                     })
                   }
                 >
@@ -662,11 +665,11 @@ export function McpWizard() {
               )}
 
               {/* Validation Errors */}
-              {validationResult?.errors?.length > 0 && (
+              {(validationResult?.errors?.length ?? 0) > 0 && (
                 <div>
                   <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {validationResult.errors.map((err: string, i: number) => (
+                    {validationResult!.errors.map((err: string, i: number) => (
                       <li key={i} className="text-sm text-red-600 dark:text-red-400">{err}</li>
                     ))}
                   </ul>
@@ -674,11 +677,11 @@ export function McpWizard() {
               )}
 
               {/* Validation Warnings */}
-              {validationResult?.warnings?.length > 0 && (
+              {(validationResult?.warnings?.length ?? 0) > 0 && (
                 <div>
                   <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
                   <ul className="list-disc list-inside space-y-1">
-                    {validationResult.warnings.map((warn: string, i: number) => (
+                    {validationResult!.warnings.map((warn: string, i: number) => (
                       <li key={i} className="text-sm text-amber-600 dark:text-amber-400">{warn}</li>
                     ))}
                   </ul>
@@ -696,44 +699,63 @@ export function McpWizard() {
                       : 'bg-red-50 dark:bg-red-950/50'
                   }`}
                 >
-                  {discoveryResult.status === 'success' ? (
-                    <MagnifyingGlassIcon className="size-6 text-blue-600 dark:text-blue-400" />
-                  ) : (
-                    <ExclamationTriangleIcon className="size-6 text-amber-600 dark:text-amber-400" />
-                  )}
-                  <div>
-                    <p className="font-semibold text-zinc-900 dark:text-white">
-                      {discoveryResult.status === 'success'
-                        ? `Discovered ${discoveryResult.tool_count} tools`
-                        : discoveryResult.status === 'skipped'
-                        ? 'Discovery Skipped'
-                        : 'Discovery Failed'}
-                    </p>
-                    {discoveryResult.message && (
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">{discoveryResult.message}</p>
-                    )}
-                  </div>
+                  {(() => {
+                    const dr = discoveryResult as unknown as Record<string, unknown> | null;
+                    const status = dr?.['status'] as string | undefined;
+                    const message = typeof dr?.['message'] === 'string' ? (dr!['message'] as string) : undefined;
+                    const count = typeof dr?.['tool_count'] === 'number' ? (dr!['tool_count'] as number) : undefined;
+                    return (
+                      <>
+                        {status === 'success' ? (
+                          <MagnifyingGlassIcon className="size-6 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <ExclamationTriangleIcon className="size-6 text-amber-600 dark:text-amber-400" />
+                        )}
+                        <div>
+                          <p className="font-semibold text-zinc-900 dark:text-white">
+                            {status === 'success'
+                              ? `Discovered ${count ?? 0} tools`
+                              : status === 'skipped'
+                              ? 'Discovery Skipped'
+                              : 'Discovery Failed'}
+                          </p>
+                          {message && (
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* Discovered Tools List */}
-              {discoveryResult?.tools_discovered?.length > 0 && (
+              {(() => {
+                const dr = discoveryResult as Record<string, unknown> | null;
+                const toolsArr = Array.isArray(dr?.['tools_discovered']) ? (dr!['tools_discovered'] as unknown[]) : [];
+                return toolsArr.length > 0 ? (
                 <div>
                   <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
-                    Discovered Tools ({discoveryResult.tools_discovered.length})
+                    Discovered Tools ({toolsArr.length})
                   </h4>
                   <div className="grid gap-2 max-h-64 overflow-y-auto">
-                    {discoveryResult.tools_discovered.map((tool: any, i: number) => (
-                      <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                        <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                        {tool.description && (
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
-                        )}
-                      </div>
-                    ))}
+                    {toolsArr.map((tool: unknown, i: number) => {
+                      const t = tool as Record<string, unknown>;
+                      const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
+                      const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                      return (
+                        <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
+                          <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                          {desc && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
+              ) : null;
+              })()}
 
               {/* Guidance text when nothing done yet */}
               {!validationResult && !discoveryResult && (

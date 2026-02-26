@@ -51,12 +51,16 @@ export function McpDetail() {
         : mcp.credentialSchema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
-      return Object.entries(props).map(([key, value]: [string, any]) => ({
-        key,
-        label: value?.description || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-        required: required.includes(key),
-        sensitive: /key|secret|token|password/i.test(key),
-      }));
+      return Object.entries(props).map(([key, value]: [string, unknown]) => {
+        const v = value as Record<string, unknown> | undefined;
+        const desc = typeof v?.description === 'string' ? v!.description : undefined;
+        return {
+          key,
+          label: desc || key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          required: required.includes(key),
+          sensitive: /key|secret|token|password/i.test(key),
+        };
+      });
     } catch {
       return [];
     }

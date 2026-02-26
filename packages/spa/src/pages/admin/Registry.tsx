@@ -62,7 +62,7 @@ export function Registry() {
     try {
       const result = await refreshMutation.mutateAsync();
       setSuccessMessage(`Registry refreshed: ${result.entry_count} MCPs loaded`);
-    } catch (error) {
+    } catch {
       setErrorMessage('Failed to refresh registry');
     }
   };
@@ -149,12 +149,12 @@ export function Registry() {
 
       {/* Success/Error Messages */}
       {successMessage && (
-        <InlineAlert color="green" onClose={() => setSuccessMessage(null)}>
+        <InlineAlert color="success">
           {successMessage}
         </InlineAlert>
       )}
       {errorMessage && (
-        <InlineAlert color="red" onClose={() => setErrorMessage(null)}>
+        <InlineAlert color="error">
           {errorMessage}
         </InlineAlert>
       )}

@@ -4,13 +4,12 @@ import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/catalyst/badge';
-import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { useClients, useClientSubscriptions, useUserSubscriptions } from '@/api/hooks/use-clients';
-import type { Client } from '@/api/types';
+import type { Client, Subscription } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptions }: { client: Client; subscriptions?: any[] }) {
+function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptions }: { client: Client; subscriptions?: Subscription[] }) {
   // If subscriptions are provided by the parent aggregate call, use them to avoid extra requests
   const { data: subsFromHook, isLoading: hookLoading } = useClientSubscriptions(client.id);
   const subscriptions = providedSubscriptions ?? subsFromHook;

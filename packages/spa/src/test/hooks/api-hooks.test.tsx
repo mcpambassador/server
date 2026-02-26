@@ -10,6 +10,17 @@ import * as profile from '../../api/hooks/use-profile';
 import * as clients from '../../api/hooks/use-clients';
 import * as marketplace from '../../api/hooks/use-marketplace';
 import * as admin from '../../api/hooks/use-admin';
+import type {
+  CreateClientRequest,
+  CreateClientResponse,
+  Client,
+  UpdateClientRequest,
+  Subscription,
+  CreateSubscriptionRequest,
+  UpdateSubscriptionRequest,
+  CreateUserRequest,
+  AdminUser,
+} from '../../api/types';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -49,16 +60,16 @@ describe('API Hooks (success paths)', () => {
     const wrapper = createWrapper();
 
     const { result: create } = renderHook(() => clients.useCreateClient(), { wrapper });
-    const created = await create.current.mutateAsync({ name: 'new' } as any);
-    expect(created.client.id).toBe('new');
+    const created = await create.current.mutateAsync({ client_name: 'new' } as CreateClientRequest);
+    expect((created as CreateClientResponse).client?.id).toBe('new');
 
     // ensure explicit handlers for update/delete to avoid regex mismatches
     server.use(http.patch('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { id: 'c1', clientName: 'updated', keyPrefix: 'amb_', status: 'active', createdAt: new Date().toISOString() } })));
     server.use(http.delete('/v1/users/me/clients/c1', () => HttpResponse.json({ ok: true, data: { message: 'deleted' } })));
 
     const { result: update } = renderHook(() => clients.useUpdateClient(), { wrapper });
-    const updated = await update.current.mutateAsync({ clientId: 'c1', data: { name: 'updated' } } as any);
-    expect(updated.id).toBe('c1');
+    const updated = await update.current.mutateAsync({ clientId: 'c1', data: { status: 'active' } as UpdateClientRequest });
+    expect((updated as Client).id).toBe('c1');
 
     const { result: del } = renderHook(() => clients.useDeleteClient(), { wrapper });
     const deleted = await del.current.mutateAsync('c1');
@@ -72,15 +83,15 @@ describe('API Hooks (success paths)', () => {
     await waitFor(() => expect(subs.current.data).toBeDefined());
 
     const { result: subscribe } = renderHook(() => clients.useSubscribe(), { wrapper });
-    const created = await subscribe.current.mutateAsync({ clientId: 'c1', data: { plan: 'p' } } as any);
-    expect(created.id).toBe('s-new');
+    const created = await subscribe.current.mutateAsync({ clientId: 'c1', data: { mcp_id: 'p' } as CreateSubscriptionRequest });
+    expect((created as Subscription).id).toBe('s-new');
 
     const { result: updateSub } = renderHook(() => clients.useUpdateSubscription(), { wrapper });
-    const upd = await updateSub.current.mutateAsync({ clientId: 'c1', subscriptionId: 's1', data: { plan: 'x' } } as any);
+    const upd = await updateSub.current.mutateAsync({ clientId: 'c1', subscriptionId: 's1', data: { selected_tools: ['x'] } as UpdateSubscriptionRequest });
     expect(upd).toBeDefined();
 
     const { result: unsub } = renderHook(() => clients.useUnsubscribe(), { wrapper });
-    const un = await unsub.current.mutateAsync({ clientId: 'c1', subscriptionId: 's1' } as any);
+    const un = await unsub.current.mutateAsync({ clientId: 'c1', subscriptionId: 's1' });
     expect(un).toBeDefined();
   });
 
@@ -102,9 +113,16 @@ describe('API Hooks (success paths)', () => {
     const { result: users } = renderHook(() => admin.useAdminUsers(), { wrapper });
     await waitFor(() => expect(users.current.data).toBeDefined());
 
+    // Add specific handler that returns a proper AdminUser shape
+    server.use(
+      http.post('/v1/admin/users', () =>
+        HttpResponse.json({ ok: true, data: { user_id: 'u1', username: 'a', display_name: 'a', role: 'viewer', status: 'active', created_at: new Date().toISOString() } })
+      )
+    );
+
     const { result: createUser } = renderHook(() => admin.useCreateUser(), { wrapper });
-    const cu = await createUser.current.mutateAsync({ username: 'a' } as any);
-    expect((cu as any).created).toBe(true);
+    const cu = await createUser.current.mutateAsync({ username: 'a', password: 'testpass' } as CreateUserRequest);
+    expect((cu as AdminUser).user_id).toBeDefined();
   });
 });
 
@@ -124,6 +142,6 @@ describe('API Hooks (error paths)', () => {
     );
 
     const { result } = renderHook(() => clients.useCreateClient(), { wrapper: createWrapper() });
-    await expect(result.current.mutateAsync({ name: 'x' } as any)).rejects.toThrow();
+    await expect(result.current.mutateAsync({ client_name: 'x' } as CreateClientRequest)).rejects.toThrow();
   });
 });

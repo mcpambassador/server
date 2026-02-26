@@ -55,15 +55,17 @@ export const handlers = [
   http.get(`${API_BASE}/v1/users/me/clients`, () => {
     return HttpResponse.json({ ok: true, data: [{ id: 'c1', clientName: 'Client 1' }] });
   }),
-  http.get(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: any) => {
-    const id = req.url.pathname.split('/').pop();
+  http.get(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: unknown) => {
+    const r = req as { url: URL };
+    const id = r.url.pathname.split('/').pop();
     return HttpResponse.json({ ok: true, data: { id, clientName: `Client ${id}` } });
   }),
   http.post(`${API_BASE}/v1/users/me/clients`, () => {
     return HttpResponse.json({ ok: true, data: { client: { id: 'new', clientName: 'new' }, plaintext_key: 'sk' } });
   }),
-  http.patch(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: any) => {
-    const id = req.url.pathname.split('/').pop();
+  http.patch(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), (req: unknown) => {
+    const r = req as { url: URL };
+    const id = r.url.pathname.split('/').pop();
     return HttpResponse.json({ ok: true, data: { id, clientName: 'updated' } });
   }),
   http.delete(new RegExp(`${API_BASE}/v1/users/me/clients/[^/]+$`), () => {
@@ -88,8 +90,9 @@ export const handlers = [
   http.get(`${API_BASE}/v1/marketplace`, () => {
     return HttpResponse.json({ ok: true, data: [], pagination: { has_more: false, next_cursor: null, total_count: 0 } });
   }),
-  http.get(new RegExp(`${API_BASE}/v1/marketplace/.*`), (req: any) => {
-    const id = req.url.pathname.split('/').pop();
+  http.get(new RegExp(`${API_BASE}/v1/marketplace/.*`), (req: unknown) => {
+    const r = req as { url: URL };
+    const id = r.url.pathname.split('/').pop();
     return HttpResponse.json({ ok: true, data: { id, name: `MCP ${id}` } });
   }),
 
