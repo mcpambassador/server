@@ -174,8 +174,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1
       '@fastify/cors':
-        specifier: ^10.1.0
-        version: 10.1.0
+        specifier: ^11.2.0
+        version: 11.2.0
       '@fastify/formbody':
         specifier: ^8.0.2
         version: 8.0.2
@@ -186,8 +186,8 @@ importers:
         specifier: ^8.3.0
         version: 8.3.0
       '@fastify/view':
-        specifier: ^10.0.2
-        version: 10.0.2
+        specifier: ^11.1.1
+        version: 11.1.1
       '@mcpambassador/audit-file':
         specifier: workspace:*
         version: link:../audit-file
@@ -283,8 +283,8 @@ importers:
         specifier: ^7.71.1
         version: 7.71.1(react@19.2.4)
       react-router:
-        specifier: ^7.1.0
-        version: 7.13.0(react-dom@19.2.4)(react@19.2.4)
+        specifier: ^7.13.1
+        version: 7.13.1(react-dom@19.2.4)(react@19.2.4)
       react-router-dom:
         specifier: ^7.1.0
         version: 7.13.0(react-dom@19.2.4)(react@19.2.4)
@@ -1861,11 +1861,11 @@ packages:
       fastify-plugin: 5.1.0
     dev: false
 
-  /@fastify/cors@10.1.0:
-    resolution: {integrity: sha512-MZyBCBJtII60CU9Xme/iE4aEy8G7QpzGR8zkdXZkDFt7ElEMachbE61tfhAG/bvSaULlqlf0huMT12T7iqEmdQ==}
+  /@fastify/cors@11.2.0:
+    resolution: {integrity: sha512-LbLHBuSAdGdSFZYTLVA3+Ch2t+sA6nq3Ejc6XLAKiQ6ViS2qFnvicpj0htsx03FyYeLs04HfRNBsz/a8SvbcUw==}
     dependencies:
       fastify-plugin: 5.1.0
-      mnemonist: 0.40.0
+      toad-cache: 3.7.0
     dev: false
 
   /@fastify/error@4.2.0:
@@ -1930,8 +1930,8 @@ packages:
       glob: 11.1.0
     dev: false
 
-  /@fastify/view@10.0.2:
-    resolution: {integrity: sha512-tGjXFyDUMj5a+E8BBrQ2wpsVnpOfMq3cqy4WD8pnjWPE/HGNItBASUPoPUcX/QjPhxfuZZTYv2XdCmKXdcMZPw==}
+  /@fastify/view@11.1.1:
+    resolution: {integrity: sha512-GiHqT3R2eKJgWmy0s45eELTC447a4+lTM2o+8fSWeKwBe9VToeePuHJcKtOEXPrKGSddGO0RsNayULiS3aeHeQ==}
     dependencies:
       fastify-plugin: 5.1.0
       toad-cache: 3.7.0
@@ -5469,12 +5469,6 @@ packages:
       ufo: 1.6.3
     dev: true
 
-  /mnemonist@0.40.0:
-    resolution: {integrity: sha512-kdd8AFNig2AD5Rkih7EPCXhu/iMvwevQFX/uEiGhZyPZi7fHqOoF4V4kHLpCfysxXMgQ4B52kdPMCwARshKvEg==}
-    dependencies:
-      obliterator: 2.0.5
-    dev: false
-
   /motion-dom@12.34.3:
     resolution: {integrity: sha512-sYgFe+pR9aIM7o4fhs2aXtOI+oqlUd33N9Yoxcgo1Fv7M20sRkHtCmzE/VRNIcq7uNJ+qio+Xubt1FXH3pQ+eQ==}
     dependencies:
@@ -5628,10 +5622,6 @@ packages:
     dependencies:
       path-key: 4.0.0
     dev: true
-
-  /obliterator@2.0.5:
-    resolution: {integrity: sha512-42CPE9AhahZRsMNslczq0ctAEtqk8Eka26QofnqC346BZdHDySk3LWka23LI7ULIw11NmltpiLagIq8gBozxTw==}
-    dev: false
 
   /on-exit-leak-free@2.1.2:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
@@ -6046,6 +6036,22 @@ packages:
 
   /react-router@7.13.0(react-dom@19.2.4)(react@19.2.4):
     resolution: {integrity: sha512-PZgus8ETambRT17BUm/LL8lX3Of+oiLaPuVTRH3l1eLvSPpKO3AvhAEb5N7ihAFZQrYDqkvvWfFh9p0z9VsjLw==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+    peerDependenciesMeta:
+      react-dom:
+        optional: true
+    dependencies:
+      cookie: 1.1.1
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      set-cookie-parser: 2.7.2
+    dev: false
+
+  /react-router@7.13.1(react-dom@19.2.4)(react@19.2.4):
+    resolution: {integrity: sha512-td+xP4X2/6BJvZoX6xw++A2DdEi++YypA69bJUV5oVvqf6/9/9nNlD70YO1e9d3MyamJEBQFEzk6mbfDYbqrSA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
