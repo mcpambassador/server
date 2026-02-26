@@ -171,8 +171,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1
       '@fastify/cors':
-        specifier: ^10.1.0
-        version: 10.1.0
+        specifier: ^11.2.0
+        version: 11.2.0
       '@fastify/formbody':
         specifier: ^8.0.2
         version: 8.0.2
@@ -1851,11 +1851,11 @@ packages:
       fastify-plugin: 5.1.0
     dev: false
 
-  /@fastify/cors@10.1.0:
-    resolution: {integrity: sha512-MZyBCBJtII60CU9Xme/iE4aEy8G7QpzGR8zkdXZkDFt7ElEMachbE61tfhAG/bvSaULlqlf0huMT12T7iqEmdQ==}
+  /@fastify/cors@11.2.0:
+    resolution: {integrity: sha512-LbLHBuSAdGdSFZYTLVA3+Ch2t+sA6nq3Ejc6XLAKiQ6ViS2qFnvicpj0htsx03FyYeLs04HfRNBsz/a8SvbcUw==}
     dependencies:
       fastify-plugin: 5.1.0
-      mnemonist: 0.40.0
+      toad-cache: 3.7.0
     dev: false
 
   /@fastify/error@4.2.0:
@@ -5568,12 +5568,6 @@ packages:
       ufo: 1.6.3
     dev: true
 
-  /mnemonist@0.40.0:
-    resolution: {integrity: sha512-kdd8AFNig2AD5Rkih7EPCXhu/iMvwevQFX/uEiGhZyPZi7fHqOoF4V4kHLpCfysxXMgQ4B52kdPMCwARshKvEg==}
-    dependencies:
-      obliterator: 2.0.5
-    dev: false
-
   /motion-dom@12.34.3:
     resolution: {integrity: sha512-sYgFe+pR9aIM7o4fhs2aXtOI+oqlUd33N9Yoxcgo1Fv7M20sRkHtCmzE/VRNIcq7uNJ+qio+Xubt1FXH3pQ+eQ==}
     dependencies:
@@ -5755,10 +5749,6 @@ packages:
   /object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
-    dev: false
-
-  /obliterator@2.0.5:
-    resolution: {integrity: sha512-42CPE9AhahZRsMNslczq0ctAEtqk8Eka26QofnqC346BZdHDySk3LWka23LI7ULIw11NmltpiLagIq8gBozxTw==}
     dev: false
 
   /on-exit-leak-free@2.1.2:
