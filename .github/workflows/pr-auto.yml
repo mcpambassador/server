@@ -9,6 +9,7 @@ jobs:
     name: Label by files changed
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - uses: actions/labeler@v5
