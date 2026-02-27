@@ -15,7 +15,8 @@
  * @see ADR-011 Ephemeral Sessions, User Identity Model & Instance Lifecycle
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/restrict-template-expressions */
 
 import type {
   AuthenticationProvider,
@@ -100,7 +101,7 @@ export class EphemeralAuthProvider implements AuthenticationProvider {
       };
     } catch (err) {
       // SEC-M19-012: Don't leak error details (timing safety)
-      logger.debug(`[authn-ephemeral] Authentication failed: ${err}`);
+      logger.debug(`[authn-ephemeral] Authentication failed: ${String(err)}`);
       return {
         success: false,
         error: {

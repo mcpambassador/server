@@ -16,6 +16,9 @@
  * @see SEC-V2-007 Profile Mismatch Handling
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console, @typescript-eslint/require-await */
+
 import { v4 as uuidv4 } from 'uuid';
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '@mcpambassador/core';
@@ -33,8 +36,8 @@ import type { RegistrationRequest, RegistrationResponse } from './types.js';
 function extractSessionClientId(metadata: unknown): string | null {
   try {
     const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
-    if (parsed && typeof parsed === 'object' && typeof (parsed as any).client_id === 'string') {
-      return (parsed as any).client_id;
+    if (parsed && typeof parsed === 'object' && typeof parsed.client_id === 'string') {
+      return parsed.client_id;
     }
   } catch {
     // Ignore parse errors

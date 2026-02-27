@@ -15,6 +15,8 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
@@ -180,10 +182,10 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
       console.log(`[Admin] Starting credential re-encryption for ${allCredentials.length} credentials...`);
 
       // SEC-M2: Write key file FIRST (to temp), then DB transaction, then rename
-      const keyPath = require('path').join(dataDir, 'credential_master_key');
+      const keyPath = path.join(dataDir, 'credential_master_key');
       tmpKeyPath = keyPath + '.tmp';
-      require('fs').mkdirSync(dataDir, { recursive: true });
-      require('fs').writeFileSync(tmpKeyPath, newMasterKey.toString('hex'), { mode: 0o600 });
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(tmpKeyPath, newMasterKey.toString('hex'), { mode: 0o600 });
 
       // Re-encrypt all credentials in a transaction
       await compatTransaction(db, async () => {
@@ -215,7 +217,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
       });
 
       // Atomic rename: tmpKeyPath -> keyPath
-      require('fs').renameSync(tmpKeyPath, keyPath);
+      fs.renameSync(tmpKeyPath, keyPath);
       tmpKeyPath = null; // Mark as committed
 
       // SEC-H1: Update the live vault instance with new master key
@@ -237,7 +239,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
       // If transaction failed and temp file exists, delete it
       if (tmpKeyPath) {
         try {
-          require('fs').unlinkSync(tmpKeyPath);
+          fs.unlinkSync(tmpKeyPath);
         } catch (unlinkErr) {
           // Ignore cleanup errors
         }

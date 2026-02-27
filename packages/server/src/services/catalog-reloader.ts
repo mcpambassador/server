@@ -86,7 +86,7 @@ function catalogEntryToConfig(entry: McpCatalogEntry): DownstreamMcpConfig {
 
   const mcpConfig: DownstreamMcpConfig = {
     name: entry.name,
-    transport: entry.transport_type as 'stdio' | 'http' | 'sse',
+    transport: entry.transport_type,
   };
 
   if (entry.transport_type === 'stdio') {

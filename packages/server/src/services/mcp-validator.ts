@@ -68,7 +68,7 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
         errors.push(`${entry.transport_type} transport requires "url" string in config`);
       } else {
         try {
-          new URL(config.url as string);
+          new URL(config.url);
         } catch {
           errors.push(`Invalid URL in config: ${config.url}`);
         }
@@ -76,7 +76,7 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
       break;
 
     default:
-      errors.push(`Unknown transport type: ${entry.transport_type}`);
+      errors.push(`Unknown transport type: ${entry.transport_type as string}`);
   }
 
   // MCP-002: Command injection checks (matching downstream validator: F-SEC-M6-001)

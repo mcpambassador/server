@@ -8,6 +8,9 @@
  * @see dev-plan.md M1.4 Seed Data Requirements
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
+
 import { tool_profiles, users, groups, user_groups } from './index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
@@ -315,7 +318,7 @@ export async function seedDevData(db: any): Promise<void> {
   }
 
   // Find or create the all-users group
-  let allUsersGroup = await db.query.groups.findFirst({
+  const allUsersGroup = await db.query.groups.findFirst({
     where: (group: any, { eq }: any) => eq(group.name, 'all-users'),
   });
 

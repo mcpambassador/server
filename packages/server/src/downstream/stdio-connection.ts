@@ -309,7 +309,7 @@ export class StdioMcpConnection extends EventEmitter {
       } catch (err) {
         clearTimeout(timeout);
         this.pendingRequests.delete(id);
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }

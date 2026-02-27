@@ -484,7 +484,7 @@ export async function discoverTools(
         tools_discovered: [],
         tool_count: 0,
         error_code: 'unknown_transport',
-        message: `Unsupported transport type: ${entry.transport_type}`,
+        message: `Unsupported transport type: ${entry.transport_type as string}`,
         discovered_at: new Date().toISOString(),
         duration_ms: Date.now() - startTime,
         warnings,

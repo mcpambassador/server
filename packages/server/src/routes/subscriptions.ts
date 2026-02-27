@@ -97,8 +97,7 @@ export async function registerSubscriptionRoutes(
     async (request, reply) => {
       const userId = request.session.userId!;
 
-      try {
-        const subscriptions = await listUserSubscriptions(db, userId);
+      const subscriptions = await listUserSubscriptions(db, userId);
 
         // Transform to camelCase for SPA
         const transformed = subscriptions.map((sub) => ({
@@ -113,9 +112,6 @@ export async function registerSubscriptionRoutes(
         }));
 
         return reply.status(200).send({ ok: true, data: transformed });
-      } catch (error: any) {
-        throw error;
-      }
     }
   );
 

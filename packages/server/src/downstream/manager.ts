@@ -143,7 +143,7 @@ export class SharedMcpManager {
       // Base config
       const mcpConfig: DownstreamMcpConfig = {
         name: entry.name,
-        transport: entry.transport_type as 'stdio' | 'http' | 'sse',
+        transport: entry.transport_type,
       };
 
       // Add transport-specific fields from catalog config

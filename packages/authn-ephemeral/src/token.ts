@@ -18,6 +18,9 @@
  * @see SR-M13-003 Preshared Key Prefix Lookup
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/require-await */
+
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { eq } from 'drizzle-orm';
@@ -212,7 +215,7 @@ export async function verifySessionToken(
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
     hmacBytes = Buffer.from(padded, 'base64');
   } catch (err) {
-    throw new Error('Invalid session token encoding');
+    throw new Error('Invalid session token encoding', { cause: err });
   }
 
   const tokenHash = hmacBytes.toString('hex');

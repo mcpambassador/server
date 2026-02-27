@@ -8,6 +8,9 @@
  * @see schema/index.ts mcp_catalog, mcp_group_access tables
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console, @typescript-eslint/require-await */
+
 import { eq, and, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import {

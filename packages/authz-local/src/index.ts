@@ -318,13 +318,12 @@ export function matchGlob(pattern: string, tool: string): boolean {
 
   // Linear-time glob matching without regex (F-SEC-M5-001)
   const parts = pattern.split('*');
-  let pos = 0;
 
   // First segment must match at start
   if (parts[0] && !tool.startsWith(parts[0])) {
     return false;
   }
-  pos = parts[0]!.length;
+  let pos = parts[0]?.length ?? 0;
 
   // Last segment must match at end
   const last = parts[parts.length - 1];

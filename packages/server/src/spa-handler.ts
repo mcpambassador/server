@@ -17,7 +17,7 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
   const devPath = path.join(__dirname, '..', '..', '..', 'spa', 'dist');
   const prodPath = '/app/public/spa';
   
-  let spaDistPath: string | null = null;
+  let spaDistPath: string;
   
   if (fs.existsSync(devPath)) {
     spaDistPath = devPath;
