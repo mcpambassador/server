@@ -8,6 +8,9 @@ import { Text } from '@/components/catalyst/text';
 import { authApi } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
+import { useQuery } from '@tanstack/react-query';
+import { Navigate } from 'react-router-dom';
+import { setupApi } from '@/api/setup';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function Login() {
@@ -18,6 +21,24 @@ export function Login() {
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+
+  const { data: setupStatus, isLoading: setupLoading } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: setupApi.getStatus,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  // Show nothing while checking setup status
+  if (setupLoading) {
+    return null;
+  }
+
+  // If setup is needed, redirect to /setup
+  if (setupStatus?.needsSetup) {
+    return <Navigate to="/setup" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { startTestServer, stopTestServer } from '../admin-api/helpers';
+import { createUser } from '../../src/auth/user-auth.js';
 import {
   successEnvelopeSchema,
   paginatedEnvelopeSchema,
@@ -12,6 +13,13 @@ let handle: Awaited<ReturnType<typeof startTestServer>>;
 
 beforeAll(async () => {
   handle = await startTestServer();
+  // Create admin user for tests (previously created by seedDevData)
+  await createUser(handle.db, {
+    username: 'admin',
+    password: 'admin123',
+    display_name: 'Administrator',
+    is_admin: true,
+  });
 });
 
 afterAll(async () => {

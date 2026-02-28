@@ -1,20 +1,24 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { FastifyInstance } from 'fastify';
+import type { DatabaseClient } from '@mcpambassador/core';
 import fs from 'fs';
 
 /**
  * M24.10: SPA Handler
  * Serves the React SPA for routes matching /app/*
  */
-export async function registerSpaHandler(fastify: FastifyInstance): Promise<void> {
+export async function registerSpaHandler(
+  fastify: FastifyInstance,
+  opts?: { db?: DatabaseClient }
+): Promise<void> {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
   // Look for SPA dist in multiple locations:
   // 1. Development: packages/spa/dist (relative to server package)
   // 2. Production/Docker: /app/public/spa
-  const devPath = path.join(__dirname, '..', '..', '..', 'spa', 'dist');
+  const devPath = path.join(__dirname, '..', '..', 'spa', 'dist');
   const prodPath = '/app/public/spa';
 
   let spaDistPath: string;
@@ -70,11 +74,30 @@ export async function registerSpaHandler(fastify: FastifyInstance): Promise<void
   // Root redirect to SPA (SPA-001 fix: check auth before redirect)
   fastify.get('/', async (request, reply) => {
     const userId = request.session?.userId;
-    return reply.redirect(userId ? '/app/dashboard' : '/app/login');
+    if (userId) return reply.redirect('/app/dashboard');
+
+    // If db provided, check whether setup is needed and redirect accordingly
+    if (opts?.db) {
+      try {
+        const rows = await opts.db.query.users.findMany({ limit: 1 });
+        const needsSetup = rows.length === 0;
+        return reply.redirect(needsSetup ? '/setup' : '/app/login');
+      } catch (err) {
+        fastify.log.warn({ err }, '[SPA] Failed to query users for root redirect');
+        return reply.redirect('/app/login');
+      }
+    }
+
+    return reply.redirect('/app/login');
   });
 
   // SPA fallback for /login route (React Router defines it at root level)
   fastify.get('/login', async (_request, reply) => {
+    return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
+  });
+
+  // SPA fallback for /setup route (first-run wizard)
+  fastify.get('/setup', async (_request, reply) => {
     return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
   });
 

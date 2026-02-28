@@ -42,7 +42,8 @@ describe('SPA form payloads', () => {
 
     renderPage(<Login />, { route: '/login' });
 
-    const userInput = screen.getByLabelText(/Username/i);
+    // Wait for setup status check to resolve before the form renders
+    const userInput = await screen.findByLabelText(/Username/i);
     const passInput = screen.getByLabelText(/Password/i);
     const submit = screen.getByRole('button', { name: /Sign in/i });
 
