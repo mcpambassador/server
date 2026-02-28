@@ -51,9 +51,11 @@ services:
       # Logging
       MCP_AMBASSADOR_LOG_LEVEL: ${LOG_LEVEL:-info}
       
-      # Development mode to enable default seed users (admin/admin123, qa-tester/test1234)
-      # Set to 'production' for production deployments (no default users)
-      NODE_ENV: development
+      # Application mode
+      # 'development' enables verbose logging and dev client key bootstrap
+      # 'production' disables dev-only features
+      # The setup wizard works in ALL modes — no hardcoded credentials regardless of NODE_ENV
+      NODE_ENV: ${NODE_ENV:-development}
       
       # Admin authentication (optional - for testing/dev)
       # Leave unset for production: admin key will be auto-generated on first boot

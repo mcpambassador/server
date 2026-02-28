@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
 import { Login } from '@/pages/Login';
+import { Setup } from '@/pages/Setup';
 import { Dashboard } from '@/pages/Dashboard';
 import { Marketplace } from '@/pages/Marketplace';
 import { McpDetail } from '@/pages/McpDetail';
@@ -36,6 +37,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/setup',
+    element: <Setup />,
   },
   {
     path: '/connections',

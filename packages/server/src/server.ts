@@ -35,7 +35,7 @@ import {
   compatUpdate,
   compatInsert,
   compatTransaction,
-  seedDevData,
+  // seedDevData removed — replaced by first-run setup wizard (ADR-019)
   type OAuthCredentialBlob,
   type OAuthConfig,
 } from '@mcpambassador/core';
@@ -251,8 +251,7 @@ export class AmbassadorServer {
       seedOnInit: true,
     });
 
-    // Seed dev data (users, profiles, client keys) in development/test
-    await seedDevData(this.db as any);
+    // ADR-019: seedDevData() removed — first admin is created via setup wizard at /setup
 
     // M23.5: Import YAML downstream MCPs to catalog on first boot
     const { importYamlMcps } = await import('./services/mcp-import.js');
@@ -590,6 +589,13 @@ export class AmbassadorServer {
       db: this.db!,
     });
 
+    // Setup routes (first-run setup wizard)
+    const { registerSetupRoutes } = await import('./auth/setup-routes.js');
+    await registerSetupRoutes(this.adminServer, {
+      db: this.db! as DatabaseClient,
+      audit: this.audit!,
+    });
+
     // Self-service routes
     const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
     await registerSelfServiceRoutes(this.adminServer, {
@@ -641,7 +647,7 @@ export class AmbassadorServer {
     // This allows the React admin UI to be served on the admin port
     // IMPORTANT: Must be registered LAST to avoid intercepting API routes
     const { registerSpaHandler } = await import('./spa-handler.js');
-    await registerSpaHandler(this.adminServer);
+    await registerSpaHandler(this.adminServer, { db: this.db! });
 
     // M29.6: Legacy admin UI path redirects to SPA
     // EJS admin UI was removed in M29.5; redirect old paths to new SPA routes
@@ -1589,6 +1595,10 @@ export class AmbassadorServer {
       db: this.db!,
     });
 
+    // Setup routes (first-run setup wizard)
+    const { registerSetupRoutes } = await import('./auth/setup-routes.js');
+    await registerSetupRoutes(this.fastify, { db: this.db! as DatabaseClient, audit: this.audit! });
+
     // Register user self-service routes
     const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
     await registerSelfServiceRoutes(this.fastify, {
@@ -1621,7 +1631,7 @@ export class AmbassadorServer {
 
     // M24.10: Register SPA handler (must be last to avoid intercepting API routes)
     const { registerSpaHandler } = await import('./spa-handler.js');
-    await registerSpaHandler(this.fastify);
+    await registerSpaHandler(this.fastify, { db: this.db! });
 
     console.log('[Router] All routes registered');
   }
@@ -1714,7 +1724,7 @@ export class AmbassadorServer {
    * Bootstrap Dev Client Key (M14.3)
    *
    * On first boot in development/test environments, if no client keys exist
-   * and a dev user exists (from seedDevData), generates a random
+   * and an admin user exists (created via setup wizard), generates a random
    * preshared key and prints it to stdout.
    *
    * The key is only shown once — store it securely for testing.
@@ -1722,6 +1732,7 @@ export class AmbassadorServer {
    * ONLY runs if NODE_ENV is 'development', 'test', or unset.
    *
    * @see Architecture §14.3 Preshared Key Bootstrap
+   * @see ADR-019 First-Run Setup Wizard
    */
   private async bootstrapDevClient(): Promise<void> {
     // Only run in dev/test environments
@@ -1738,13 +1749,13 @@ export class AmbassadorServer {
       return;
     }
 
-    // Check if dev user exists (from seed)
-    const devUser = await this.db!.query.users.findFirst({
-      where: (user, { eq }) => eq(user.email, 'dev@localhost'),
+    // ADR-019: Find any admin user (previously depended on seedDevData's dev@localhost)
+    const adminUser = await this.db!.query.users.findFirst({
+      where: (user, { eq }) => eq(user.is_admin, true),
     });
 
-    if (!devUser) {
-      console.log('[Server] No dev user found, skipping dev client key bootstrap');
+    if (!adminUser) {
+      console.log('[Server] No admin user found, skipping dev client key bootstrap');
       return;
     }
 
@@ -1790,7 +1801,7 @@ export class AmbassadorServer {
       key_prefix: keyPrefix,
       key_hash: keyHash,
       client_name: 'dev-bootstrap-key',
-      user_id: devUser.user_id,
+      user_id: adminUser.user_id,
       profile_id: allToolsProfile.profile_id,
       status: 'active',
       created_by: 'system-bootstrap',
