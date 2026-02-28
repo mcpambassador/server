@@ -67,17 +67,17 @@ jobs:
             if (isSecurity) {
               message = `Thank you for the report! 🔒
 
-**If this is a security vulnerability,** please do NOT discuss details here. Instead, use our private security disclosure channel: please email security@mcpambassador.dev or use [GitHub's private vulnerability reporting](../../security/advisories/new).
+            **If this is a security vulnerability,** please do NOT discuss details here. Instead, use our private security disclosure channel: please email security@mcpambassador.dev or use [GitHub's private vulnerability reporting](../../security/advisories/new).
 
-If this is a general security question (not a vulnerability), we'll triage it shortly.`;
+            If this is a general security question (not a vulnerability), we'll triage it shortly.`;
             } else {
               message = `Thanks for opening this issue! 👋
 
-A maintainer will review it shortly. In the meantime:
-- If you have a bug, please ensure you've included the server version (\`pnpm -w exec node -e "const p=require('./package.json');console.log(p.version)"\`) and relevant logs.
-- If you have a feature request, feel free to add detail about your use case.
+            A maintainer will review it shortly. In the meantime:
+            - If you have a bug, please ensure you've included the server version (\`pnpm -w exec node -e "const p=require('./package.json');console.log(p.version)"\`) and relevant logs.
+            - If you have a feature request, feel free to add detail about your use case.
 
-This issue has been automatically labeled for triage.`;
+            This issue has been automatically labeled for triage.`;
             }
 
             await github.rest.issues.createComment({
