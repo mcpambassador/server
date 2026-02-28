@@ -1,44 +1,61 @@
 # Labeler configuration for mcpambassador/server
-# Maps file path patterns to PR labels
+# Format: actions/labeler@v5 (changed-files with glob patterns)
 
 "area: core":
-  - packages/core/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/core/**"
 
 "area: auth":
-  - packages/authn-*/**
-  - packages/authz-*/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/authn-*/**"
+          - "packages/authz-*/**"
 
 "area: server":
-  - packages/server/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/server/**"
 
 "area: contracts":
-  - packages/contracts/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/contracts/**"
 
 "area: spa":
-  - packages/spa/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/spa/**"
 
 "area: audit":
-  - packages/audit-*/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/audit-*/**"
 
 "area: protocol":
-  - packages/protocol/**
+  - changed-files:
+      - any-glob-to-any-file: "packages/protocol/**"
 
 "area: database":
-  - packages/core/src/schema.ts
-  - packages/core/drizzle/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/core/src/schema.ts"
+          - "packages/core/drizzle/**"
 
 "area: docker":
-  - Dockerfile
-  - docker-compose.yml
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Dockerfile"
+          - "docker-compose.yml"
 
 "area: ci":
-  - .github/**
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
 
 "area: dependencies":
-  - package.json
-  - pnpm-lock.yaml
-  - "**/package.json"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "pnpm-lock.yaml"
+          - "**/package.json"
 
 "area: docs":
-  - "*.md"
-  - "**/*.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - "**/*.md"
