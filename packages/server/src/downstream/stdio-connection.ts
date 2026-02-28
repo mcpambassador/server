@@ -166,6 +166,33 @@ export class StdioMcpConnection extends EventEmitter {
       throw new Error(`[${this.config.name}] Process exited during startup`);
     }
 
+    // MCP protocol: send initialize handshake before any other requests
+    try {
+      await this.sendRequest('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: {},
+        },
+        clientInfo: {
+          name: 'mcp-ambassador-server',
+          version: '1.0.0',
+        },
+      });
+
+      // Send initialized notification (no response expected)
+      if (this.process?.stdin) {
+        this.process.stdin.write(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'notifications/initialized',
+          }) + '\n'
+        );
+      }
+    } catch (err) {
+      console.error(`[MCP:${this.config.name}] Initialize handshake failed:`, err);
+      // Some legacy MCPs may not support initialize — continue anyway
+    }
+
     // Fetch initial tool list
     try {
       await this.refreshToolList();
