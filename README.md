@@ -1,128 +1,130 @@
 # MCP Ambassador Server
 
-Production proxy server for MCP (Model Context Protocol) tools with authentication, authorization, and audit.
+[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.8.0--beta.1-orange.svg)]() [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
 
-## Architecture
+Centralized authentication, authorization, and audit for MCP tools. One server governs every downstream MCP your organization uses.
 
-This is a **pnpm monorepo** containing five packages:
+## What Is This
 
-| Package | Description | Dependencies |
-|---|---|---|
-| `@mcpambassador/protocol` | Type-only API contract (client ↔ server) | None (zero runtime deps) |
-| `@mcpambassador/core` | SPI interfaces, database, pipeline | protocol, drizzle, pino, zod |
-| `@mcpambassador/authn-ephemeral` | Preshared key + ephemeral session auth | core |
-| `@mcpambassador/authz-local` | Local RBAC authorization provider | core |
-| `@mcpambassador/audit-file` | File-based audit provider (JSONL) | core |
+MCP Ambassador Server is the control plane for managing MCP tools across your organization. It proxies, authenticates, authorizes, and audits every tool call between AI clients and downstream MCP servers. Think of it as what LiteLLM does for LLM providers, but for MCP servers.
 
-**Dependencies flow:** `protocol` → `core` → `authn-*`, `authz-*`, `audit-*`
+## Key Features
+
+- **MCP Marketplace** -- Admin-published catalog of downstream MCPs with group-based visibility
+- **User Self-Service** -- Users browse, subscribe to, and manage their own tool access through the web portal
+- **Per-User MCP Isolation** -- Dedicated MCP instances per user with encrypted credential injection
+- **Group-Based RBAC** -- Control which teams see which tools through group assignments
+- **Credential Vault** -- AES-256-GCM encrypted per-user API keys with HKDF-derived keys
+- **OAuth 2.0 Integration** -- Authorization code flow for downstream MCP authentication (GitHub, etc.)
+- **Admin Dashboard** -- React SPA for managing users, groups, MCPs, and audit logs
+- **Audit Logging** -- Append-only JSONL log of every authentication decision and tool invocation
+- **Kill Switches** -- Instantly disable any MCP or client across the entire organization
+- **Docker Deployment** -- Single container with bind-mount volumes and auto-generated TLS
+
+## Quick Start
+
+Prerequisites: Docker Engine 20+, docker compose v2
+
+```bash
+git clone https://github.com/mcpambassador/server.git
+cd server
+cp .env.example .env
+docker compose up
+```
+
+Open https://localhost:9443 for the admin dashboard. Default credentials: admin / admin123.
+
+> **Warning:** Change the default admin password immediately after first login.
+
+### Ports
+
+| Port | Service |
+|------|---------|
+| 8443 | Client API (MCP proxy) |
+| 9443 | Admin and user web portal |
+
+For production deployment, see the [Deployment Guide](https://mcpambassador.ai/docs/docker).
+
+## Connecting a Client
+
+Install the MCP Ambassador Client to connect AI tools to this server.
+
+```bash
+npm install -g @mcpambassador/client
+```
+
+VS Code configuration example:
+
+```json
+{
+  "mcp.servers": {
+    "mcpambassador": {
+      "command": "npx",
+      "args": ["-y", "@mcpambassador/client", "--config", "/path/to/amb-client-config.json"],
+      "env": {
+        "MCP_AMBASSADOR_URL": "https://localhost:8443",
+        "MCP_AMBASSADOR_PRESHARED_KEY": "amb_pk_YOUR_KEY"
+      }
+    }
+  }
+}
+```
+
+See [@mcpambassador/client](https://github.com/mcpambassador/client) for Claude Desktop, OpenCode, and other integrations.
+
+## Monorepo Structure
+
+| Package | Description |
+|---------|-------------|
+| `@mcpambassador/protocol` | Type-only API contract between client and server (zero runtime deps) |
+| `@mcpambassador/core` | Database schema, SPI interfaces, pipeline, validation |
+| `@mcpambassador/server` | Hono HTTP/2 server, REST API routes, MCP process pools |
+| `@mcpambassador/spa` | React 19 admin dashboard and user self-service portal |
+| `@mcpambassador/authn-ephemeral` | Preshared key and ephemeral session authentication |
+| `@mcpambassador/authz-local` | Group-based RBAC authorization |
+| `@mcpambassador/audit-file` | JSONL audit log provider |
+| `@mcpambassador/contracts` | Zod schemas for API request/response validation |
+
+## Security
+
+- TLS on all ports (self-signed auto-generated or CA-signed)
+- Argon2id password hashing
+- AES-256-GCM credential encryption with per-user HKDF-derived keys
+- HMAC-SHA256 session tokens with configurable idle timeout
+- Process isolation for stdio MCP child processes
+- Non-root Docker container with read-only root filesystem
+- Append-only audit log for compliance and forensics
 
 ## Development
 
 ```bash
-# Install dependencies
+# Prerequisites: Node.js 20+, pnpm 8.15+
 pnpm install
-
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Run linter
-pnpm lint
-
-# Format code
-pnpm format
-
-# Type check
-pnpm typecheck
-
-# Database utilities
-pnpm db:generate  # Generate migration from schema
-pnpm db:push      # Push schema to database
-pnpm db:studio    # Open Drizzle Studio
+pnpm -r build
+pnpm -r test
+pnpm -r lint
+pnpm -r typecheck
+pnpm format:check
 ```
 
-## Project Structure
+## Related Projects
 
-```
-mcpambassador_server/
-├── packages/
-│   ├── protocol/         ← API types (published to npm)
-│   ├── core/             ← Database, SPI, pipeline
-│   ├── authn-ephemeral/  ← Preshared key + ephemeral session auth
-│   ├── authz-local/      ← Local RBAC
-│   └── audit-file/       ← JSONL audit logger
-├── pnpm-workspace.yaml   ← Workspace configuration
-├── tsconfig.base.json    ← Shared TypeScript config
-├── package.json          ← Root package scripts
-└── .github/workflows/    ← CI/CD pipelines
-```
-
-## Database Schema
-
-Phase 1 schema (M1):
-- `clients` — Registered Ambassador Clients
-- `tool_profiles` — Authorization rules (with inheritance)
-- `admin_keys` — Admin API keys (Community tier)
-- `audit_events` — Audit trail (Phase 2 database provider)
-
-**Drivers:** SQLite (Community, embedded), PostgreSQL (Pro/Enterprise, external)
-
-See `packages/core/src/schema/` and `mcpambassador_docs/database-schema.md`.
-
-## Testing
-
-```bash
-# Run all tests
-pnpm test
-
-# Watch mode
-pnpm test:watch
-
-# With coverage
-pnpm test -- --coverage
-```
-
-Tests run against both SQLite and PostgreSQL (via CI).
-
-## CI/CD
-
-GitHub Actions workflow (`.github/workflows/ci.yml`):
-1. **Lint** — ESLint + Prettier
-2. **Type Check** — TypeScript compiler (no emit)
-3. **Build** — Compile all packages
-4. **Test** — Vitest on Node 18 + 20
-5. **Integration** — Both SQLite and PostgreSQL
+| Project | Description |
+|---------|-------------|
+| [@mcpambassador/client](https://github.com/mcpambassador/client) | Lightweight MCP proxy for developer workstations |
+| [Community Registry](https://github.com/mcpambassador/community-registry) | Curated registry of 38+ MCP server configurations |
+| [Documentation](https://mcpambassador.ai) | Full documentation, guides, and API reference |
 
 ## Contributing
 
-- All changes require Code Reviewer approval
-- Security Engineer reviews auth/crypto/external API changes
-- Database Engineer reviews schema changes
-- Follow the existing patterns (see `mcpambassador_docs/lessons-learned.md`)
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Prerequisites: Node.js 20+, pnpm 8.15+, Docker
 
 ## License
 
-MIT
+Apache License 2.0 -- see [LICENSE](./LICENSE).
 
-## Documentation
+## Status
 
-See the `mcpambassador_docs` repository for:
-- Architecture (`architecture.md`)
-- VISION (`VISION.md`)
-- ADRs (`adr/`)
-- Database schema (`database-schema.md`)
-- Development plan (`../mcpambassador_docs/dev-plan.md`)
-
-> **Pre-development.** See [mcpambassador_docs/VISION.md](../mcpambassador_docs/VISION.md) for the full product vision.
-
----
-
-## Related Repositories
-
-| Repository | Purpose |
-|---|---|
-| `mcpambassador_client` | Ambassador Client — lightweight MCP proxy for developer workstations |
-| `mcpambassador_docs` | Documentation, vision statement, research |
-| `personas` | AI agent team definitions |
+MCP Ambassador is at v0.8.0-beta.1. The API may change before 1.0. Production use is supported but expect breaking changes during the beta period.
