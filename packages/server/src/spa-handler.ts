@@ -81,14 +81,14 @@ export async function registerSpaHandler(
       try {
         const rows = await opts.db.query.users.findMany({ limit: 1 });
         const needsSetup = rows.length === 0;
-        return reply.redirect(needsSetup ? '/setup' : '/app/login');
+        return reply.redirect(needsSetup ? '/setup' : '/login');
       } catch (err) {
         fastify.log.warn({ err }, '[SPA] Failed to query users for root redirect');
-        return reply.redirect('/app/login');
+        return reply.redirect('/login');
       }
     }
 
-    return reply.redirect('/app/login');
+    return reply.redirect('/login');
   });
 
   // SPA fallback for /login route (React Router defines it at root level)

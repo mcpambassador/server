@@ -25,7 +25,12 @@ export function Setup() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: setupStatus, isLoading: setupLoading } = useQuery({
+  const {
+    data: setupStatus,
+    isLoading: setupLoading,
+    isError: setupError,
+    refetch: refetchSetup,
+  } = useQuery({
     queryKey: ['setup-status'],
     queryFn: setupApi.getStatus,
     retry: false,
@@ -46,7 +51,7 @@ export function Setup() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ mode: 'onTouched' });
 
-  const password = React.useRef({});
+  const password = React.useRef('');
   password.current = watch('password', '');
 
   const onSubmit = async (values: FormValues) => {
@@ -83,6 +88,24 @@ export function Setup() {
 
   if (setupLoading) {
     return null;
+  }
+
+  if (setupError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
+        <div className="w-full max-w-sm space-y-4 rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950">
+          <Heading className="text-lg font-semibold text-red-800 dark:text-red-200">
+            Unable to load setup status
+          </Heading>
+          <Text className="text-sm text-red-700 dark:text-red-300">
+            Could not contact the server. Please check your connection and try again.
+          </Text>
+          <Button color="dark/zinc" onClick={() => refetchSetup()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -102,6 +102,10 @@ export async function registerSetupRoutes(
 
     // Strict per-minute rate limiting (3/min)
     const now = Date.now();
+    // Prune expired entries to prevent unbounded Map growth
+    for (const [ip, entry] of attempts) {
+      if (now - entry.first > windowMs) attempts.delete(ip);
+    }
     const rec = attempts.get(sourceIp);
     if (!rec) {
       attempts.set(sourceIp, { count: 1, first: now });
@@ -219,7 +223,13 @@ export async function registerSetupRoutes(
           }
         }
 
-        // Establish session (follow login pattern)
+        // Establish session (auto-login after account creation)
+        // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
+        // nullify the request.session object, making it impossible to set properties afterward.
+        // As a workaround, we manually clear existing session data to prevent data leakage.
+        // LIMITATION: This does not regenerate the session ID, which is less secure than proper
+        // session regeneration. Track upstream fix and switch to regenerate() when available.
+        // See also: packages/server/src/auth/routes.ts (same pattern used in login handler)
         if (request.session.userId) delete request.session.userId;
         if (request.session.username) delete request.session.username;
         if (request.session.isAdmin) delete request.session.isAdmin;
