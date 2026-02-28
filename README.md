@@ -32,18 +32,35 @@ cp .env.example .env
 docker compose up
 ```
 
-Open https://localhost:9443 for the admin dashboard. Default credentials: admin / admin123.
-
-> **Warning:** Change the default admin password immediately after first login.
+Open https://localhost:9443 -- the first-run setup wizard will guide you through creating an admin account.
 
 ### Ports
 
 | Port | Service |
 |------|---------|
-| 8443 | Client API (MCP proxy) |
+| 8443 | Client API (MCP proxy endpoint) |
 | 9443 | Admin and user web portal |
 
 For production deployment, see the [Deployment Guide](https://mcpambassador.ai/docs/docker).
+
+## MCP Lifecycle
+
+Every MCP goes through a four-step lifecycle before users can access its tools:
+
+```
+Create (draft/pending) --> Validate (draft/valid) --> Discover Tools --> Publish (active)
+```
+
+| Step | Action | What Happens |
+|------|--------|--------------|
+| 1. Create | Admin > MCPs > Create MCP | Define name, transport, command, environment variables, isolation mode. MCP starts as **draft / pending**. |
+| 2. Validate | Click **Validate** on the MCP | Server checks the configuration is well-formed. Status moves to **draft / valid**. |
+| 3. Discover Tools | Click **Discover Tools** | Server spawns the MCP process, connects, calls `tools/list`, and records the available tools. |
+| 4. Publish | Click **Publish** | MCP becomes **published** and appears in the user Marketplace. |
+
+After publishing, users can browse the Marketplace, subscribe their clients to the MCP, and start using the tools through their AI clients.
+
+**Note:** If an MCP requires per-user credentials (e.g., API keys), the Discover Tools step will prompt for temporary credentials to use during discovery. These are not stored.
 
 ## Connecting a Client
 
