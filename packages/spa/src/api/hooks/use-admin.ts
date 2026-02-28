@@ -304,9 +304,15 @@ export function useDeleteMcp() {
 }
 
 export function useValidateMcp() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (mcpId: string) =>
       apiClient.post<ValidationResult>(`/v1/admin/mcps/${mcpId}/validate`),
+    onSuccess: (_, mcpId) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
+    },
   });
 }
 
