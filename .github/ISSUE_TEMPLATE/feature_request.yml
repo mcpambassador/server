@@ -1,0 +1,55 @@
+name: Feature Request
+description: Propose a new feature or enhancement for MCP Ambassador Server
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your feature request! Help us understand the problem you're trying to solve.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem does this solve? Who benefits?
+      placeholder: "As an organization admin, I need to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: What would you like to see? How should it work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What workarounds or alternatives have you tried?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the server does this affect?
+      options:
+        - Authentication / Authorization
+        - MCP Management (add/remove/configure)
+        - Admin UI
+        - User UI / Client Experience
+        - Audit Logging
+        - API / Contracts
+        - Performance
+        - Security
+        - Docker / Deployment
+        - Other
+
+  - type: checkboxes
+    id: willing-to-pr
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a PR for this feature

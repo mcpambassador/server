@@ -1,0 +1,44 @@
+# Labeler configuration for mcpambassador/server
+# Maps file path patterns to PR labels
+
+"area: core":
+  - packages/core/**
+
+"area: auth":
+  - packages/authn-*/**
+  - packages/authz-*/**
+
+"area: server":
+  - packages/server/**
+
+"area: contracts":
+  - packages/contracts/**
+
+"area: spa":
+  - packages/spa/**
+
+"area: audit":
+  - packages/audit-*/**
+
+"area: protocol":
+  - packages/protocol/**
+
+"area: database":
+  - packages/core/src/schema.ts
+  - packages/core/drizzle/**
+
+"area: docker":
+  - Dockerfile
+  - docker-compose.yml
+
+"area: ci":
+  - .github/**
+
+"area: dependencies":
+  - package.json
+  - pnpm-lock.yaml
+  - "**/package.json"
+
+"area: docs":
+  - "*.md"
+  - "**/*.md"

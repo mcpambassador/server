@@ -1,0 +1,24 @@
+{
+  "name": "@mcpambassador/authz-local",
+  "version": "0.8.0-beta.1",
+  "description": "MCP Ambassador - Local RBAC Authorization Provider",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@mcpambassador/core": "workspace:*",
+    "@mcpambassador/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}

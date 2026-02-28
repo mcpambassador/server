@@ -1,0 +1,466 @@
+/**
+ * Admin MCP Routes
+ *
+ * Fastify plugin for MCP catalog management endpoints.
+ * All routes require admin authentication (applied globally by parent plugin).
+ *
+ * @see M23.3: Admin MCP Route Handlers
+ */
+
+import crypto from 'crypto';
+import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
+import { updateValidationStatus, updateToolCatalog } from '@mcpambassador/core';
+import { createPaginationEnvelope } from './pagination.js';
+import { wrapError, ErrorCodes } from './reply-envelope.js';
+import {
+  createMcpSchema,
+  updateMcpSchema,
+  mcpParamsSchema,
+  listMcpsQuerySchema,
+} from './mcp-schemas.js';
+import {
+  createMcpCatalogEntry,
+  getMcpCatalogEntry,
+  listMcpCatalogEntries,
+  updateMcpCatalogEntry,
+  archiveMcpEntry,
+  deleteMcpCatalogEntry,
+  publishMcpCatalogEntry,
+} from '../services/mcp-catalog-service.js';
+import { validateMcpConfig } from '../services/mcp-validator.js';
+import { discoverTools } from '../services/tool-discovery-engine.js';
+
+/**
+ * Admin MCP routes plugin configuration
+ */
+export interface AdminMcpRoutesConfig {
+  db: DatabaseClient;
+  audit: AuditProvider;
+}
+
+/**
+ * Admin MCP routes plugin
+ */
+export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig> = (
+  fastify: FastifyInstance,
+  opts: AdminMcpRoutesConfig,
+  done
+) => {
+  const { db, audit } = opts;
+
+  // ==========================================================================
+  // POST /v1/admin/mcps - Create MCP catalog entry
+  // ==========================================================================
+  fastify.post('/v1/admin/mcps', async (request, reply) => {
+    const body = createMcpSchema.parse(request.body);
+    const sourceIp = request.ip || '127.0.0.1';
+    const nowIso = new Date().toISOString();
+
+    try {
+      const entry = await createMcpCatalogEntry(db, {
+        name: body.name,
+        display_name: body.display_name,
+        description: body.description,
+        icon_url: body.icon_url,
+        transport_type: body.transport_type,
+        config: body.config,
+        isolation_mode: body.isolation_mode,
+        requires_user_credentials: body.requires_user_credentials,
+        credential_schema: body.credential_schema,
+        auth_type: body.auth_type,
+        oauth_config: body.oauth_config,
+      });
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'info',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'mcp_created',
+        metadata: {
+          mcp_id: entry.mcp_id,
+          mcp_name: entry.name,
+        },
+      });
+
+      return reply.status(201).send({ ok: true, data: entry });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('already exists')) {
+        return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // GET /v1/admin/mcps - List MCP entries
+  // ==========================================================================
+  fastify.get('/v1/admin/mcps', async (request, reply) => {
+    const query = listMcpsQuerySchema.parse(request.query);
+
+    const { entries, has_more, next_cursor } = await listMcpCatalogEntries(
+      db,
+      {
+        status: query.status,
+        isolation_mode: query.isolation_mode,
+      },
+      {
+        limit: query.limit,
+        cursor: query.cursor,
+      }
+    );
+
+    const envelope = createPaginationEnvelope(entries, {
+      next_cursor: next_cursor || null,
+      has_more,
+      total_count: entries.length,
+    });
+
+    return reply.send(envelope);
+  });
+
+  // ==========================================================================
+  // GET /v1/admin/mcps/:mcpId - Get MCP entry by ID
+  // ==========================================================================
+  fastify.get<{ Params: { mcpId: string } }>('/v1/admin/mcps/:mcpId', async (request, reply) => {
+    const params = mcpParamsSchema.parse(request.params);
+
+    try {
+      const entry = await getMcpCatalogEntry(db, params.mcpId);
+      return reply.send({ ok: true, data: entry });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found')) {
+        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // PATCH /v1/admin/mcps/:mcpId - Update MCP entry
+  // ==========================================================================
+  fastify.patch<{ Params: { mcpId: string } }>('/v1/admin/mcps/:mcpId', async (request, reply) => {
+    const params = mcpParamsSchema.parse(request.params);
+    const body = updateMcpSchema.parse(request.body);
+    const sourceIp = request.ip || '127.0.0.1';
+    const nowIso = new Date().toISOString();
+
+    try {
+      await updateMcpCatalogEntry(db, params.mcpId, body);
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'info',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'mcp_updated',
+        metadata: {
+          mcp_id: params.mcpId,
+          updated_fields: Object.keys(body),
+        },
+      });
+
+      // Fetch updated entry
+      const entry = await getMcpCatalogEntry(db, params.mcpId);
+      return reply.send({ ok: true, data: entry });
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes('not found')) {
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        }
+        // MCP-001: Generic message for structural change attempts
+        if (err.message === 'PUBLISHED_MCP_STRUCTURAL_CHANGE') {
+          return reply
+            .status(422)
+            .send(
+              wrapError(
+                ErrorCodes.BAD_REQUEST,
+                'Cannot modify structural fields on a published MCP. Archive and recreate instead.'
+              )
+            );
+        }
+        if (err.message.includes('Cannot modify')) {
+          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+        }
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // DELETE /v1/admin/mcps/:mcpId - Delete MCP entry
+  // ==========================================================================
+  fastify.delete<{ Params: { mcpId: string } }>('/v1/admin/mcps/:mcpId', async (request, reply) => {
+    const params = mcpParamsSchema.parse(request.params);
+    const sourceIp = request.ip || '127.0.0.1';
+    const nowIso = new Date().toISOString();
+
+    try {
+      await deleteMcpCatalogEntry(db, params.mcpId);
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: 'info',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'mcp_deleted',
+        metadata: {
+          mcp_id: params.mcpId,
+        },
+      });
+
+      return reply.status(204).send();
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes('not found')) {
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        }
+        if (err.message.includes('Cannot delete')) {
+          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+        }
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // POST /v1/admin/mcps/:mcpId/validate - Trigger validation
+  // ==========================================================================
+  fastify.post<{ Params: { mcpId: string } }>(
+    '/v1/admin/mcps/:mcpId/validate',
+    async (request, reply) => {
+      const params = mcpParamsSchema.parse(request.params);
+      const sourceIp = request.ip || '127.0.0.1';
+      const nowIso = new Date().toISOString();
+
+      try {
+        // Get entry
+        const entry = await getMcpCatalogEntry(db, params.mcpId);
+
+        // Run validation
+        const result = await validateMcpConfig(entry);
+
+        // Update validation status
+        await updateValidationStatus(db, params.mcpId, result.valid ? 'valid' : 'invalid', result);
+
+        // Emit audit event
+        await audit.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action',
+          severity: result.valid ? 'info' : 'warn',
+          client_id: undefined,
+          user_id: undefined,
+          source_ip: sourceIp,
+          action: 'mcp_validated',
+          metadata: {
+            mcp_id: params.mcpId,
+            validation_status: result.valid ? 'valid' : 'invalid',
+            error_count: result.errors.length,
+            warning_count: result.warnings.length,
+          },
+        });
+
+        return reply.send({ ok: true, data: result });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not found')) {
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        }
+        throw err;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // POST /v1/admin/mcps/:mcpId/discover - Trigger tool discovery
+  // ==========================================================================
+  fastify.post<{
+    Params: { mcpId: string };
+    Body: { credentials?: Record<string, string> };
+  }>('/v1/admin/mcps/:mcpId/discover', async (request, reply) => {
+    const params = mcpParamsSchema.parse(request.params);
+    const sourceIp = request.ip || '127.0.0.1';
+    const nowIso = new Date().toISOString();
+
+    try {
+      // Get entry
+      const entry = await getMcpCatalogEntry(db, params.mcpId);
+
+      // Extract credentials from request body
+      const credentials = request.body?.credentials;
+
+      // Validate credentials if provided for credential-gated MCP
+      if (credentials && entry.requires_user_credentials && entry.credential_schema) {
+        let credentialSchema: { required?: string[]; properties?: Record<string, unknown> };
+        try {
+          credentialSchema = JSON.parse(entry.credential_schema) as {
+            required?: string[];
+            properties?: Record<string, unknown>;
+          };
+        } catch (err) {
+          return reply
+            .status(400)
+            .send(
+              wrapError(
+                ErrorCodes.BAD_REQUEST,
+                `Failed to parse credential_schema: ${err instanceof Error ? err.message : String(err)}`
+              )
+            );
+        }
+
+        // Check that all required fields are present
+        const requiredFields = credentialSchema.required ?? [];
+        const providedFields = Object.keys(credentials);
+        const missingFields = requiredFields.filter(field => !providedFields.includes(field));
+        if (missingFields.length > 0) {
+          return reply
+            .status(400)
+            .send(
+              wrapError(
+                ErrorCodes.BAD_REQUEST,
+                `Missing required credential fields: ${missingFields.join(', ')}`
+              )
+            );
+        }
+      }
+
+      // Get admin userId from session for OAuth-based discovery
+      const adminUserId = request.session?.userId;
+
+      // Run tool discovery with optional credentials and admin userId
+      const result = await discoverTools(entry, credentials, adminUserId);
+
+      // If successful, update tool catalog in DB
+      if (result.status === 'success') {
+        await updateToolCatalog(db, params.mcpId, result.tools_discovered, result.tool_count);
+      }
+
+      // Emit audit event
+      await audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: nowIso,
+        event_type: 'admin_action',
+        severity: result.status === 'success' ? 'info' : 'warn',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: sourceIp,
+        action: 'mcp_tools_discovered',
+        metadata: {
+          mcp_id: params.mcpId,
+          status: result.status,
+          tool_count: result.tool_count,
+          error_code: result.error_code,
+          duration_ms: result.duration_ms,
+          credentials_provided: !!credentials,
+        },
+      });
+
+      return reply.send({ ok: true, data: result });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found')) {
+        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+      }
+      throw err;
+    }
+  });
+
+  // ==========================================================================
+  // POST /v1/admin/mcps/:mcpId/publish - Publish MCP
+  // ==========================================================================
+  fastify.post<{ Params: { mcpId: string } }>(
+    '/v1/admin/mcps/:mcpId/publish',
+    async (request, reply) => {
+      const params = mcpParamsSchema.parse(request.params);
+      const sourceIp = request.ip || '127.0.0.1';
+      const nowIso = new Date().toISOString();
+
+      try {
+        await publishMcpCatalogEntry(db, params.mcpId, 'admin');
+
+        // Emit audit event
+        await audit.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action',
+          severity: 'info',
+          client_id: undefined,
+          user_id: undefined,
+          source_ip: sourceIp,
+          action: 'mcp_published',
+          metadata: {
+            mcp_id: params.mcpId,
+          },
+        });
+
+        // Fetch updated entry
+        const entry = await getMcpCatalogEntry(db, params.mcpId);
+        return reply.send({ ok: true, data: entry });
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.message.includes('not found')) {
+            return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          }
+          if (err.message.includes('Cannot publish')) {
+            return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+          }
+        }
+        throw err;
+      }
+    }
+  );
+
+  // ==========================================================================
+  // POST /v1/admin/mcps/:mcpId/archive - Archive MCP
+  // ==========================================================================
+  fastify.post<{ Params: { mcpId: string } }>(
+    '/v1/admin/mcps/:mcpId/archive',
+    async (request, reply) => {
+      const params = mcpParamsSchema.parse(request.params);
+      const sourceIp = request.ip || '127.0.0.1';
+      const nowIso = new Date().toISOString();
+
+      try {
+        await archiveMcpEntry(db, params.mcpId);
+
+        // Emit audit event
+        await audit.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: nowIso,
+          event_type: 'admin_action',
+          severity: 'info',
+          client_id: undefined,
+          user_id: undefined,
+          source_ip: sourceIp,
+          action: 'mcp_archived',
+          metadata: {
+            mcp_id: params.mcpId,
+          },
+        });
+
+        // Fetch updated entry
+        const entry = await getMcpCatalogEntry(db, params.mcpId);
+        return reply.send({ ok: true, data: entry });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('not found')) {
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        }
+        throw err;
+      }
+    }
+  );
+
+  done();
+};

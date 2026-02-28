@@ -1,0 +1,25 @@
+# Development Configuration Preset (M15.6)
+#
+# Fast-cycle values for local development and testing.
+# Use this as a reference for config/ambassador-server.yaml during development.
+#
+# To use: Copy relevant sections to your config/ambassador-server.yaml
+
+session:
+  # Idle timeout: 30 seconds (vs 30 min in production)
+  idle_timeout_seconds: 30
+  
+  # Spindown delay: 10 seconds (vs 5 min in production)
+  spindown_delay_seconds: 10
+  
+  # Session TTL: 5 minutes (vs 16 hours in production)
+  ttl_seconds: 300
+  
+  # Expected heartbeat interval: 10 seconds (vs 1 min in production)
+  heartbeat_expected_interval_seconds: 10
+  
+  # Sweep interval: 60 seconds (vs 15 min in production)
+  sweep_interval_seconds: 60
+  
+  # Evaluation interval: 15 seconds (vs 1 min in production)
+  evaluation_interval_seconds: 15

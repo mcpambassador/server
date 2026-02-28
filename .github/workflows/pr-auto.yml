@@ -1,0 +1,81 @@
+name: PR Automation
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  auto-label:
+    name: Label by files changed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+
+  auto-assign-reviewers:
+    name: Assign reviewers
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            const filePaths = files.map(f => f.filename);
+            const reviewers = new Set();
+
+            const isSecurityChange = filePaths.some(f =>
+              f.includes('packages/authn') ||
+              f.includes('packages/authz') ||
+              f.includes('packages/core/src/crypto') ||
+              f.includes('packages/core/src/schema') ||
+              f.match(/migration|\.sql$/)
+            );
+
+            const isSPAChange = filePaths.some(f => f.includes('packages/spa'));
+            const isDockerChange = filePaths.some(f => f.includes('Dockerfile') || f.includes('docker-compose'));
+
+            // Security-sensitive changes require security team
+            if (isSecurityChange) {
+              reviewers.add('security-team');
+            }
+
+            // Always request a code review from core team
+            reviewers.add('core-reviewers');
+
+            const reviewerList = Array.from(reviewers);
+            if (reviewerList.length > 0) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  teams: reviewerList
+                });
+              } catch (e) {
+                // Teams may not exist in forks — non-fatal
+                console.log('Could not assign reviewers:', e.message);
+              }
+            }
+
+            // Add security label if security-sensitive
+            if (isSecurityChange) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['security-review-required']
+              });
+            }

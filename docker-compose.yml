@@ -1,0 +1,134 @@
+# =============================================================================
+# MCP AMBASSADOR SERVER - DOCKER COMPOSE (COMMUNITY TIER)
+# =============================================================================
+# Single-service deployment for Community tier with self-signed TLS
+#
+# Quick Start:
+#   1. Copy .env.example to .env and configure
+#   2. docker-compose up -d
+#   3. docker-compose logs -f
+#
+# Data Persistence:
+#   - ./data/  → /data    (database, TLS certs, audit logs, secrets)
+#   - ./config/ → /config (ambassador-server.yaml — read-only)
+#   - ./cache/  → /tmp    (npx/npm cache — no artificial size cap)
+#   - All bind mounts are owned by non-root user (UID 1000)
+#   - Create these directories on the host before first run
+#
+# Security Notes:
+#   - Server runs as non-root user (mcpambassador:1000)
+#   - Read-only root filesystem (except /data volume)
+#   - Self-signed TLS certificates auto-generated on first boot
+#   - Use volume encryption for sensitive data at rest
+# =============================================================================
+
+services:
+  mcpambassador-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcpambassador-server:latest
+    container_name: mcpambassador-server
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "8443:8443"
+      # SEC-M9-07: Admin API on localhost only (change to 0.0.0.0:9443:9443 to expose externally)
+      - "127.0.0.1:9443:9443"
+    
+    # Environment variables
+    environment:
+      # Data directory (required - volume mount point)
+      MCP_AMBASSADOR_DATA_DIR: /data
+      
+      # Server configuration
+      MCP_AMBASSADOR_HOST: 0.0.0.0
+      MCP_AMBASSADOR_PORT: 8443
+      
+      # Logging
+      MCP_AMBASSADOR_LOG_LEVEL: ${LOG_LEVEL:-info}
+      
+      # Development mode to enable default seed users (admin/admin123, qa-tester/test1234)
+      # Set to 'production' for production deployments (no default users)
+      NODE_ENV: development
+      
+      # Admin authentication (optional - for testing/dev)
+      # Leave unset for production: admin key will be auto-generated on first boot
+      # Generate with: node -e "console.log('amb_ak_' + require('crypto').randomBytes(32).toString('base64url'))"
+      # AMBASSADOR_ADMIN_KEY: ${AMBASSADOR_ADMIN_KEY:-}
+      
+      # Downstream MCP API keys (ADR-009)
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
+      CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      
+      # ADR-014: OAuth client credentials (resolve from .env)
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      
+      # Community Registry (private repo auth)
+      REGISTRY_URL: ${REGISTRY_URL:-https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml}
+      REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
+      REGISTRY_ENABLED: ${REGISTRY_ENABLED:-true}
+      
+      # Public URL for OAuth callbacks behind reverse proxy
+      # Set this when deploying behind nginx/caddy/etc.
+      # Example: https://mcp.yourdomain.com
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      
+      # Optional: Override TLS certificate paths
+      # MCP_AMBASSADOR_CA_PATH: /data/certs/ca.pem
+      # MCP_AMBASSADOR_CERT_PATH: /data/certs/server.pem
+      # MCP_AMBASSADOR_KEY_PATH: /data/certs/server-key.pem
+      
+      # Optional: Override database path
+      # MCP_AMBASSADOR_DB_PATH: /data/ambassador.db
+      
+      # Optional: Override audit log path
+      # MCP_AMBASSADOR_AUDIT_LOG_PATH: /data/audit.jsonl
+    
+    # Volume mounts - host bind mounts for easy inspection and backup
+    volumes:
+      - ./data:/data
+      - ./config:/config:ro
+      - ./cache:/tmp
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem (except bind-mounted volumes)
+    read_only: true
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    
+    # F-SEC-M7-002 remediation: Resource limits enabled by default
+    # Prevents container from consuming all host resources (DoS protection)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Network isolation (optional)
+    # networks:
+    #   - mcpambassador-net
+
+# No named volumes - using host bind mounts for better observability and backup
+
+# Optional: Custom network for isolation
+# networks:
+#   mcpambassador-net:
+#     driver: bridge

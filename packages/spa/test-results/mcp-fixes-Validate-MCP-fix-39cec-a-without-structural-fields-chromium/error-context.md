@@ -1,0 +1,206 @@
+# Page snapshot
+
+````yaml
+- generic [ref=e1]:
+    - generic [ref=e3]:
+        - navigation [ref=e5]:
+            - link [ref=e8] [cursor=pointer]:
+                - /url: /app/dashboard
+                - generic [ref=e10]: M
+                - generic [ref=e12]:
+                    - generic [ref=e13]: MCP
+                    - generic [ref=e14]: Ambassador
+            - generic [ref=e15]:
+                - generic [ref=e16]:
+                    - heading [level=3] [ref=e17]: User
+                    - link [ref=e19] [cursor=pointer]:
+                        - /url: /app/dashboard
+                        - img [ref=e20]
+                        - generic [ref=e22]: Dashboard
+                    - link [ref=e24] [cursor=pointer]:
+                        - /url: /app/marketplace
+                        - img [ref=e25]
+                        - generic [ref=e27]: Marketplace
+                    - link [ref=e29] [cursor=pointer]:
+                        - /url: /app/clients
+                        - img [ref=e30]
+                        - generic [ref=e32]: My Clients
+                    - link [ref=e34] [cursor=pointer]:
+                        - /url: /app/subscriptions
+                        - img [ref=e35]
+                        - generic [ref=e37]: Subscriptions
+                    - link [ref=e39] [cursor=pointer]:
+                        - /url: /app/credentials
+                        - img [ref=e40]
+                        - generic [ref=e42]: Credentials
+                - generic [ref=e43]:
+                    - heading [level=3] [ref=e44]: Admin
+                    - link [ref=e46] [cursor=pointer]:
+                        - /url: /app/admin/dashboard
+                        - img [ref=e47]
+                        - generic [ref=e49]: Admin Dashboard
+                    - link [ref=e51] [cursor=pointer]:
+                        - /url: /app/admin/users
+                        - img [ref=e52]
+                        - generic [ref=e54]: Users
+                    - link [ref=e56] [cursor=pointer]:
+                        - /url: /app/admin/groups
+                        - img [ref=e57]
+                        - generic [ref=e59]: Groups
+                    - link [ref=e62] [cursor=pointer]:
+                        - /url: /app/admin/mcps
+                        - img [ref=e63]
+                        - generic [ref=e65]: MCPs
+                    - link [ref=e67] [cursor=pointer]:
+                        - /url: /app/admin/audit
+                        - img [ref=e68]
+                        - generic [ref=e70]: Audit Logs
+                    - link [ref=e72] [cursor=pointer]:
+                        - /url: /app/admin/kill-switches
+                        - img [ref=e73]
+                        - generic [ref=e75]: Kill Switches
+                    - link [ref=e77] [cursor=pointer]:
+                        - /url: /app/admin/settings
+                        - img [ref=e78]
+                        - generic [ref=e80]: Settings
+                - button [ref=e83]:
+                    - img [ref=e84]
+                    - generic [ref=e86]: Dark mode
+            - button [ref=e89]:
+                - generic [ref=e90]:
+                    - img [ref=e92]:
+                        - generic [ref=e93]: AD
+                    - generic [ref=e94]:
+                        - generic [ref=e95]: admin
+                        - generic [ref=e96]: admin@localhost
+                - img [ref=e97]
+        - main [ref=e99]:
+            - generic [ref=e102]:
+                - link [ref=e103] [cursor=pointer]:
+                    - /url: /app/admin/mcps
+                    - img [ref=e104]
+                    - text: Back to MCPs
+                - generic [ref=e106]:
+                    - generic [ref=e107]:
+                        - heading [level=1] [ref=e108]: Firecrawl
+                        - paragraph [ref=e109]: firecrawl
+                    - generic [ref=e110]:
+                        - generic [ref=e111]: archived
+                        - generic [ref=e112]: valid
+                - generic [ref=e113]:
+                    - button [ref=e114]: Edit MCP
+                    - button [ref=e115]:
+                        - img [ref=e116]
+                        - text: Validate
+                    - button [ref=e118]:
+                        - img [ref=e119]
+                        - text: Discover Tools
+                    - button [ref=e121]:
+                        - img [ref=e122]
+                        - text: Delete
+                - generic [ref=e124]:
+                    - tablist [ref=e125]:
+                        - tab [selected] [ref=e126]: Information
+                        - tab [ref=e127]: Configuration
+                    - tabpanel [ref=e129]:
+                        - generic [ref=e130]:
+                            - heading [level=3] [ref=e131]: MCP Information
+                            - generic [ref=e132]:
+                                - generic [ref=e133]:
+                                    - term [ref=e134]: MCP ID
+                                    - definition [ref=e135]: 6c6e52e0-5bad-4f72-b1de-c98ac9490f47
+                                - generic [ref=e136]:
+                                    - term [ref=e137]: Internal Name
+                                    - definition [ref=e138]: firecrawl
+                                - generic [ref=e139]:
+                                    - term [ref=e140]: Display Name
+                                    - definition [ref=e141]: Firecrawl
+                                - generic [ref=e142]:
+                                    - term [ref=e143]: Transport Type
+                                    - definition [ref=e144]: stdio
+                                - generic [ref=e145]:
+                                    - term [ref=e146]: Isolation Mode
+                                    - definition [ref=e147]: shared
+                                - generic [ref=e148]:
+                                    - term [ref=e149]: Requires Credentials
+                                    - definition [ref=e150]: 'Yes'
+                                - generic [ref=e151]:
+                                    - term [ref=e152]: Created
+                                    - definition [ref=e153]: 2/20/2026, 8:19:47 PM
+                                - generic [ref=e154]:
+                                    - term [ref=e155]: Updated
+                                    - definition [ref=e156]: 2/21/2026, 8:35:28 AM
+                        - generic [ref=e157]:
+                            - generic [ref=e159]:
+                                - heading [level=3] [ref=e160]: Discovered Tools (12)
+                                - paragraph [ref=e161]: Tools available from this MCP server
+                            - generic [ref=e162]:
+                                - generic [ref=e163]:
+                                    - paragraph [ref=e164]: firecrawl_scrape
+                                    - paragraph [ref=e165]: 'Scrape content from a single URL with advanced options. This is the most powerful, fastest and most reliable scraper tool, if available you should always default to using this tool for any web scraping needs. **Best for:** Single page content extraction, when you know exactly which page contains the information. **Not recommended for:** Multiple pages (call scrape multiple times or use crawl), unknown page location (use search). **Common mistakes:** Using markdown format when extracting specific data points (use JSON instead). **Other Features:** Use ''branding'' format to extract brand identity (colors, fonts, typography, spacing, UI components) for design analysis or style replication. **CRITICAL - Format Selection (you MUST follow this):** When the user asks for SPECIFIC data points, you MUST use JSON format with a schema. Only use markdown when the user needs the ENTIRE page content. **Use JSON format when user asks for:** - Parameters, fields, or specifications (e.g., "get the header parameters", "what are the required fields") - Prices, numbers, or structured data (e.g., "extract the pricing", "get the product details") - API details, endpoints, or technical specs (e.g., "find the authentication endpoint") - Lists of items or properties (e.g., "list the features", "get all the options") - Any specific piece of information from a page **Use markdown format ONLY when:** - User wants to read/summarize an entire article or blog post - User needs to see all content on a page without specific extraction - User explicitly asks for the full page content **Handling JavaScript-rendered pages (SPAs):** If JSON extraction returns empty, minimal, or just navigation content, the page is likely JavaScript-rendered or the content is on a different URL. Try these steps IN ORDER: 1. **Add waitFor parameter:** Set `waitFor: 5000` to `waitFor: 10000` to allow JavaScript to render before extraction 2. **Try a different URL:** If the URL has a hash fragment (#section), try the base URL or look for a direct page URL 3. **Use firecrawl_map to find the correct page:** Large documentation sites or SPAs often spread content across multiple URLs. Use `firecrawl_map` with a `search` parameter to discover the specific page containing your target content, then scrape that URL directly. Example: If scraping "https://docs.example.com/reference" fails to find webhook parameters, use `firecrawl_map` with `{"url": "https://docs.example.com/reference", "search": "webhook"}` to find URLs like "/reference/webhook-events", then scrape that specific page. 4. **Use firecrawl_agent:** As a last resort for heavily dynamic pages where map+scrape still fails, use the agent which can autonomously navigate and research **Usage Example (JSON format - REQUIRED for specific data extraction):** ```json { "name": "firecrawl_scrape", "arguments": { "url": "https://example.com/api-docs", "formats": [{ "type": "json", "prompt": "Extract the header parameters for the authentication endpoint", "schema": { "type": "object", "properties": { "parameters": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "type": { "type": "string" }, "required": { "type": "boolean" }, "description": { "type": "string" } } } } } } }] } } ``` **Usage Example (markdown format - ONLY when full content genuinely needed):** ```json { "name": "firecrawl_scrape", "arguments": { "url": "https://example.com/article", "formats": ["markdown"], "onlyMainContent": true } } ``` **Usage Example (branding format - extract brand identity):** ```json { "name": "firecrawl_scrape", "arguments": { "url": "https://example.com", "formats": ["branding"] } } ``` **Branding format:** Extracts comprehensive brand identity (colors, fonts, typography, spacing, logo, UI components) for design analysis or style replication. **Performance:** Add maxAge parameter for 500% faster scrapes using cached data. **Returns:** JSON structured data, markdown, branding profile, or other formats as specified.'
+                                - generic [ref=e166]:
+                                    - paragraph [ref=e167]: firecrawl_map
+                                    - paragraph [ref=e168]: 'Map a website to discover all indexed URLs on the site. **Best for:** Discovering URLs on a website before deciding what to scrape; finding specific sections or pages within a large site; locating the correct page when scrape returns empty or incomplete results. **Not recommended for:** When you already know which specific URL you need (use scrape); when you need the content of the pages (use scrape after mapping). **Common mistakes:** Using crawl to discover URLs instead of map; jumping straight to firecrawl_agent when scrape fails instead of using map first to find the right page. **IMPORTANT - Use map before agent:** If `firecrawl_scrape` returns empty, minimal, or irrelevant content, use `firecrawl_map` with the `search` parameter to find the specific page URL containing your target content. This is faster and cheaper than using `firecrawl_agent`. Only use the agent as a last resort after map+scrape fails. **Prompt Example:** "Find the webhook documentation page on this API docs site." **Usage Example (discover all URLs):** ```json { "name": "firecrawl_map", "arguments": { "url": "https://example.com" } } ``` **Usage Example (search for specific content - RECOMMENDED when scrape fails):** ```json { "name": "firecrawl_map", "arguments": { "url": "https://docs.example.com/api", "search": "webhook events" } } ``` **Returns:** Array of URLs found on the site, filtered by search query if provided.'
+                                - generic [ref=e169]:
+                                    - paragraph [ref=e170]: firecrawl_search
+                                    - paragraph [ref=e171]: 'Search the web and optionally extract content from search results. This is the most powerful web search tool available, and if available you should always default to using this tool for any web search needs. The query also supports search operators, that you can use if needed to refine the search: | Operator | Functionality | Examples | ---|-|-| | `""` | Non-fuzzy matches a string of text | `"Firecrawl"` | `-` | Excludes certain keywords or negates other operators | `-bad`, `-site:firecrawl.dev` | `site:` | Only returns results from a specified website | `site:firecrawl.dev` | `inurl:` | Only returns results that include a word in the URL | `inurl:firecrawl` | `allinurl:` | Only returns results that include multiple words in the URL | `allinurl:git firecrawl` | `intitle:` | Only returns results that include a word in the title of the page | `intitle:Firecrawl` | `allintitle:` | Only returns results that include multiple words in the title of the page | `allintitle:firecrawl playground` | `related:` | Only returns results that are related to a specific domain | `related:firecrawl.dev` | `imagesize:` | Only returns images with exact dimensions | `imagesize:1920x1080` | `larger:` | Only returns images larger than specified dimensions | `larger:1920x1080` **Best for:** Finding specific information across multiple websites, when you don''t know which website has the information; when you need the most relevant content for a query. **Not recommended for:** When you need to search the filesystem. When you already know which website to scrape (use scrape); when you need comprehensive coverage of a single website (use map or crawl. **Common mistakes:** Using crawl or map for open-ended questions (use search instead). **Prompt Example:** "Find the latest research papers on AI published in 2023." **Sources:** web, images, news, default to web unless needed images or news. **Scrape Options:** Only use scrapeOptions when you think it is absolutely necessary. When you do so default to a lower limit to avoid timeouts, 5 or lower. **Optimal Workflow:** Search first using firecrawl_search without formats, then after fetching the results, use the scrape tool to get the content of the relevantpage(s) that you want to scrape **Usage Example without formats (Preferred):** ```json { "name": "firecrawl_search", "arguments": { "query": "top AI companies", "limit": 5, "sources": [ { "type": "web" } ] } } ``` **Usage Example with formats:** ```json { "name": "firecrawl_search", "arguments": { "query": "latest AI research papers 2023", "limit": 5, "lang": "en", "country": "us", "sources": [ { "type": "web" }, { "type": "images" }, { "type": "news" } ], "scrapeOptions": { "formats": ["markdown"], "onlyMainContent": true } } } ``` **Returns:** Array of search results (with optional scraped content).'
+                                - generic [ref=e172]:
+                                    - paragraph [ref=e173]: firecrawl_crawl
+                                    - paragraph [ref=e174]: 'Starts a crawl job on a website and extracts content from all pages. **Best for:** Extracting content from multiple related pages, when you need comprehensive coverage. **Not recommended for:** Extracting content from a single page (use scrape); when token limits are a concern (use map + batch_scrape); when you need fast results (crawling can be slow). **Warning:** Crawl responses can be very large and may exceed token limits. Limit the crawl depth and number of pages, or use map + batch_scrape for better control. **Common mistakes:** Setting limit or maxDiscoveryDepth too high (causes token overflow) or too low (causes missing pages); using crawl for a single page (use scrape instead). Using a /* wildcard is not recommended. **Prompt Example:** "Get all blog posts from the first two levels of example.com/blog." **Usage Example:** ```json { "name": "firecrawl_crawl", "arguments": { "url": "https://example.com/blog/*", "maxDiscoveryDepth": 5, "limit": 20, "allowExternalLinks": false, "deduplicateSimilarURLs": true, "sitemap": "include" } } ``` **Returns:** Operation ID for status checking; use firecrawl_check_crawl_status to check progress.'
+                                - generic [ref=e175]:
+                                    - paragraph [ref=e176]: firecrawl_check_crawl_status
+                                    - paragraph [ref=e177]: 'Check the status of a crawl job. **Usage Example:** ```json { "name": "firecrawl_check_crawl_status", "arguments": { "id": "550e8400-e29b-41d4-a716-446655440000" } } ``` **Returns:** Status and progress of the crawl job, including results if available.'
+                                - generic [ref=e178]:
+                                    - paragraph [ref=e179]: firecrawl_extract
+                                    - paragraph [ref=e180]: 'Extract structured information from web pages using LLM capabilities. Supports both cloud AI and self-hosted LLM extraction. **Best for:** Extracting specific structured data like prices, names, details from web pages. **Not recommended for:** When you need the full content of a page (use scrape); when you''re not looking for specific structured data. **Arguments:** - urls: Array of URLs to extract information from - prompt: Custom prompt for the LLM extraction - schema: JSON schema for structured data extraction - allowExternalLinks: Allow extraction from external links - enableWebSearch: Enable web search for additional context - includeSubdomains: Include subdomains in extraction **Prompt Example:** "Extract the product name, price, and description from these product pages." **Usage Example:** ```json { "name": "firecrawl_extract", "arguments": { "urls": ["https://example.com/page1", "https://example.com/page2"], "prompt": "Extract product information including name, price, and description", "schema": { "type": "object", "properties": { "name": { "type": "string" }, "price": { "type": "number" }, "description": { "type": "string" } }, "required": ["name", "price"] }, "allowExternalLinks": false, "enableWebSearch": false, "includeSubdomains": false } } ``` **Returns:** Extracted structured data as defined by your schema.'
+                                - generic [ref=e181]:
+                                    - paragraph [ref=e182]: firecrawl_agent
+                                    - paragraph [ref=e183]: 'Autonomous web research agent. This is a separate AI agent layer that independently browses the internet, searches for information, navigates through pages, and extracts structured data based on your query. You describe what you need, and the agent figures out where to find it. **How it works:** The agent performs web searches, follows links, reads pages, and gathers data autonomously. This runs **asynchronously** - it returns a job ID immediately, and you poll `firecrawl_agent_status` to check when complete and retrieve results. **IMPORTANT - Async workflow with patient polling:** 1. Call `firecrawl_agent` with your prompt/schema → returns job ID immediately 2. Poll `firecrawl_agent_status` with the job ID to check progress 3. **Keep polling for at least 2-3 minutes** - agent research typically takes 1-5 minutes for complex queries 4. Poll every 15-30 seconds until status is "completed" or "failed" 5. Do NOT give up after just a few polling attempts - the agent needs time to research **Expected wait times:** - Simple queries with provided URLs: 30 seconds - 1 minute - Complex research across multiple sites: 2-5 minutes - Deep research tasks: 5+ minutes **Best for:** Complex research tasks where you don''t know the exact URLs; multi-source data gathering; finding information scattered across the web; extracting data from JavaScript-heavy SPAs that fail with regular scrape. **Not recommended for:** Simple single-page scraping where you know the URL (use scrape with JSON format instead - faster and cheaper). **Arguments:** - prompt: Natural language description of the data you want (required, max 10,000 characters) - urls: Optional array of URLs to focus the agent on specific pages - schema: Optional JSON schema for structured output **Prompt Example:** "Find the founders of Firecrawl and their backgrounds" **Usage Example (start agent, then poll patiently for results):** ```json { "name": "firecrawl_agent", "arguments": { "prompt": "Find the top 5 AI startups founded in 2024 and their funding amounts", "schema": { "type": "object", "properties": { "startups": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "funding": { "type": "string" }, "founded": { "type": "string" } } } } } } } } ``` Then poll with `firecrawl_agent_status` every 15-30 seconds for at least 2-3 minutes. **Usage Example (with URLs - agent focuses on specific pages):** ```json { "name": "firecrawl_agent", "arguments": { "urls": ["https://docs.firecrawl.dev", "https://firecrawl.dev/pricing"], "prompt": "Compare the features and pricing information from these pages" } } ``` **Returns:** Job ID for status checking. Use `firecrawl_agent_status` to poll for results.'
+                                - generic [ref=e184]:
+                                    - paragraph [ref=e185]: firecrawl_agent_status
+                                    - paragraph [ref=e186]: 'Check the status of an agent job and retrieve results when complete. Use this to poll for results after starting an agent with `firecrawl_agent`. **IMPORTANT - Be patient with polling:** - Poll every 15-30 seconds - **Keep polling for at least 2-3 minutes** before considering the request failed - Complex research can take 5+ minutes - do not give up early - Only stop polling when status is "completed" or "failed" **Usage Example:** ```json { "name": "firecrawl_agent_status", "arguments": { "id": "550e8400-e29b-41d4-a716-446655440000" } } ``` **Possible statuses:** - processing: Agent is still researching - keep polling, do not give up - completed: Research finished - response includes the extracted data - failed: An error occurred (only stop polling on this status) **Returns:** Status, progress, and results (if completed) of the agent job.'
+                                - generic [ref=e187]:
+                                    - paragraph [ref=e188]: firecrawl_browser_create
+                                    - paragraph [ref=e189]: 'Create a persistent browser session for code execution via CDP (Chrome DevTools Protocol). **Best for:** Running code (Python/JS) that interacts with a live browser page, multi-step browser automation, persistent sessions that survive across multiple tool calls. **Not recommended for:** Simple page scraping (use firecrawl_scrape instead). **Arguments:** - ttl: Total session lifetime in seconds (30-3600, optional) - activityTtl: Idle timeout in seconds (10-3600, optional) - streamWebView: Whether to enable live view streaming (optional) **Usage Example:** ```json { "name": "firecrawl_browser_create", "arguments": {} } ``` **Returns:** Session ID, CDP URL, and live view URL.'
+                                - generic [ref=e190]:
+                                    - paragraph [ref=e191]: firecrawl_browser_execute
+                                    - paragraph [ref=e192]: "Execute code in a browser session. Supports agent-browser commands (bash), Python, or JavaScript. **Best for:** Browser automation, navigating pages, clicking elements, extracting data, multi-step browser workflows. **Requires:** An active browser session (create one with firecrawl_browser_create first). **Arguments:** - sessionId: The browser session ID (required) - code: The code to execute (required) - language: \"bash\", \"python\", or \"node\" (optional, defaults to \"bash\") **Recommended: Use bash with agent-browser commands** (pre-installed in every sandbox): ```json { \"name\": \"firecrawl_browser_execute\", \"arguments\": { \"sessionId\": \"session-id-here\", \"code\": \"agent-browser open https://example.com\", \"language\": \"bash\" } } ``` **Common agent-browser commands:** - `agent-browser open <url>` — Navigate to URL - `agent-browser snapshot` — Get accessibility tree with clickable refs (for AI) - `agent-browser snapshot -i -c` — Interactive elements only, compact - `agent-browser click @e5` — Click element by ref from snapshot - `agent-browser type @e3 \"text\"` — Type into element - `agent-browser fill @e3 \"text\"` — Clear and fill element - `agent-browser get text @e1` — Get text content - `agent-browser get title` — Get page title - `agent-browser get url` — Get current URL - `agent-browser screenshot [path]` — Take screenshot - `agent-browser scroll down` — Scroll page - `agent-browser wait 2000` — Wait 2 seconds - `agent-browser --help` — Full command reference **For Playwright scripting, use Python** (has proper async/await support): ```json { \"name\": \"firecrawl_browser_execute\", \"arguments\": { \"sessionId\": \"session-id-here\", \"code\": \"await page.goto('https://example.com')\\ntitle = await page.title()\\nprint(title)\", \"language\": \"python\" } } ``` **Note:** Prefer bash (agent-browser) or Python. **Returns:** Execution result including stdout, stderr, and exit code."
+                                - generic [ref=e193]:
+                                    - paragraph [ref=e194]: firecrawl_browser_delete
+                                    - paragraph [ref=e195]: 'Destroy a browser session. **Usage Example:** ```json { "name": "firecrawl_browser_delete", "arguments": { "sessionId": "session-id-here" } } ``` **Returns:** Success confirmation.'
+                                - generic [ref=e196]:
+                                    - paragraph [ref=e197]: firecrawl_browser_list
+                                    - paragraph [ref=e198]: 'List browser sessions, optionally filtered by status. **Usage Example:** ```json { "name": "firecrawl_browser_list", "arguments": { "status": "active" } } ``` **Returns:** Array of browser sessions.'
+    - generic:
+        - generic:
+            - generic:
+                - dialog "Edit MCP" [active]:
+                    - generic [ref=e203]:
+                        - heading "Edit MCP" [level=2] [ref=e204]
+                        - paragraph [ref=e205]: Update MCP configuration
+                        - generic [ref=e206]:
+                            - generic [ref=e207]:
+                                - text: Display Name
+                                - textbox "Display Name" [ref=e209]: Firecrawl
+                            - generic [ref=e210]:
+                                - text: Description
+                                - textbox "Description" [ref=e212]
+                            - generic [ref=e213]:
+                                - text: Icon URL
+                                - textbox "Icon URL" [ref=e215]
+                            - generic [ref=e216]:
+                                - text: Configuration (JSON)
+                                - textbox "Configuration (JSON)" [ref=e218]: '{ "command": [ "npx", "-y", "firecrawl-mcp" ], "env": {} }'
+                            - generic [ref=e219]:
+                                - checkbox "Requires User Credentials" [checked] [ref=e220]:
+                                    - img [ref=e222]
+                                - generic [ref=e224]: Requires User Credentials
+                            - generic [ref=e225]:
+                                - text: Credential Schema (JSON)
+                                - textbox "Credential Schema (JSON)" [ref=e227]:
+                                    - /placeholder: "{\\n  \"type\": \"object\",\\n  \"required\": [\"api_key\"],\\n  \"properties\": {\\n    \"api_key\": {\\n      \"type\": \"string\",\\n      \"description\": \"API Key\"\\n    }\\n  }\\n}"
+                                    - text: '{ "type": "object", "required": [ "api_key" ], "properties": { "api_key": { "type": "string", "description": "Firecrawl API Key", "env_var": "FIRECRAWL_API_KEY" } } }'
+                        - generic [ref=e228]:
+                            - button "Cancel" [ref=e229]
+                            - button "Save Changes" [ref=e230]
+````

@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Switch to class-based dark mode so only elements inside a
+   .dark ancestor get dark: variants. The sidebar is wrapped
+   in <div class="dark"> in AppShell — everything else stays light.
+   Using :is() instead of :where() so dark variants have higher
+   specificity (0,2,0) than base utilities (0,1,0) and always win. */
+@custom-variant dark (&:is(.dark, .dark *));
+
+/* ============================================================
+   MCP Ambassador — Catalyst Design System
+   ============================================================
+   
+   Using Tailwind CSS v4 with Catalyst UI components.
+   All color tokens are provided by Tailwind's default palette.
+   ============================================================ */
+
+@layer base {
+  /* Tell the browser to render native controls (date pickers, scrollbars,
+     time spinners) in dark mode when .dark is on <html> */
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-variant-numeric: normal;
+  }
+
+  table,
+  [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+@layer base {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(240 4% 30%);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(240 4% 40%);
+  }
+}

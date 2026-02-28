@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Docker bind mount directories (runtime data)
+cache/
+config/ambassador-server.yaml
+
+# Admin session secrets (F-SEC-M10-001)
+.session-secret
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*

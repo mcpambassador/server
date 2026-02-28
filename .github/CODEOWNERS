@@ -1,0 +1,32 @@
+# MCP Ambassador Server — CODEOWNERS
+#
+# These owners are automatically requested for review when the matching
+# files are changed in a pull request.
+#
+# Syntax: <pattern>  <@user-or-team>...
+# Teams are prefixed with @mcpambassador/
+
+# Default: core team reviews everything
+*                                       @mcpambassador/core-reviewers
+
+# Security-sensitive: auth, crypto, schema, migrations require security team sign-off
+packages/authn-*/                       @mcpambassador/security @mcpambassador/core-reviewers
+packages/authz-*/                       @mcpambassador/security @mcpambassador/core-reviewers
+packages/core/src/crypto*/             @mcpambassador/security @mcpambassador/core-reviewers
+packages/core/src/schema.ts            @mcpambassador/security @mcpambassador/database-engineers
+packages/core/drizzle/                  @mcpambassador/database-engineers @mcpambassador/security
+
+# Server routing and API contracts
+packages/server/src/routes/            @mcpambassador/core-reviewers @mcpambassador/security
+packages/contracts/                    @mcpambassador/core-reviewers
+
+# SPA / frontend
+packages/spa/                          @mcpambassador/frontend
+
+# Infrastructure
+Dockerfile                             @mcpambassador/devops @mcpambassador/security
+docker-compose.yml                     @mcpambassador/devops
+.github/workflows/                     @mcpambassador/devops
+
+# Docs
+*.md                                   @mcpambassador/docs-team
