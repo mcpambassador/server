@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to MCP Ambassador Server. This repository is a pnpm monorepo containing 8 packages that work together to provide the MCP Ambassador backend services. Before opening issues or PRs, please take a moment to read this guide and the linked project documentation.
 
-See the architecture documentation for an overview of how the packages interact: mcpambassador_docs/architecture.md
+See the [project documentation](https://mcpambassador.ai) for an overview of how the packages interact.
 
 ## Code of Conduct
 Please follow the project's Code of Conduct: see CODE_OF_CONDUCT.md
@@ -100,7 +100,7 @@ When you open an issue:
 
 When you open a pull request:
 
-- Labels are added automatically based on files changed (for example: area: core, area: spa)
+- Labels may be added automatically based on files changed (for example: area: core, area: spa)
 - Reviewers are auto-assigned
 - If authentication, cryptography, or schema files changed a security-review-required label is added (this is expected)
 - CI runs a set of checks: build, lint, typecheck, and tests (on Node 20 and Node 22)
@@ -169,7 +169,7 @@ AI-assisted contributions are welcome. This repository includes .github/copilot-
 
 ## Getting Help
 
-If you need help, open an issue describing the problem or question, or consult the project documentation at https://docs.mcpambassador.dev.
+If you need help, open an issue describing the problem or question, or consult the [project documentation](https://mcpambassador.ai).
 
 ## License
 
