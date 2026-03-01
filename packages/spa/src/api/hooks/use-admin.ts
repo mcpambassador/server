@@ -515,7 +515,7 @@ export function useAdminMcpHealth() {
   return useQuery({
     queryKey: ['admin', 'health', 'mcps'],
     queryFn: () => apiClient.get<McpHealthSummary>('/v1/admin/health/mcps'),
-    refetchInterval: 30000, // Auto-refresh every 30 seconds
+    refetchInterval: 60000, // Auto-refresh every 60 seconds
   });
 }
 
@@ -555,7 +555,7 @@ export function useAdminMcpLogs(mcpName: string) {
       ),
     enabled: !!mcpName,
     // Stop polling when the query enters an error state (e.g., 404 for non-connected MCPs)
-    refetchInterval: query => (query.state.status === 'error' ? false : 15000),
+    refetchInterval: query => (query.state.status === 'error' ? false : 30000),
   });
 }
 
@@ -589,7 +589,7 @@ export function useUserMcpInstances() {
   return useQuery({
     queryKey: ['admin', 'user-mcps'],
     queryFn: () => apiClient.get<UserMcpSummary>('/v1/admin/health/user-mcps'),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 }
 
@@ -598,7 +598,7 @@ export function useCatalogStatus() {
   return useQuery({
     queryKey: ['admin', 'catalog-status'],
     queryFn: () => apiClient.get<CatalogReloadStatus>('/v1/admin/catalog/status'),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 }
 

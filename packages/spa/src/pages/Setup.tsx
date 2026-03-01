@@ -122,7 +122,6 @@ export function Setup() {
                 <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
               </div>
             </div>
-            <Text className="text-xs uppercase tracking-widest text-zinc-500">Protocol Gateway</Text>
           </div>
 
           <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900 dark:text-white">

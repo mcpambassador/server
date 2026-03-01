@@ -4,7 +4,6 @@ import { Button } from '@/components/catalyst/button';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Heading } from '@/components/catalyst/heading';
-import { Text } from '@/components/catalyst/text';
 import { authApi } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/api/client';
@@ -74,9 +73,6 @@ export function Login() {
                   <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
                 </div>
               </div>
-            <Text className="text-xs uppercase tracking-widest text-zinc-500">
-              Protocol Gateway
-            </Text>
           </div>
           <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900 dark:text-white">
             Sign in to your account
