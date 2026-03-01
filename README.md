@@ -176,6 +176,16 @@ We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Prerequisites: Node.js 20+, pnpm 8.15+, Docker
 
+## Support
+
+MCP Ambassador is free and open source. If it's useful to you, consider supporting development.
+
+Support via GitHub Sponsors: https://github.com/sponsors/mcpambassador
+
+Crypto donations:
+- Bitcoin: `3QH4WQoQqnhU3LhbZQU8ttXaNco5Ge3xVp`
+- Ethereum: `0xa5462444c5AEf0B2e32822D9a9B7f91aC794FfF0`
+
 ## License
 
 Apache License 2.0 -- see [LICENSE](./LICENSE).
