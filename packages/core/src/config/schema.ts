@@ -98,14 +98,14 @@ const SessionConfigSchema = z
     idle_timeout_seconds: z.number().int().min(5).max(86400).default(1800),
     /** Spindown delay in seconds (5 min default, max 24h) */
     spindown_delay_seconds: z.number().int().min(5).max(86400).default(300),
-    /** Session TTL in seconds (16h default, max 24h) — SEC-V2-009 */
-    ttl_seconds: z.number().int().min(60).max(86400).default(57600),
-    /** Expected heartbeat interval in seconds (1 min default) */
-    heartbeat_expected_interval_seconds: z.number().int().min(5).max(3600).default(60),
-    /** Sweep interval in seconds (15 min default) */
-    sweep_interval_seconds: z.number().int().min(30).max(86400).default(900),
-    /** Evaluation interval in seconds (1 min default) */
-    evaluation_interval_seconds: z.number().int().min(5).max(300).default(60),
+    /** Session TTL in seconds (8h default, max 24h) — SEC-V2-009 */
+    ttl_seconds: z.number().int().min(60).max(86400).default(28800),
+    /** Expected heartbeat interval in seconds (2 min default) */
+    heartbeat_expected_interval_seconds: z.number().int().min(15).max(3600).default(120),
+    /** Sweep interval in seconds (30 min default) */
+    sweep_interval_seconds: z.number().int().min(30).max(86400).default(1800),
+    /** Evaluation interval in seconds (2 min default) */
+    evaluation_interval_seconds: z.number().int().min(5).max(600).default(120),
   })
   .optional();
 
@@ -117,8 +117,8 @@ const UserPoolConfigSchema = z
     max_instances_per_user: z.number().int().min(1).max(1000).default(10),
     /** Max total MCP instances system-wide (default: 100) */
     max_total_instances: z.number().int().min(1).max(10000).default(100),
-    /** Health check interval in milliseconds (default: 60000) */
-    health_check_interval_ms: z.number().int().min(1000).max(600000).default(60000),
+    /** Health check interval in milliseconds (default: 120000) */
+    health_check_interval_ms: z.number().int().min(1000).max(600000).default(120000),
   })
   .optional();
 

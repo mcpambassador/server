@@ -415,7 +415,7 @@ export class AmbassadorServer {
       mcpConfigs,
       maxInstancesPerUser: this.config.maxMcpInstancesPerUser,
       maxTotalInstances: this.config.maxTotalMcpInstances,
-      healthCheckIntervalMs: 60000,
+      healthCheckIntervalMs: 120000, // 2 minutes — balances responsiveness vs downstream load
     });
     // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate hot reload diffing
     const { computeConfigFingerprint } = await import('./downstream/manager.js');
@@ -433,8 +433,8 @@ export class AmbassadorServer {
     // Initialize session lifecycle manager (M15)
     // SEC-M17-001: Must be created AFTER UserMcpPool so it can receive valid reference
     const sessionConfig = {
-      evaluationIntervalMs: 60000, // 1 minute (TODO: read from config)
-      sweepIntervalMs: 900000, // 15 minutes
+      evaluationIntervalMs: 120000, // 2 minutes — reduced DB churn vs 60s
+      sweepIntervalMs: 1800000, // 30 minutes — expired tombstone cleanup is not urgent
       ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009
     };
     this.lifecycleManager = new SessionLifecycleManager(
@@ -1043,13 +1043,13 @@ export class AmbassadorServer {
         // Authenticate request
         const session = await this.authenticate(request);
 
-        // Rate limit: max 1 heartbeat per 5 seconds per session (SEC-V2-006)
+        // Rate limit: max 1 heartbeat per 10 seconds per session (SEC-V2-006)
         const lastHeartbeat = this.heartbeatRateLimit.get(session.session_id);
         const now = Date.now();
-        if (lastHeartbeat && now - lastHeartbeat < 5000) {
+        if (lastHeartbeat && now - lastHeartbeat < 10000) {
           return reply.status(429).send({
             error: 'rate_limit_exceeded',
-            message: 'Heartbeat rate limit: max 1 per 5 seconds',
+            message: 'Heartbeat rate limit: max 1 per 10 seconds',
           });
         }
 

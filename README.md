@@ -1,6 +1,6 @@
 # MCP Ambassador Server
 
-[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.8.0--beta.1-orange.svg)]() [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
+[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.8.0--beta.2-orange.svg)]() [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
 
 Centralized authentication, authorization, and audit for MCP tools. One server governs every downstream MCP your organization uses.
 
@@ -132,6 +132,44 @@ pnpm format:check
 | [Community Registry](https://github.com/mcpambassador/community-registry) | Curated registry of 38+ MCP server configurations |
 | [Documentation](https://mcpambassador.ai) | Full documentation, guides, and API reference |
 
+## Configuration Reference
+
+MCP Ambassador is configured via environment variables. All settings have production-ready defaults. See [mcpambassador.ai/docs/configuration](https://mcpambassador.ai/docs/configuration) for the full reference.
+
+### Timing & Performance
+
+These settings control session management, health monitoring, and internal scheduling. The defaults are tuned for production use with hundreds of concurrent sessions.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Session TTL | 28800s (8h) | Client session token lifetime before re-authentication |
+| Session eval interval | 120s | How often the server checks for idle/expired sessions |
+| Session sweep interval | 1800s (30m) | How often the server purges expired sessions from memory |
+| Heartbeat expected interval | 120s | Expected interval between client heartbeats |
+| Heartbeat rate limit | 1 per 10s | Maximum heartbeat frequency per client |
+| Health check interval | 120s | How often the server checks downstream MCP health |
+
+### SPA Polling Intervals
+
+The admin/user web portal polls the server for live data. These intervals balance responsiveness with server load.
+
+| Endpoint | Interval | Description |
+|----------|----------|-------------|
+| Health status | 60s | MCP instance health |
+| MCP list | 60s | Admin MCP catalog |
+| Catalog | 60s | User marketplace |
+| Logs | 30s | MCP instance logs |
+
+### Deployment Profiles
+
+| Profile | Session TTL | Heartbeat | Eval Interval | Recommended For |
+|---------|-------------|-----------|---------------|-----------------|
+| **Default** | 8h | 120s | 120s | Most production deployments |
+| **High-security** | 4h | 60s | 60s | Regulated environments, SOC2 |
+| **Development** | 24h | 30s | 30s | Local development, testing |
+
+For client-side settings (heartbeat interval, cache TTL, catalog refresh), see [@mcpambassador/client](https://github.com/mcpambassador/client#performance-tuning).
+
 ## Contributing
 
 We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -144,4 +182,4 @@ Apache License 2.0 -- see [LICENSE](./LICENSE).
 
 ## Status
 
-MCP Ambassador is at v0.8.0-beta.1. The API may change before 1.0. Production use is supported but expect breaking changes during the beta period.
+MCP Ambassador is at v0.8.0-beta.2. The API may change before 1.0. Production use is supported but expect breaking changes during the beta period.
