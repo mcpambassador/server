@@ -554,7 +554,8 @@ export function useAdminMcpLogs(mcpName: string) {
         `/v1/admin/health/mcps/${encodeURIComponent(mcpName)}/logs`
       ),
     enabled: !!mcpName,
-    refetchInterval: 15000, // more frequent for logs
+    // Stop polling when the query enters an error state (e.g., 404 for non-connected MCPs)
+    refetchInterval: query => (query.state.status === 'error' ? false : 15000),
   });
 }
 
