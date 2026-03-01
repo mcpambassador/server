@@ -43,9 +43,11 @@ export function McpDetail() {
   const archiveMcp = useArchiveMcp();
   const deleteMcp = useDeleteMcp();
   const navigate = useNavigate();
-  const { data: instanceData, isLoading: healthLoading } = useAdminMcpInstances(mcp?.name ?? '');
+  // Only poll health/instances/logs for published MCPs (draft/archived have no live connection)
+  const healthMcpName = mcp?.status === 'published' ? mcp.name : '';
+  const { data: instanceData, isLoading: healthLoading } = useAdminMcpInstances(healthMcpName);
   const restartMcp = useRestartMcp();
-  const { data: logsData } = useAdminMcpLogs(mcp?.name ?? '');
+  const { data: logsData } = useAdminMcpLogs(healthMcpName);
   const clearMcpLogs = useClearMcpLogs();
   const restartUserMcp = useRestartUserMcp();
 
