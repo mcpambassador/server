@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Navigate } from 'react-router-dom';
 import { setupApi } from '@/api/setup';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { Logomark } from '@/components/brand/Logomark';
 
 export function Login() {
   usePageTitle('Login');
@@ -66,15 +67,13 @@ export function Login() {
         <div>
           {/* Brand mark */}
           <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
-                <span className="font-mono text-lg font-bold text-white">M</span>
+              <div className="flex items-center gap-2">
+                <Logomark className="h-10 w-10" />
+                <div className="flex items-baseline gap-1">
+                  <span className="font-mono text-xl font-bold text-violet-400">MCP</span>
+                  <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-mono text-xl font-bold text-zinc-900 dark:text-white">MCP</span>
-                <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
-              </div>
-            </div>
             <Text className="text-xs uppercase tracking-widest text-zinc-500">
               Protocol Gateway
             </Text>
