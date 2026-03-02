@@ -26,7 +26,7 @@
     "@mcpambassador/protocol": "workspace:*",
     "argon2": "^0.44.0",
     "better-sqlite3": "^12.6.2",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "^0.45.1",
     "pino": "^8.17.2",
     "postgres": "^3.4.3",
     "re2": "1.23.3",
