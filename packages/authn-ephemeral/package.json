@@ -18,7 +18,7 @@
     "@mcpambassador/protocol": "workspace:*",
     "argon2": "^0.44.0",
     "drizzle-orm": "^0.29.3",
-    "uuid": "^9.0.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/uuid": "^9.0.7",
