@@ -224,7 +224,13 @@ export async function listUserSubscriptions(
 
   // Drizzle join results are namespaced by table name: row.client_mcp_subscriptions.*, row.clients.*
   const subscriptions: any[] = rows.map((r: any) => {
-    const sub = r.client_mcp_subscriptions ?? r;
+    const sub = r.client_mcp_subscriptions;
+    if (!sub) {
+      // Guard against shape regressions — fail loudly instead of silently returning wrong data
+      throw new Error(
+        '[listUserSubscriptions] Unexpected row shape from Drizzle join: missing client_mcp_subscriptions namespace'
+      );
+    }
     return {
       subscription_id: sub.subscription_id,
       client_id: sub.client_id,
