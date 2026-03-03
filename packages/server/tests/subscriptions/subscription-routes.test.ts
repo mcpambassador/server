@@ -28,6 +28,7 @@ describe('Subscription Routes', () => {
   let testGroupId: string;
   let sessionCookie: string;
   let sessionCookie2: string;
+  let testOAuthMcpId: string;
 
   beforeAll(async () => {
     server = await startTestServer();
@@ -114,6 +115,28 @@ describe('Subscription Routes', () => {
     await grantGroupAccess(server.db, {
       group_id: testGroupId,
       mcp_id: testMcpId,
+      assigned_by: 'system',
+    });
+
+    // Create OAuth2 MCP for credential-bypass tests
+    const oauthMcp = await createMcpEntry(server.db, {
+      name: 'sub-test-oauth-mcp-' + Date.now(),
+      display_name: 'OAuth2 Test MCP',
+      description: 'OAuth2 MCP for subscription tests',
+      transport_type: 'http',
+      config: JSON.stringify({ url: 'https://api.example.com/mcp' }),
+      requires_user_credentials: true,
+      auth_type: 'oauth2',
+      isolation_mode: 'per_user',
+      tool_catalog: JSON.stringify([]),
+      status: 'published',
+    });
+    testOAuthMcpId = oauthMcp.mcp_id;
+
+    // Grant group access to OAuth2 MCP
+    await grantGroupAccess(server.db, {
+      group_id: testGroupId,
+      mcp_id: testOAuthMcpId,
       assigned_by: 'system',
     });
 
@@ -423,6 +446,84 @@ describe('Subscription Routes', () => {
       });
 
       expect(getResponse.statusCode).toBe(404);
+    });
+  });
+
+  // ==========================================================================
+  // Tests for GET /v1/users/me/subscriptions (aggregate endpoint)
+  // Exercises listUserSubscriptions which uses the Drizzle join fixed in this PR.
+  // ==========================================================================
+  describe('GET /v1/users/me/subscriptions (aggregate)', () => {
+    let aggregateSubId: string;
+
+    beforeAll(async () => {
+      // Re-subscribe after the DELETE test hard-deleted the previous subscription
+      const response = await server.fastify.inject({
+        method: 'POST',
+        url: `/v1/users/me/clients/${testClientId}/subscriptions`,
+        headers: { cookie: sessionCookie },
+        payload: { mcp_id: testMcpId },
+      });
+      const body = JSON.parse(response.body);
+      aggregateSubId = body.data?.id;
+    });
+
+    it('should return all subscriptions for the authenticated user', async () => {
+      const response = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/subscriptions',
+        headers: { cookie: sessionCookie },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.ok).toBe(true);
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.data.length).toBeGreaterThan(0);
+      const sub = body.data.find((s: any) => s.id === aggregateSubId);
+      expect(sub).toBeDefined();
+      expect(sub.clientId).toBe(testClientId);
+      expect(sub.mcpName).toBeDefined();
+      expect(sub.status).toBe('active');
+    });
+
+    it('should return 401 without a session', async () => {
+      const response = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/subscriptions',
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('should not include subscriptions belonging to other users', async () => {
+      // user2 has no subscriptions, so aggregate should be empty
+      const response = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/users/me/subscriptions',
+        headers: { cookie: sessionCookie2 },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(Array.isArray(body.data)).toBe(true);
+      expect(body.data.length).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // OAuth2 credential bypass — subscribing to an oauth2 MCP must succeed even
+  // when no credential is stored yet (credential is created after OAuth callback).
+  // ==========================================================================
+  describe('POST subscribe - OAuth2 MCP does not require pre-existing credentials', () => {
+    it('should allow subscribing to an oauth2 MCP without stored credentials', async () => {
+      const response = await server.fastify.inject({
+        method: 'POST',
+        url: `/v1/users/me/clients/${testClientId}/subscriptions`,
+        headers: { cookie: sessionCookie },
+        payload: { mcp_id: testOAuthMcpId },
+      });
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.data.mcpId).toBe(testOAuthMcpId);
+      expect(body.data.status).toBe('active');
     });
   });
 });
