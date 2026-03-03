@@ -25,7 +25,7 @@ import {
   compatSelect,
 } from '@mcpambassador/core';
 import { getUserClient } from './client-service.js';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 export interface SubscriptionWithMcp {
   subscription_id: string;
@@ -216,24 +216,28 @@ export async function listUserSubscriptions(
   userId: string
 ): Promise<SubscriptionWithMcp[]> {
   // Query subscriptions joined with clients for this user
+  // NOTE: Drizzle ORM join syntax uses eq(col1, col2) — not the Knex-style (join) => join.on(...)
   const rows = await compatSelect(db)
     .from(client_mcp_subscriptions)
-    .innerJoin(clients, (join: any) =>
-      join.on(clients.client_id, client_mcp_subscriptions.client_id)
-    )
-    .where(clients.user_id, userId as any);
+    .innerJoin(clients, eq(clients.client_id, client_mcp_subscriptions.client_id))
+    .where(eq(clients.user_id, userId));
 
-  // rows will be an array where each element is a combined object; normalize to subscription objects
-  const subscriptions: any[] = rows.map((r: any) => ({
-    subscription_id: r.subscription_id,
-    client_id: r.client_id,
-    mcp_id: r.mcp_id,
-    selected_tools:
-      typeof r.selected_tools === 'string' ? JSON.parse(r.selected_tools) : r.selected_tools,
-    status: r.status,
-    subscribed_at: r.subscribed_at,
-    updated_at: r.updated_at,
-  }));
+  // Drizzle join results are namespaced by table name: row.client_mcp_subscriptions.*, row.clients.*
+  const subscriptions: any[] = rows.map((r: any) => {
+    const sub = r.client_mcp_subscriptions ?? r;
+    return {
+      subscription_id: sub.subscription_id,
+      client_id: sub.client_id,
+      mcp_id: sub.mcp_id,
+      selected_tools:
+        typeof sub.selected_tools === 'string'
+          ? JSON.parse(sub.selected_tools)
+          : sub.selected_tools,
+      status: sub.status,
+      subscribed_at: sub.subscribed_at,
+      updated_at: sub.updated_at,
+    };
+  });
 
   // Batch fetch MCP names
   const mcpIds = subscriptions.map((s: any) => s.mcp_id);
