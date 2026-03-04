@@ -265,6 +265,17 @@ export function ClientDetail() {
           Choose which tools this client can access from {subscriptionToEdit?.mcpName}
         </DialogDescription>
         <DialogBody>
+          <div className="flex gap-2 mb-3">
+            <Button plain className="text-xs" onClick={() => {
+              const tools = marketplace?.data?.find(m => m.id === subscriptionToEdit?.mcpId)?.tools ?? [];
+              setSelectedTools(tools.map(t => t.name));
+            }}>
+              Select All
+            </Button>
+            <Button plain className="text-xs" onClick={() => setSelectedTools([])}>
+              Select None
+            </Button>
+          </div>
           <div className="max-h-96 overflow-y-auto space-y-3">
             {marketplace?.data
               ?.find(m => m.id === subscriptionToEdit?.mcpId)

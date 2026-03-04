@@ -33,8 +33,21 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
   });
 
   if (response.status === 401) {
-    // Redirect to login on unauthorized
-    window.location.href = '/login';
+    // Use raw fetch (no interceptor) to check whether the web UI session is actually
+    // expired. An MCP session expiry (or any other non-auth 401) should NOT force a
+    // logout — only a truly dead web session should redirect to /login.
+    try {
+      const sessionCheck = await fetch('/v1/auth/session', { credentials: 'include' });
+      if (sessionCheck.status === 401) {
+        // Web session is genuinely expired — redirect to login.
+        window.location.href = '/login';
+      }
+      // If sessionCheck returned 200 the web session is still alive; the 401 came
+      // from a different system (e.g. MCP session expiry). Do NOT redirect.
+    } catch {
+      // Network error while checking session — assume session is dead.
+      window.location.href = '/login';
+    }
     throw new ApiError(401, 'UNAUTHORIZED', 'Unauthorized', 'Session expired or invalid');
   }
 

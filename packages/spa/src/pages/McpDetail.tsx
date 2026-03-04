@@ -295,7 +295,16 @@ export function McpDetail() {
                     Leave all selected to enable all tools
                   </Text>
                   {mcp.tools.length > 0 ? (
-                    <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
+                    <>
+                      <div className="flex gap-2 mt-1 mb-2">
+                        <Button plain className="text-xs" onClick={() => setSelectedTools(mcp.tools.map(t => t.name))}>
+                          Select All
+                        </Button>
+                        <Button plain className="text-xs" onClick={() => setSelectedTools([])}>
+                          Select None
+                        </Button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
                       {mcp.tools.map((tool) => (
                         <CheckboxField key={tool.name}>
                           <Checkbox
@@ -314,7 +323,8 @@ export function McpDetail() {
                           </Label>
                         </CheckboxField>
                       ))}
-                    </div>
+                      </div>
+                    </>
                   ) : isOAuthMcp ? (
                     <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                       Tools will be discovered after you connect your OAuth account on the Credentials page.
