@@ -38,6 +38,7 @@ import {
   // seedDevData removed — replaced by first-run setup wizard (ADR-019)
   type OAuthCredentialBlob,
   type OAuthConfig,
+  type AmbassadorConfig,
 } from '@mcpambassador/core';
 import {
   EphemeralAuthProvider,
@@ -111,6 +112,8 @@ export interface ServerConfig {
     enabled: boolean;
     token?: string;
   };
+  /** Full Ambassador configuration from YAML file (TD-014) */
+  ambassadorConfig?: AmbassadorConfig;
 }
 
 export class AmbassadorServer {
@@ -119,7 +122,10 @@ export class AmbassadorServer {
   private mcpManager: SharedMcpManager;
   private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
-  private config: Omit<Required<ServerConfig>, 'publicUrl' | 'registryConfig'> & {
+  private config: Omit<
+    Required<ServerConfig>,
+    'publicUrl' | 'registryConfig' | 'ambassadorConfig'
+  > & {
     adminPort: number;
     adminUiEnabled: boolean;
     maxMcpInstancesPerUser: number;
@@ -131,6 +137,7 @@ export class AmbassadorServer {
       enabled: boolean;
       token?: string;
     };
+    ambassadorConfig?: AmbassadorConfig;
   };
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
@@ -168,6 +175,7 @@ export class AmbassadorServer {
         enabled: true,
         token: undefined,
       },
+      ambassadorConfig: config.ambassadorConfig,
     };
 
     this.mcpManager = new SharedMcpManager();
@@ -409,13 +417,14 @@ export class AmbassadorServer {
 
     // M17: Initialize per-user MCP pool with catalog-based configs
     // SEC-M17-001: Must be created BEFORE SessionLifecycleManager
-    // SEC-M17-005: Use configurable limits instead of hardcoded values
+    // SEC-M17-005: Use configurable limits from config instead of hardcoded values
     console.log('[Server] Initializing per-user MCP pool...');
     this.userPool = new UserMcpPool({
       mcpConfigs,
       maxInstancesPerUser: this.config.maxMcpInstancesPerUser,
       maxTotalInstances: this.config.maxTotalMcpInstances,
-      healthCheckIntervalMs: 120000, // 2 minutes — balances responsiveness vs downstream load
+      healthCheckIntervalMs:
+        this.config.ambassadorConfig?.user_pool?.health_check_interval_ms ?? 120000, // Configurable, defaults to 2 minutes
     });
     // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate hot reload diffing
     const { computeConfigFingerprint } = await import('./downstream/manager.js');
@@ -432,10 +441,13 @@ export class AmbassadorServer {
 
     // Initialize session lifecycle manager (M15)
     // SEC-M17-001: Must be created AFTER UserMcpPool so it can receive valid reference
+    // TD-014: Read from config with sensible defaults
     const sessionConfig = {
-      evaluationIntervalMs: 120000, // 2 minutes — reduced DB churn vs 60s
-      sweepIntervalMs: 1800000, // 30 minutes — expired tombstone cleanup is not urgent
-      ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009
+      evaluationIntervalMs:
+        (this.config.ambassadorConfig?.session?.evaluation_interval_seconds ?? 120) * 1000,
+      sweepIntervalMs:
+        (this.config.ambassadorConfig?.session?.sweep_interval_seconds ?? 1800) * 1000,
+      ttlHardMaxSeconds: 86400, // 24 hours — SEC-V2-009 hard max (not configurable for security)
     };
     this.lifecycleManager = new SessionLifecycleManager(
       this.db,
@@ -980,11 +992,13 @@ export class AmbassadorServer {
         // Get source IP for rate limiting
         const sourceIp = this.getSourceIp(request);
 
-        // Build session config (TODO: read from loaded config once config loading is implemented)
+        // Build session config from loaded AmbassadorConfig (TD-014)
+        // Falls back to sensible defaults if config not loaded
         const sessionConfig: SessionRegConfig = {
-          ttlSeconds: 28800, // 8 hours (default)
-          idleTimeoutSeconds: 1800, // 30 minutes (default)
-          spindownDelaySeconds: 300, // 5 minutes (default)
+          ttlSeconds: this.config.ambassadorConfig?.session?.ttl_seconds ?? 28800, // 8 hours (default)
+          idleTimeoutSeconds: this.config.ambassadorConfig?.session?.idle_timeout_seconds ?? 1800, // 30 minutes (default)
+          spindownDelaySeconds:
+            this.config.ambassadorConfig?.session?.spindown_delay_seconds ?? 300, // 5 minutes (default)
         };
 
         // Register session (includes rate limiting, validation, token generation)
@@ -1086,9 +1100,9 @@ export class AmbassadorServer {
         const ttlHardMaxMs = 86400 * 1000; // 24 hours (SEC-V2-009)
         const maxExpiryTime = createdAt + ttlHardMaxMs;
 
-        // Get TTL from session config (use default 8h if not configured)
-        // TODO: Read from config once config loading is implemented
-        const sessionTtlMs = 28800 * 1000; // 8 hours
+        // Get TTL from session config (TD-014: wired to AmbassadorConfig)
+        const sessionTtlSeconds = this.config.ambassadorConfig?.session?.ttl_seconds ?? 28800;
+        const sessionTtlMs = sessionTtlSeconds * 1000;
         const newExpiryTime = Math.min(now + sessionTtlMs, maxExpiryTime);
         const newExpiryIso = new Date(newExpiryTime).toISOString();
 

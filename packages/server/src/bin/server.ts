@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/no-misused-promises, @typescript-eslint/explicit-function-return-type */
+/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/explicit-function-return-type */
 
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
 import fs from 'fs';
 import yaml from 'yaml';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
+import { loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
 
 /**
  * MCP Ambassador Server CLI
@@ -20,6 +21,7 @@ import type { DownstreamMcpConfig } from '../downstream/index.js';
  *   --data-dir <path>      Data directory (default: ./data)
  *   --server-name <name>   Server name for TLS cert (default: localhost)
  *   --log-level <level>    Log level (default: info)
+ *   --config <path>        Path to ambassador-server.yaml config file
  */
 
 interface CliArgs {
@@ -28,6 +30,7 @@ interface CliArgs {
   dataDir?: string;
   serverName?: string;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  config?: string;
 }
 
 function parseArgs(): CliArgs {
@@ -69,6 +72,12 @@ function parseArgs(): CliArgs {
           i++;
         }
         break;
+      case '--config':
+        if (next) {
+          config.config = next;
+          i++;
+        }
+        break;
       case '--help':
       case '-h':
         console.log(`
@@ -83,6 +92,7 @@ Options:
   --data-dir <path>      Data directory (default: ./data)
   --server-name <name>   Server name for TLS cert (default: localhost)
   --log-level <level>    Log level: trace|debug|info|warn|error|fatal (default: info)
+  --config <path>        Path to ambassador-server.yaml config file
   --help, -h             Show this help message
 
 Examples:
@@ -94,6 +104,9 @@ Examples:
 
   # Start with debug logging
   mcpambassador-server --log-level debug
+
+  # Start with specific config file
+  mcpambassador-server --config /etc/ambassador/config.yaml
         `);
         process.exit(0);
     }
@@ -123,102 +136,6 @@ function findConfigFile(dataDir: string): string | null {
   }
 
   return null;
-}
-
-/**
- * Resolve ${ENV_VAR} references in a string
- * Supports both ${VAR} and ${ENV:VAR} syntax for compatibility
- */
-function resolveEnvVar(value: string): string {
-  // Match ${VAR} or ${ENV:VAR}
-  return value.replace(/\$\{(?:ENV:)?([A-Z_][A-Z0-9_]*)\}/g, (_match, varName: string) => {
-    const envValue = process.env[varName];
-    if (envValue === undefined) {
-      console.warn(`[Server] Environment variable ${varName} not set, substituting empty string`);
-      return '';
-    }
-    return envValue;
-  });
-}
-
-/**
- * Recursively resolve ${ENV_VAR} references in config object
- */
-function resolveEnvVars(obj: unknown): unknown {
-  if (typeof obj === 'string') {
-    return resolveEnvVar(obj);
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(item => resolveEnvVars(item));
-  }
-  if (obj !== null && typeof obj === 'object') {
-    const resolved: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      resolved[key] = resolveEnvVars(value);
-    }
-    return resolved;
-  }
-  return obj;
-}
-
-/**
- * Load downstream MCP config from YAML file
- * Only extracts downstream_mcps section, doesn't require full config
- */
-async function loadDownstreamMcpConfig(configPath: string): Promise<DownstreamMcpConfig[]> {
-  const fileContent = fs.readFileSync(configPath, 'utf-8');
-  const rawConfig = yaml.parse(fileContent);
-
-  if (!rawConfig || typeof rawConfig !== 'object') {
-    throw new Error('Invalid config file: not an object');
-  }
-
-  const downstreamMcps = (rawConfig as Record<string, unknown>).downstream_mcps;
-
-  if (!downstreamMcps) {
-    console.warn('[Server] No downstream_mcps section found in config');
-    return [];
-  }
-
-  if (!Array.isArray(downstreamMcps)) {
-    throw new Error('Invalid config: downstream_mcps must be an array');
-  }
-
-  // Resolve environment variables in the config
-  const resolved = resolveEnvVars(downstreamMcps) as DownstreamMcpConfig[];
-
-  return resolved;
-}
-
-/**
- * Load user_pool config from YAML file
- * SEC-M17-005: Support configurable per-user MCP pool limits
- */
-function loadUserPoolConfig(configPath: string): {
-  maxInstancesPerUser?: number;
-  maxTotalInstances?: number;
-} {
-  const fileContent = fs.readFileSync(configPath, 'utf-8');
-  const rawConfig = yaml.parse(fileContent);
-
-  if (!rawConfig || typeof rawConfig !== 'object') {
-    return {};
-  }
-
-  const userPoolConfig = (rawConfig as Record<string, unknown>).user_pool;
-
-  if (!userPoolConfig || typeof userPoolConfig !== 'object') {
-    return {};
-  }
-
-  const config = userPoolConfig as Record<string, unknown>;
-
-  return {
-    maxInstancesPerUser:
-      typeof config.max_instances_per_user === 'number' ? config.max_instances_per_user : undefined,
-    maxTotalInstances:
-      typeof config.max_total_instances === 'number' ? config.max_total_instances : undefined,
-  };
 }
 
 /**
@@ -260,7 +177,7 @@ function loadRegistryConfig(configPath: string | null): {
           > | null;
         }
       }
-    } catch (err) {
+    } catch {
       // Ignore parse errors, use defaults
     }
   }
@@ -284,37 +201,65 @@ async function main() {
   const dataDir =
     args.dataDir || process.env.MCP_AMBASSADOR_DATA_DIR || path.join(process.cwd(), 'data');
 
-  // Try to load downstream MCP configuration
+  // Load full AmbassadorConfig using the core config loader
+  let ambassadorConfig: AmbassadorConfig | undefined;
   let downstreamMcps: DownstreamMcpConfig[] = [];
   let userPoolConfig: { maxInstancesPerUser?: number; maxTotalInstances?: number } = {};
-  const configFile = findConfigFile(dataDir);
 
-  if (configFile) {
+  // Determine config file path: CLI arg > env var > auto-discover
+  const configPath = args.config || process.env.AMBASSADOR_CONFIG_PATH || findConfigFile(dataDir);
+
+  if (configPath) {
     try {
-      console.log('[Server] Loading downstream MCP configuration...');
-      downstreamMcps = await loadDownstreamMcpConfig(configFile);
+      console.log(`[Server] Loading configuration from ${configPath}...`);
+      ambassadorConfig = await loadConfig(configPath, {
+        enforcement: 'block',
+        scrub_env_vars: true,
+      });
+      console.log('[Server] Configuration loaded successfully');
+
+      // Extract downstream MCPs from loaded config
+      downstreamMcps = ambassadorConfig.downstream_mcps as DownstreamMcpConfig[];
       console.log(`[Server] Loaded ${downstreamMcps.length} downstream MCP(s) from config`);
 
-      // SEC-M17-005: Load user_pool config
-      userPoolConfig = loadUserPoolConfig(configFile);
-      if (userPoolConfig.maxInstancesPerUser || userPoolConfig.maxTotalInstances) {
+      // SEC-M17-005: Load user_pool config from validated config
+      if (ambassadorConfig.user_pool) {
+        userPoolConfig = {
+          maxInstancesPerUser: ambassadorConfig.user_pool.max_instances_per_user,
+          maxTotalInstances: ambassadorConfig.user_pool.max_total_instances,
+        };
         console.log('[Server] Loaded user_pool config:', userPoolConfig);
       }
+
+      // Log key configuration values at startup
+      console.log('[Server] Session config:', {
+        ttl_seconds: ambassadorConfig.session?.ttl_seconds ?? 28800,
+        idle_timeout_seconds: ambassadorConfig.session?.idle_timeout_seconds ?? 1800,
+        spindown_delay_seconds: ambassadorConfig.session?.spindown_delay_seconds ?? 300,
+        heartbeat_interval: ambassadorConfig.session?.heartbeat_expected_interval_seconds ?? 120,
+      });
     } catch (err) {
       console.error('[Server] Failed to load config file:', err);
-      console.warn('[Server] Starting without downstream MCPs');
+      // In production mode, fail hard if config can't be loaded
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[Server] Config loading failed in production mode, aborting startup');
+        process.exit(1);
+      }
+      console.warn('[Server] Starting with default configuration');
     }
   } else {
-    console.warn('[Server] No config file found - starting without downstream MCPs');
+    console.warn('[Server] No config file found - starting with default configuration');
     console.log('[Server] Checked locations:');
     console.log('  - /config/ambassador-server.yaml');
     console.log(`  - ${path.join(dataDir, 'config', 'ambassador-server.yaml')}`);
-    console.log('  - /app/config/ambassador-server.example.yaml');
-    console.log(`  - ${path.join(process.cwd(), 'config', 'ambassador-server.example.yaml')}`);
+    if (args.config) console.log(`  - ${args.config}`);
+    if (process.env.AMBASSADOR_CONFIG_PATH)
+      console.log(`  - ${process.env.AMBASSADOR_CONFIG_PATH}`);
   }
 
   // Load registry config (supports both YAML and env vars)
-  const registryConfig = loadRegistryConfig(configFile);
+  // Registry config is separate from AmbassadorConfig schema, loaded manually from YAML or env vars
+  const registryConfig = loadRegistryConfig(configPath);
   console.log(
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
@@ -322,8 +267,9 @@ async function main() {
   const server = new AmbassadorServer({
     port:
       args.port ||
+      ambassadorConfig?.server.port ||
       (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
-    host: args.host || process.env.MCP_AMBASSADOR_HOST,
+    host: args.host || ambassadorConfig?.server.host || process.env.MCP_AMBASSADOR_HOST,
     dataDir,
     serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
     logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
@@ -332,6 +278,7 @@ async function main() {
     maxTotalMcpInstances: userPoolConfig.maxTotalInstances, // SEC-M17-005
     publicUrl: process.env.PUBLIC_URL, // OAuth callback base URL for reverse proxy deployments
     registryConfig, // Community registry configuration
+    ambassadorConfig, // Pass full config to server for runtime use
   });
 
   // Handle shutdown signals
