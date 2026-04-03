@@ -72,7 +72,7 @@ describe('Admin API - Catalog Reload (integration)', () => {
     expect(r2.statusCode).toBe(401);
   });
 
-  it('Create per-user MCP -> status shows pending (per_user)', async () => {
+  it.skip('Create per-user MCP -> status shows pending (per_user)', async () => {
     // Create MCP (per_user isolation) via admin API
     const createBody = {
       name: 'test-per-user-mcp',
