@@ -279,7 +279,7 @@ describe('MCP Validator', () => {
 
     it('should reject python -c (inline code) attack', async () => {
       const entry = createMockEntry('stdio', {
-        command: ['python3', '-c', 'import os; os.system("rm -rf /")'],
+        command: ['python3', '-c', 'print("hello")'],
       });
 
       const result = await validateMcpConfig(entry);

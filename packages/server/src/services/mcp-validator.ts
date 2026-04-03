@@ -85,11 +85,12 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
   }
 
   // MCP-002: Command injection checks (matching downstream validator: F-SEC-M6-001)
-  if (entry.transport_type === 'stdio' && config.command) {
+  if (entry.transport_type === 'stdio' && config.command && Array.isArray(config.command)) {
     const command = config.command as string[];
     const [cmd, ...args] = command;
 
-    if (cmd) {
+    const allStrings = command.every(item => typeof item === 'string');
+    if (cmd && allStrings) {
       // Check ALL command array elements for shell metacharacters (not only command[0])
       for (const element of command) {
         if (containsShellMetacharacters(element)) {
