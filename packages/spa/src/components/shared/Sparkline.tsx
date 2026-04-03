@@ -85,9 +85,9 @@ export function Sparkline({ data, width = 200, height = 40, className }: Sparkli
       {/* Fill area under the line */}
       <polyline
         points={[
-          `${points[0].x},${padding.top + chartHeight}`,
+          `${points[0]?.x ?? 0},${padding.top + chartHeight}`,
           ...points.map(p => `${p.x},${p.y}`),
-          `${points[points.length - 1].x},${padding.top + chartHeight}`,
+          `${points[points.length - 1]?.x ?? 0},${padding.top + chartHeight}`,
         ].join(' ')}
         fill="currentColor"
         className="text-blue-100 dark:text-blue-900/40"
