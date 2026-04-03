@@ -71,6 +71,8 @@ export interface McpEntry {
   id: string;
   name: string;
   description?: string;
+  icon_url?: string;
+  category?: string;
   isolationMode: 'shared' | 'per-user';
   requiresUserCredentials: boolean;
   credentialSchema?: Record<string, unknown>;
