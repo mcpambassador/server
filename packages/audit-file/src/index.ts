@@ -37,18 +37,22 @@ export class FileAuditProvider implements AuditProvider {
   private resolvedAuditDir: string = ''; // Validated absolute path
   private retention: number = 90; // days
   private flushInterval: number = 5000; // ms
+  private maxBufferSize: number = 1000; // events
   private buffer: AuditEvent[] = [];
   private flushTimer?: NodeJS.Timeout;
   private isShuttingDown = false;
   private isFlushing = false; // Flush lock to prevent concurrent flushes (F-SEC-M5-004)
 
-  constructor(config?: { auditDir?: string; retention?: number; flushInterval?: number }) {
+  constructor(config?: { auditDir?: string; retention?: number; flushInterval?: number; maxBufferSize?: number }) {
     this.auditDir = config?.auditDir || './audit-logs';
     if (config?.retention !== undefined) {
       this.retention = config.retention;
     }
     if (config?.flushInterval !== undefined) {
       this.flushInterval = config.flushInterval;
+    }
+    if (config?.maxBufferSize !== undefined) {
+      this.maxBufferSize = config.maxBufferSize;
     }
   }
 
@@ -65,7 +69,7 @@ export class FileAuditProvider implements AuditProvider {
     await fs.mkdir(this.resolvedAuditDir, { recursive: true, mode: 0o700 });
 
     console.log(
-      `[audit:file] Initialized: dir=${this.resolvedAuditDir}, retention=${this.retention}d, flushInterval=${this.flushInterval}ms`
+      `[audit:file] Initialized: dir=${this.resolvedAuditDir}, retention=${this.retention}d, flushInterval=${this.flushInterval}ms, maxBufferSize=${this.maxBufferSize}`
     );
 
     // Start periodic flush
@@ -215,6 +219,22 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   /**
+   * Enforce maximum buffer size by dropping oldest events
+   *
+   * When the buffer exceeds maxBufferSize, removes oldest events
+   * and logs a warning with the count of dropped events.
+   */
+  private enforceBufferLimit(): void {
+    if (this.buffer.length > this.maxBufferSize) {
+      const droppedCount = this.buffer.length - this.maxBufferSize;
+      this.buffer = this.buffer.slice(droppedCount);
+      console.warn(
+        `[audit:file] Buffer overflow: dropped ${droppedCount} oldest events (buffer exceeded max size of ${this.maxBufferSize})`
+      );
+    }
+  }
+
+  /**
    * Flush buffered events to disk
    *
    * Writes all buffered events to appropriate daily file.
@@ -262,6 +282,7 @@ export class FileAuditProvider implements AuditProvider {
           console.error(`[audit:file] Failed to write to ${filePath}:`, error);
           // Re-buffer failed events (F-SEC-M5-004)
           this.buffer.unshift(...events);
+          this.enforceBufferLimit();
         }
       }
 
@@ -270,6 +291,7 @@ export class FileAuditProvider implements AuditProvider {
       console.error(`[audit:file] Flush error:`, error);
       // Re-buffer all events on general error
       this.buffer.unshift(...toFlush);
+      this.enforceBufferLimit();
     } finally {
       this.isFlushing = false;
     }

@@ -287,4 +287,226 @@ describe('FileAuditProvider', () => {
       await expect(fs.access(recentFilePath)).resolves.toBeUndefined();
     });
   });
+
+  describe('Buffer size limits', () => {
+    it('should respect default maxBufferSize of 1000', async () => {
+      const defaultProvider = new FileAuditProvider({
+        auditDir: testDir,
+        flushInterval: 10000, // Long flush interval to prevent auto-flush
+      });
+      await defaultProvider.initialize({ provider_type: 'audit', provider_id: 'file_jsonl' });
+
+      // Make directory read-only to force flush failures
+      await fs.chmod(testDir, 0o555);
+
+      try {
+        // Add 1001 events to exceed default max of 1000
+        for (let i = 0; i < 1001; i++) {
+          await defaultProvider.emit({
+            event_id: `evt-${i}`,
+            timestamp: '2026-02-16T10:00:00.000Z',
+            event_type: 'tool_invocation',
+            severity: 'info',
+            action: 'test',
+          });
+        }
+
+        // Attempt flush (should fail due to read-only dir)
+        await defaultProvider.flush();
+
+        // Restore permissions and flush
+        await fs.chmod(testDir, 0o700);
+        await defaultProvider.flush();
+
+        const filePath = getAuditFilePath(testDir, '2026-02-16');
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.trim().split('\n');
+
+        // Should have 1000 events (oldest dropped)
+        expect(lines.length).toBe(1000);
+        // First event should be evt-1 (evt-0 was dropped)
+        const firstEvent = JSON.parse(lines[0]!) as AuditEvent;
+        expect(firstEvent.event_id).toBe('evt-1');
+      } finally {
+        await fs.chmod(testDir, 0o700);
+        await defaultProvider.shutdown();
+      }
+    });
+
+    it('should drop oldest events when buffer exceeds maxBufferSize during failed flush', async () => {
+      // Create provider with small maxBufferSize for testing
+      const testProvider = new FileAuditProvider({
+        auditDir: testDir,
+        maxBufferSize: 10,
+        flushInterval: 100,
+      });
+
+      await testProvider.initialize({ provider_type: 'audit', provider_id: 'file_jsonl' });
+
+      // Make the directory read-only to force flush failures
+      await fs.chmod(testDir, 0o555);
+
+      try {
+        // Emit 20 events (should exceed maxBufferSize of 10)
+        for (let i = 0; i < 20; i++) {
+          await testProvider.emit({
+            event_id: `evt-${i}`,
+            timestamp: '2026-02-16T10:00:00.000Z',
+            event_type: 'tool_invocation',
+            severity: 'info',
+            action: 'test',
+          });
+        }
+
+        // Attempt flush (should fail due to read-only dir)
+        await testProvider.flush();
+
+        // Buffer should be capped at 10 due to enforceBufferLimit
+        // Verify by restoring write permissions and flushing
+        await fs.chmod(testDir, 0o700);
+        await testProvider.flush();
+
+        const filePath = getAuditFilePath(testDir, '2026-02-16');
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.trim().split('\n');
+
+        // Should have 10 events (oldest 10 dropped)
+        expect(lines.length).toBe(10);
+        // First event should be evt-10 (evt-0 to evt-9 were dropped)
+        const firstEvent = JSON.parse(lines[0]!) as AuditEvent;
+        expect(firstEvent.event_id).toBe('evt-10');
+      } finally {
+        // Restore write permissions for cleanup
+        await fs.chmod(testDir, 0o700);
+        await testProvider.shutdown();
+      }
+    });
+
+    it('should allow custom maxBufferSize in constructor', async () => {
+      const customProvider = new FileAuditProvider({
+        auditDir: testDir,
+        maxBufferSize: 50,
+        flushInterval: 100,
+      });
+
+      await customProvider.initialize({ provider_type: 'audit', provider_id: 'file_jsonl' });
+
+      // Make the directory read-only to force flush failures
+      await fs.chmod(testDir, 0o555);
+
+      try {
+        // Emit 100 events (should exceed maxBufferSize of 50)
+        for (let i = 0; i < 100; i++) {
+          await customProvider.emit({
+            event_id: `evt-${i}`,
+            timestamp: '2026-02-16T10:00:00.000Z',
+            event_type: 'tool_invocation',
+            severity: 'info',
+            action: 'test',
+          });
+        }
+
+        // Attempt flush
+        await customProvider.flush();
+
+        // Restore permissions and flush
+        await fs.chmod(testDir, 0o700);
+        await customProvider.flush();
+
+        const filePath = getAuditFilePath(testDir, '2026-02-16');
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.trim().split('\n');
+
+        // Should have 50 events
+        expect(lines.length).toBe(50);
+        // First event should be evt-50 (evt-0 to evt-49 were dropped)
+        const firstEvent = JSON.parse(lines[0]!) as AuditEvent;
+        expect(firstEvent.event_id).toBe('evt-50');
+      } finally {
+        await fs.chmod(testDir, 0o700);
+        await customProvider.shutdown();
+      }
+    });
+
+    it('should not affect normal flush behavior when disk is healthy', async () => {
+      const testProvider = new FileAuditProvider({
+        auditDir: testDir,
+        maxBufferSize: 10,
+        flushInterval: 100,
+      });
+
+      await testProvider.initialize({ provider_type: 'audit', provider_id: 'file_jsonl' });
+
+      // Emit 5 events (below maxBufferSize)
+      for (let i = 0; i < 5; i++) {
+        await testProvider.emit({
+          event_id: `evt-${i}`,
+          timestamp: '2026-02-16T10:00:00.000Z',
+          event_type: 'tool_invocation',
+          severity: 'info',
+          action: 'test',
+        });
+      }
+
+      await testProvider.flush();
+
+      const filePath = getAuditFilePath(testDir, '2026-02-16');
+      const content = await fs.readFile(filePath, 'utf-8');
+      const lines = content.trim().split('\n');
+
+      // Should have all 5 events
+      expect(lines.length).toBe(5);
+      // All events should be present
+      expect(lines[0]).toContain('evt-0');
+      expect(lines[4]).toContain('evt-4');
+
+      await testProvider.shutdown();
+    });
+
+    it('should drop only excess events, not all', async () => {
+      const testProvider = new FileAuditProvider({
+        auditDir: testDir,
+        maxBufferSize: 10,
+        flushInterval: 100,
+      });
+
+      await testProvider.initialize({ provider_type: 'audit', provider_id: 'file_jsonl' });
+
+      // Make directory read-only to force failure
+      await fs.chmod(testDir, 0o555);
+
+      try {
+        // Emit 15 events (5 over limit of 10)
+        for (let i = 0; i < 15; i++) {
+          await testProvider.emit({
+            event_id: `evt-${i}`,
+            timestamp: '2026-02-16T10:00:00.000Z',
+            event_type: 'tool_invocation',
+            severity: 'info',
+            action: 'test',
+          });
+        }
+
+        // Attempt flush
+        await testProvider.flush();
+
+        // Restore permissions and flush
+        await fs.chmod(testDir, 0o700);
+        await testProvider.flush();
+
+        const filePath = getAuditFilePath(testDir, '2026-02-16');
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.trim().split('\n');
+
+        // Should have 10 events (exactly at limit)
+        expect(lines.length).toBe(10);
+        // First remaining event should be evt-5 (evt-0 to evt-4 were dropped)
+        const firstEvent = JSON.parse(lines[0]!) as AuditEvent;
+        expect(firstEvent.event_id).toBe('evt-5');
+      } finally {
+        await fs.chmod(testDir, 0o700);
+        await testProvider.shutdown();
+      }
+    });
+  });
 });
