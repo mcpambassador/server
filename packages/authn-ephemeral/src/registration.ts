@@ -47,7 +47,7 @@ function extractSessionClientId(metadata: unknown): string | null {
 
 /**
  * Rate limiter state (in-memory)
- * Maps IP address -> { count, window_start, failures }
+ * Maps IP address -> { count, window_start, failures, timestamp }
  */
 const rateLimitState = new Map<
   string,
@@ -55,6 +55,7 @@ const rateLimitState = new Map<
     count: number;
     windowStart: number;
     consecutiveFailures: number;
+    timestamp: number; // Track when entry was added for eviction
   }
 >();
 
@@ -66,6 +67,8 @@ const RATE_LIMIT_CONFIG = {
   windowMs: 60_000, // 1 minute
   maxFailures: 3,
   backoffBase: 2, // Exponential backoff multiplier
+  maxEntries: 10_000, // Hard cap on rate limit map size
+  cleanupIntervalMs: 60_000, // Run cleanup every 60 seconds
 };
 
 /**
@@ -277,6 +280,29 @@ export async function registerSession(
 }
 
 /**
+ * Enforce hard cap on rate limit state map size
+ *
+ * When map exceeds maxEntries, evicts oldest entries (by timestamp)
+ * until size is at the cap. This prevents unbounded memory growth.
+ */
+function enforceRateLimitMapSizeCap(): void {
+  if (rateLimitState.size < RATE_LIMIT_CONFIG.maxEntries) {
+    return; // Still under cap
+  }
+
+  // Find entries to evict (oldest first)
+  const entries = Array.from(rateLimitState.entries());
+  entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+  // Evict oldest 10% of entries to make room
+  const entriesToEvict = Math.ceil(RATE_LIMIT_CONFIG.maxEntries * 0.1);
+  for (let i = 0; i < entriesToEvict && rateLimitState.size >= RATE_LIMIT_CONFIG.maxEntries; i++) {
+    const [ip] = entries[i];
+    rateLimitState.delete(ip);
+  }
+}
+
+/**
  * Check rate limit for IP address
  *
  * Implements:
@@ -292,10 +318,14 @@ async function checkRateLimit(sourceIp: string): Promise<void> {
 
   if (!state) {
     // First request from this IP
+    // Check hard cap before adding new entry
+    enforceRateLimitMapSizeCap();
+
     rateLimitState.set(sourceIp, {
       count: 1,
       windowStart: now,
       consecutiveFailures: 0,
+      timestamp: now,
     });
     return;
   }
@@ -305,6 +335,7 @@ async function checkRateLimit(sourceIp: string): Promise<void> {
     // Reset window
     state.count = 1;
     state.windowStart = now;
+    state.timestamp = now; // Update timestamp on reset
     return;
   }
 
@@ -375,6 +406,11 @@ function clearFailures(sourceIp: string): void {
 }
 
 /**
+ * Cleanup timer reference (for graceful shutdown)
+ */
+let cleanupTimer: NodeJS.Timeout | null = null;
+
+/**
  * Cleanup expired rate limit entries (periodic maintenance)
  * Call this periodically via setInterval in production
  */
@@ -387,4 +423,42 @@ export function cleanupRateLimitState(): void {
       rateLimitState.delete(ip);
     }
   }
+}
+
+/**
+ * Start periodic cleanup timer for rate limit state
+ *
+ * Initializes a timer to cleanup expired entries every 60 seconds.
+ * Call this during server startup.
+ *
+ * @see server.ts initialize() method
+ */
+export function startRateLimitCleanup(): void {
+  if (cleanupTimer) {
+    return; // Already running
+  }
+
+  cleanupTimer = setInterval(() => {
+    cleanupRateLimitState();
+  }, RATE_LIMIT_CONFIG.cleanupIntervalMs);
+
+  // Prevent the timer from keeping the process alive
+  cleanupTimer.unref();
+}
+
+/**
+ * Stop periodic cleanup timer and clear all rate limit state
+ *
+ * Call this during server shutdown for graceful cleanup.
+ *
+ * @see server.ts stop() method
+ */
+export function stopRateLimitCleanup(): void {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
+  }
+
+  // Clear all rate limit state on shutdown
+  rateLimitState.clear();
 }

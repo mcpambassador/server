@@ -46,6 +46,8 @@ import {
   getOrCreateHmacSecret,
   persistHmacSecret,
   registerSession,
+  startRateLimitCleanup,
+  stopRateLimitCleanup,
   type RegistrationRequest,
   type SessionRegConfig,
 } from '@mcpambassador/authn-ephemeral';
@@ -458,6 +460,10 @@ export class AmbassadorServer {
     );
     this.lifecycleManager.start();
     console.log('[Server] Session lifecycle manager started');
+
+    // Start rate limit cleanup timer (Sprint 3.3)
+    startRateLimitCleanup();
+    console.log('[Server] Rate limit cleanup timer started');
 
     // M21: Initialize user session store and register on main server
     console.log('[Server] Registering user session management...');
@@ -1919,6 +1925,10 @@ DELETE THIS FILE after recording the value.
    */
   async stop(): Promise<void> {
     console.log('[Server] Shutting down...');
+
+    // Stop rate limit cleanup timer (Sprint 3.3)
+    console.log('[Server] Stopping rate limit cleanup timer...');
+    stopRateLimitCleanup();
 
     // Stop session lifecycle manager (M15)
     if (this.lifecycleManager) {

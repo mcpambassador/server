@@ -12,7 +12,13 @@
 
 export { EphemeralAuthProvider } from './provider.js';
 export { getOrCreateHmacSecret, persistHmacSecret } from './hmac-secret.js';
-export { registerSession, cleanupRateLimitState, type SessionRegConfig } from './registration.js';
+export {
+  registerSession,
+  cleanupRateLimitState,
+  startRateLimitCleanup,
+  stopRateLimitCleanup,
+  type SessionRegConfig,
+} from './registration.js';
 export { validateClientKey, generateSessionToken, verifySessionToken } from './token.js';
 export type {
   RegistrationRequest,
