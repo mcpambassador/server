@@ -55,7 +55,72 @@ export interface UserMcpCredentials {
 }
 
 /**
- * F-SEC-M6-001: Validate downstream MCP config for command injection risks
+ * F-SEC-M6-001: Default allowlist of permitted base commands for stdio MCP transport.
+ *
+ * Configurable via the MCP_ALLOWED_COMMANDS environment variable as a
+ * comma-separated list (e.g. "npx,uvx,docker"). When the env var is set,
+ * it replaces this default entirely.
+ */
+export const DEFAULT_ALLOWED_COMMANDS = ['npx', 'node', 'uvx', 'docker', 'python', 'python3', 'deno', 'bun'];
+
+/**
+ * Returns the effective command allowlist, respecting the MCP_ALLOWED_COMMANDS
+ * environment variable override.
+ */
+export function getAllowedCommands(): string[] {
+  const override = process.env['MCP_ALLOWED_COMMANDS'];
+  if (override && override.trim().length > 0) {
+    return override.split(',').map(c => c.trim()).filter(c => c.length > 0);
+  }
+  return DEFAULT_ALLOWED_COMMANDS;
+}
+
+/**
+ * Shell metacharacters that are dangerous in command or argument strings.
+ * These indicate an attempt to chain or redirect shell commands.
+ */
+const SHELL_METACHARACTERS = [';', '|', '&', '`', '$', '>', '<', '\n', '\r', '\0'];
+
+/**
+ * Returns true when the string contains any shell metacharacter.
+ */
+export function containsShellMetacharacters(value: string): boolean {
+  return SHELL_METACHARACTERS.some(ch => value.includes(ch));
+}
+
+/**
+ * Argument flags that allow arbitrary code evaluation. Checked against the
+ * full argument string (case-insensitive where appropriate).
+ *
+ * Covers:
+ *   node -e / --eval          → execute inline JavaScript
+ *   python/python3 -c         → execute inline Python
+ *   ruby -e                   → execute inline Ruby
+ *   eval() / exec()           → string patterns that suggest code injection
+ */
+const DANGEROUS_ARG_PATTERNS: RegExp[] = [
+  /^-e$/,
+  /^--eval$/,
+  /^-c$/,
+  /eval\s*\(/,
+  /exec\s*\(/,
+];
+
+/**
+ * Returns true when the argument string matches a known dangerous eval pattern.
+ */
+export function isDangerousArgument(arg: string): boolean {
+  return DANGEROUS_ARG_PATTERNS.some(pattern => pattern.test(arg));
+}
+
+/**
+ * F-SEC-M6-001: Validate downstream MCP config for command injection risks.
+ *
+ * Checks:
+ * 1. All command array elements for shell metacharacters (not only command[0])
+ * 2. Base command (command[0]) against the configured allowlist
+ * 3. Arguments (command[1:]) for dangerous eval patterns
+ * 4. Environment variable keys against BLOCKED_ENV_VARS
  */
 export function validateMcpConfig(config: DownstreamMcpConfig): void {
   if (config.transport === 'stdio') {
@@ -63,20 +128,37 @@ export function validateMcpConfig(config: DownstreamMcpConfig): void {
       throw new Error(`[${config.name}] stdio transport requires command array`);
     }
 
-    const [cmd] = config.command;
+    const [cmd, ...args] = config.command;
     if (!cmd || cmd.trim() === '') {
       throw new Error(`[${config.name}] Empty command not allowed`);
     }
 
-    // Check for shell injection attempts in command
-    if (
-      cmd.includes(';') ||
-      cmd.includes('|') ||
-      cmd.includes('&') ||
-      cmd.includes('`') ||
-      cmd.includes('$')
-    ) {
-      throw new Error(`[${config.name}] Command contains shell metacharacters: ${cmd}`);
+    // Check ALL elements of the command array for shell metacharacters
+    for (const element of config.command) {
+      if (containsShellMetacharacters(element)) {
+        throw new Error(
+          `[${config.name}] Command element contains shell metacharacters: ${element}`
+        );
+      }
+    }
+
+    // Enforce base command allowlist
+    const allowedCommands = getAllowedCommands();
+    if (!allowedCommands.includes(cmd)) {
+      throw new Error(
+        `[${config.name}] Command '${cmd}' is not in the allowed command list. ` +
+        `Permitted commands: ${allowedCommands.join(', ')}. ` +
+        `Override via MCP_ALLOWED_COMMANDS environment variable.`
+      );
+    }
+
+    // Check arguments for dangerous eval/exec patterns
+    for (const arg of args) {
+      if (isDangerousArgument(arg)) {
+        throw new Error(
+          `[${config.name}] Argument '${arg}' matches a dangerous eval/exec pattern and is not permitted`
+        );
+      }
     }
 
     // Check for dangerous environment variables

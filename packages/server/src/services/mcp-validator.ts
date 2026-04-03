@@ -8,6 +8,11 @@
  */
 
 import type { McpCatalogEntry } from '@mcpambassador/core';
+import {
+  getAllowedCommands,
+  containsShellMetacharacters,
+  isDangerousArgument,
+} from '../downstream/types.js';
 
 /**
  * Validation result
@@ -81,17 +86,34 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
 
   // MCP-002: Command injection checks (matching downstream validator: F-SEC-M6-001)
   if (entry.transport_type === 'stdio' && config.command) {
-    const [cmd] = config.command as string[];
+    const command = config.command as string[];
+    const [cmd, ...args] = command;
+
     if (cmd) {
-      // Check for shell metacharacters
-      if (
-        cmd.includes(';') ||
-        cmd.includes('|') ||
-        cmd.includes('&') ||
-        cmd.includes('`') ||
-        cmd.includes('$')
-      ) {
-        errors.push(`Command contains shell metacharacters: ${cmd}`);
+      // Check ALL command array elements for shell metacharacters (not only command[0])
+      for (const element of command) {
+        if (containsShellMetacharacters(element)) {
+          errors.push(`Command element contains shell metacharacters: ${element}`);
+        }
+      }
+
+      // Enforce base command allowlist
+      const allowedCommands = getAllowedCommands();
+      if (!allowedCommands.includes(cmd)) {
+        errors.push(
+          `Command '${cmd}' is not in the allowed command list. ` +
+          `Permitted commands: ${allowedCommands.join(', ')}. ` +
+          `Override via MCP_ALLOWED_COMMANDS environment variable.`
+        );
+      }
+
+      // Check arguments for dangerous eval/exec patterns
+      for (const arg of args) {
+        if (isDangerousArgument(arg)) {
+          errors.push(
+            `Argument '${arg}' matches a dangerous eval/exec pattern and is not permitted`
+          );
+        }
       }
     }
 
