@@ -223,13 +223,13 @@ export async function closeDatabase(db: DatabaseClient): Promise<void> {
   try {
     if ((db as any).session?.client?.close) {
       (db as any).session.client.close();
-      console.log('[db] SQLite connection closed');
+      logger.info('[db] SQLite connection closed');
     } else if ((db as any).session?.client?.end) {
       await (db as any).session.client.end();
-      console.log('[db] PostgreSQL connection closed');
+      logger.info('[db] PostgreSQL connection closed');
     }
   } catch (err) {
-    console.warn('[db] Error closing database connection:', err);
+    logger.warn({ err }, '[db] Error closing database connection');
   }
 }
 
@@ -255,7 +255,7 @@ export async function checkDatabaseHealth(db: DatabaseClient): Promise<boolean> 
     }
     return true;
   } catch (err) {
-    console.error('[db] Health check failed:', err);
+    logger.error({ err }, '[db] Health check failed');
     return false;
   }
 }
