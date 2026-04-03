@@ -10,9 +10,10 @@
  * @see Architecture §11 Audit Deep Dive
  */
 
-/* eslint-disable no-console, @typescript-eslint/no-misused-promises, prefer-const, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-misused-promises, prefer-const, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import type { AuditProvider, AuditQueryFilters, ProviderHealth } from '@mcpambassador/core';
+import { logger } from '@mcpambassador/core';
 import type { AuditEvent } from '@mcpambassador/protocol';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
@@ -68,8 +69,9 @@ export class FileAuditProvider implements AuditProvider {
     // Ensure audit directory exists with restricted permissions
     await fs.mkdir(this.resolvedAuditDir, { recursive: true, mode: 0o700 });
 
-    console.log(
-      `[audit:file] Initialized: dir=${this.resolvedAuditDir}, retention=${this.retention}d, flushInterval=${this.flushInterval}ms, maxBufferSize=${this.maxBufferSize}`
+    logger.info(
+      { dir: this.resolvedAuditDir, retention_days: this.retention, flush_interval_ms: this.flushInterval, max_buffer_size: this.maxBufferSize },
+      '[audit:file] Initialized'
     );
 
     // Start periodic flush
@@ -175,7 +177,7 @@ export class FileAuditProvider implements AuditProvider {
       await this.flush();
     }
 
-    console.log(`[audit:file] Shutdown complete`);
+    logger.info('[audit:file] Shutdown complete');
   }
 
   /**
@@ -187,7 +189,7 @@ export class FileAuditProvider implements AuditProvider {
    */
   async emit(event: AuditEvent): Promise<void> {
     if (this.isShuttingDown) {
-      console.warn(`[audit:file] Cannot emit event during shutdown: ${event.event_id}`);
+      logger.warn({ event_id: event.event_id }, '[audit:file] Cannot emit event during shutdown');
       return;
     }
 
@@ -206,7 +208,7 @@ export class FileAuditProvider implements AuditProvider {
    */
   async emitBatch(events: AuditEvent[]): Promise<void> {
     if (this.isShuttingDown) {
-      console.warn(`[audit:file] Cannot emit batch during shutdown: ${events.length} events`);
+      logger.warn({ event_count: events.length }, '[audit:file] Cannot emit batch during shutdown');
       return;
     }
 
@@ -228,8 +230,9 @@ export class FileAuditProvider implements AuditProvider {
     if (this.buffer.length > this.maxBufferSize) {
       const droppedCount = this.buffer.length - this.maxBufferSize;
       this.buffer = this.buffer.slice(droppedCount);
-      console.warn(
-        `[audit:file] Buffer overflow: dropped ${droppedCount} oldest events (buffer exceeded max size of ${this.maxBufferSize})`
+      logger.warn(
+        { dropped_count: droppedCount, max_buffer_size: this.maxBufferSize },
+        '[audit:file] Buffer overflow: dropped oldest events'
       );
     }
   }
@@ -279,16 +282,16 @@ export class FileAuditProvider implements AuditProvider {
         try {
           await fs.appendFile(filePath, lines, { encoding: 'utf-8', mode: 0o600 });
         } catch (error) {
-          console.error(`[audit:file] Failed to write to ${filePath}:`, error);
+          logger.error({ file_path: filePath, error }, '[audit:file] Failed to write to file');
           // Re-buffer failed events (F-SEC-M5-004)
           this.buffer.unshift(...events);
           this.enforceBufferLimit();
         }
       }
 
-      console.log(`[audit:file] Flushed ${toFlush.length} events to disk`);
+      logger.info({ event_count: toFlush.length }, '[audit:file] Flushed events to disk');
     } catch (error) {
-      console.error(`[audit:file] Flush error:`, error);
+      logger.error({ error }, '[audit:file] Flush error');
       // Re-buffer all events on general error
       this.buffer.unshift(...toFlush);
       this.enforceBufferLimit();
@@ -342,7 +345,7 @@ export class FileAuditProvider implements AuditProvider {
       } catch (error) {
         // File might not exist (no events on that day) - this is okay
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.error(`[audit:file] Error reading ${filePath}:`, error);
+          logger.error({ file_path: filePath, error }, '[audit:file] Error reading file');
         }
       }
     }
@@ -374,11 +377,11 @@ export class FileAuditProvider implements AuditProvider {
         if (fileDate < cutoffDate) {
           const filePath = path.join(this.resolvedAuditDir, file);
           await fs.unlink(filePath);
-          console.log(`[audit:file] Deleted old audit file: ${file}`);
+          logger.info({ file }, '[audit:file] Deleted old audit file');
         }
       }
     } catch (error) {
-      console.error(`[audit:file] Error during cleanup:`, error);
+      logger.error({ error }, '[audit:file] Error during cleanup');
     }
   }
 }
@@ -448,7 +451,7 @@ async function readAuditFile(filePath: string, filters: AuditQueryFilters): Prom
 
       events.push(event);
     } catch (error) {
-      console.error(`[audit:file] Failed to parse line in ${filePath}:`, error);
+      logger.error({ file_path: filePath, error }, '[audit:file] Failed to parse line');
       // Continue processing other lines
     }
   }

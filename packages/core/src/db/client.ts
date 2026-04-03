@@ -9,9 +9,9 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console */
 
 import { drizzle as drizzleSqlite, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { logger } from '../utils/logger.js';
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import Database from 'better-sqlite3';
 import postgres from 'postgres';
@@ -71,15 +71,15 @@ function initializeSQLite(config: DatabaseConfig): BetterSQLite3Database<typeof 
   // Set file permissions to 0600 (owner read/write only) - Security requirement F-021
   try {
     fs.chmodSync(filePath, 0o600);
-    console.log(`[db] SQLite file permissions set to 0600: ${filePath}`);
+    logger.info({ file_path: filePath }, '[db] SQLite file permissions set to 0600');
   } catch (err) {
-    console.warn(`[db] Could not set file permissions on ${filePath}:`, err);
+    logger.warn({ file_path: filePath, err }, '[db] Could not set file permissions');
   }
 
   // Enable WAL mode for better concurrency
   if (config.enableWAL !== false) {
     sqlite.pragma('journal_mode = WAL');
-    console.log('[db] SQLite WAL mode enabled');
+    logger.info('[db] SQLite WAL mode enabled');
   }
 
   // Enable foreign keys (SQLite default is OFF)
@@ -94,7 +94,7 @@ function initializeSQLite(config: DatabaseConfig): BetterSQLite3Database<typeof 
   // Create Drizzle client
   const db = drizzleSqlite(sqlite, { schema });
 
-  console.log(`[db] SQLite initialized: ${filePath}`);
+  logger.info({ file_path: filePath }, '[db] SQLite initialized');
 
   return db;
 }
@@ -119,16 +119,16 @@ async function initializePostgres(
   // Test connection
   try {
     await sql`SELECT 1`;
-    console.log('[db] PostgreSQL connection successful');
+    logger.info('[db] PostgreSQL connection successful');
   } catch (err) {
-    console.error('[db] PostgreSQL connection failed:', err);
+    logger.error({ err }, '[db] PostgreSQL connection failed');
     throw err;
   }
 
   // Create Drizzle client
   const db = drizzlePostgres(sql, { schema });
 
-  console.log('[db] PostgreSQL initialized');
+  logger.info('[db] PostgreSQL initialized');
 
   return db;
 }
@@ -142,7 +142,7 @@ async function initializePostgres(
  * @param db Database client
  */
 export async function runMigrations(db: DatabaseClient): Promise<void> {
-  console.log('[db] Running migrations...');
+  logger.info('[db] Running migrations...');
 
   // ES module compatibility: __dirname replacement
   const currentFileUrl = new URL(import.meta.url);
@@ -151,7 +151,7 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
 
   // Check if migrations directory exists
   if (!fs.existsSync(migrationsDir)) {
-    console.warn(`[db] Migrations directory not found: ${migrationsDir}`);
+    logger.warn({ migrations_dir: migrationsDir }, '[db] Migrations directory not found');
     return;
   }
 
@@ -162,7 +162,7 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
     .sort();
 
   if (files.length === 0) {
-    console.log('[db] No migration files found');
+    logger.info('[db] No migration files found');
     return;
   }
 
@@ -171,7 +171,7 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
     const filePath = path.join(migrationsDir, file);
     const sqlContent = fs.readFileSync(filePath, 'utf-8');
 
-    console.log(`[db] Running migration: ${file}`);
+    logger.info({ file }, '[db] Running migration');
 
     try {
       // Execute raw SQL content (migrations contain full DDL statements)
@@ -186,14 +186,14 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
         // Fallback
         await (db as any).execute(sqlContent);
       }
-      console.log(`[db] ✓ Migration complete: ${file}`);
+      logger.info({ file }, '[db] Migration complete');
     } catch (err) {
-      console.error(`[db] ✗ Migration failed: ${file}`, err);
+      logger.error({ file, err }, '[db] Migration failed');
       throw err;
     }
   }
 
-  console.log(`[db] All migrations complete (${files.length} files)`);
+  logger.info({ file_count: files.length }, '[db] All migrations complete');
 }
 
 /**

@@ -10,7 +10,7 @@
  * @see Architecture §10 Authorization Logic Deep Dive
  */
 
-/* eslint-disable no-console, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import type {
   AuthorizationProvider,
@@ -19,7 +19,7 @@ import type {
   AuthzRequest,
   ProviderHealth,
 } from '@mcpambassador/core';
-import { getEffectiveProfile, type DatabaseClient } from '@mcpambassador/core';
+import { getEffectiveProfile, type DatabaseClient, logger } from '@mcpambassador/core';
 import type { ToolDescriptor } from '@mcpambassador/protocol';
 
 /**
@@ -45,7 +45,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
    */
   async initialize(_config: Record<string, unknown>): Promise<void> {
     // No initialization required for local RBAC
-    console.log(`[authz:local] Initialized: provider_id=${this.id}`);
+    logger.info({ provider_id: this.id }, '[authz:local] Initialized');
   }
 
   /**
@@ -82,7 +82,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
    */
   async shutdown(): Promise<void> {
     // No cleanup required
-    console.log(`[authz:local] Shutdown complete`);
+    logger.info('[authz:local] Shutdown complete');
   }
 
   /**
@@ -105,7 +105,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
       } catch (error) {
-        console.error(`[authz:local] Failed to resolve profile ${session.profile_id}:`, error);
+        logger.error({ profile_id: session.profile_id, error }, '[authz:local] Failed to resolve profile');
         return {
           decision: 'deny',
           reason: 'Profile resolution error',
@@ -153,7 +153,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {
-        console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
+        logger.error({ profile_id: client.profile_id, error }, '[authz:local] Failed to resolve profile');
         return {
           decision: 'deny',
           reason: 'Profile resolution error',
@@ -215,7 +215,7 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
       } catch (error) {
-        console.error(`[authz:local] Failed to resolve profile ${session.profile_id}:`, error);
+        logger.error({ profile_id: session.profile_id, error }, '[authz:local] Failed to resolve profile');
         return [];
       }
     } else {
@@ -224,26 +224,27 @@ export class LocalRbacProvider implements AuthorizationProvider {
         where: (c, { eq }) => eq(c.client_id, session.client_id),
       });
       if (!client) {
-        console.warn(`[authz:local] Client not found for session ${session.session_id}`);
+        logger.warn({ session_id: session.session_id }, '[authz:local] Client not found for session');
         return [];
       }
 
       if (client.status !== 'active') {
-        console.warn(
-          `[authz:local] Client ${client.client_id} is ${client.status}, returning empty tool list`
+        logger.warn(
+          { client_id: client.client_id, status: client.status },
+          '[authz:local] Client is not active, returning empty tool list'
         );
         return [];
       }
 
       // Get effective profile from client's profile_id
       if (!client.profile_id) {
-        console.warn(`[authz:local] Client ${client.client_id} has no assigned profile`);
+        logger.warn({ client_id: client.client_id }, '[authz:local] Client has no assigned profile');
         return [];
       }
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {
-        console.error(`[authz:local] Failed to resolve profile ${client.profile_id}:`, error);
+        logger.error({ profile_id: client.profile_id, error }, '[authz:local] Failed to resolve profile');
         return [];
       }
     }
@@ -300,8 +301,9 @@ const MAX_PATTERN_LENGTH = 200;
 export function matchGlob(pattern: string, tool: string): boolean {
   // Enforce max pattern length (F-SEC-M5-001)
   if (pattern.length > MAX_PATTERN_LENGTH) {
-    console.warn(
-      `[authz:local] Pattern exceeds max length (${MAX_PATTERN_LENGTH}): ${pattern.substring(0, 50)}...`
+    logger.warn(
+      { max_length: MAX_PATTERN_LENGTH, pattern_preview: pattern.substring(0, 50) },
+      '[authz:local] Pattern exceeds max length'
     );
     return false;
   }
