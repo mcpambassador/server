@@ -1744,7 +1744,7 @@ DELETE THIS FILE after recording these values.
       writeFileSync(credentialsPath, credentialsContent, { mode: 0o600 });
       console.log(`[Server] Initial credentials written to ${credentialsPath}`);
     } catch (error) {
-      console.error(`[Server] Failed to write credentials file: ${error}`);
+      console.error(`[Server] Failed to write credentials file: ${String(error)}`);
       throw error;
     }
   }
@@ -1853,7 +1853,7 @@ DELETE THIS FILE after recording the value.
       writeFileSync(devKeyPath, devKeyContent, { mode: 0o600 });
       console.log(`[Server] Dev client key written to ${devKeyPath}`);
     } catch (error) {
-      console.error(`[Server] Failed to write dev client key file: ${error}`);
+      console.error(`[Server] Failed to write dev client key file: ${String(error)}`);
       throw error;
     }
   }
