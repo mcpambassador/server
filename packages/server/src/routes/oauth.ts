@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient, OAuthConfig, OAuthCredentialBlob } from '@mcpambassador/core';
 import {
+  logger,
   users,
   user_mcp_credentials,
   compatInsert,
@@ -80,7 +81,7 @@ export async function registerOAuthRoutes(
       preHandler: requireUserSession,
     },
     async (request, reply) => {
-      console.log('[OAuth Routes] POST /v1/users/me/oauth/authorize');
+      logger.info('[OAuth Routes] POST /v1/users/me/oauth/authorize');
       const userId = request.session.userId!;
 
       // Validate body
@@ -137,7 +138,7 @@ export async function registerOAuthRoutes(
           oauthConfig
         );
 
-        console.log(
+        logger.info(
           `[OAuth Routes] Generated authorization URL with state=${state.substring(0, 8)}...`
         );
 
@@ -148,7 +149,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        console.error('[OAuth Routes] Error generating authorization URL:', error);
+        logger.error('[OAuth Routes] Error generating authorization URL:', error);
 
         // Check if error is due to missing environment variables
         if (error instanceof Error && error.message.includes('environment variable not set')) {
@@ -173,12 +174,12 @@ export async function registerOAuthRoutes(
   // GET /v1/oauth/callback - OAuth provider callback (no auth required)
   // ==========================================================================
   fastify.get('/v1/oauth/callback', async (request, reply) => {
-    console.log('[OAuth Routes] GET /v1/oauth/callback');
+    logger.info('[OAuth Routes] GET /v1/oauth/callback');
 
     // Rate limit check
     const clientIp = request.ip || '127.0.0.1';
     if (!checkCallbackRateLimit(clientIp)) {
-      console.log(`[OAuth Routes] Rate limited callback from ${clientIp}`);
+      logger.info(`[OAuth Routes] Rate limited callback from ${clientIp}`);
       return reply.status(429).send('Too many requests');
     }
 
@@ -189,7 +190,7 @@ export async function registerOAuthRoutes(
 
     // Redirect helper
     const redirectWithError = (reason: string) => {
-      console.log(`[OAuth Routes] Callback error: ${reason}`);
+      logger.info(`[OAuth Routes] Callback error: ${reason}`);
       return reply.redirect(
         `${portalBaseUrl}/connections?status=error&reason=${encodeURIComponent(reason)}`
       );
@@ -210,7 +211,7 @@ export async function registerOAuthRoutes(
       });
 
       if (!user) {
-        console.error(`[OAuth Routes] User ${userId} not found after token exchange`);
+        logger.error(`[OAuth Routes] User ${userId} not found after token exchange`);
         return redirectWithError('server_error');
       }
 
@@ -220,7 +221,7 @@ export async function registerOAuthRoutes(
       });
 
       if (!mcpEntry) {
-        console.error(`[OAuth Routes] MCP ${mcpId} not found after token exchange`);
+        logger.error(`[OAuth Routes] MCP ${mcpId} not found after token exchange`);
         return redirectWithError('server_error');
       }
 
@@ -248,7 +249,7 @@ export async function registerOAuthRoutes(
         await compatUpdate(db, users)
           .set({ vault_salt: vaultSalt, updated_at: new Date().toISOString() })
           .where(eq(users.user_id, userId));
-        console.log(`[OAuth Routes] Generated vault_salt for user ${userId}`);
+        logger.info(`[OAuth Routes] Generated vault_salt for user ${userId}`);
       }
 
       // Encrypt blob
@@ -277,7 +278,7 @@ export async function registerOAuthRoutes(
           })
           .where(eq(user_mcp_credentials.credential_id, existing.credential_id));
 
-        console.log(`[OAuth Routes] Updated OAuth credential for user=${userId}, mcp=${mcpName}`);
+        logger.info(`[OAuth Routes] Updated OAuth credential for user=${userId}, mcp=${mcpName}`);
       } else {
         // Insert new credential
         await compatInsert(db, user_mcp_credentials).values({
@@ -293,7 +294,7 @@ export async function registerOAuthRoutes(
           updated_at: now,
         });
 
-        console.log(
+        logger.info(
           `[OAuth Routes] Stored new OAuth credential for user=${userId}, mcp=${mcpName}`
         );
       }
@@ -303,7 +304,7 @@ export async function registerOAuthRoutes(
         `${portalBaseUrl}/connections?status=success&mcp=${encodeURIComponent(mcpName)}`
       );
     } catch (error) {
-      console.error('[OAuth Routes] Error in OAuth callback:', error);
+      logger.error('[OAuth Routes] Error in OAuth callback:', error);
 
       // Determine error code
       let errorCode = 'server_error';
@@ -332,7 +333,7 @@ export async function registerOAuthRoutes(
       const params = request.params as { mcpName: string };
       const mcpName = params.mcpName;
 
-      console.log(`[OAuth Routes] GET /v1/users/me/oauth/status/${mcpName}`);
+      logger.info(`[OAuth Routes] GET /v1/users/me/oauth/status/${mcpName}`);
 
       try {
         // Look up MCP by name
@@ -402,7 +403,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        console.error('[OAuth Routes] Error checking OAuth status:', error);
+        logger.error('[OAuth Routes] Error checking OAuth status:', error);
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to check OAuth status'));
@@ -423,7 +424,7 @@ export async function registerOAuthRoutes(
       const params = request.params as { mcpName: string };
       const mcpName = params.mcpName;
 
-      console.log(`[OAuth Routes] DELETE /v1/users/me/oauth/disconnect/${mcpName}`);
+      logger.info(`[OAuth Routes] DELETE /v1/users/me/oauth/disconnect/${mcpName}`);
 
       try {
         // Look up MCP by name
@@ -483,7 +484,7 @@ export async function registerOAuthRoutes(
                 await compatUpdate(db, users)
                   .set({ vault_salt: vaultSalt, updated_at: new Date().toISOString() })
                   .where(eq(users.user_id, userId));
-                console.log(`[OAuth Routes] Generated vault_salt for user ${userId}`);
+                logger.info(`[OAuth Routes] Generated vault_salt for user ${userId}`);
               }
 
               // Decrypt to get tokens for revocation
@@ -498,7 +499,7 @@ export async function registerOAuthRoutes(
               await oauthManager.revokeTokens(oauthConfig, blob.access_token, blob.refresh_token);
             } catch (error) {
               // Log error but continue with deletion
-              console.error(
+              logger.error(
                 '[OAuth Routes] Error revoking tokens (continuing with deletion):',
                 error
               );
@@ -510,16 +511,16 @@ export async function registerOAuthRoutes(
             eq(user_mcp_credentials.credential_id, credential.credential_id)
           );
 
-          console.log(`[OAuth Routes] Deleted OAuth credential for user=${userId}, mcp=${mcpName}`);
+          logger.info(`[OAuth Routes] Deleted OAuth credential for user=${userId}, mcp=${mcpName}`);
         }
 
         // Terminate user's MCP instances
         if (userPool) {
           try {
             await userPool.terminateForUser(userId);
-            console.log(`[OAuth Routes] Terminated MCP instances for user=${userId}`);
+            logger.info(`[OAuth Routes] Terminated MCP instances for user=${userId}`);
           } catch (error) {
-            console.error('[OAuth Routes] Error terminating MCP instances:', error);
+            logger.error('[OAuth Routes] Error terminating MCP instances:', error);
           }
         }
 
@@ -530,7 +531,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        console.error('[OAuth Routes] Error disconnecting OAuth:', error);
+        logger.error('[OAuth Routes] Error disconnecting OAuth:', error);
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to disconnect OAuth'));
@@ -538,5 +539,5 @@ export async function registerOAuthRoutes(
     }
   );
 
-  console.log('[OAuth Routes] Registered OAuth routes');
+  logger.info('[OAuth Routes] Registered OAuth routes');
 }

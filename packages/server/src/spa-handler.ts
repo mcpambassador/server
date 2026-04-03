@@ -1,6 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { FastifyInstance } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import fs from 'fs';
 
@@ -25,12 +26,12 @@ export async function registerSpaHandler(
 
   if (fs.existsSync(devPath)) {
     spaDistPath = devPath;
-    console.log('[SPA] Found SPA dist at:', devPath);
+    logger.info('[SPA] Found SPA dist at:', devPath);
   } else if (fs.existsSync(prodPath)) {
     spaDistPath = prodPath;
-    console.log('[SPA] Found SPA dist at:', prodPath);
+    logger.info('[SPA] Found SPA dist at:', prodPath);
   } else {
-    console.log('[SPA] No SPA dist found, skipping SPA handler');
+    logger.info('[SPA] No SPA dist found, skipping SPA handler');
     return;
   }
 
@@ -120,5 +121,5 @@ export async function registerSpaHandler(
     });
   });
 
-  console.log('[SPA] Handler registered with fallback routing');
+  logger.info('[SPA] Handler registered with fallback routing');
 }

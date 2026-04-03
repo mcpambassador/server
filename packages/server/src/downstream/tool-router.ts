@@ -1,8 +1,7 @@
-/* eslint-disable no-console */
-
 import type { SharedMcpManager } from './manager.js';
 import type { UserMcpPool, UserMcpPoolStatus } from './user-mcp-pool.js';
 import type { AggregatedTool, ToolInvocationRequest, ToolInvocationResponse } from './types.js';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 
 /**
@@ -37,7 +36,7 @@ export class ToolRouter {
     private sharedManager: SharedMcpManager,
     private userPool: UserMcpPool
   ) {
-    console.log('[ToolRouter] Initialized');
+    logger.info('[ToolRouter] Initialized');
   }
 
   /**
@@ -60,7 +59,7 @@ export class ToolRouter {
     // Filter out user tools that conflict with shared tools
     const deduplicatedUserTools = userTools.filter(tool => {
       if (sharedToolNames.has(tool.name)) {
-        console.warn(
+        logger.warn(
           `[ToolRouter] User ${userId} tool name conflict: ${tool.name} ` +
             `from per-user MCP ${tool.source_mcp} conflicts with shared tool. Using shared.`
         );
@@ -84,14 +83,14 @@ export class ToolRouter {
     // Check shared manager first
     const sharedTool = this.sharedManager.getToolDescriptor(request.tool_name);
     if (sharedTool) {
-      console.log(`[ToolRouter] Routing ${request.tool_name} to shared manager`);
+      logger.info(`[ToolRouter] Routing ${request.tool_name} to shared manager`);
       return await this.sharedManager.invokeTool(request);
     }
 
     // Check user pool
     const userTool = this.userPool.getToolDescriptor(userId, request.tool_name);
     if (userTool) {
-      console.log(`[ToolRouter] Routing ${request.tool_name} to user pool for ${userId}`);
+      logger.info(`[ToolRouter] Routing ${request.tool_name} to user pool for ${userId}`);
       return await this.userPool.invokeTool(userId, request);
     }
 
@@ -178,7 +177,7 @@ export class ToolRouter {
       const { getMcpEntryById } = await import('@mcpambassador/core');
       const mcpEntry = await getMcpEntryById(db, sub.mcp_id);
       if (!mcpEntry) {
-        console.warn(`[ToolRouter] MCP ${sub.mcp_id} not found in catalog`);
+        logger.warn(`[ToolRouter] MCP ${sub.mcp_id} not found in catalog`);
         continue;
       }
 
@@ -207,7 +206,7 @@ export class ToolRouter {
           tools.push(tool);
           seenToolNames.add(tool.name);
         } else {
-          console.warn(`[ToolRouter] Tool name conflict: ${tool.name} already seen, skipping`);
+          logger.warn(`[ToolRouter] Tool name conflict: ${tool.name} already seen, skipping`);
         }
       }
     }

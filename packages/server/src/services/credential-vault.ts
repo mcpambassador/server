@@ -10,6 +10,7 @@
 
 import crypto from 'crypto';
 
+import { logger } from '@mcpambassador/core';
 const HKDF_INFO = 'mcpambassador-credential-vault-v1';
 
 /**
@@ -150,7 +151,7 @@ export class CredentialVault {
       throw new Error('Master key must be 32 bytes');
     }
     this.masterKey = newMasterKey;
-    console.log('[CredentialVault] Master key updated in live instance');
+    logger.info('[CredentialVault] Master key updated in live instance');
   }
 
   /**

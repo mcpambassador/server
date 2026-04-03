@@ -1,6 +1,6 @@
-/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
 
-import { ServiceUnavailableError } from '@mcpambassador/core';
+import { logger, ServiceUnavailableError } from '@mcpambassador/core';
 import type {
   DownstreamMcpConfig,
   AggregatedTool,
@@ -77,7 +77,7 @@ export class UserMcpPool {
 
   constructor(config: UserMcpPoolConfig) {
     this.config = config;
-    console.log('[UserMcpPool] Initialized');
+    logger.info('[UserMcpPool] Initialized');
 
     // Start health check interval
     if (config.healthCheckIntervalMs > 0) {
@@ -105,13 +105,13 @@ export class UserMcpPool {
     // Idempotent: if already spawned, return immediately
     const existingInstances = this.userInstances.get(userId);
     if (existingInstances && existingInstances.status === 'ready') {
-      console.log(`[UserMcpPool] User ${userId} already has active instances`);
+      logger.info(`[UserMcpPool] User ${userId} already has active instances`);
       return;
     }
 
     // Check for concurrent spawn
     if (this.spawningUsers.has(userId)) {
-      console.log(`[UserMcpPool] User ${userId} already spawning, waiting...`);
+      logger.info(`[UserMcpPool] User ${userId} already spawning, waiting...`);
       // Wait for current spawn to complete (simple polling with timeout)
       const maxWaitMs = 30000;
       const startTime = Date.now();
@@ -142,7 +142,7 @@ export class UserMcpPool {
       // M17.6: Check resource limits (now under system-wide lock)
       await this.enforceResourceLimits(userId);
 
-      console.log(`[UserMcpPool] Spawning MCP instances for user ${userId}...`);
+      logger.info(`[UserMcpPool] Spawning MCP instances for user ${userId}...`);
 
       // Initialize user instance set
       const instanceSet: UserInstanceSet = {
@@ -199,7 +199,7 @@ export class UserMcpPool {
 
             const envCount = Object.keys(creds.envVars).length;
             const headerCount = Object.keys(creds.headers).length;
-            console.log(
+            logger.info(
               `[UserMcpPool] Injected credentials for ${config.name}: ${envCount} env vars, ${headerCount} headers`
             );
           }
@@ -215,7 +215,7 @@ export class UserMcpPool {
             await connection.start();
             instanceSet.connections.set(finalConfig.name, connection);
           } else {
-            console.warn(
+            logger.warn(
               // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
               `[UserMcpPool] Unknown transport ${finalConfig.transport} for ${finalConfig.name}`
             );
@@ -227,7 +227,7 @@ export class UserMcpPool {
           }
         } catch (err) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-          console.error(`[UserMcpPool] User ${userId} failed to start ${config.name}:`, err);
+          logger.error(`[UserMcpPool] User ${userId} failed to start ${config.name}:`, err);
           // Continue with other MCPs even if one fails
         }
       });
@@ -239,23 +239,23 @@ export class UserMcpPool {
 
       instanceSet.status = 'ready';
 
-      console.log(
+      logger.info(
         `[UserMcpPool] User ${userId} spawned ${instanceSet.connections.size} connections, ${instanceSet.aggregatedTools.length} tools`
       );
     } catch (err) {
       // SEC-M17-002: Cleanup on failure - stop any connections that were successfully started
       const instanceSet = this.userInstances.get(userId);
       if (instanceSet) {
-        console.log(
+        logger.info(
           `[UserMcpPool] Cleaning up ${instanceSet.connections.size} partially spawned connections for user ${userId}`
         );
         for (const [mcpName, connection] of instanceSet.connections.entries()) {
           try {
             await connection.stop();
-            console.log(`[UserMcpPool] Stopped connection ${mcpName} for user ${userId}`);
+            logger.info(`[UserMcpPool] Stopped connection ${mcpName} for user ${userId}`);
           } catch (stopErr) {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            console.error(
+            logger.error(
               `[UserMcpPool] Failed to stop connection ${mcpName} for user ${userId}:`,
               stopErr
             );
@@ -341,7 +341,7 @@ export class UserMcpPool {
       for (const tool of tools) {
         // SEC-M9-05: Validate tool name
         if (!validateToolName(tool.name)) {
-          console.warn(
+          logger.warn(
             `[UserMcpPool] User ${userId} skipping tool with invalid name from ${mcpName}: ${tool.name}`
           );
           continue;
@@ -350,7 +350,7 @@ export class UserMcpPool {
         // Check for tool name conflicts
         if (instanceSet.toolToMcpMap.has(tool.name)) {
           const existingMcp = instanceSet.toolToMcpMap.get(tool.name);
-          console.warn(
+          logger.warn(
             `[UserMcpPool] User ${userId} tool name conflict: ${tool.name} ` +
               `provided by both ${existingMcp} and ${mcpName}. ` +
               `Using ${existingMcp}.`
@@ -375,7 +375,7 @@ export class UserMcpPool {
       }
     }
 
-    console.log(
+    logger.info(
       `[UserMcpPool] User ${userId} aggregated ${instanceSet.aggregatedTools.length} tools from ${instanceSet.connections.size} MCPs`
     );
   }
@@ -389,23 +389,23 @@ export class UserMcpPool {
     const instanceSet = this.userInstances.get(userId);
 
     if (!instanceSet) {
-      console.log(`[UserMcpPool] User ${userId} has no instances to terminate`);
+      logger.info(`[UserMcpPool] User ${userId} has no instances to terminate`);
       return;
     }
 
     if (instanceSet.status === 'terminating' || instanceSet.status === 'terminated') {
-      console.log(`[UserMcpPool] User ${userId} instances already terminating/terminated`);
+      logger.info(`[UserMcpPool] User ${userId} instances already terminating/terminated`);
       return;
     }
 
-    console.log(`[UserMcpPool] Terminating MCP instances for user ${userId}...`);
+    logger.info(`[UserMcpPool] Terminating MCP instances for user ${userId}...`);
     instanceSet.status = 'terminating';
 
     // Stop all connections (parallel)
     const stopPromises = Array.from(instanceSet.connections.values()).map(conn =>
       conn.stop().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[UserMcpPool] User ${userId} error stopping connection:`, err);
+        logger.error(`[UserMcpPool] User ${userId} error stopping connection:`, err);
       })
     );
 
@@ -420,7 +420,7 @@ export class UserMcpPool {
     // Remove from map
     this.userInstances.delete(userId);
 
-    console.log(`[UserMcpPool] User ${userId} instances terminated`);
+    logger.info(`[UserMcpPool] User ${userId} instances terminated`);
   }
 
   /**
@@ -574,13 +574,13 @@ export class UserMcpPool {
     mcpName: string
   ): void {
     connection.on('disconnect', () => {
-      console.log(`[UserMcpPool] User ${userId} MCP ${mcpName} disconnected`);
+      logger.info(`[UserMcpPool] User ${userId} MCP ${mcpName} disconnected`);
       this.aggregateToolsForUser(userId);
     });
 
     connection.on('error', err => {
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      console.error(`[UserMcpPool] User ${userId} MCP ${mcpName} error:`, err);
+      logger.error(`[UserMcpPool] User ${userId} MCP ${mcpName} error:`, err);
     });
   }
 
@@ -647,7 +647,7 @@ export class UserMcpPool {
       this.storedMcpFingerprints = new Map(newFingerprints);
     }
 
-    console.log(
+    logger.info(
       `[UserMcpPool] Config updated: +${added.length} -${removed.length} ~${updated.length}`
     );
 
@@ -666,7 +666,7 @@ export class UserMcpPool {
 
       for (const [mcpName, connection] of instanceSet.connections) {
         if (!connection.isConnected()) {
-          console.warn(`[UserMcpPool] User ${userId} MCP ${mcpName} is unhealthy`);
+          logger.warn(`[UserMcpPool] User ${userId} MCP ${mcpName} is unhealthy`);
         }
       }
     }
@@ -677,7 +677,7 @@ export class UserMcpPool {
    * Terminates all per-user MCP connections
    */
   async shutdown(): Promise<void> {
-    console.log('[UserMcpPool] Shutting down all user instances...');
+    logger.info('[UserMcpPool] Shutting down all user instances...');
 
     // Stop health check interval
     if (this.healthCheckInterval) {
@@ -694,6 +694,6 @@ export class UserMcpPool {
     this.userInstances.clear();
     this.spawningUsers.clear();
 
-    console.log('[UserMcpPool] Shutdown complete');
+    logger.info('[UserMcpPool] Shutdown complete');
   }
 }

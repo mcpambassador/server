@@ -11,6 +11,7 @@ import { createReadStream } from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
 import type { AuditEvent } from '@mcpambassador/protocol';
+import { logger } from '@mcpambassador/core';
 
 /**
  * Audit query filters
@@ -76,7 +77,7 @@ export async function queryAuditEvents(
     } catch (error) {
       // File might not exist (no events on that day) - this is okay
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error(`[audit-reader] Error reading ${filePath}:`, error);
+        logger.error(`[audit-reader] Error reading ${filePath}:`, error);
       }
     }
   }
@@ -146,7 +147,7 @@ async function readAuditFile(filePath: string, filters: AuditQueryFilters): Prom
 
       events.push(event);
     } catch (error) {
-      console.error(`[audit-reader] Failed to parse line in ${filePath}:`, error);
+      logger.error(`[audit-reader] Failed to parse line in ${filePath}:`, error);
       // Continue processing other lines
     }
   }

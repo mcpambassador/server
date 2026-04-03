@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
+  logger,
   createOAuthState,
   consumeOAuthState,
   cleanupExpiredStates as coreCleanupExpiredStates,
@@ -50,7 +51,7 @@ export class OAuthTokenManager {
     mcpId: string,
     oauthConfig: OAuthConfig
   ): Promise<{ authorizationUrl: string; state: string }> {
-    console.log(
+    logger.info(
       `[OAuthTokenManager] Generating authorization URL for user=${userId}, mcp=${mcpId}`
     );
 
@@ -112,7 +113,7 @@ export class OAuthTokenManager {
         if (!blocklist.has(key.toLowerCase())) {
           authUrl.searchParams.set(key, String(value));
         } else {
-          console.warn(
+          logger.warn(
             `[OAuthTokenManager] Blocked extra_param '${key}' — reserved OAuth parameter`
           );
         }
@@ -121,7 +122,7 @@ export class OAuthTokenManager {
 
     const authorizationUrl = authUrl.toString();
 
-    console.log(
+    logger.info(
       `[OAuthTokenManager] Generated authorization URL with state=${state.substring(0, 8)}...`
     );
 
@@ -146,7 +147,7 @@ export class OAuthTokenManager {
     state: string,
     code: string
   ): Promise<{ tokenSet: OAuthTokenSet; userId: string; mcpId: string }> {
-    console.log(
+    logger.info(
       `[OAuthTokenManager] Exchanging code for tokens with state=${state.substring(0, 8)}...`
     );
 
@@ -192,7 +193,7 @@ export class OAuthTokenManager {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[OAuthTokenManager] Token exchange failed: ${response.status} ${errorText}`);
+      logger.error(`[OAuthTokenManager] Token exchange failed: ${response.status} ${errorText}`);
       throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
     }
 
@@ -212,7 +213,7 @@ export class OAuthTokenManager {
       scope: data.scope,
     };
 
-    console.log(`[OAuthTokenManager] Successfully exchanged code for tokens`);
+    logger.info(`[OAuthTokenManager] Successfully exchanged code for tokens`);
 
     // 8. Return
     return {
@@ -232,7 +233,7 @@ export class OAuthTokenManager {
    * 4. Return the token set.
    */
   async refreshAccessToken(oauthConfig: OAuthConfig, refreshToken: string): Promise<OAuthTokenSet> {
-    console.log(`[OAuthTokenManager] Refreshing access token`);
+    logger.info(`[OAuthTokenManager] Refreshing access token`);
 
     // 1. Resolve client_id and client_secret
     const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
@@ -256,7 +257,7 @@ export class OAuthTokenManager {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[OAuthTokenManager] Token refresh failed: ${response.status} ${errorText}`);
+      logger.error(`[OAuthTokenManager] Token refresh failed: ${response.status} ${errorText}`);
       throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
     }
 
@@ -276,7 +277,7 @@ export class OAuthTokenManager {
       scope: data.scope,
     };
 
-    console.log(`[OAuthTokenManager] Successfully refreshed access token`);
+    logger.info(`[OAuthTokenManager] Successfully refreshed access token`);
 
     // 4. Return
     return tokenSet;
@@ -299,11 +300,11 @@ export class OAuthTokenManager {
   ): Promise<void> {
     // 1. If no revocation_url, return immediately
     if (!oauthConfig.revocation_url) {
-      console.log(`[OAuthTokenManager] No revocation URL configured, skipping token revocation`);
+      logger.info(`[OAuthTokenManager] No revocation URL configured, skipping token revocation`);
       return;
     }
 
-    console.log(`[OAuthTokenManager] Revoking tokens`);
+    logger.info(`[OAuthTokenManager] Revoking tokens`);
 
     try {
       // 2. Resolve client_id/secret
@@ -337,20 +338,20 @@ export class OAuthTokenManager {
           });
 
           if (!response.ok) {
-            console.log(
+            logger.info(
               `[OAuthTokenManager] Token revocation returned ${response.status} for ${hint}`
             );
           } else {
-            console.log(`[OAuthTokenManager] Successfully revoked ${hint}`);
+            logger.info(`[OAuthTokenManager] Successfully revoked ${hint}`);
           }
         } catch (err) {
           // 5. Catch errors and log — never throw
-          console.error(`[OAuthTokenManager] Error revoking ${hint}:`, err);
+          logger.error(`[OAuthTokenManager] Error revoking ${hint}:`, err);
         }
       }
     } catch (err) {
       // 5. Catch errors and log — never throw
-      console.error(`[OAuthTokenManager] Error in revokeTokens:`, err);
+      logger.error(`[OAuthTokenManager] Error in revokeTokens:`, err);
     }
   }
 
@@ -358,9 +359,9 @@ export class OAuthTokenManager {
    * Cleanup expired oauth_states rows. Call periodically (every 5 min).
    */
   async cleanupExpiredStates(): Promise<number> {
-    console.log(`[OAuthTokenManager] Cleaning up expired OAuth states`);
+    logger.info(`[OAuthTokenManager] Cleaning up expired OAuth states`);
     const count = await coreCleanupExpiredStates(this.db);
-    console.log(`[OAuthTokenManager] Cleaned up ${count} expired OAuth states`);
+    logger.info(`[OAuthTokenManager] Cleaned up ${count} expired OAuth states`);
     return count;
   }
 

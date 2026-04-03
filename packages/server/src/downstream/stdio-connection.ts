@@ -1,4 +1,4 @@
-/* eslint-disable no-console, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, no-useless-escape */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, no-useless-escape */
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
@@ -12,6 +12,7 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
+import { logger } from '@mcpambassador/core';
 /**
  * SEC-M9-02: Safe environment variable whitelist
  * Only these system environment variables are passed to child processes
@@ -71,7 +72,7 @@ export class StdioMcpConnection extends EventEmitter {
    * Start the MCP process
    */
   async start(): Promise<void> {
-    console.log(`[MCP:${this.config.name}] Starting stdio process...`);
+    logger.info(`[MCP:${this.config.name}] Starting stdio process...`);
 
     // Reset state for restart support
     this.processExited = false;
@@ -87,10 +88,10 @@ export class StdioMcpConnection extends EventEmitter {
 
     // F-SEC-M6-001: Log spawned command for auditability
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    console.warn(`[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`);
+    logger.warn(`[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`);
     if (this.config.env) {
       const envKeys = Object.keys(this.config.env).join(', ');
-      console.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
+      logger.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
     }
 
     // SEC-M9-02: Build safe environment - whitelist + config overrides
@@ -135,13 +136,13 @@ export class StdioMcpConnection extends EventEmitter {
       const truncated =
         redacted.length > 500 ? redacted.substring(0, 500) + '... (truncated)' : redacted;
 
-      console.error(`[MCP:${this.config.name}] stderr:`, truncated);
+      logger.error(`[MCP:${this.config.name}] stderr:`, truncated);
     });
 
     // Handle process exit
     childProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       const exitMsg = `Process exited: code=${code} signal=${signal}`;
-      console.log(`[MCP:${this.config.name}] ${exitMsg}`);
+      logger.info(`[MCP:${this.config.name}] ${exitMsg}`);
       // M33.1: Log exit to error buffer
       this.errorBuffer.push(exitMsg, 'error');
       this.processExited = true;
@@ -151,7 +152,7 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process errors
     childProcess.on('error', (err: Error) => {
-      console.error(`[MCP:${this.config.name}] Process error:`, err);
+      logger.error(`[MCP:${this.config.name}] Process error:`, err);
       // M33.1: Log error to buffer
       this.errorBuffer.push(`Process error: ${err.message}`, 'error');
       this.isHealthy = false;
@@ -189,7 +190,7 @@ export class StdioMcpConnection extends EventEmitter {
         );
       }
     } catch (err) {
-      console.error(`[MCP:${this.config.name}] Initialize handshake failed:`, err);
+      logger.error(`[MCP:${this.config.name}] Initialize handshake failed:`, err);
       // Some legacy MCPs may not support initialize — continue anyway
     }
 
@@ -198,14 +199,14 @@ export class StdioMcpConnection extends EventEmitter {
       await this.refreshToolList();
     } catch (err) {
       // If tool list fetch fails, mark unhealthy but don't crash
-      console.error(`[MCP:${this.config.name}] Failed to fetch initial tool list:`, err);
+      logger.error(`[MCP:${this.config.name}] Failed to fetch initial tool list:`, err);
       this.isHealthy = false;
       return; // Continue without tools — will retry on health check
     }
 
     this.isHealthy = true;
     this.startedAt = Date.now();
-    console.log(`[MCP:${this.config.name}] Started successfully`);
+    logger.info(`[MCP:${this.config.name}] Started successfully`);
   }
 
   /**
@@ -216,7 +217,7 @@ export class StdioMcpConnection extends EventEmitter {
 
     // F-SEC-M6-003: Check buffer size limit
     if (this.messageBuffer.length > StdioMcpConnection.MAX_BUFFER_SIZE) {
-      console.error(
+      logger.error(
         `[MCP:${this.config.name}] Buffer exceeded ${StdioMcpConnection.MAX_BUFFER_SIZE} bytes, killing process`
       );
       this.process?.kill('SIGKILL');
@@ -235,7 +236,7 @@ export class StdioMcpConnection extends EventEmitter {
 
       // F-SEC-M6-003: Check individual message size
       if (line.length > StdioMcpConnection.MAX_MESSAGE_SIZE) {
-        console.error(
+        logger.error(
           `[MCP:${this.config.name}] Message exceeded ${StdioMcpConnection.MAX_MESSAGE_SIZE} bytes, discarding`
         );
         continue;
@@ -245,7 +246,7 @@ export class StdioMcpConnection extends EventEmitter {
         const message = JSON.parse(line);
         this.handleMessage(message);
       } catch (err) {
-        console.error(
+        logger.error(
           `[MCP:${this.config.name}] Failed to parse message:`,
           line.substring(0, 100),
           err
@@ -273,7 +274,7 @@ export class StdioMcpConnection extends EventEmitter {
       }
     } else {
       // Notification or unsolicited message
-      console.log(`[MCP:${this.config.name}] Notification:`, message);
+      logger.info(`[MCP:${this.config.name}] Notification:`, message);
     }
   }
 
@@ -348,10 +349,10 @@ export class StdioMcpConnection extends EventEmitter {
     try {
       const response = (await this.sendRequest('tools/list')) as { tools: ToolDescriptor[] };
       this.toolCache = response.tools || [];
-      console.log(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
+      logger.info(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
       return this.toolCache;
     } catch (err) {
-      console.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, err);
+      logger.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, err);
       throw err;
     }
   }
@@ -378,7 +379,7 @@ export class StdioMcpConnection extends EventEmitter {
 
       return validated;
     } catch (err) {
-      console.error(`[MCP:${this.config.name}] Tool invocation failed:`, err);
+      logger.error(`[MCP:${this.config.name}] Tool invocation failed:`, err);
       throw err;
     }
   }
@@ -413,7 +414,7 @@ export class StdioMcpConnection extends EventEmitter {
    * Stop the MCP process
    */
   async stop(): Promise<void> {
-    console.log(`[MCP:${this.config.name}] Stopping...`);
+    logger.info(`[MCP:${this.config.name}] Stopping...`);
 
     if (this.process) {
       this.process.kill('SIGTERM');
@@ -422,7 +423,7 @@ export class StdioMcpConnection extends EventEmitter {
       await new Promise<void>(resolve => {
         const timeout = setTimeout(() => {
           if (this.process) {
-            console.log(`[MCP:${this.config.name}] Force killing...`);
+            logger.info(`[MCP:${this.config.name}] Force killing...`);
             this.process.kill('SIGKILL');
           }
           resolve();
@@ -440,7 +441,7 @@ export class StdioMcpConnection extends EventEmitter {
     this.startedAt = null;
     this.isHealthy = false;
     this.processExited = false;
-    console.log(`[MCP:${this.config.name}] Stopped`);
+    logger.info(`[MCP:${this.config.name}] Stopped`);
   }
 
   /**

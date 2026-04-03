@@ -18,6 +18,7 @@ export class CatalogReloadConflictError extends Error {
   }
 }
 
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/manager.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -140,10 +141,10 @@ export class CatalogReloader {
 
     // N2 fix: Warn if catalog is truncated
     if (sharedResult.has_more) {
-      console.warn(`[CatalogReloader] Catalog truncated at 1000 shared MCPs (has_more=true)`);
+      logger.warn(`[CatalogReloader] Catalog truncated at 1000 shared MCPs (has_more=true)`);
     }
     if (perUserResult.has_more) {
-      console.warn(`[CatalogReloader] Catalog truncated at 1000 per-user MCPs (has_more=true)`);
+      logger.warn(`[CatalogReloader] Catalog truncated at 1000 per-user MCPs (has_more=true)`);
     }
 
     // --- DIFF SHARED MCPs ---
@@ -267,12 +268,12 @@ export class CatalogReloader {
 
     // N2 fix: Warn if catalog is truncated
     if (sharedResult.has_more) {
-      console.warn(
+      logger.warn(
         `[CatalogReloader] Catalog truncated at 1000 shared MCPs (has_more=true), only processing first batch`
       );
     }
     if (perUserResult.has_more) {
-      console.warn(
+      logger.warn(
         `[CatalogReloader] Catalog truncated at 1000 per-user MCPs (has_more=true), only processing first batch`
       );
     }

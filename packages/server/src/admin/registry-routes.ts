@@ -9,6 +9,7 @@
 
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { RegistryService } from '../services/registry-service.js';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
@@ -268,7 +269,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
       const message = error instanceof Error ? error.message : String(error);
 
       // Log error but return 502 for network failures
-      console.error('[registry-routes] Failed to refresh registry:', message);
+      logger.error('[registry-routes] Failed to refresh registry:', message);
 
       await audit.emit({
         event_id: crypto.randomUUID(),

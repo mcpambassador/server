@@ -10,6 +10,7 @@
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
+  logger,
   getMcpEntryByName,
   createMcpEntry,
   getGroupByName,
@@ -85,12 +86,12 @@ export class RegistryService {
    */
   async fetchRegistry(): Promise<void> {
     if (!this.config.enabled) {
-      console.log('[RegistryService] Registry is disabled, skipping fetch');
+      logger.info('[RegistryService] Registry is disabled, skipping fetch');
       return;
     }
 
     try {
-      console.log(`[RegistryService] Fetching registry from: ${this.config.url}`);
+      logger.info(`[RegistryService] Fetching registry from: ${this.config.url}`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -131,16 +132,16 @@ export class RegistryService {
       this.cachedRegistry = parsed;
       this.lastFetchedAt = new Date();
 
-      console.log(
+      logger.info(
         `[RegistryService] Registry cached: ${parsed.mcps.length} entries from ${parsed.registry.name}`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[RegistryService] Failed to fetch registry: ${message}`);
+      logger.error(`[RegistryService] Failed to fetch registry: ${message}`);
 
       // Keep serving stale cache if available
       if (this.cachedRegistry) {
-        console.log('[RegistryService] Continuing with stale cache');
+        logger.info('[RegistryService] Continuing with stale cache');
       }
 
       throw error;
@@ -291,7 +292,7 @@ export class RegistryService {
       // Create catalog entry
       const entry = await createMcpEntry(this.db, catalogData);
 
-      console.log(
+      logger.info(
         `[RegistryService] Installed MCP '${name}' from registry (mcp_id: ${entry.mcp_id})`
       );
 
@@ -305,19 +306,19 @@ export class RegistryService {
             group_id: allUsersGroup.group_id,
             assigned_by: 'system',
           });
-          console.log(
+          logger.info(
             `[RegistryService] Granted 'all-users' group access to MCP (mcp_id: ${entry.mcp_id})`
           );
         } else {
           groupAccessGranted = false;
-          console.warn(
+          logger.warn(
             "[RegistryService] 'all-users' group not found; skipping grant of group access"
           );
         }
       } catch (err) {
         groupAccessGranted = false;
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[RegistryService] Failed to grant 'all-users' group access: ${msg}`);
+        logger.error(`[RegistryService] Failed to grant 'all-users' group access: ${msg}`);
       }
 
       let message = `MCP '${name}' installed from registry. Status: draft.`;
@@ -340,7 +341,7 @@ export class RegistryService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[RegistryService] Failed to install MCP '${name}':`, errorMessage);
+      logger.error(`[RegistryService] Failed to install MCP '${name}':`, errorMessage);
 
       return {
         success: false,

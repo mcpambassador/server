@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { client_mcp_subscriptions, compatSelect } from '@mcpambassador/core';
+import { logger, client_mcp_subscriptions, compatSelect } from '@mcpambassador/core';
 import { eq } from 'drizzle-orm';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
@@ -268,5 +268,5 @@ export async function registerClientRoutes(
     }
   );
 
-  console.log('[ClientRoutes] Registered client management routes');
+  logger.info('[ClientRoutes] Registered client management routes');
 }

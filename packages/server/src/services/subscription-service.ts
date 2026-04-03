@@ -10,6 +10,7 @@
 
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
+  logger,
   createSubscription,
   getSubscription,
   listSubscriptionsForClient,
@@ -146,7 +147,7 @@ export async function updateSubscription(
     status: data.status,
   });
 
-  console.log(`[SubscriptionService] Updated subscription ${data.subscriptionId}`);
+  logger.info(`[SubscriptionService] Updated subscription ${data.subscriptionId}`);
 }
 
 /**
@@ -358,5 +359,5 @@ export async function removeSubscription(
   // Hard delete: permanently remove subscription
   await removeSubscriptionRepo(db, data.subscriptionId);
 
-  console.log(`[SubscriptionService] Removed subscription ${data.subscriptionId}`);
+  logger.info(`[SubscriptionService] Removed subscription ${data.subscriptionId}`);
 }

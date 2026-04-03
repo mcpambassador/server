@@ -8,6 +8,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import { createPaginationEnvelope } from '../admin/pagination.js';
@@ -61,7 +62,7 @@ export async function registerMarketplaceRoutes(
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
           tools = Array.isArray(catalogData) ? catalogData : [];
         } catch (err) {
-          console.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+          logger.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
         }
 
         let credentialSchema = undefined;
@@ -72,7 +73,7 @@ export async function registerMarketplaceRoutes(
                 ? JSON.parse(mcp.credential_schema)
                 : mcp.credential_schema;
           } catch (err) {
-            console.warn(
+            logger.warn(
               `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`,
               err
             );
@@ -119,7 +120,7 @@ export async function registerMarketplaceRoutes(
 
       return reply.send(envelope);
     } catch (err) {
-      console.error('[Marketplace] Error fetching MCPs:', err);
+      logger.error('[Marketplace] Error fetching MCPs:', err);
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch marketplace MCPs'));
@@ -159,7 +160,7 @@ export async function registerMarketplaceRoutes(
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
           tools = Array.isArray(catalogData) ? catalogData : [];
         } catch (err) {
-          console.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+          logger.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
         }
 
         let credentialSchema = undefined;
@@ -170,7 +171,7 @@ export async function registerMarketplaceRoutes(
                 ? JSON.parse(mcp.credential_schema)
                 : mcp.credential_schema;
           } catch (err) {
-            console.warn(
+            logger.warn(
               `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`,
               err
             );
@@ -192,7 +193,7 @@ export async function registerMarketplaceRoutes(
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[Marketplace] Error fetching MCP details:', err);
+        logger.error('[Marketplace] Error fetching MCP details:', err);
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch MCP details'));

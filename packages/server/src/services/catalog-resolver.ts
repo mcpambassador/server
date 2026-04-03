@@ -11,6 +11,7 @@
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { AggregatedTool } from '../downstream/types.js';
 import {
+  logger,
   listSubscriptionsForClient,
   getMcpEntryById,
   compatSelect,
@@ -108,6 +109,6 @@ export async function resolveEffectiveTools(
     }
   }
 
-  console.log(`[CatalogResolver] Resolved ${aggregatedTools.length} tools for client ${clientId}`);
+  logger.info(`[CatalogResolver] Resolved ${aggregatedTools.length} tools for client ${clientId}`);
   return aggregatedTools;
 }

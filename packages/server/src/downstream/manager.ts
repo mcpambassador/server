@@ -1,4 +1,4 @@
-/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
 
 import type {
   DownstreamMcpConfig,
@@ -10,6 +10,7 @@ import type {
 import { validateMcpConfig, validateToolName } from './types.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 import { createHash } from 'crypto';
 
@@ -57,14 +58,14 @@ export class SharedMcpManager {
   private configFingerprints = new Map<string, string>(); // ADR-013: mcp_name → sha256 of config
 
   constructor() {
-    console.log('[SharedMcpManager] Initialized');
+    logger.info('[SharedMcpManager] Initialized');
   }
 
   /**
    * Initialize all downstream MCP connections from config
    */
   async initialize(configs: DownstreamMcpConfig[]): Promise<void> {
-    console.log(`[SharedMcpManager] Initializing ${configs.length} downstream MCPs...`);
+    logger.info(`[SharedMcpManager] Initializing ${configs.length} downstream MCPs...`);
 
     const startPromises = configs.map(async config => {
       try {
@@ -78,13 +79,13 @@ export class SharedMcpManager {
 
           // Register connection event handlers
           connection.on('disconnect', () => {
-            console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
+            logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
           });
 
           connection.on('error', err => {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
+            logger.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
           });
         } else if (config.transport === 'http' || config.transport === 'sse') {
           const connection = new HttpMcpConnection(config);
@@ -93,23 +94,23 @@ export class SharedMcpManager {
 
           // Register connection event handlers
           connection.on('disconnect', () => {
-            console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
+            logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
           });
 
           connection.on('error', err => {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
+            logger.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
           });
         } else {
-          console.warn(
+          logger.warn(
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             `[SharedMcpManager] Unknown transport ${config.transport} for ${config.name}`
           );
         }
       } catch (err) {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[SharedMcpManager] Failed to start ${config.name}:`, err);
+        logger.error(`[SharedMcpManager] Failed to start ${config.name}:`, err);
         // Continue with other MCPs even if one fails
       }
     });
@@ -119,7 +120,7 @@ export class SharedMcpManager {
     // Aggregate tools from all connected MCPs
     await this.aggregateTools();
 
-    console.log(
+    logger.info(
       `[SharedMcpManager] Initialized ${this.connections.size} connections, ${this.aggregatedTools.length} tools`
     );
   }
@@ -134,7 +135,7 @@ export class SharedMcpManager {
    * @param entries MCP catalog entries (pre-filtered for shared mode)
    */
   async initializeFromCatalog(_db: DatabaseClient, entries: McpCatalogEntry[]): Promise<void> {
-    console.log(`[SharedMcpManager] Initializing from catalog: ${entries.length} MCPs...`);
+    logger.info(`[SharedMcpManager] Initializing from catalog: ${entries.length} MCPs...`);
 
     // Convert catalog entries to DownstreamMcpConfig format
     const configs: DownstreamMcpConfig[] = entries.map(entry => {
@@ -208,7 +209,7 @@ export class SharedMcpManager {
       for (const tool of tools) {
         // SEC-M9-05: Validate tool name
         if (!validateToolName(tool.name)) {
-          console.warn(
+          logger.warn(
             `[SharedMcpManager] Skipping tool with invalid name from ${mcpName}: ${tool.name}`
           );
           continue;
@@ -217,7 +218,7 @@ export class SharedMcpManager {
         // Check for tool name conflicts
         if (this.toolToMcpMap.has(tool.name)) {
           const existingMcp = this.toolToMcpMap.get(tool.name);
-          console.warn(
+          logger.warn(
             `[SharedMcpManager] Tool name conflict: ${tool.name} ` +
               `provided by both ${existingMcp} and ${mcpName}. ` +
               `Using ${existingMcp}.`
@@ -242,7 +243,7 @@ export class SharedMcpManager {
       }
     }
 
-    console.log(
+    logger.info(
       `[SharedMcpManager] Aggregated ${this.aggregatedTools.length} tools from ${this.connections.size} MCPs`
     );
   }
@@ -340,13 +341,13 @@ export class SharedMcpManager {
       throw new Error(`MCP not found: ${name}`);
     }
 
-    console.log(`[SharedMcpManager] Restarting MCP: ${name}`);
+    logger.info(`[SharedMcpManager] Restarting MCP: ${name}`);
 
     await connection.stop();
     await connection.start();
     await this.aggregateTools();
 
-    console.log(
+    logger.info(
       `[SharedMcpManager] Restarted MCP: ${name}, connected: ${connection.isConnected()}`
     );
   }
@@ -358,7 +359,7 @@ export class SharedMcpManager {
     const refreshPromises = Array.from(this.connections.values()).map(conn =>
       conn.refreshToolList().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[SharedMcpManager] Failed to refresh:`, err);
+        logger.error(`[SharedMcpManager] Failed to refresh:`, err);
       })
     );
 
@@ -407,14 +408,14 @@ export class SharedMcpManager {
 
     // Register event handlers (same as initialize())
     connection.on('disconnect', () => {
-      console.log(`[SharedMcpManager] MCP ${config.name} disconnected`);
+      logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.aggregateTools();
     });
 
     connection.on('error', err => {
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      console.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
+      logger.error(`[SharedMcpManager] MCP ${config.name} error:`, err);
     });
 
     // Store fingerprint (use provided one or compute from DownstreamMcpConfig)
@@ -436,7 +437,7 @@ export class SharedMcpManager {
       this.configFingerprints.set(config.name, fp);
     }
 
-    console.log(`[SharedMcpManager] Added MCP: ${config.name} (${config.transport})`);
+    logger.info(`[SharedMcpManager] Added MCP: ${config.name} (${config.transport})`);
   }
 
   /**
@@ -447,11 +448,11 @@ export class SharedMcpManager {
     const connection = this.connections.get(name);
 
     if (!connection) {
-      console.warn(`[SharedMcpManager] removeMcp: ${name} not found, skipping`);
+      logger.warn(`[SharedMcpManager] removeMcp: ${name} not found, skipping`);
       return;
     }
 
-    console.log(`[SharedMcpManager] Removing MCP: ${name}`);
+    logger.info(`[SharedMcpManager] Removing MCP: ${name}`);
     await connection.stop();
     this.connections.delete(name);
     this.configFingerprints.delete(name);
@@ -467,7 +468,7 @@ export class SharedMcpManager {
    * @param fingerprint Optional pre-computed fingerprint
    */
   async updateMcp(name: string, config: DownstreamMcpConfig, fingerprint?: string): Promise<void> {
-    console.log(`[SharedMcpManager] Updating MCP: ${name}`);
+    logger.info(`[SharedMcpManager] Updating MCP: ${name}`);
     await this.removeMcp(name);
     await this.addMcp(config, fingerprint);
   }
@@ -476,12 +477,12 @@ export class SharedMcpManager {
    * Shutdown all connections
    */
   async shutdown(): Promise<void> {
-    console.log('[SharedMcpManager] Shutting down all connections...');
+    logger.info('[SharedMcpManager] Shutting down all connections...');
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.error(`[SharedMcpManager] Error stopping connection:`, err);
+        logger.error(`[SharedMcpManager] Error stopping connection:`, err);
       })
     );
 
@@ -491,7 +492,7 @@ export class SharedMcpManager {
     this.toolToMcpMap.clear();
     this.aggregatedTools = [];
 
-    console.log('[SharedMcpManager] Shutdown complete');
+    logger.info('[SharedMcpManager] Shutdown complete');
   }
 
   /**

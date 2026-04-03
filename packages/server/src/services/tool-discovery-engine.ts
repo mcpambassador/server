@@ -11,6 +11,7 @@
  * @see Architecture §7.3: Downstream MCP Management
  */
 
+import { logger } from '@mcpambassador/core';
 import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { HttpMcpConnection } from '../downstream/http-connection.js';
@@ -200,7 +201,7 @@ export async function discoverTools(
             credential.encryption_iv
           );
         } catch (err) {
-          console.error(
+          logger.error(
             `[DiscoveryEngine] Failed to decrypt admin credential for MCP ${entry.name}:`,
             err
           );
@@ -236,7 +237,7 @@ export async function discoverTools(
 
         if (expiresAt <= fiveMinutesFromNow) {
           // Token expired or near expiry — refresh it
-          console.log(
+          logger.info(
             `[DiscoveryEngine] OAuth token for MCP ${entry.name} expired or near expiry, refreshing...`
           );
 
@@ -290,11 +291,11 @@ export async function discoverTools(
               .where(eq(user_mcp_credentials.credential_id, credential.credential_id));
 
             accessToken = updatedBlob.access_token;
-            console.log(
+            logger.info(
               `[DiscoveryEngine] Successfully refreshed OAuth token for MCP ${entry.name}`
             );
           } catch (refreshErr) {
-            console.error(
+            logger.error(
               `[DiscoveryEngine] Failed to refresh OAuth token for MCP ${entry.name}:`,
               refreshErr
             );
@@ -315,9 +316,9 @@ export async function discoverTools(
                   .set({ oauth_status: 'revoked', updated_at: now.toISOString() })
                   .where(eq(user_mcp_credentials.credential_id, credential.credential_id));
 
-                console.warn(`[DiscoveryEngine] OAuth token revoked for MCP ${entry.name}`);
+                logger.warn(`[DiscoveryEngine] OAuth token revoked for MCP ${entry.name}`);
               } catch (updateErr) {
-                console.error(`[DiscoveryEngine] Failed to mark credential as revoked:`, updateErr);
+                logger.error(`[DiscoveryEngine] Failed to mark credential as revoked:`, updateErr);
               }
 
               return {
@@ -364,7 +365,7 @@ export async function discoverTools(
           Authorization: `Bearer ${accessToken}`,
         };
 
-        console.log(`[DiscoveryEngine] Using admin's OAuth credential for MCP ${entry.name}`);
+        logger.info(`[DiscoveryEngine] Using admin's OAuth credential for MCP ${entry.name}`);
 
         // Branch 2: Static credentials provided by admin for testing
       } else if (adminCredentials && Object.keys(adminCredentials).length > 0) {
@@ -600,12 +601,12 @@ export async function discoverTools(
         await connection.stop();
       } catch (cleanupErr) {
         // Ignore cleanup errors
-        console.warn(`[ToolDiscoveryEngine] Cleanup error for ${entry.name}:`, cleanupErr);
+        logger.warn(`[ToolDiscoveryEngine] Cleanup error for ${entry.name}:`, cleanupErr);
       }
     }
   } catch (outerErr) {
     // Catch any unexpected errors in the outer try block
-    console.error(
+    logger.error(
       `[DiscoveryEngine] Unexpected error during discovery for MCP ${entry.name}:`,
       outerErr
     );

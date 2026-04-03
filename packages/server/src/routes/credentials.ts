@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import {
+  logger,
   getMcpEntryById,
   getCredential,
   storeCredential,
@@ -110,7 +111,7 @@ export async function registerCredentialRoutes(
             }
           }
         } catch (err) {
-          console.error('[Credentials] Failed to parse credential schema:', err);
+          logger.error('[Credentials] Failed to parse credential schema:', err);
           // Continue even if schema parsing fails
         }
       }
@@ -134,7 +135,7 @@ export async function registerCredentialRoutes(
           .set({ vault_salt: vaultSalt, updated_at: new Date().toISOString() })
           .where(eq(users.user_id, userId));
 
-        console.log(`[Credentials] Generated vault_salt for user ${userId}`);
+        logger.info(`[Credentials] Generated vault_salt for user ${userId}`);
       }
 
       // Encrypt credentials
@@ -151,7 +152,7 @@ export async function registerCredentialRoutes(
           encryption_iv: iv,
         });
         updatedAt = new Date().toISOString();
-        console.log(`[Credentials] Updated credentials for user ${userId}, MCP ${mcpId}`);
+        logger.info(`[Credentials] Updated credentials for user ${userId}, MCP ${mcpId}`);
       } else {
         const newCred = await storeCredential(db, {
           user_id: userId,
@@ -160,7 +161,7 @@ export async function registerCredentialRoutes(
           encryption_iv: iv,
         });
         updatedAt = newCred.created_at;
-        console.log(`[Credentials] Stored new credentials for user ${userId}, MCP ${mcpId}`);
+        logger.info(`[Credentials] Stored new credentials for user ${userId}, MCP ${mcpId}`);
       }
 
       return reply.status(200).send(
@@ -281,7 +282,7 @@ export async function registerCredentialRoutes(
       // (credentials are now invalid)
       if (userPool) {
         await userPool.terminateForUser(userId);
-        console.log(`[Credentials] Terminated user ${userId} MCP pool after credential deletion`);
+        logger.info(`[Credentials] Terminated user ${userId} MCP pool after credential deletion`);
       }
 
       return reply.status(200).send(

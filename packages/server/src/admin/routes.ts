@@ -13,6 +13,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -88,7 +89,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   // ==========================================================================
   fastify.setErrorHandler(async (error, _request, reply) => {
     // Log full error server-side
-    console.error('[admin-api] Error:', error);
+    logger.error('[admin-api] Error:', error);
 
     // Return sanitized error to client
     const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;

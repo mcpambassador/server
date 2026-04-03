@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
+import { logger } from '@mcpambassador/core';
 /**
  * Master Key Manager
  *
@@ -47,7 +48,7 @@ export class MasterKeyManager {
       if (!/^[0-9a-f]{64}$/i.test(envKey)) {
         throw new Error('CREDENTIAL_MASTER_KEY must be 64 hex characters (32 bytes)');
       }
-      console.log('[MasterKey] Loaded from environment variable');
+      logger.info('[MasterKey] Loaded from environment variable');
       return Buffer.from(envKey, 'hex');
     }
 
@@ -61,7 +62,7 @@ export class MasterKeyManager {
           'Invalid master key file: must contain exactly 64 hex characters (32 bytes)'
         );
       }
-      console.log('[MasterKey] Loaded from file');
+      logger.info('[MasterKey] Loaded from file');
       return Buffer.from(keyHex, 'hex');
     }
 
@@ -72,7 +73,7 @@ export class MasterKeyManager {
     const tmpPath = keyPath + '.tmp';
     fs.writeFileSync(tmpPath, newKey.toString('hex'), { mode: 0o600 });
     fs.renameSync(tmpPath, keyPath);
-    console.log('[MasterKey] Generated new master key and saved to file');
+    logger.info('[MasterKey] Generated new master key and saved to file');
     return newKey;
   }
 
@@ -94,6 +95,6 @@ export class MasterKeyManager {
     const tmpPath = keyPath + '.tmp';
     fs.writeFileSync(tmpPath, newKey.toString('hex'), { mode: 0o600 });
     fs.renameSync(tmpPath, keyPath);
-    console.log('[MasterKey] Updated master key file');
+    logger.info('[MasterKey] Updated master key file');
   }
 }

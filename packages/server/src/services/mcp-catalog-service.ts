@@ -9,6 +9,7 @@
 
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 import {
+  logger,
   createMcpEntry,
   getMcpEntryById,
   getMcpEntryByName,
@@ -146,7 +147,7 @@ export async function updateMcpCatalogEntry(
     const hasStructuralChanges = structuralFields.some(field => field in updates);
     if (hasStructuralChanges) {
       // MCP-001: Generic error message to avoid info leakage
-      console.warn(
+      logger.warn(
         '[MCP Catalog] Blocked structural update on published MCP:',
         mcpId,
         Object.keys(updates)

@@ -21,7 +21,7 @@
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
-import { users } from '@mcpambassador/core';
+import { logger, users } from '@mcpambassador/core';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 import { eq } from 'drizzle-orm';
 
@@ -172,7 +172,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
       return reply.send(wrapSuccess(response));
     } catch (err) {
-      console.error('[admin-user-mcps] Error fetching user MCP instances:', err);
+      logger.error('[admin-user-mcps] Error fetching user MCP instances:', err);
       return reply
         .status(500)
         .send(
@@ -278,7 +278,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-user-mcps] Error fetching user MCP details:', err);
+        logger.error('[admin-user-mcps] Error fetching user MCP details:', err);
         return reply
           .status(500)
           .send(
@@ -335,7 +335,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-user-mcps] Error refreshing user MCPs:', err);
+        logger.error('[admin-user-mcps] Error refreshing user MCPs:', err);
         return reply
           .status(500)
           .send(
@@ -409,7 +409,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-user-mcps] Error restarting user MCP:', err);
+        logger.error('[admin-user-mcps] Error restarting user MCP:', err);
         return reply
           .status(500)
           .send(

@@ -17,6 +17,7 @@ import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
+import { logger } from '@mcpambassador/core';
 
 /**
  * Admin health routes plugin configuration
@@ -101,7 +102,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
       return reply.send(wrapSuccess(response));
     } catch (err) {
-      console.error('[admin-health] Error fetching MCP health summary:', err);
+      logger.error('[admin-health] Error fetching MCP health summary:', err);
       return reply
         .status(500)
         .send(
@@ -173,7 +174,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-health] Error fetching MCP instances:', err);
+        logger.error('[admin-health] Error fetching MCP instances:', err);
         return reply
           .status(500)
           .send(
@@ -219,7 +220,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-health] Error restarting MCP:', err);
+        logger.error('[admin-health] Error restarting MCP:', err);
 
         // Check if it's a "not found" error
         if (err instanceof Error && err.message.includes('not found')) {
@@ -272,7 +273,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-health] Error fetching MCP logs:', err);
+        logger.error('[admin-health] Error fetching MCP logs:', err);
         return reply
           .status(500)
           .send(
@@ -312,7 +313,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        console.error('[admin-health] Error clearing MCP logs:', err);
+        logger.error('[admin-health] Error clearing MCP logs:', err);
         return reply
           .status(500)
           .send(

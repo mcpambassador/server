@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import argon2 from 'argon2';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
+  logger,
   clients,
   client_mcp_subscriptions,
   compatInsert,
@@ -121,7 +122,7 @@ export async function createUserClient(
     metadata: '{}',
   });
 
-  console.log(`[ClientService] User ${data.userId} created client ${clientId}`);
+  logger.info(`[ClientService] User ${data.userId} created client ${clientId}`);
 
   // CR-H1: Add null check instead of non-null assertion
   const createdClient = await db.query.clients.findFirst({
@@ -220,7 +221,7 @@ export async function suspendUserClient(
 
   await compatUpdate(db, clients).set({ status: 'suspended' }).where(whereClause);
 
-  console.log(`[ClientService] User ${userId} suspended client ${clientId}`);
+  logger.info(`[ClientService] User ${userId} suspended client ${clientId}`);
 }
 
 /**
@@ -251,7 +252,7 @@ export async function reactivateUserClient(
 
   await compatUpdate(db, clients).set({ status: 'active' }).where(whereClause);
 
-  console.log(`[ClientService] User ${userId} reactivated client ${clientId}`);
+  logger.info(`[ClientService] User ${userId} reactivated client ${clientId}`);
 }
 
 /**
@@ -288,7 +289,7 @@ export async function revokeUserClient(
     await compatDelete(db, clients).where(whereClause);
   });
 
-  console.log(
+  logger.info(
     `[ClientService] User ${userId} deleted client ${clientId} and cascaded subscriptions`
   );
 }
@@ -319,5 +320,5 @@ export async function updateUserClientName(
 
   await compatUpdate(db, clients).set({ client_name: clientName }).where(whereClause);
 
-  console.log(`[ClientService] User ${userId} updated client ${clientId} name`);
+  logger.info(`[ClientService] User ${userId} updated client ${clientId} name`);
 }

@@ -1,4 +1,4 @@
-/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
+/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
@@ -16,6 +16,7 @@ import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
+  logger,
   initializeDatabase,
   runMigrations,
   seedDatabaseIfNeeded,
@@ -190,7 +191,7 @@ export class AmbassadorServer {
    * Initialize server with TLS and routing
    */
   async initialize(): Promise<void> {
-    console.log('[Server] Initializing MCP Ambassador Server...');
+    logger.info('[Server] Initializing MCP Ambassador Server...');
 
     // Initialize TLS certificates
     const certDir = path.join(this.config.dataDir, 'certs');
@@ -201,8 +202,8 @@ export class AmbassadorServer {
       serverName: this.config.serverName,
     });
 
-    console.log(`[TLS] CA Fingerprint: ${tlsCerts.caFingerprint}`);
-    console.log('[TLS] Store this fingerprint for client TOFU trust prompt');
+    logger.info(`[TLS] CA Fingerprint: ${tlsCerts.caFingerprint}`);
+    logger.info('[TLS] Store this fingerprint for client TOFU trust prompt');
 
     // Create Fastify instance with HTTPS + TLS
     this.fastify = Fastify({
@@ -243,7 +244,7 @@ export class AmbassadorServer {
     });
 
     // Initialize database
-    console.log(`[Server] Initializing database: ${this.config.dbPath}`);
+    logger.info(`[Server] Initializing database: ${this.config.dbPath}`);
     this.db = await initializeDatabase({
       type: 'sqlite',
       sqliteFilePath: this.config.dbPath,
@@ -252,11 +253,11 @@ export class AmbassadorServer {
     });
 
     // Run database migrations (creates tables if needed)
-    console.log('[Server] Running database migrations...');
+    logger.info('[Server] Running database migrations...');
     await runMigrations(this.db as DatabaseClient);
 
     // Seed default profiles if needed
-    console.log('[Server] Seeding database...');
+    logger.info('[Server] Seeding database...');
     await seedDatabaseIfNeeded(this.db as DatabaseClient, {
       type: 'sqlite',
       seedOnInit: true,
@@ -268,7 +269,7 @@ export class AmbassadorServer {
     const { importYamlMcps } = await import('./services/mcp-import.js');
     const importResult = await importYamlMcps(this.db!, this.config.downstreamMcps);
     if (importResult.imported > 0) {
-      console.log(`[Server] Imported ${importResult.imported} YAML MCPs to catalog`);
+      logger.info(`[Server] Imported ${importResult.imported} YAML MCPs to catalog`);
     }
 
     // Bootstrap admin key on first boot
@@ -278,16 +279,16 @@ export class AmbassadorServer {
     await this.bootstrapDevClient();
 
     // Initialize AAA providers
-    console.log('[Server] Initializing AAA providers...');
+    logger.info('[Server] Initializing AAA providers...');
 
     // M26.8: Initialize credential vault and master key manager
-    console.log('[Server] Initializing credential vault...');
+    logger.info('[Server] Initializing credential vault...');
     const { MasterKeyManager } = await import('./services/master-key-manager.js');
     const { CredentialVault } = await import('./services/credential-vault.js');
     const keyManager = new MasterKeyManager(this.config.dataDir);
     const masterKey = await keyManager.loadMasterKey();
     this.credentialVault = new CredentialVault(masterKey);
-    console.log('[Server] Credential vault initialized');
+    logger.info('[Server] Credential vault initialized');
 
     // ADR-014: Initialize OAuth token manager
     const { OAuthTokenManager } = await import('./services/oauth-token-manager.js');
@@ -303,7 +304,7 @@ export class AmbassadorServer {
         throw new Error('PUBLIC_URL must start with https:// or http://');
       }
       if (callbackBaseUrl.startsWith('http://')) {
-        console.warn(
+        logger.warn(
           '[Server] WARNING: PUBLIC_URL uses http:// instead of https:// - OAuth tokens will be transmitted insecurely'
         );
       }
@@ -312,17 +313,17 @@ export class AmbassadorServer {
       callbackBaseUrl = `https://${this.config.serverName}:${this.config.adminPort}`;
     }
 
-    console.log(`[Server] OAuth callback URL: ${callbackBaseUrl}/v1/oauth/callback`);
+    logger.info(`[Server] OAuth callback URL: ${callbackBaseUrl}/v1/oauth/callback`);
 
     this.oauthTokenManager = new OAuthTokenManager({
       db: this.db,
       vault: this.credentialVault,
       callbackBaseUrl,
     });
-    console.log('[Server] OAuth token manager initialized');
+    logger.info('[Server] OAuth token manager initialized');
 
     // Initialize community registry service
-    console.log('[Server] Initializing community registry...');
+    logger.info('[Server] Initializing community registry...');
     const { RegistryService } = await import('./services/registry-service.js');
     this.registryService = new RegistryService(this.config.registryConfig, this.db);
 
@@ -330,16 +331,16 @@ export class AmbassadorServer {
     if (this.config.registryConfig.enabled) {
       try {
         await this.registryService.fetchRegistry();
-        console.log('[Server] Community registry loaded');
+        logger.info('[Server] Community registry loaded');
       } catch (error) {
-        console.warn(
+        logger.warn(
           '[Server] Failed to load community registry on startup:',
           error instanceof Error ? error.message : String(error)
         );
-        console.warn('[Server] Registry will be available after manual refresh');
+        logger.warn('[Server] Registry will be available after manual refresh');
       }
     } else {
-      console.log('[Server] Community registry disabled');
+      logger.info('[Server] Community registry disabled');
     }
 
     // Register server instance for global access by services
@@ -364,8 +365,8 @@ export class AmbassadorServer {
       audit_on_failure: 'buffer', // Fail-open for audit (M5 behavior)
     });
 
-    console.log('[Server] AAA providers initialized');
-    console.log('[Server] Pipeline initialized (available for M6.5)');
+    logger.info('[Server] AAA providers initialized');
+    logger.info('[Server] Pipeline initialized (available for M6.5)');
 
     // Load published shared MCPs from database catalog
     // This replaces the legacy YAML config approach (config.downstreamMcps)
@@ -375,7 +376,7 @@ export class AmbassadorServer {
       { status: 'published', isolation_mode: 'shared' },
       { limit: 100 } // Load up to 100 MCPs
     );
-    console.log(`[Server] Found ${catalogResult.entries.length} published shared MCPs in catalog`);
+    logger.info(`[Server] Found ${catalogResult.entries.length} published shared MCPs in catalog`);
 
     // Initialize downstream MCP connections from catalog
     await this.mcpManager.initializeFromCatalog(this.db!, catalogResult.entries);
@@ -386,7 +387,7 @@ export class AmbassadorServer {
       { status: 'published', isolation_mode: 'per_user' },
       { limit: 100 }
     );
-    console.log(
+    logger.info(
       `[Server] Found ${perUserResult.entries.length} published per-user MCPs in catalog`
     );
 
@@ -421,7 +422,7 @@ export class AmbassadorServer {
     // M17: Initialize per-user MCP pool with catalog-based configs
     // SEC-M17-001: Must be created BEFORE SessionLifecycleManager
     // SEC-M17-005: Use configurable limits from config instead of hardcoded values
-    console.log('[Server] Initializing per-user MCP pool...');
+    logger.info('[Server] Initializing per-user MCP pool...');
     this.userPool = new UserMcpPool({
       mcpConfigs,
       maxInstancesPerUser: this.config.maxMcpInstancesPerUser,
@@ -440,7 +441,7 @@ export class AmbassadorServer {
     }
     this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
-    console.log('[Server] Per-user MCP pool initialized');
+    logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
     // SEC-M17-001: Must be created AFTER UserMcpPool so it can receive valid reference
@@ -459,21 +460,21 @@ export class AmbassadorServer {
       this.userPool
     );
     this.lifecycleManager.start();
-    console.log('[Server] Session lifecycle manager started');
+    logger.info('[Server] Session lifecycle manager started');
 
     // Start rate limit cleanup timer (Sprint 3.3)
     startRateLimitCleanup();
-    console.log('[Server] Rate limit cleanup timer started');
+    logger.info('[Server] Rate limit cleanup timer started');
 
     // M21: Initialize user session store and register on main server
-    console.log('[Server] Registering user session management...');
+    logger.info('[Server] Registering user session management...');
     this.userSessionStore = new UserSessionStore(1000);
     const { registerUserSession } = await import('./auth/user-session.js');
     await registerUserSession(this.fastify, {
       dataDir: this.config.dataDir,
       store: this.userSessionStore,
     });
-    console.log('[Server] User session management registered');
+    logger.info('[Server] User session management registered');
 
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
@@ -492,7 +493,7 @@ export class AmbassadorServer {
       await this.initializeAdminServer(tlsCerts);
     }
 
-    console.log('[Server] Initialization complete');
+    logger.info('[Server] Initialization complete');
   }
 
   /**
@@ -513,7 +514,7 @@ export class AmbassadorServer {
     cert: string;
     ca: string;
   }): Promise<void> {
-    console.log('[Admin] Initializing admin server...');
+    logger.info('[Admin] Initializing admin server...');
 
     // Import required plugins
     const fastifyCookie = (await import('@fastify/cookie')).default;
@@ -595,7 +596,7 @@ export class AmbassadorServer {
 
     // Register user-facing API routes on admin server (M29.7)
     // This allows the SPA served on port 9443 to make API calls to the same port
-    console.log('[Admin] Registering user-facing API routes...');
+    logger.info('[Admin] Registering user-facing API routes...');
 
     // Health endpoint for SPA
     this.adminServer.get('/health', async (_request, reply) => {
@@ -660,7 +661,7 @@ export class AmbassadorServer {
       portalBaseUrl,
     });
 
-    console.log('[Admin] User-facing API routes registered');
+    logger.info('[Admin] User-facing API routes registered');
 
     // Register SPA handler on admin server (M29.5)
     // This allows the React admin UI to be served on the admin port
@@ -715,7 +716,7 @@ export class AmbassadorServer {
       return reply.redirect('/app/admin/dashboard', 301);
     });
 
-    console.log('[Admin] Admin server initialized');
+    logger.info('[Admin] Admin server initialized');
   }
 
   /**
@@ -798,7 +799,7 @@ export class AmbassadorServer {
       });
 
       if (!user?.vault_salt) {
-        console.warn(`[Server] User ${userId} has no vault_salt, skipping credential loading`);
+        logger.warn(`[Server] User ${userId} has no vault_salt, skipping credential loading`);
         return new Map();
       }
 
@@ -817,7 +818,7 @@ export class AmbassadorServer {
           // Get MCP catalog entry for credential schema
           const mcpEntry = await getMcpEntryById(this.db, cred.mcp_id);
           if (!mcpEntry) {
-            console.warn(`[Server] MCP ${cred.mcp_id} not found in catalog, skipping credential`);
+            logger.warn(`[Server] MCP ${cred.mcp_id} not found in catalog, skipping credential`);
             continue;
           }
 
@@ -843,7 +844,7 @@ export class AmbassadorServer {
 
             if (expiresAt <= fiveMinutesFromNow) {
               // Token expired or near expiry — refresh it
-              console.log(
+              logger.info(
                 `[Server] OAuth token for MCP ${mcpEntry.name} expired or near expiry, refreshing...`
               );
 
@@ -891,9 +892,9 @@ export class AmbassadorServer {
                   .where(eq(user_mcp_credentials.credential_id, cred.credential_id));
 
                 accessToken = updatedBlob.access_token;
-                console.log(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
+                logger.info(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
               } catch (refreshErr) {
-                console.error(
+                logger.error(
                   `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`,
                   refreshErr
                 );
@@ -904,7 +905,7 @@ export class AmbassadorServer {
                   await compatUpdate(this.db, user_mcp_credentials)
                     .set({ oauth_status: 'revoked', updated_at: now.toISOString() })
                     .where(eq(user_mcp_credentials.credential_id, cred.credential_id));
-                  console.warn(`[Server] OAuth token revoked for MCP ${mcpEntry.name}, skipping`);
+                  logger.warn(`[Server] OAuth token revoked for MCP ${mcpEntry.name}, skipping`);
                 }
 
                 // Skip this MCP on refresh failure
@@ -926,7 +927,7 @@ export class AmbassadorServer {
                 Authorization: `Bearer ${accessToken}`,
               };
               credMap.set(mcpEntry.name, { envVars, headers });
-              console.log(
+              logger.info(
                 `[Server] Loaded OAuth credentials for MCP ${mcpEntry.name}: env var ${oauthConfig.access_token_env_var}, Authorization header`
               );
             }
@@ -957,20 +958,20 @@ export class AmbassadorServer {
 
             if (Object.keys(envVars).length > 0) {
               credMap.set(mcpEntry.name, { envVars, headers: {} });
-              console.log(
+              logger.info(
                 `[Server] Loaded ${Object.keys(envVars).length} static credential env vars for MCP ${mcpEntry.name}`
               );
             }
           }
         } catch (err) {
-          console.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
+          logger.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
           // Continue processing other credentials
         }
       }
 
       return credMap;
     } catch (err) {
-      console.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
+      logger.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
       return new Map();
     }
   }
@@ -1385,7 +1386,7 @@ export class AmbassadorServer {
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
-          console.error('[/v1/tools] Error:', err);
+          logger.error('[/v1/tools] Error:', err);
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Failed to retrieve tool catalog',
@@ -1551,7 +1552,7 @@ export class AmbassadorServer {
             message: 'Access denied',
           });
         } else {
-          console.error('[/v1/tools/invoke] Error:', err);
+          logger.error('[/v1/tools/invoke] Error:', err);
           // F-SEC-M5-009: Generic error message (don't expose internals)
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1597,7 +1598,7 @@ export class AmbassadorServer {
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
-          console.error('[/v1/admin/health] Error:', err);
+          logger.error('[/v1/admin/health] Error:', err);
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Health check failed',
@@ -1654,7 +1655,7 @@ export class AmbassadorServer {
     const { registerSpaHandler } = await import('./spa-handler.js');
     await registerSpaHandler(this.fastify, { db: this.db! });
 
-    console.log('[Router] All routes registered');
+    logger.info('[Router] All routes registered');
   }
 
   /**
@@ -1671,7 +1672,7 @@ export class AmbassadorServer {
         port: this.config.port,
       });
 
-      console.log(`[Server] Listening on https://${this.config.host}:${this.config.port}`);
+      logger.info(`[Server] Listening on https://${this.config.host}:${this.config.port}`);
 
       // Start admin UI server if enabled
       if (this.adminServer) {
@@ -1680,12 +1681,12 @@ export class AmbassadorServer {
           port: this.config.adminPort,
         });
 
-        console.log(
+        logger.info(
           `[Admin] Admin UI listening on https://${this.config.host}:${this.config.adminPort}`
         );
       }
     } catch (err) {
-      console.error('[Server] Failed to start:', err);
+      logger.error('[Server] Failed to start:', err);
       throw err;
     }
   }
@@ -1716,12 +1717,12 @@ export class AmbassadorServer {
     }
 
     if (hasKey) {
-      console.log('[Server] Admin key already exists');
+      logger.info('[Server] Admin key already exists');
       return;
     }
 
     // First boot — generate admin key
-    console.log('[Server] First boot detected — generating admin key...');
+    logger.info('[Server] First boot detected — generating admin key...');
     const { admin_key, recovery_token } = await createAdminKey(
       this.db! as DatabaseClient,
       this.config.dataDir
@@ -1742,9 +1743,9 @@ DELETE THIS FILE after recording these values.
     try {
       mkdirSync(this.config.dataDir, { recursive: true });
       writeFileSync(credentialsPath, credentialsContent, { mode: 0o600 });
-      console.log(`[Server] Initial credentials written to ${credentialsPath}`);
+      logger.info(`[Server] Initial credentials written to ${credentialsPath}`);
     } catch (error) {
-      console.error(`[Server] Failed to write credentials file: ${String(error)}`);
+      logger.error(`[Server] Failed to write credentials file: ${String(error)}`);
       throw error;
     }
   }
@@ -1767,14 +1768,14 @@ DELETE THIS FILE after recording these values.
     // Only run in dev/test environments
     const nodeEnv = process.env.NODE_ENV;
     if (nodeEnv !== 'development' && nodeEnv !== 'test' && nodeEnv !== undefined) {
-      console.log('[Server] Skipping dev client key bootstrap (not dev/test environment)');
+      logger.info('[Server] Skipping dev client key bootstrap (not dev/test environment)');
       return;
     }
 
     // Check if any client keys already exist
     const existingKeys = await this.db!.query.clients.findMany({ limit: 1 });
     if (existingKeys.length > 0) {
-      console.log('[Server] Client keys already exist, skipping dev bootstrap');
+      logger.info('[Server] Client keys already exist, skipping dev bootstrap');
       return;
     }
 
@@ -1784,7 +1785,7 @@ DELETE THIS FILE after recording these values.
     });
 
     if (!adminUser) {
-      console.log('[Server] No admin user found, skipping dev client key bootstrap');
+      logger.info('[Server] No admin user found, skipping dev client key bootstrap');
       return;
     }
 
@@ -1794,14 +1795,14 @@ DELETE THIS FILE after recording these values.
     });
 
     if (!allToolsProfile) {
-      console.log(
+      logger.info(
         '[Server] Warning: all-tools profile not found, skipping dev client key bootstrap'
       );
       return;
     }
 
     // First boot in dev/test — generate dev preshared key
-    console.log('[Server] First boot detected (dev/test) — generating dev client key...');
+    logger.info('[Server] First boot detected (dev/test) — generating dev client key...');
 
     // Generate random preshared key: amb_pk_ + 48 chars of base64url
     const randomBytes = crypto.randomBytes(36); // 36 bytes → 48 base64 chars
@@ -1851,9 +1852,9 @@ DELETE THIS FILE after recording the value.
     try {
       mkdirSync(this.config.dataDir, { recursive: true });
       writeFileSync(devKeyPath, devKeyContent, { mode: 0o600 });
-      console.log(`[Server] Dev client key written to ${devKeyPath}`);
+      logger.info(`[Server] Dev client key written to ${devKeyPath}`);
     } catch (error) {
-      console.error(`[Server] Failed to write dev client key file: ${String(error)}`);
+      logger.error(`[Server] Failed to write dev client key file: ${String(error)}`);
       throw error;
     }
   }
@@ -1869,7 +1870,7 @@ DELETE THIS FILE after recording the value.
    * @returns Count of invalidated sessions
    */
   async rotateHmacSecret(): Promise<number> {
-    console.log('[Server] Rotating HMAC secret...');
+    logger.info('[Server] Rotating HMAC secret...');
 
     // 1. Generate new HMAC secret (same method as startup)
     const newSecret = crypto.randomBytes(64);
@@ -1916,7 +1917,7 @@ DELETE THIS FILE after recording the value.
     // 6. SEC-M19-001: Persist new secret to disk so it survives restarts
     persistHmacSecret(this.config.dataDir, newSecret);
 
-    console.log(`[Server] HMAC secret rotated, ${sessionCount} sessions invalidated`);
+    logger.info(`[Server] HMAC secret rotated, ${sessionCount} sessions invalidated`);
     return sessionCount;
   }
 
@@ -1924,27 +1925,27 @@ DELETE THIS FILE after recording the value.
    * Stop the server
    */
   async stop(): Promise<void> {
-    console.log('[Server] Shutting down...');
+    logger.info('[Server] Shutting down...');
 
     // Stop rate limit cleanup timer (Sprint 3.3)
-    console.log('[Server] Stopping rate limit cleanup timer...');
+    logger.info('[Server] Stopping rate limit cleanup timer...');
     stopRateLimitCleanup();
 
     // Stop session lifecycle manager (M15)
     if (this.lifecycleManager) {
-      console.log('[Server] Stopping session lifecycle manager...');
+      logger.info('[Server] Stopping session lifecycle manager...');
       this.lifecycleManager.stop();
       this.heartbeatRateLimit.clear();
     }
 
     // Shutdown providers first (flushes audit buffer)
     if (this.audit) {
-      console.log('[Server] Shutting down audit provider...');
+      logger.info('[Server] Shutting down audit provider...');
       await this.audit.shutdown?.();
     }
 
     // M17.3: Shutdown per-user MCP pool first
-    console.log('[Server] Shutting down per-user MCP pool...');
+    logger.info('[Server] Shutting down per-user MCP pool...');
     await this.userPool.shutdown();
 
     // Shutdown MCP connections
@@ -1952,7 +1953,7 @@ DELETE THIS FILE after recording the value.
 
     // Close database
     if (this.db) {
-      console.log('[Server] Closing database...');
+      logger.info('[Server] Closing database...');
       await closeDatabase(this.db);
     }
 
@@ -1966,7 +1967,7 @@ DELETE THIS FILE after recording the value.
       await this.fastify.close();
     }
 
-    console.log('[Server] Shutdown complete');
+    logger.info('[Server] Shutdown complete');
   }
 
   /**

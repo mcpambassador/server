@@ -8,6 +8,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -48,7 +49,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
       const pendingChanges = await reloader.previewChanges();
       return reply.send(wrapSuccess(pendingChanges));
     } catch (err) {
-      console.error('[AdminCatalogReload] Error previewing changes:', err);
+      logger.error('[AdminCatalogReload] Error previewing changes:', err);
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to preview catalog changes'));
@@ -71,7 +72,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
           .send(wrapError(ErrorCodes.CONFLICT, 'Catalog reload already in progress'));
       }
 
-      console.error('[AdminCatalogReload] Error applying changes:', err);
+      logger.error('[AdminCatalogReload] Error applying changes:', err);
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to apply catalog changes'));

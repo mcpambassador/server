@@ -19,6 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import { logger } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { killSwitchSchema, killSwitchParamsSchema } from './schemas.js';
@@ -132,8 +133,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
       });
 
       // Log the real error for debugging (do not expose internal details to clients)
-      // eslint-disable-next-line no-console
-      console.error('[Admin] HMAC rotation failed:', err instanceof Error ? err.message : err);
+      logger.error('[Admin] HMAC rotation failed:', err instanceof Error ? err.message : err);
 
       return reply
         .status(500)
@@ -182,7 +182,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
 
       const allCredentials = await compatSelect(db).from(user_mcp_credentials);
 
-      console.log(
+      logger.info(
         `[Admin] Starting credential re-encryption for ${allCredentials.length} credentials...`
       );
 
@@ -201,7 +201,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
           });
 
           if (!user || !user.vault_salt) {
-            console.warn(
+            logger.warn(
               `[Admin] User ${cred.user_id} has no vault_salt, skipping credential ${cred.credential_id}`
             );
             continue;
@@ -235,7 +235,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
 
       const completedAt = new Date().toISOString();
 
-      console.log(
+      logger.info(
         `[Admin] Credential master key rotation complete: ${allCredentials.length} credentials re-encrypted`
       );
 
@@ -246,7 +246,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         })
       );
     } catch (err) {
-      console.error('[Admin] Credential key rotation failed:', err);
+      logger.error('[Admin] Credential key rotation failed:', err);
       // If transaction failed and temp file exists, delete it
       if (tmpKeyPath) {
         try {

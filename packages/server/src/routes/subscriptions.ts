@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { getMcpEntryById } from '@mcpambassador/core';
+import { logger, getMcpEntryById } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import {
@@ -303,5 +303,5 @@ export async function registerSubscriptionRoutes(
     }
   );
 
-  console.log('[SubscriptionRoutes] Registered subscription management routes');
+  logger.info('[SubscriptionRoutes] Registered subscription management routes');
 }

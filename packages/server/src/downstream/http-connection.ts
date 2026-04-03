@@ -1,4 +1,4 @@
-/* eslint-disable no-console, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 
 import { EventEmitter } from 'events';
 import type {
@@ -12,6 +12,7 @@ import { ToolInvocationResponseSchema } from './types.js';
 import { redactUrl } from './url-utils.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
+import { logger } from '@mcpambassador/core';
 /**
  * HTTP-based MCP connection
  *
@@ -78,7 +79,7 @@ export class HttpMcpConnection extends EventEmitter {
       // Fall back to process.env (system-wide env vars)
       const value = process.env[varName];
       if (!value) {
-        console.warn(
+        logger.warn(
           `[MCP:${this.config.name}] Environment variable ${varName} not found in config.env or process.env, using placeholder`
         );
         return match;
@@ -232,7 +233,7 @@ export class HttpMcpConnection extends EventEmitter {
       this.consecutiveFailures++;
       if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
         const circuitMsg = `Circuit breaker triggered after ${this.consecutiveFailures} failures`;
-        console.error(`[MCP:${this.config.name}] ${circuitMsg}`);
+        logger.error(`[MCP:${this.config.name}] ${circuitMsg}`);
         this.errorBuffer.push(circuitMsg, 'error');
         this.isHealthy = false;
         this.emit('error', new Error('Circuit breaker: too many consecutive failures'));
@@ -246,7 +247,7 @@ export class HttpMcpConnection extends EventEmitter {
    */
   async start(): Promise<void> {
     const redacted = redactUrl(this.templateUrl);
-    console.log(`[MCP:${this.config.name}] Starting HTTP connection to ${redacted}...`);
+    logger.info(`[MCP:${this.config.name}] Starting HTTP connection to ${redacted}...`);
 
     try {
       // Initialize session
@@ -266,9 +267,9 @@ export class HttpMcpConnection extends EventEmitter {
 
       this.isHealthy = true;
       this.startedAt = Date.now();
-      console.log(`[MCP:${this.config.name}] Started successfully`);
+      logger.info(`[MCP:${this.config.name}] Started successfully`);
     } catch (err) {
-      console.error(`[MCP:${this.config.name}] Failed to start:`, this.sanitizeError(err));
+      logger.error(`[MCP:${this.config.name}] Failed to start:`, this.sanitizeError(err));
       throw err;
     }
   }
@@ -278,7 +279,7 @@ export class HttpMcpConnection extends EventEmitter {
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   async stop(): Promise<void> {
-    console.log(`[MCP:${this.config.name}] Stopping HTTP connection...`);
+    logger.info(`[MCP:${this.config.name}] Stopping HTTP connection...`);
     this.startedAt = null;
     this.isHealthy = false;
     this.toolCache = null;
@@ -355,7 +356,7 @@ export class HttpMcpConnection extends EventEmitter {
 
       return validated;
     } catch (err) {
-      console.error(`[MCP:${this.config.name}] Tool invocation failed:`, this.sanitizeError(err));
+      logger.error(`[MCP:${this.config.name}] Tool invocation failed:`, this.sanitizeError(err));
       throw err;
     }
   }
@@ -395,13 +396,10 @@ export class HttpMcpConnection extends EventEmitter {
     try {
       const response = (await this.sendRequest('tools/list')) as { tools: ToolDescriptor[] };
       this.toolCache = response.tools || [];
-      console.log(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
+      logger.info(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
       return this.toolCache;
     } catch (err) {
-      console.error(
-        `[MCP:${this.config.name}] Failed to fetch tool list:`,
-        this.sanitizeError(err)
-      );
+      logger.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, this.sanitizeError(err));
       throw err;
     }
   }

@@ -8,7 +8,7 @@
  */
 
 import { eq } from 'drizzle-orm';
-import { users, type User, compatInsert, compatUpdate } from '@mcpambassador/core';
+import { logger, users, type User, compatInsert, compatUpdate } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { hashPassword, verifyPassword } from './password-policy.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -134,7 +134,7 @@ export async function createUser(
     }
   } catch (err) {
     // Log error but don't fail user creation if group assignment fails
-    console.error('[user-auth] Failed to assign user to all-users group:', err);
+    logger.error('[user-auth] Failed to assign user to all-users group:', err);
   }
 
   return user;

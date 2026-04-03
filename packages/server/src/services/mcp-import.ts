@@ -10,6 +10,7 @@
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
 import {
+  logger,
   createMcpEntry,
   listMcpEntries,
   getGroupByName,
@@ -46,14 +47,14 @@ export async function importYamlMcps(
   // Check if catalog already has entries
   const { entries: existingEntries } = await listMcpEntries(db, {}, { limit: 1 });
   if (existingEntries.length > 0) {
-    console.log('[MCP Import] Catalog not empty — skipping YAML import');
+    logger.info('[MCP Import] Catalog not empty — skipping YAML import');
     return { imported: 0, skipped: yamlMcps.length };
   }
 
   // Check if all-users group exists (should be seeded)
   const allUsersGroup = await getGroupByName(db, 'all-users');
   if (!allUsersGroup) {
-    console.warn('[MCP Import] "all-users" group not found — cannot assign group access');
+    logger.warn('[MCP Import] "all-users" group not found — cannot assign group access');
   }
 
   let imported = 0;
@@ -97,10 +98,7 @@ export async function importYamlMcps(
       // M-3: Run validation on imported entry (don't trust YAML blindly)
       const validationResult = await validateMcpConfig(entry);
       if (!validationResult.valid) {
-        console.warn(
-          `[MCP Import] Validation failed for ${yamlMcp.name}:`,
-          validationResult.errors
-        );
+        logger.warn(`[MCP Import] Validation failed for ${yamlMcp.name}:`, validationResult.errors);
         // Update entry to draft with failed validation
         await updateMcpEntry(db, entry.mcp_id, {
           status: 'draft',
@@ -119,14 +117,14 @@ export async function importYamlMcps(
         });
       }
 
-      console.log(`[MCP Import] Imported: ${yamlMcp.name} -> ${entry.mcp_id}`);
+      logger.info(`[MCP Import] Imported: ${yamlMcp.name} -> ${entry.mcp_id}`);
       imported++;
     } catch (err) {
-      console.error(`[MCP Import] Failed to import ${yamlMcp.name}:`, err);
+      logger.error(`[MCP Import] Failed to import ${yamlMcp.name}:`, err);
     }
   }
 
-  console.log(
+  logger.info(
     `[MCP Import] Import complete: ${imported} imported, ${yamlMcps.length - imported} failed`
   );
 

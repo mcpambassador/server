@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-/* eslint-disable no-console, @typescript-eslint/no-floating-promises, @typescript-eslint/explicit-function-return-type */
+/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/explicit-function-return-type */
 
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
 import fs from 'fs';
 import yaml from 'yaml';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
-import { loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
+import { logger, loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
 
 /**
  * MCP Ambassador Server CLI
@@ -80,7 +80,7 @@ function parseArgs(): CliArgs {
         break;
       case '--help':
       case '-h':
-        console.log(`
+        logger.info(`
 MCP Ambassador Server v0.1.0
 
 Usage:
@@ -130,7 +130,7 @@ function findConfigFile(dataDir: string): string | null {
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
-      console.log(`[Server] Found config file: ${candidate}`);
+      logger.info(`[Server] Found config file: ${candidate}`);
       return candidate;
     }
   }
@@ -211,16 +211,16 @@ async function main() {
 
   if (configPath) {
     try {
-      console.log(`[Server] Loading configuration from ${configPath}...`);
+      logger.info(`[Server] Loading configuration from ${configPath}...`);
       ambassadorConfig = await loadConfig(configPath, {
         enforcement: 'block',
         scrub_env_vars: true,
       });
-      console.log('[Server] Configuration loaded successfully');
+      logger.info('[Server] Configuration loaded successfully');
 
       // Extract downstream MCPs from loaded config
       downstreamMcps = ambassadorConfig.downstream_mcps as DownstreamMcpConfig[];
-      console.log(`[Server] Loaded ${downstreamMcps.length} downstream MCP(s) from config`);
+      logger.info(`[Server] Loaded ${downstreamMcps.length} downstream MCP(s) from config`);
 
       // SEC-M17-005: Load user_pool config from validated config
       if (ambassadorConfig.user_pool) {
@@ -228,39 +228,39 @@ async function main() {
           maxInstancesPerUser: ambassadorConfig.user_pool.max_instances_per_user,
           maxTotalInstances: ambassadorConfig.user_pool.max_total_instances,
         };
-        console.log('[Server] Loaded user_pool config:', userPoolConfig);
+        logger.info('[Server] Loaded user_pool config:', userPoolConfig);
       }
 
       // Log key configuration values at startup
-      console.log('[Server] Session config:', {
+      logger.info('[Server] Session config:', {
         ttl_seconds: ambassadorConfig.session?.ttl_seconds ?? 28800,
         idle_timeout_seconds: ambassadorConfig.session?.idle_timeout_seconds ?? 1800,
         spindown_delay_seconds: ambassadorConfig.session?.spindown_delay_seconds ?? 300,
         heartbeat_interval: ambassadorConfig.session?.heartbeat_expected_interval_seconds ?? 120,
       });
     } catch (err) {
-      console.error('[Server] Failed to load config file:', err);
+      logger.error('[Server] Failed to load config file:', err);
       // In production mode, fail hard if config can't be loaded
       if (process.env.NODE_ENV === 'production') {
-        console.error('[Server] Config loading failed in production mode, aborting startup');
+        logger.error('[Server] Config loading failed in production mode, aborting startup');
         process.exit(1);
       }
-      console.warn('[Server] Starting with default configuration');
+      logger.warn('[Server] Starting with default configuration');
     }
   } else {
-    console.warn('[Server] No config file found - starting with default configuration');
-    console.log('[Server] Checked locations:');
-    console.log('  - /config/ambassador-server.yaml');
-    console.log(`  - ${path.join(dataDir, 'config', 'ambassador-server.yaml')}`);
-    if (args.config) console.log(`  - ${args.config}`);
+    logger.warn('[Server] No config file found - starting with default configuration');
+    logger.info('[Server] Checked locations:');
+    logger.info('  - /config/ambassador-server.yaml');
+    logger.info(`  - ${path.join(dataDir, 'config', 'ambassador-server.yaml')}`);
+    if (args.config) logger.info(`  - ${args.config}`);
     if (process.env.AMBASSADOR_CONFIG_PATH)
-      console.log(`  - ${process.env.AMBASSADOR_CONFIG_PATH}`);
+      logger.info(`  - ${process.env.AMBASSADOR_CONFIG_PATH}`);
   }
 
   // Load registry config (supports both YAML and env vars)
   // Registry config is separate from AmbassadorConfig schema, loaded manually from YAML or env vars
   const registryConfig = loadRegistryConfig(configPath);
-  console.log(
+  logger.info(
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
 
@@ -283,12 +283,12 @@ async function main() {
 
   // Handle shutdown signals
   const shutdown = async (signal: string) => {
-    console.log(`\n[Server] Received ${signal}, shutting down gracefully...`);
+    logger.info(`\n[Server] Received ${signal}, shutting down gracefully...`);
     try {
       await server.stop();
       process.exit(0);
     } catch (err) {
-      console.error('[Server] Error during shutdown:', err);
+      logger.error('[Server] Error during shutdown:', err);
       process.exit(1);
     }
   };
@@ -301,7 +301,7 @@ async function main() {
     await server.initialize();
     await server.start();
   } catch (err) {
-    console.error('[Server] Failed to start:', err);
+    logger.error('[Server] Failed to start:', err);
     process.exit(1);
   }
 }
