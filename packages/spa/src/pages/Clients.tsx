@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import {
@@ -9,6 +9,7 @@ import {
   PlayIcon,
   TrashIcon,
   CheckIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/20/solid';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
@@ -48,6 +49,77 @@ import {
 } from '@/api/hooks/use-clients';
 import type { Client } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+// ---------------------------------------------------------------------------
+// Connection health helpers
+// ---------------------------------------------------------------------------
+
+type ConnectionStatus = 'active' | 'idle' | 'expired';
+
+/**
+ * Derive a user-facing connection health status from client fields.
+ *
+ * Rules:
+ *  - If the client is revoked or suspended, treat as expired (no active session).
+ *  - If expiresAt is in the past, the key has expired — session cannot be created.
+ *  - If lastUsedAt is within the last 5 minutes, the session is Active.
+ *  - If lastUsedAt is within the last 30 minutes, it is Idle.
+ *  - If lastUsedAt is older than 30 minutes (or never set), it is Expired/Disconnected.
+ */
+function deriveConnectionStatus(client: Client): ConnectionStatus {
+  if (client.status === 'revoked' || client.status === 'suspended') {
+    return 'expired';
+  }
+
+  if (client.expiresAt && new Date(client.expiresAt) < new Date()) {
+    return 'expired';
+  }
+
+  if (!client.lastUsedAt) {
+    return 'expired';
+  }
+
+  const lastUsed = new Date(client.lastUsedAt);
+  const nowMs = Date.now();
+  const diffMs = nowMs - lastUsed.getTime();
+  const fiveMinutes = 5 * 60 * 1000;
+  const thirtyMinutes = 30 * 60 * 1000;
+
+  if (diffMs <= fiveMinutes) return 'active';
+  if (diffMs <= thirtyMinutes) return 'idle';
+  return 'expired';
+}
+
+/**
+ * Format a timestamp as a human-relative string, e.g. "3 minutes ago".
+ */
+function formatRelativeTime(isoString: string | undefined): string {
+  if (!isoString) return 'Never';
+
+  const date = new Date(isoString);
+  const diffMs = Date.now() - date.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSeconds < 60) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString();
+}
+
+const CONNECTION_STATUS_CONFIG: Record<
+  ConnectionStatus,
+  { label: string; color: 'green' | 'yellow' | 'red' }
+> = {
+  active: { label: 'Active', color: 'green' },
+  idle: { label: 'Idle', color: 'yellow' },
+  expired: { label: 'Disconnected', color: 'red' },
+};
 
 export function Clients() {
   usePageTitle('My Clients');
@@ -149,83 +221,113 @@ export function Clients() {
               <TableRow>
                 <TableHeader>Name</TableHeader>
                 <TableHeader>Key Prefix</TableHeader>
-                <TableHeader>Status</TableHeader>
-                <TableHeader>Created</TableHeader>
+                <TableHeader>Account Status</TableHeader>
+                <TableHeader>Connection</TableHeader>
+                <TableHeader>Last Seen</TableHeader>
+                <TableHeader>Tools</TableHeader>
                 <TableHeader>Expires</TableHeader>
                 <TableHeader>Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell>
-                    <Link
-                      to={`/app/clients/${client.id}`}
-                      className="font-medium text-zinc-900 dark:text-white hover:underline"
-                    >
-                      {client.clientName}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {client.keyPrefix}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      color={
-                        client.status === 'active'
-                          ? 'green'
-                          : client.status === 'suspended'
-                            ? 'amber'
-                            : 'red'
-                      }
-                    >
-                      {client.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    {new Date(client.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-zinc-500">
-                    {client.expiresAt
-                      ? new Date(client.expiresAt).toLocaleDateString()
-                      : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button plain href={`/app/clients/${client.id}`} title="View client details">
-                        <EyeIcon data-slot="icon" />
-                      </Button>
-                      {client.status !== 'revoked' && (
-                        <Button
-                          plain
-                          onClick={() => handleToggleStatus(client)}
-                          disabled={updateClient.isPending}
-                          title={client.status === 'active' ? 'Suspend client' : 'Reactivate client'}
+              {clients.map((client) => {
+                const connStatus = deriveConnectionStatus(client);
+                const connConfig = CONNECTION_STATUS_CONFIG[connStatus];
+                const isSessionExpired = connStatus === 'expired' && client.status === 'active';
+
+                return (
+                  <Fragment key={client.id}>
+                    <TableRow>
+                      <TableCell>
+                        <Link
+                          to={`/app/clients/${client.id}`}
+                          className="font-medium text-zinc-900 dark:text-white hover:underline"
                         >
-                          {client.status === 'active' ? (
-                            <PauseIcon data-slot="icon" />
-                          ) : (
-                            <PlayIcon data-slot="icon" />
+                          {client.clientName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-sm text-zinc-500 dark:text-zinc-400">
+                          {client.keyPrefix}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          color={
+                            client.status === 'active'
+                              ? 'green'
+                              : client.status === 'suspended'
+                                ? 'amber'
+                                : 'red'
+                          }
+                        >
+                          {client.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge color={connConfig.color}>
+                          {connConfig.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-zinc-500 tabular-nums">
+                        {formatRelativeTime(client.lastUsedAt)}
+                      </TableCell>
+                      <TableCell className="text-zinc-500 tabular-nums">
+                        {client.subscriptionCount ?? 0}
+                      </TableCell>
+                      <TableCell className="text-zinc-500">
+                        {client.expiresAt
+                          ? new Date(client.expiresAt).toLocaleDateString()
+                          : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button plain href={`/app/clients/${client.id}`} title="View client details">
+                            <EyeIcon data-slot="icon" />
+                          </Button>
+                          {client.status !== 'revoked' && (
+                            <Button
+                              plain
+                              onClick={() => handleToggleStatus(client)}
+                              disabled={updateClient.isPending}
+                              title={client.status === 'active' ? 'Suspend client' : 'Reactivate client'}
+                            >
+                              {client.status === 'active' ? (
+                                <PauseIcon data-slot="icon" />
+                              ) : (
+                                <PlayIcon data-slot="icon" />
+                              )}
+                            </Button>
                           )}
-                        </Button>
-                      )}
-                      <Button
-                        plain
-                        onClick={() => {
-                          setClientToDelete(client.id);
-                          setDeleteDialogOpen(true);
-                        }}
-                        disabled={deleteClient.isPending}
-                        title="Delete this client"
-                      >
-                        <TrashIcon data-slot="icon" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          <Button
+                            plain
+                            onClick={() => {
+                              setClientToDelete(client.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                            disabled={deleteClient.isPending}
+                            title="Delete this client"
+                          >
+                            <TrashIcon data-slot="icon" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {isSessionExpired && (
+                      <TableRow key={`${client.id}-reconnect`}>
+                        <TableCell colSpan={8} className="py-2 px-4">
+                          <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800">
+                            <ExclamationTriangleIcon className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
+                            <span>
+                              Session expired — restart your AI tool to reconnect.
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         )}

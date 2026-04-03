@@ -55,6 +55,10 @@ export class MasterKeyManager {
     const keyPath = path.join(this.dataDir, 'credential_master_key');
     if (fs.existsSync(keyPath)) {
       const keyHex = fs.readFileSync(keyPath, 'utf8').trim();
+      // SEC-M3: Validate hex format before parsing (same as env var)
+      if (!/^[0-9a-f]{64}$/i.test(keyHex)) {
+        throw new Error('Invalid master key file: must contain exactly 64 hex characters (32 bytes)');
+      }
       console.log('[MasterKey] Loaded from file');
       return Buffer.from(keyHex, 'hex');
     }

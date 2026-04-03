@@ -10,6 +10,8 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
+import { client_mcp_subscriptions, compatSelect } from '@mcpambassador/core';
+import { eq } from 'drizzle-orm';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import {
@@ -49,6 +51,20 @@ export async function registerClientRoutes(
 
       const clients = await listUserClients(db, userId);
 
+      // Count active subscriptions per client for health display
+      const subscriptionCounts = await Promise.all(
+        clients.map(async (client: any) => {
+          const subs = await compatSelect(db)
+            .from(client_mcp_subscriptions)
+            .where(eq(client_mcp_subscriptions.client_id, client.client_id));
+          return {
+            clientId: client.client_id,
+            count: subs.filter((s: any) => s.status === 'active').length,
+          };
+        })
+      );
+      const subCountMap = new Map(subscriptionCounts.map(s => [s.clientId, s.count]));
+
       // Transform snake_case to camelCase for SPA
       const transformedClients = clients.map((client: any) => ({
         id: client.client_id,
@@ -59,6 +75,7 @@ export async function registerClientRoutes(
         createdAt: client.created_at,
         expiresAt: client.expires_at || undefined,
         lastUsedAt: client.last_used_at || undefined,
+        subscriptionCount: subCountMap.get(client.client_id) ?? 0,
       }));
 
       return reply.status(200).send({

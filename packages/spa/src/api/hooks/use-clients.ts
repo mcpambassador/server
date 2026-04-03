@@ -15,6 +15,8 @@ export function useClients() {
   return useQuery({
     queryKey: ['clients'],
     queryFn: () => apiClient.get<Client[]>('/v1/users/me/clients'),
+    // Auto-refresh every 30 seconds to keep connection health status current
+    refetchInterval: 30_000,
   });
 }
 

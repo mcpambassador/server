@@ -14,6 +14,7 @@ import {
 } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import {
   initializeDatabase,
   runMigrations,
@@ -45,6 +46,8 @@ import {
   getOrCreateHmacSecret,
   persistHmacSecret,
   registerSession,
+  startRateLimitCleanup,
+  stopRateLimitCleanup,
   type RegistrationRequest,
   type SessionRegConfig,
 } from '@mcpambassador/authn-ephemeral';
@@ -457,6 +460,10 @@ export class AmbassadorServer {
     );
     this.lifecycleManager.start();
     console.log('[Server] Session lifecycle manager started');
+
+    // Start rate limit cleanup timer (Sprint 3.3)
+    startRateLimitCleanup();
+    console.log('[Server] Rate limit cleanup timer started');
 
     // M21: Initialize user session store and register on main server
     console.log('[Server] Registering user session management...');
@@ -1720,18 +1727,26 @@ export class AmbassadorServer {
       this.config.dataDir
     );
 
-    // Print to stdout ONLY (security: never logged, never stored in plaintext)
-    console.log('');
-    console.log('======================================================================');
-    console.log('           FIRST BOOT — ADMIN CREDENTIALS (shown only once!)');
-    console.log('======================================================================');
-    console.log(`  Admin Key:      ${admin_key}`);
-    console.log(`  Recovery Token: ${recovery_token}`);
-    console.log(`  Recovery file:  ${this.config.dataDir}/.recovery-token`);
-    console.log('');
-    console.log('  ⚠  SAVE THESE NOW — they will NOT be shown again!');
-    console.log('======================================================================');
-    console.log('');
+    // Write credentials to file with restricted permissions (security: never logged to stdout)
+    const credentialsPath = path.join(this.config.dataDir, 'initial-credentials.txt');
+    const timestamp = new Date().toISOString();
+    const credentialsContent = `MCP Ambassador — Initial Credentials (created: ${timestamp})
+=============================================================
+Admin API Key: ${admin_key}
+Recovery Token: ${recovery_token}
+Recovery file:  ${this.config.dataDir}/.recovery-token
+=============================================================
+DELETE THIS FILE after recording these values.
+`;
+
+    try {
+      mkdirSync(this.config.dataDir, { recursive: true });
+      writeFileSync(credentialsPath, credentialsContent, { mode: 0o600 });
+      console.log(`[Server] Initial credentials written to ${credentialsPath}`);
+    } catch (error) {
+      console.error(`[Server] Failed to write credentials file: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -1739,7 +1754,7 @@ export class AmbassadorServer {
    *
    * On first boot in development/test environments, if no client keys exist
    * and an admin user exists (created via setup wizard), generates a random
-   * preshared key and prints it to stdout.
+   * preshared key and writes it to a file.
    *
    * The key is only shown once — store it securely for testing.
    *
@@ -1822,11 +1837,25 @@ export class AmbassadorServer {
       created_at: nowIso,
     });
 
-    // Print to stdout ONLY
-    console.log('');
-    console.log('[Server] Dev client key: ' + clientKey);
-    console.log('[Server] ⚠  Dev only — NOT for production');
-    console.log('');
+    // Write dev client key to file with restricted permissions (security: never logged to stdout)
+    const devKeyPath = path.join(this.config.dataDir, 'dev-client-key.txt');
+    const timestamp = new Date().toISOString();
+    const devKeyContent = `MCP Ambassador — Dev Client Key (created: ${timestamp})
+=============================================================
+Dev Client Key: ${clientKey}
+=============================================================
+This key is for development/testing only.
+DELETE THIS FILE after recording the value.
+`;
+
+    try {
+      mkdirSync(this.config.dataDir, { recursive: true });
+      writeFileSync(devKeyPath, devKeyContent, { mode: 0o600 });
+      console.log(`[Server] Dev client key written to ${devKeyPath}`);
+    } catch (error) {
+      console.error(`[Server] Failed to write dev client key file: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -1896,6 +1925,10 @@ export class AmbassadorServer {
    */
   async stop(): Promise<void> {
     console.log('[Server] Shutting down...');
+
+    // Stop rate limit cleanup timer (Sprint 3.3)
+    console.log('[Server] Stopping rate limit cleanup timer...');
+    stopRateLimitCleanup();
 
     // Stop session lifecycle manager (M15)
     if (this.lifecycleManager) {

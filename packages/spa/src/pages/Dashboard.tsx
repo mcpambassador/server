@@ -2,10 +2,11 @@ import { BuildingStorefrontIcon, UserCircleIcon } from '@heroicons/react/20/soli
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { GettingStartedChecklist } from '@/components/shared/GettingStartedChecklist';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { useClients } from '@/api/hooks/use-clients';
+import { useClients, useUserSubscriptions } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -13,9 +14,16 @@ export function Dashboard() {
   usePageTitle('Dashboard');
   const { data: clients, isLoading: clientsLoading } = useClients();
   const { data: marketplace, isLoading: marketplaceLoading } = useMarketplace();
+  const { data: subscriptions, isLoading: subscriptionsLoading } = useUserSubscriptions();
 
   const activeClients = clients?.filter(c => c.status === 'active').length ?? 0;
   const totalMcps = marketplace?.data?.length ?? 0;
+
+  // Onboarding checklist: show only when user data has loaded and user appears new
+  const isLoadingUserState = clientsLoading || subscriptionsLoading;
+  const hasClients = (clients?.length ?? 0) > 0;
+  const hasSubscriptions = (subscriptions?.length ?? 0) > 0;
+  const showChecklist = !isLoadingUserState && (!hasClients || !hasSubscriptions);
 
   const stats = [
     {
@@ -42,6 +50,14 @@ export function Dashboard() {
         <Heading>Dashboard</Heading>
         <Text className="mt-2 text-zinc-500">Welcome to MCP Ambassador</Text>
       </div>
+
+      {/* Getting Started onboarding checklist — shown to new users */}
+      {showChecklist && (
+        <GettingStartedChecklist
+          hasClients={hasClients}
+          hasSubscriptions={hasSubscriptions}
+        />
+      )}
 
       {/* Stats Grid */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-zinc-900/5 dark:bg-white/5 sm:grid-cols-2 lg:grid-cols-3">

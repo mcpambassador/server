@@ -30,6 +30,8 @@ export interface Client {
   createdAt: string;
   expiresAt?: string;
   lastUsedAt?: string;
+  /** Count of active MCP subscriptions for this client — used for connection health display */
+  subscriptionCount?: number;
 }
 
 export interface CreateClientRequest {
@@ -71,6 +73,8 @@ export interface McpEntry {
   id: string;
   name: string;
   description?: string;
+  icon_url?: string;
+  category?: string;
   isolationMode: 'shared' | 'per-user';
   requiresUserCredentials: boolean;
   credentialSchema?: Record<string, unknown>;

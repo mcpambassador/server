@@ -5,6 +5,7 @@ import {
   CubeIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { Heading } from '@/components/catalyst/heading';
@@ -203,18 +204,37 @@ export function McpDetail() {
 
       {/* Tools List Panel */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
-        <Heading level={2} className="mb-2">Available Tools</Heading>
-        <Text className="mb-4">Tools provided by this MCP</Text>
+        <div className="flex items-center justify-between mb-2">
+          <Heading level={2}>Available Tools</Heading>
+          {mcp.tools.length > 0 && (
+            <Badge color="zinc">{mcp.tools.length} {mcp.tools.length === 1 ? 'tool' : 'tools'}</Badge>
+          )}
+        </div>
+        <Text className="mb-4">All tools provided by this MCP — visible before subscribing</Text>
         {mcp.tools.length === 0 ? (
-          <Text className="text-zinc-500 dark:text-zinc-400">No tools available</Text>
+          <div className="flex items-center gap-3 rounded-md border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/50 px-4 py-3">
+            <WrenchScrewdriverIcon className="size-4 text-zinc-400 dark:text-zinc-500 shrink-0" />
+            <Text className="text-zinc-500 dark:text-zinc-400">No tools available for this MCP</Text>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className={`space-y-0 divide-y divide-zinc-100 dark:divide-white/5 ${mcp.tools.length > 12 ? 'max-h-[32rem] overflow-y-auto rounded-md border border-zinc-200 dark:border-white/10' : ''}`}>
             {mcp.tools.map((tool) => (
-              <div key={tool.name} className="border-l-2 border-zinc-300 dark:border-zinc-600 pl-4 py-2">
-                <p className="font-medium text-zinc-900 dark:text-white">{tool.name}</p>
-                {tool.description && (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{tool.description}</p>
-                )}
+              <div key={tool.name} className="flex items-start gap-3 py-3 px-1 first:pt-0 last:pb-0">
+                <WrenchScrewdriverIcon className="size-4 text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white leading-5 break-all">
+                    {tool.name}
+                  </p>
+                  {tool.description ? (
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5 leading-5">
+                      {tool.description}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-zinc-400 dark:text-zinc-600 mt-0.5 italic">
+                      No description provided
+                    </p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
