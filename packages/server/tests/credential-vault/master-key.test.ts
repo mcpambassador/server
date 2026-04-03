@@ -110,6 +110,50 @@ describe('MasterKeyManager', () => {
         'CREDENTIAL_MASTER_KEY must be 64 hex characters (32 bytes)'
       );
     });
+
+    it('should load valid key from file', async () => {
+      const validKey = crypto.randomBytes(32).toString('hex');
+      const keyPath = path.join(tempDir, 'credential_master_key');
+      fs.writeFileSync(keyPath, validKey);
+
+      const manager = new MasterKeyManager(tempDir);
+      const key = await manager.loadMasterKey();
+
+      expect(key.toString('hex')).toBe(validKey);
+    });
+
+    it('should throw error if file contains corrupted key (non-hex)', async () => {
+      const keyPath = path.join(tempDir, 'credential_master_key');
+      fs.writeFileSync(keyPath, 'ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ'); // Invalid hex chars
+
+      const manager = new MasterKeyManager(tempDir);
+
+      await expect(manager.loadMasterKey()).rejects.toThrow(
+        'Invalid master key file: must contain exactly 64 hex characters (32 bytes)'
+      );
+    });
+
+    it('should throw error if file contains truncated key', async () => {
+      const keyPath = path.join(tempDir, 'credential_master_key');
+      fs.writeFileSync(keyPath, 'abcdef1234567890'); // Only 16 chars instead of 64
+
+      const manager = new MasterKeyManager(tempDir);
+
+      await expect(manager.loadMasterKey()).rejects.toThrow(
+        'Invalid master key file: must contain exactly 64 hex characters (32 bytes)'
+      );
+    });
+
+    it('should handle key file with trailing newline', async () => {
+      const validKey = crypto.randomBytes(32).toString('hex');
+      const keyPath = path.join(tempDir, 'credential_master_key');
+      fs.writeFileSync(keyPath, validKey + '\n'); // Key with trailing newline
+
+      const manager = new MasterKeyManager(tempDir);
+      const key = await manager.loadMasterKey();
+
+      expect(key.toString('hex')).toBe(validKey);
+    });
   });
 
   describe('saveMasterKey', () => {
