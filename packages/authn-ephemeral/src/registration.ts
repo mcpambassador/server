@@ -296,7 +296,11 @@ function enforceRateLimitMapSizeCap(): void {
 
   // Evict oldest 10% of entries to make room
   const entriesToEvict = Math.ceil(RATE_LIMIT_CONFIG.maxEntries * 0.1);
-  for (let i = 0; i < entriesToEvict && i < entries.length && rateLimitState.size >= RATE_LIMIT_CONFIG.maxEntries; i++) {
+  for (
+    let i = 0;
+    i < entriesToEvict && i < entries.length && rateLimitState.size >= RATE_LIMIT_CONFIG.maxEntries;
+    i++
+  ) {
     const entry = entries[i];
     if (entry) {
       rateLimitState.delete(entry[0]);

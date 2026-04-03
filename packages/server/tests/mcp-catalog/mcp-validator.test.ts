@@ -241,14 +241,18 @@ describe('MCP Validator', () => {
           command: ['custom-runner', 'safe-arg'],
         });
         const allowedResult = await validateMcpConfig(allowed);
-        expect(allowedResult.errors.some(e => e.includes('not in the allowed command list'))).toBe(false);
+        expect(allowedResult.errors.some(e => e.includes('not in the allowed command list'))).toBe(
+          false
+        );
 
         // 'npx' is no longer in the override list
         const rejected = createMockEntry('stdio', {
           command: ['npx', '-y', 'some-mcp'],
         });
         const rejectedResult = await validateMcpConfig(rejected);
-        expect(rejectedResult.errors.some(e => e.includes('not in the allowed command list'))).toBe(true);
+        expect(rejectedResult.errors.some(e => e.includes('not in the allowed command list'))).toBe(
+          true
+        );
       } finally {
         delete process.env['MCP_ALLOWED_COMMANDS'];
       }

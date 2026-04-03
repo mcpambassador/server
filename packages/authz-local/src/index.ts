@@ -105,7 +105,10 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
       } catch (error) {
-        logger.error({ profile_id: session.profile_id, error }, '[authz:local] Failed to resolve profile');
+        logger.error(
+          { profile_id: session.profile_id, error },
+          '[authz:local] Failed to resolve profile'
+        );
         return {
           decision: 'deny',
           reason: 'Profile resolution error',
@@ -153,7 +156,10 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {
-        logger.error({ profile_id: client.profile_id, error }, '[authz:local] Failed to resolve profile');
+        logger.error(
+          { profile_id: client.profile_id, error },
+          '[authz:local] Failed to resolve profile'
+        );
         return {
           decision: 'deny',
           reason: 'Profile resolution error',
@@ -215,7 +221,10 @@ export class LocalRbacProvider implements AuthorizationProvider {
       try {
         effectiveProfile = await getEffectiveProfile(this.db, session.profile_id);
       } catch (error) {
-        logger.error({ profile_id: session.profile_id, error }, '[authz:local] Failed to resolve profile');
+        logger.error(
+          { profile_id: session.profile_id, error },
+          '[authz:local] Failed to resolve profile'
+        );
         return [];
       }
     } else {
@@ -224,7 +233,10 @@ export class LocalRbacProvider implements AuthorizationProvider {
         where: (c, { eq }) => eq(c.client_id, session.client_id),
       });
       if (!client) {
-        logger.warn({ session_id: session.session_id }, '[authz:local] Client not found for session');
+        logger.warn(
+          { session_id: session.session_id },
+          '[authz:local] Client not found for session'
+        );
         return [];
       }
 
@@ -238,13 +250,19 @@ export class LocalRbacProvider implements AuthorizationProvider {
 
       // Get effective profile from client's profile_id
       if (!client.profile_id) {
-        logger.warn({ client_id: client.client_id }, '[authz:local] Client has no assigned profile');
+        logger.warn(
+          { client_id: client.client_id },
+          '[authz:local] Client has no assigned profile'
+        );
         return [];
       }
       try {
         effectiveProfile = await getEffectiveProfile(this.db, client.profile_id);
       } catch (error) {
-        logger.error({ profile_id: client.profile_id, error }, '[authz:local] Failed to resolve profile');
+        logger.error(
+          { profile_id: client.profile_id, error },
+          '[authz:local] Failed to resolve profile'
+        );
         return [];
       }
     }

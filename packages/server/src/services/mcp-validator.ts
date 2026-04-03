@@ -103,8 +103,8 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
       if (!allowedCommands.includes(cmd)) {
         errors.push(
           `Command '${cmd}' is not in the allowed command list. ` +
-          `Permitted commands: ${allowedCommands.join(', ')}. ` +
-          `Override via MCP_ALLOWED_COMMANDS environment variable.`
+            `Permitted commands: ${allowedCommands.join(', ')}. ` +
+            `Override via MCP_ALLOWED_COMMANDS environment variable.`
         );
       }
 

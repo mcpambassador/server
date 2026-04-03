@@ -61,7 +61,16 @@ export interface UserMcpCredentials {
  * comma-separated list (e.g. "npx,uvx,docker"). When the env var is set,
  * it replaces this default entirely.
  */
-export const DEFAULT_ALLOWED_COMMANDS = ['npx', 'node', 'uvx', 'docker', 'python', 'python3', 'deno', 'bun'];
+export const DEFAULT_ALLOWED_COMMANDS = [
+  'npx',
+  'node',
+  'uvx',
+  'docker',
+  'python',
+  'python3',
+  'deno',
+  'bun',
+];
 
 /**
  * Returns the effective command allowlist, respecting the MCP_ALLOWED_COMMANDS
@@ -70,7 +79,10 @@ export const DEFAULT_ALLOWED_COMMANDS = ['npx', 'node', 'uvx', 'docker', 'python
 export function getAllowedCommands(): string[] {
   const override = process.env['MCP_ALLOWED_COMMANDS'];
   if (override && override.trim().length > 0) {
-    return override.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    return override
+      .split(',')
+      .map(c => c.trim())
+      .filter(c => c.length > 0);
   }
   return DEFAULT_ALLOWED_COMMANDS;
 }
@@ -98,13 +110,7 @@ export function containsShellMetacharacters(value: string): boolean {
  *   ruby -e                   → execute inline Ruby
  *   eval() / exec()           → string patterns that suggest code injection
  */
-const DANGEROUS_ARG_PATTERNS: RegExp[] = [
-  /^-e$/,
-  /^--eval$/,
-  /^-c$/,
-  /eval\s*\(/,
-  /exec\s*\(/,
-];
+const DANGEROUS_ARG_PATTERNS: RegExp[] = [/^-e$/, /^--eval$/, /^-c$/, /eval\s*\(/, /exec\s*\(/];
 
 /**
  * Returns true when the argument string matches a known dangerous eval pattern.
@@ -147,8 +153,8 @@ export function validateMcpConfig(config: DownstreamMcpConfig): void {
     if (!allowedCommands.includes(cmd)) {
       throw new Error(
         `[${config.name}] Command '${cmd}' is not in the allowed command list. ` +
-        `Permitted commands: ${allowedCommands.join(', ')}. ` +
-        `Override via MCP_ALLOWED_COMMANDS environment variable.`
+          `Permitted commands: ${allowedCommands.join(', ')}. ` +
+          `Override via MCP_ALLOWED_COMMANDS environment variable.`
       );
     }
 

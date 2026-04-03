@@ -44,7 +44,12 @@ export class FileAuditProvider implements AuditProvider {
   private isShuttingDown = false;
   private isFlushing = false; // Flush lock to prevent concurrent flushes (F-SEC-M5-004)
 
-  constructor(config?: { auditDir?: string; retention?: number; flushInterval?: number; maxBufferSize?: number }) {
+  constructor(config?: {
+    auditDir?: string;
+    retention?: number;
+    flushInterval?: number;
+    maxBufferSize?: number;
+  }) {
     this.auditDir = config?.auditDir || './audit-logs';
     if (config?.retention !== undefined) {
       this.retention = config.retention;
@@ -70,7 +75,12 @@ export class FileAuditProvider implements AuditProvider {
     await fs.mkdir(this.resolvedAuditDir, { recursive: true, mode: 0o700 });
 
     logger.info(
-      { dir: this.resolvedAuditDir, retention_days: this.retention, flush_interval_ms: this.flushInterval, max_buffer_size: this.maxBufferSize },
+      {
+        dir: this.resolvedAuditDir,
+        retention_days: this.retention,
+        flush_interval_ms: this.flushInterval,
+        max_buffer_size: this.maxBufferSize,
+      },
       '[audit:file] Initialized'
     );
 

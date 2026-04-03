@@ -707,10 +707,7 @@ export function useAdminAuditStats() {
         };
         existing.invocations += 1;
         if (event.client_id) existing.clients.add(event.client_id);
-        if (
-          existing.lastInvocation === null ||
-          event.timestamp > existing.lastInvocation
-        ) {
+        if (existing.lastInvocation === null || event.timestamp > existing.lastInvocation) {
           existing.lastInvocation = event.timestamp;
         }
         mcpMap.set(mcpName, existing);
