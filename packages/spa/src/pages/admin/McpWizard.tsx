@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/20/solid';
+import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -14,8 +14,9 @@ import { Divider } from '@/components/catalyst/divider';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import type { ValidationResult, DiscoveryResult } from '@/api/types';
+import type { ValidationResult, DiscoveryResult, RegistryMcp } from '@/api/types';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
+import { RegistryImportModal } from '@/components/admin/RegistryImportModal';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
 
@@ -33,6 +34,11 @@ export function McpWizard() {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  /** Controls visibility of the community registry browser modal */
+  const [registryModalOpen, setRegistryModalOpen] = useState(false);
+  /** Name of the registry entry that was used for pre-filling, shown as an informational badge */
+  const [importedFromRegistry, setImportedFromRegistry] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -55,6 +61,80 @@ export function McpWizard() {
     oauth_revocation_url: '',
     oauth_extra_params: '',
   });
+
+  /**
+   * Pre-fills all wizard form fields from the selected community registry entry.
+   * The admin can review and edit any pre-filled value before proceeding.
+   *
+   * Mapping rules:
+   *   - stdio entries: config built from config.command[0] + config.command.slice(1) as args
+   *   - http/sse entries: config built from config.url
+   *   - credential_schema serialised to JSON string for the textarea
+   *   - oauth_config fields spread into individual form fields
+   */
+  const handleRegistrySelect = (entry: RegistryMcp) => {
+    // Build the config JSON that matches the wizard's textarea format
+    let configObj: Record<string, unknown> = {};
+
+    if (entry.transport_type === 'stdio' && entry.config.command && entry.config.command.length > 0) {
+      // The registry stores command as a full argv array: [executable, ...args]
+      const [cmd, ...args] = entry.config.command;
+      configObj = {
+        command: cmd,
+        args,
+        ...(entry.config.env && Object.keys(entry.config.env).length > 0
+          ? { env: entry.config.env }
+          : {}),
+      };
+    } else if (entry.transport_type === 'http' || entry.transport_type === 'stdio') {
+      // HTTP/SSE: keep url field; also handle edge-case where stdio has no command
+      if (entry.config.url) {
+        configObj = { url: entry.config.url };
+      }
+    }
+
+    // Credential schema → JSON string
+    const credentialSchemaStr =
+      entry.credential_schema && Object.keys(entry.credential_schema).length > 0
+        ? JSON.stringify(entry.credential_schema, null, 2)
+        : '{\n  \n}';
+
+    // OAuth config fields (registry type has auth_url/token_url/scopes/client_id_env/client_secret_env)
+    const oauthRaw = entry.oauth_config;
+    const oauthAuthUrl = oauthRaw?.auth_url ?? '';
+    const oauthTokenUrl = oauthRaw?.token_url ?? '';
+    const oauthScopes = oauthRaw?.scopes ?? '';
+    const oauthClientIdEnv = oauthRaw?.client_id_env ?? '';
+    const oauthClientSecretEnv = oauthRaw?.client_secret_env ?? '';
+
+    setFormData((prev) => ({
+      ...prev,
+      name: entry.name,
+      display_name: entry.display_name,
+      description: entry.description ?? '',
+      icon_url: entry.icon_url ?? '',
+      transport_type: entry.transport_type === 'stdio' ? 'stdio' : 'http',
+      isolation_mode: entry.isolation_mode,
+      config: JSON.stringify(configObj, null, 2),
+      auth_type: entry.auth_type,
+      requires_user_credentials: entry.requires_user_credentials,
+      credential_schema: credentialSchemaStr,
+      oauth_auth_url: oauthAuthUrl,
+      oauth_token_url: oauthTokenUrl,
+      oauth_scopes: oauthScopes,
+      oauth_client_id_env: oauthClientIdEnv,
+      oauth_client_secret_env: oauthClientSecretEnv,
+      // access_token_env_var is not in registry schema — leave unchanged or blank
+      oauth_access_token_env_var: prev.oauth_access_token_env_var,
+      oauth_revocation_url: '',
+      oauth_extra_params: '',
+    }));
+
+    setImportedFromRegistry(entry.display_name);
+    toast.success('Registry Import', {
+      description: `Pre-filled wizard from "${entry.display_name}". Review and edit as needed.`,
+    });
+  };
 
   const handleNext = async () => {
     if (currentStep === 0) {
@@ -343,6 +423,35 @@ export function McpWizard() {
           {/* Step 0: Basic Info */}
           {currentStep === 0 && (
             <>
+              {/* Registry import shortcut — only available before an MCP has been created */}
+              {!createdMcpId && (
+                <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3 ring-1 ring-zinc-200 dark:ring-zinc-700 mb-2">
+                  <div className="flex-1 min-w-0">
+                    {importedFromRegistry ? (
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                        <span className="font-medium">Imported from registry:</span>{' '}
+                        <Badge color="blue">{importedFromRegistry}</Badge>
+                        <span className="ml-2 text-zinc-500 dark:text-zinc-400 text-xs">
+                          All fields pre-filled — review and edit before continuing.
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        Browse the community registry to pre-fill all fields automatically.
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    color="zinc"
+                    onClick={() => setRegistryModalOpen(true)}
+                    className="ml-4 shrink-0"
+                  >
+                    <ArrowDownTrayIcon data-slot="icon" />
+                    {importedFromRegistry ? 'Change Registry Entry' : 'Import from Registry'}
+                  </Button>
+                </div>
+              )}
+
               <Field>
                 <Label>Internal Name * (e.g., github, slack)</Label>
                 <Input
@@ -868,6 +977,13 @@ export function McpWizard() {
           </Button>
         </div>
       )}
+
+      {/* Community Registry Import Modal */}
+      <RegistryImportModal
+        open={registryModalOpen}
+        onClose={() => setRegistryModalOpen(false)}
+        onSelect={handleRegistrySelect}
+      />
     </div>
   );
 }
