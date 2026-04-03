@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { UsersIcon, UserPlusIcon, CubeIcon, BoltIcon, ExclamationTriangleIcon, ArrowPathIcon, ServerStackIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
 import {
   useAdminUsers,
   useAdminGroups,
@@ -29,6 +31,7 @@ export function Dashboard() {
   const { data: userMcps, isLoading: userMcpsLoading } = useUserMcpInstances();
   const { data: catalogStatus } = useCatalogStatus();
   const applyCatalogChanges = useApplyCatalogChanges();
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
 
   const stats = [
     {
@@ -370,7 +373,7 @@ export function Dashboard() {
                 </p>
               </div>
               <div className="flex gap-2 ml-4">
-                <Button outline disabled title="Preview is not yet available">
+                <Button outline onClick={() => setPreviewDialogOpen(true)}>
                   Preview
                 </Button>
                 <Button
@@ -468,6 +471,155 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Catalog Preview Dialog */}
+      <Dialog open={previewDialogOpen} onClose={setPreviewDialogOpen} size="2xl">
+        <DialogBody>
+          <DialogTitle>Catalog Changes Preview</DialogTitle>
+          <DialogDescription>Review the changes that will be applied to your catalog</DialogDescription>
+
+          {catalogStatus && (
+            <div className="mt-6 space-y-6">
+              {/* Shared MCPs Section */}
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">Shared MCPs</h4>
+                <div className="space-y-3 text-sm">
+                  {catalogStatus.shared.to_add.length > 0 && (
+                    <div>
+                      <p className="font-medium text-green-600 dark:text-green-400 mb-2">
+                        Adding {catalogStatus.shared.to_add.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.shared.to_add.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name} ({item.transport_type})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.shared.to_update.length > 0 && (
+                    <div>
+                      <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                        Updating {catalogStatus.shared.to_update.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.shared.to_update.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name}
+                            {item.changed_fields.length > 0 && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-2">
+                                ({item.changed_fields.join(', ')})
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.shared.to_remove.length > 0 && (
+                    <div>
+                      <p className="font-medium text-red-600 dark:text-red-400 mb-2">
+                        Removing {catalogStatus.shared.to_remove.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.shared.to_remove.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name}
+                            {item.reason && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-2">
+                                ({item.reason})
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.shared.to_add.length === 0 &&
+                    catalogStatus.shared.to_update.length === 0 &&
+                    catalogStatus.shared.to_remove.length === 0 && (
+                      <p className="text-zinc-500 dark:text-zinc-400">No changes to shared MCPs</p>
+                    )}
+                </div>
+              </div>
+
+              {/* Per-User MCPs Section */}
+              <div className="border-t border-zinc-950/5 dark:border-white/10 pt-4">
+                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">Per-User MCPs</h4>
+                <div className="space-y-3 text-sm">
+                  {catalogStatus.per_user.to_add.length > 0 && (
+                    <div>
+                      <p className="font-medium text-green-600 dark:text-green-400 mb-2">
+                        Adding {catalogStatus.per_user.to_add.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.per_user.to_add.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.per_user.to_update.length > 0 && (
+                    <div>
+                      <p className="font-medium text-blue-600 dark:text-blue-400 mb-2">
+                        Updating {catalogStatus.per_user.to_update.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.per_user.to_update.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.per_user.to_remove.length > 0 && (
+                    <div>
+                      <p className="font-medium text-red-600 dark:text-red-400 mb-2">
+                        Removing {catalogStatus.per_user.to_remove.length}
+                      </p>
+                      <ul className="space-y-1 ml-3">
+                        {catalogStatus.per_user.to_remove.map((item) => (
+                          <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
+                            • {item.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {catalogStatus.per_user.to_add.length === 0 &&
+                    catalogStatus.per_user.to_update.length === 0 &&
+                    catalogStatus.per_user.to_remove.length === 0 && (
+                      <p className="text-zinc-500 dark:text-zinc-400">No changes to per-user MCPs</p>
+                    )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogActions>
+            <Button plain onClick={() => setPreviewDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setPreviewDialogOpen(false);
+                applyCatalogChanges.mutate();
+              }}
+              disabled={applyCatalogChanges.isPending}
+            >
+              {applyCatalogChanges.isPending ? 'Applying...' : 'Apply Changes'}
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </Dialog>
     </div>
   );
 }
