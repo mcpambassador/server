@@ -72,50 +72,63 @@ describe('Admin API - Catalog Reload (integration)', () => {
     expect(r2.statusCode).toBe(401);
   });
 
-  it.skip('Create per-user MCP -> status shows pending (per_user)', async () => {
-    // Create MCP (per_user isolation) via admin API
-    const createBody = {
-      name: 'test-per-user-mcp',
-      display_name: 'Test Per User',
-      transport_type: 'stdio',
-      isolation_mode: 'per_user',
-      config: { command: ['true'] },
-    };
+  it('Create per-user MCP -> status shows pending (per_user)', async () => {
+    // Allow 'true' command for this test (normally restricted for security)
+    const originalAllowedCommands = process.env['MCP_ALLOWED_COMMANDS'];
+    process.env['MCP_ALLOWED_COMMANDS'] = 'true,npx,node';
 
-    const createRes = await handle!.fastify.inject({
-      method: 'POST',
-      url: '/v1/admin/mcps',
-      headers: { 'X-Admin-Key': handle!.adminKey },
-      payload: createBody,
-    });
-    expect(createRes.statusCode).toBe(201);
-    const created = JSON.parse(createRes.payload).data;
+    try {
+      // Create MCP (per_user isolation) via admin API
+      const createBody = {
+        name: 'test-per-user-mcp',
+        display_name: 'Test Per User',
+        transport_type: 'stdio',
+        isolation_mode: 'per_user',
+        config: { command: ['true'] },
+      };
 
-    // Validate then publish it (publish requires validation_status='valid')
-    const validateRes = await handle!.fastify.inject({
-      method: 'POST',
-      url: `/v1/admin/mcps/${created.mcp_id}/validate`,
-      headers: { 'X-Admin-Key': handle!.adminKey },
-    });
-    expect(validateRes.statusCode).toBe(200);
+      const createRes = await handle!.fastify.inject({
+        method: 'POST',
+        url: '/v1/admin/mcps',
+        headers: { 'X-Admin-Key': handle!.adminKey },
+        payload: createBody,
+      });
+      expect(createRes.statusCode).toBe(201);
+      const created = JSON.parse(createRes.payload).data;
 
-    const publishRes = await handle!.fastify.inject({
-      method: 'POST',
-      url: `/v1/admin/mcps/${created.mcp_id}/publish`,
-      headers: { 'X-Admin-Key': handle!.adminKey },
-    });
-    expect(publishRes.statusCode).toBe(200);
+      // Validate then publish it (publish requires validation_status='valid')
+      const validateRes = await handle!.fastify.inject({
+        method: 'POST',
+        url: `/v1/admin/mcps/${created.mcp_id}/validate`,
+        headers: { 'X-Admin-Key': handle!.adminKey },
+      });
+      expect(validateRes.statusCode).toBe(200);
 
-    // Now status should report pending per_user addition
-    const statusRes = await handle!.fastify.inject({
-      method: 'GET',
-      url: '/v1/admin/catalog/status',
-      headers: { 'X-Admin-Key': handle!.adminKey },
-    });
-    expect(statusRes.statusCode).toBe(200);
-    const status = JSON.parse(statusRes.payload).data;
-    const foundPerUser = status.per_user.to_add.some((x: any) => x.name === created.name);
-    expect(foundPerUser).toBeTruthy();
+      const publishRes = await handle!.fastify.inject({
+        method: 'POST',
+        url: `/v1/admin/mcps/${created.mcp_id}/publish`,
+        headers: { 'X-Admin-Key': handle!.adminKey },
+      });
+      expect(publishRes.statusCode).toBe(200);
+
+      // Now status should report pending per_user addition
+      const statusRes = await handle!.fastify.inject({
+        method: 'GET',
+        url: '/v1/admin/catalog/status',
+        headers: { 'X-Admin-Key': handle!.adminKey },
+      });
+      expect(statusRes.statusCode).toBe(200);
+      const status = JSON.parse(statusRes.payload).data;
+      const foundPerUser = status.per_user.to_add.some((x: any) => x.name === created.name);
+      expect(foundPerUser).toBeTruthy();
+    } finally {
+      // Restore original env
+      if (originalAllowedCommands === undefined) {
+        delete process.env['MCP_ALLOWED_COMMANDS'];
+      } else {
+        process.env['MCP_ALLOWED_COMMANDS'] = originalAllowedCommands;
+      }
+    }
   });
 
   it('Apply changes -> has_changes becomes false', async () => {
