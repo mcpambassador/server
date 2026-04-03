@@ -231,7 +231,7 @@ export function GettingStartedChecklist({
             icon={<BuildingStorefrontIcon className="size-4" />}
             title="Browse the marketplace"
             description="Explore available MCP servers — tools your AI can call to search the web, run code, query databases, and more."
-            completed={false}
+            completed={hasSubscriptions}
             action={
               <Button href="/app/marketplace" outline className="!py-1 !px-2.5 !text-xs">
                 Open Marketplace
