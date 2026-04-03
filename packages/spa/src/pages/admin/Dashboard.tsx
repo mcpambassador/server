@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { UsersIcon, UserPlusIcon, CubeIcon, BoltIcon, ExclamationTriangleIcon, ArrowPathIcon, ServerStackIcon } from '@heroicons/react/20/solid';
+import { UsersIcon, UserPlusIcon, CubeIcon, BoltIcon, ExclamationTriangleIcon, ArrowPathIcon, ServerStackIcon, ChevronUpDownIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
 import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import { Sparkline } from '@/components/shared/Sparkline';
 import {
   useAdminUsers,
   useAdminGroups,
@@ -17,6 +18,7 @@ import {
   useUserMcpInstances,
   useCatalogStatus,
   useApplyCatalogChanges,
+  useAdminAuditStats,
 } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -31,7 +33,10 @@ export function Dashboard() {
   const { data: userMcps, isLoading: userMcpsLoading } = useUserMcpInstances();
   const { data: catalogStatus } = useCatalogStatus();
   const applyCatalogChanges = useApplyCatalogChanges();
+  const { data: auditStats, isLoading: auditStatsLoading } = useAdminAuditStats();
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [mcpUsageSort, setMcpUsageSort] = useState<'invocations' | 'name'>('invocations');
+  const [mcpUsageSortDir, setMcpUsageSortDir] = useState<'desc' | 'asc'>('desc');
 
   const stats = [
     {
@@ -89,6 +94,46 @@ export function Dashboard() {
     }))
     .sort((a, b) => b.instances - a.instances)
     .slice(0, 5);
+
+  // Merge audit stats with MCP catalog for subscriber counts and stale detection
+  const sevenDaysAgoTs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const sortedMcpUsage = (() => {
+    const stats = auditStats?.mcpStats ?? [];
+    // Supplement with MCPs that exist in the catalog but have zero invocations
+    const catalogNames = new Set(mcpsData?.data.map(m => m.name) ?? []);
+    const statNames = new Set(stats.map(s => s.mcpName));
+    const zeroEntries = Array.from(catalogNames)
+      .filter(name => !statNames.has(name))
+      .map(name => ({
+        mcpName: name,
+        subscribers: 0,
+        invocations: 0,
+        lastInvocation: null as string | null,
+      }));
+
+    const all = [...stats, ...zeroEntries];
+    return all.sort((a, b) => {
+      if (mcpUsageSort === 'invocations') {
+        return mcpUsageSortDir === 'desc'
+          ? b.invocations - a.invocations
+          : a.invocations - b.invocations;
+      }
+      return mcpUsageSortDir === 'desc'
+        ? b.mcpName.localeCompare(a.mcpName)
+        : a.mcpName.localeCompare(b.mcpName);
+    });
+  })();
+
+  function toggleSort(col: 'invocations' | 'name') {
+    if (mcpUsageSort === col) {
+      setMcpUsageSortDir(d => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setMcpUsageSort(col);
+      setMcpUsageSortDir('desc');
+    }
+  }
+
+  const sparklineData = (auditStats?.dailyCounts ?? []).map(d => d.count);
 
   return (
     <div className="space-y-8">
@@ -150,6 +195,170 @@ export function Dashboard() {
           );
         })}
       </dl>
+
+      {/* Usage (7 days) — sparkline card */}
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
+        <div className="px-4 py-5 sm:p-6">
+          <div className="flex items-start justify-between gap-6 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Usage (7 days)</h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Daily tool invocations — last 7 days
+              </p>
+              {auditStatsLoading ? (
+                <div className="mt-4 animate-pulse h-10 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
+              ) : (
+                <div className="mt-4 flex items-end gap-4 flex-wrap">
+                  <Sparkline
+                    data={sparklineData}
+                    width={200}
+                    height={40}
+                    className="flex-shrink-0"
+                    aria-label="7-day tool invocation trend"
+                  />
+                  <div>
+                    <p className="text-2xl font-semibold text-zinc-900 dark:text-white">
+                      {(auditStats?.totalInvocations ?? 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">total invocations</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Per-day breakdown in a compact grid */}
+            {!auditStatsLoading && sparklineData.length > 0 && (
+              <div className="flex gap-3 flex-wrap">
+                {(auditStats?.dailyCounts ?? []).map((d) => (
+                  <div key={d.date} className="text-center min-w-[36px]">
+                    <div className="text-sm font-medium text-zinc-900 dark:text-white">{d.count}</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                      {new Date(d.date + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short' })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* MCP Usage Table */}
+      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
+        <div className="px-4 py-5 sm:p-6 border-b border-zinc-950/5 dark:border-white/10 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-white">MCP Usage</h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Per-MCP invocation metrics over the last 7 days
+            </p>
+          </div>
+          <Button outline href="/app/admin/audit">
+            Full Audit Log
+          </Button>
+        </div>
+
+        {auditStatsLoading || mcpsLoading ? (
+          <div className="px-4 py-5 sm:p-6 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+            ))}
+          </div>
+        ) : sortedMcpUsage.length > 0 ? (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeader>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('name')}
+                    className="inline-flex items-center gap-1 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                  >
+                    MCP Name
+                    {mcpUsageSort === 'name' ? (
+                      mcpUsageSortDir === 'asc' ? (
+                        <ChevronUpIcon className="size-3.5" />
+                      ) : (
+                        <ChevronDownIcon className="size-3.5" />
+                      )
+                    ) : (
+                      <ChevronUpDownIcon className="size-3.5 text-zinc-400" />
+                    )}
+                  </button>
+                </TableHeader>
+                <TableHeader>Subscribers</TableHeader>
+                <TableHeader>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('invocations')}
+                    className="inline-flex items-center gap-1 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                  >
+                    Invocations (7d)
+                    {mcpUsageSort === 'invocations' ? (
+                      mcpUsageSortDir === 'asc' ? (
+                        <ChevronUpIcon className="size-3.5" />
+                      ) : (
+                        <ChevronDownIcon className="size-3.5" />
+                      )
+                    ) : (
+                      <ChevronUpDownIcon className="size-3.5 text-zinc-400" />
+                    )}
+                  </button>
+                </TableHeader>
+                <TableHeader>Last Invocation</TableHeader>
+                <TableHeader>Status</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedMcpUsage.map((stat) => {
+                const mcpEntry = mcpsData?.data.find(m => m.name === stat.mcpName);
+                const isStale =
+                  stat.invocations === 0 ||
+                  (stat.lastInvocation !== null &&
+                    new Date(stat.lastInvocation).getTime() < sevenDaysAgoTs);
+                return (
+                  <TableRow key={stat.mcpName}>
+                    <TableCell className="font-medium">
+                      {mcpEntry ? (
+                        <Link
+                          to={`/app/admin/mcps/${mcpEntry.mcp_id}`}
+                          className="text-zinc-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          {stat.mcpName}
+                        </Link>
+                      ) : (
+                        <span className="text-zinc-900 dark:text-white">{stat.mcpName}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-zinc-500 dark:text-zinc-400">
+                      {stat.subscribers > 0 ? stat.subscribers : '—'}
+                    </TableCell>
+                    <TableCell className="text-zinc-900 dark:text-white">
+                      {stat.invocations.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-zinc-500 dark:text-zinc-400">
+                      {stat.lastInvocation
+                        ? new Date(stat.lastInvocation).toLocaleString()
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {isStale ? (
+                        <Badge color="amber">No recent usage</Badge>
+                      ) : (
+                        <Badge color="green">Active</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="px-4 py-5 sm:p-6">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              No MCP usage data available for the last 7 days.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* MCP Health Overview */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">

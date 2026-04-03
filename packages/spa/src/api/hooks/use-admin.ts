@@ -614,3 +614,129 @@ export function useApplyCatalogChanges() {
     },
   });
 }
+
+// ─── Usage Stats (Sprint 3.5) ────────────────────────────────────────────────
+
+export interface DailyCount {
+  /** ISO date string, e.g. "2026-03-28" */
+  date: string;
+  count: number;
+}
+
+export interface McpUsageStat {
+  mcpName: string;
+  /** Number of distinct client_ids that triggered at least one invocation */
+  subscribers: number;
+  /** Total tool_invocation events in the window */
+  invocations: number;
+  /** ISO timestamp of the most recent invocation, or null */
+  lastInvocation: string | null;
+}
+
+export interface AuditStats {
+  /** Daily invocation counts for the last 7 days, ordered oldest-first */
+  dailyCounts: DailyCount[];
+  /** Total invocations across the 7-day window */
+  totalInvocations: number;
+  /** Per-MCP breakdown */
+  mcpStats: McpUsageStat[];
+}
+
+/**
+ * Derives 7-day tool-invocation stats from the existing audit log API.
+ * Aggregates client-side: daily counts for the sparkline + per-MCP breakdown.
+ *
+ * Falls back to zero data gracefully if the API is unavailable or returns no
+ * tool_invocation events (e.g. fresh install).
+ */
+export function useAdminAuditStats() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  return useQuery({
+    queryKey: ['admin', 'audit-stats', sevenDaysAgo.slice(0, 10)],
+    queryFn: async (): Promise<AuditStats> => {
+      // Fetch up to 500 tool_invocation events from the last 7 days.
+      // A higher limit gives more accurate per-MCP counts without a new endpoint.
+      const response = await apiClient.get<PaginatedResponse<AuditEvent>>('/v1/audit/events', {
+        params: {
+          event_type: 'tool_invocation',
+          start_time: sevenDaysAgo,
+          limit: '500',
+        },
+      });
+
+      const events = response.data ?? [];
+
+      // Build a map of ISO date string → count for the last 7 days
+      const dateMap = new Map<string, number>();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().slice(0, 10);
+        dateMap.set(key, 0);
+      }
+
+      // Per-MCP aggregation: keyed on metadata.mcp_name or action
+      const mcpMap = new Map<
+        string,
+        { clients: Set<string>; invocations: number; lastInvocation: string | null }
+      >();
+
+      for (const event of events) {
+        // Increment daily bucket
+        const day = event.timestamp.slice(0, 10);
+        if (dateMap.has(day)) {
+          dateMap.set(day, (dateMap.get(day) ?? 0) + 1);
+        }
+
+        // Resolve MCP name from metadata fields the server may include
+        const meta = event.metadata as Record<string, unknown>;
+        const mcpName =
+          (typeof meta.mcp_name === 'string' ? meta.mcp_name : null) ??
+          (typeof meta.mcpName === 'string' ? meta.mcpName : null) ??
+          (typeof meta.server_name === 'string' ? meta.server_name : null) ??
+          // Fall back to the action prefix "tool_call:mcp/tool" → "mcp"
+          (typeof event.action === 'string' && event.action.includes('/')
+            ? event.action.split('/')[0]
+            : null) ??
+          'unknown';
+
+        const existing = mcpMap.get(mcpName) ?? {
+          clients: new Set<string>(),
+          invocations: 0,
+          lastInvocation: null,
+        };
+        existing.invocations += 1;
+        if (event.client_id) existing.clients.add(event.client_id);
+        if (
+          existing.lastInvocation === null ||
+          event.timestamp > existing.lastInvocation
+        ) {
+          existing.lastInvocation = event.timestamp;
+        }
+        mcpMap.set(mcpName, existing);
+      }
+
+      const dailyCounts: DailyCount[] = Array.from(dateMap.entries()).map(([date, count]) => ({
+        date,
+        count,
+      }));
+
+      const mcpStats: McpUsageStat[] = Array.from(mcpMap.entries()).map(
+        ([mcpName, { clients, invocations, lastInvocation }]) => ({
+          mcpName,
+          subscribers: clients.size,
+          invocations,
+          lastInvocation,
+        })
+      );
+
+      return {
+        dailyCounts,
+        totalInvocations: events.length,
+        mcpStats,
+      };
+    },
+    // Refresh every 5 minutes — usage data doesn't need real-time fidelity
+    staleTime: 5 * 60 * 1000,
+  });
+}
