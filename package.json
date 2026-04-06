@@ -42,7 +42,7 @@
     "vitest": "^1.2.1"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.8.0"
   },
   "pnpm": {
     "overrides": {
