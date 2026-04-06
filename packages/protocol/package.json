@@ -30,7 +30,7 @@
   "author": "MCP Ambassador Team",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "typescript": "^6.0.2"
   },
   "publishConfig": {
     "access": "public"
