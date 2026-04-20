@@ -241,15 +241,21 @@ export function McpDetail() {
         )}
       </div>
 
-      {/* Subscribe Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={openSubscribeDialog}
-          disabled={activeClients.length === 0}
-        >
-          <CubeIcon data-slot="icon" />
-          Subscribe to this MCP
-        </Button>
+      {/* Subscribe Button / No-client CTA */}
+      <div className="flex items-center justify-end gap-3">
+        {activeClients.length === 0 ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            You need a client key to subscribe.{' '}
+            <Button href="/app/clients" plain className="inline font-medium text-zinc-900 dark:text-white underline underline-offset-2 hover:no-underline p-0">
+              Create one on the Clients page
+            </Button>
+          </p>
+        ) : (
+          <Button onClick={openSubscribeDialog}>
+            <CubeIcon data-slot="icon" />
+            Subscribe to this MCP
+          </Button>
+        )}
       </div>
 
       {/* Subscribe Dialog */}

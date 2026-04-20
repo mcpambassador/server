@@ -9,13 +9,16 @@
  * @see schema/index.ts audit_events table
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, no-console */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
 
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { audit_events, type AuditEvent, type NewAuditEvent } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:audit-events' });
 
 /**
  * Insert audit event
@@ -201,7 +204,7 @@ export async function deleteOldAuditEvents(db: DatabaseClient, olderThan: string
   await compatDelete(db, audit_events).where(sql`${audit_events.timestamp} < ${olderThan}`);
 
   // Drizzle doesn't return rowCount directly, would need to query count first
-  console.log(`[db:audit-events] Deleted audit events older than ${olderThan}`);
+  log.info({ olderThan }, 'Deleted audit events older than timestamp');
 
   return 0; // Placeholder - actual count requires SQL-specific query
 }

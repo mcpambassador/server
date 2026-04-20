@@ -16,6 +16,9 @@
  */
 
 import RE2 from 're2';
+import { logger } from '../utils/logger.js';
+
+const log = logger.child({ module: 'validation' });
 
 export interface ToolSchema {
   name: string;
@@ -346,7 +349,7 @@ function validateDisallowPatterns(
       }
     } catch (err) {
       // Invalid regex - log error and skip this pattern
-      console.error(`[validation] Invalid disallow_pattern: ${patternStr}`, err);
+      log.error({ err, patternStr }, 'Invalid disallow_pattern');
     }
   }
 

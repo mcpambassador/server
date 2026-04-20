@@ -9,12 +9,14 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console */
 
 import { tool_profiles, users, groups, user_groups } from './index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 import argon2 from 'argon2';
+import { logger } from '../utils/logger.js';
+
+const log = logger.child({ module: 'schema:seed' });
 
 /**
  * Generates ISO 8601 timestamp for current time
@@ -239,15 +241,15 @@ export async function seedDatabase(db: any): Promise<void> {
   const existingProfiles = await db.query.tool_profiles.findMany({ limit: 1 });
 
   if (existingProfiles.length === 0) {
-    console.log(`[seed] Inserting ${defaultProfiles.length} default Tool Profiles...`);
+    log.info({ count: defaultProfiles.length }, 'Inserting default Tool Profiles');
 
     for (const profile of defaultProfiles) {
       await db.insert(tool_profiles).values(profile);
     }
 
-    console.log('[seed] Tool profiles created');
+    log.info('Tool profiles created');
   } else {
-    console.log('[seed] Profiles already exist, skipping profile seed');
+    log.info('Profiles already exist, skipping profile seed');
   }
 
   // Check if groups table exists and create default all-users group
@@ -257,7 +259,7 @@ export async function seedDatabase(db: any): Promise<void> {
     });
 
     if (!existingGroups) {
-      console.log('[seed] Creating default all-users group...');
+      log.info('Creating default all-users group');
 
       await db.insert(groups).values({
         group_id: uuidv4(),
@@ -269,15 +271,15 @@ export async function seedDatabase(db: any): Promise<void> {
         updated_at: timestamp,
       });
 
-      console.log('[seed] Default all-users group created');
+      log.info('Default all-users group created');
     } else {
-      console.log('[seed] all-users group already exists');
+      log.info('all-users group already exists');
     }
   } catch (error) {
-    console.log('[seed] Groups table not yet available, skipping group seed');
+    log.info('Groups table not yet available, skipping group seed');
   }
 
-  console.log('[seed] Seed complete');
+  log.info('Seed complete');
 }
 
 /**
@@ -294,14 +296,14 @@ export function getDefaultProfileId(name: string): string | null {
  */
 export async function seedDevData(db: any): Promise<void> {
   if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
-    console.log('[seed] Skipping dev data seed (not development/test environment)');
+    log.info('Skipping dev data seed (not development/test environment)');
     return;
   }
 
   // Check if dev user already exists
   const existingUsers = await db.query.users.findMany({ limit: 1 });
   if (existingUsers.length > 0) {
-    console.log('[seed] Users already exist, skipping dev seed');
+    log.info('Users already exist, skipping dev seed');
     return;
   }
 
@@ -313,7 +315,7 @@ export async function seedDevData(db: any): Promise<void> {
   });
 
   if (!allToolsProfile) {
-    console.log('[seed] Warning: all-tools profile not found, skipping dev data seed');
+    log.warn('all-tools profile not found, skipping dev data seed');
     return;
   }
 
@@ -347,7 +349,7 @@ export async function seedDevData(db: any): Promise<void> {
     updated_at: timestamp,
     metadata: '{}',
   });
-  console.log(`[seed] Created admin user: ${adminUserId} (password: admin123)`);
+  log.info({ user_id: adminUserId }, 'Created admin user (password: admin123)');
 
   // 2. Create QA test user
   const qaUserId = uuidv4();
@@ -364,7 +366,7 @@ export async function seedDevData(db: any): Promise<void> {
     updated_at: timestamp,
     metadata: '{}',
   });
-  console.log(`[seed] Created QA test user: ${qaUserId} (password: test1234)`);
+  log.info({ user_id: qaUserId }, 'Created QA test user (password: test1234)');
 
   // 3. Assign QA user to all-users group
   if (allUsersGroup) {
@@ -374,7 +376,7 @@ export async function seedDevData(db: any): Promise<void> {
       assigned_at: timestamp,
       assigned_by: 'system',
     });
-    console.log(`[seed] Assigned QA user to all-users group`);
+    log.info('Assigned QA user to all-users group');
   }
 
   // 4. Assign admin to all-users group
@@ -385,11 +387,11 @@ export async function seedDevData(db: any): Promise<void> {
       assigned_at: timestamp,
       assigned_by: 'system',
     });
-    console.log(`[seed] Assigned admin user to all-users group`);
+    log.info('Assigned admin user to all-users group');
   }
 
   // NOTE: Preshared keys (clients) are created during server bootstrap,
   // not here. The server's bootstrap logic generates the actual key material
   // and Argon2id hashes. This seed only creates the user entries.
-  console.log('[seed] Dev data seed complete. Client keys will be generated on first server boot.');
+  log.info('Dev data seed complete. Client keys will be generated on first server boot.');
 }

@@ -10,34 +10,39 @@ import {
   XMarkIcon,
 } from '@heroicons/react/20/solid';
 import { Button } from '@/components/catalyst/button';
+import type { Client } from '@/api/types';
 
 const DISMISSED_KEY = 'amb_onboarding_dismissed';
 
-const VS_CODE_SNIPPET = `{
+function buildSnippets(serverUrl: string, clientKeyHint: string) {
+  const vsCode = `{
   "mcp.servers": {
     "mcpambassador": {
       "command": "npx",
       "args": ["-y", "@mcpambassador/client", "--config", "/path/to/amb-client-config.json"],
       "env": {
-        "MCP_AMBASSADOR_URL": "https://<your-server>:8443",
-        "MCP_AMBASSADOR_PRESHARED_KEY": "<your-client-key>"
+        "MCP_AMBASSADOR_URL": "${serverUrl}",
+        "MCP_AMBASSADOR_PRESHARED_KEY": "${clientKeyHint}"
       }
     }
   }
 }`;
 
-const CLAUDE_DESKTOP_SNIPPET = `{
+  const claudeDesktop = `{
   "mcpServers": {
     "mcpambassador": {
       "command": "npx",
       "args": ["-y", "@mcpambassador/client", "--config", "/path/to/amb-client-config.json"],
       "env": {
-        "MCP_AMBASSADOR_URL": "https://<your-server>:8443",
-        "MCP_AMBASSADOR_PRESHARED_KEY": "<your-client-key>"
+        "MCP_AMBASSADOR_URL": "${serverUrl}",
+        "MCP_AMBASSADOR_PRESHARED_KEY": "${clientKeyHint}"
       }
     }
   }
 }`;
+
+  return { vsCode, claudeDesktop };
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -157,11 +162,14 @@ function ChecklistStep({
 interface GettingStartedChecklistProps {
   hasClients: boolean;
   hasSubscriptions: boolean;
+  /** Pass the full clients array so Step 4 can show the most recently created key prefix */
+  clients?: Client[];
 }
 
 export function GettingStartedChecklist({
   hasClients,
   hasSubscriptions,
+  clients,
 }: GettingStartedChecklistProps) {
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISSED_KEY) === 'true'
@@ -175,6 +183,26 @@ export function GettingStartedChecklist({
   if (dismissed) return null;
 
   const allComplete = hasClients && hasSubscriptions;
+
+  // Build config snippets with real values where possible.
+  // The server URL is always known from the browser origin.
+  const serverUrl = window.location.origin;
+
+  // The plaintext key is only returned once at creation and is not stored in the
+  // clients list (security by design). Use the most recently created client's key
+  // prefix as a hint so users know which key to look up; fall back to clear guidance.
+  const mostRecentClient = clients
+    ?.filter(c => c.status === 'active')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+  const clientKeyHint = mostRecentClient
+    ? `${mostRecentClient.keyPrefix}... (your full key — copy it from the Clients page when you create it)`
+    : 'your-client-key (create one on the Clients page)';
+
+  const { vsCode: VS_CODE_SNIPPET, claudeDesktop: CLAUDE_DESKTOP_SNIPPET } = buildSnippets(
+    serverUrl,
+    clientKeyHint
+  );
 
   return (
     <section

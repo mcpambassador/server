@@ -3,8 +3,10 @@
  *
  * File-based Audit Provider (Phase 1)
  *
- * Writes audit events to JSONL (JSON Lines) files for tamper-evident logging.
- * File naming: audit-YYYY-MM-DD.jsonl, rotated daily at midnight UTC.
+ * Writes audit events to a single `audit.jsonl` (the "current" file).
+ * At the start of each new UTC day, the current file is renamed to
+ * `audit-YYYY-MM-DD.jsonl` and a fresh `audit.jsonl` is started.
+ * Files older than the configured retention period are deleted.
  *
  * @see Architecture §5.3 AuditProvider
  * @see Architecture §11 Audit Deep Dive
@@ -20,16 +22,22 @@ import { createReadStream } from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
 
+/** Name of the active (current-day) audit log file. */
+const CURRENT_AUDIT_FILE = 'audit.jsonl';
+
 /**
  * File-based Audit Provider
  *
- * Appends audit events to daily-rotated JSONL files.
- * Each event is one JSON object per line (no commas, no array wrapper).
+ * Appends audit events to a single active JSONL file (`audit.jsonl`).
+ * At each UTC day boundary the active file is renamed to a date-stamped
+ * archive (`audit-YYYY-MM-DD.jsonl`) and a fresh `audit.jsonl` is opened.
+ * Archives older than `retention` days are deleted on rotation and startup.
  *
  * Configuration:
  * - auditDir: Directory to store audit files (default: ./audit-logs)
- * - retention: Number of days to retain old audit files (default: 90)
+ * - retention: Number of days to retain rotated archive files (default: 90)
  * - flushInterval: Milliseconds between auto-flushes (default: 5000)
+ * - maxBufferSize: Maximum number of events held in memory (default: 1000)
  */
 export class FileAuditProvider implements AuditProvider {
   readonly id = 'file_jsonl';
@@ -43,6 +51,12 @@ export class FileAuditProvider implements AuditProvider {
   private flushTimer?: NodeJS.Timeout;
   private isShuttingDown = false;
   private isFlushing = false; // Flush lock to prevent concurrent flushes (F-SEC-M5-004)
+
+  /**
+   * Cached UTC date string (YYYY-MM-DD) for the last written event.
+   * Compared cheaply on every flush to detect day rollover without stat() calls.
+   */
+  private currentDateStr: string = '';
 
   constructor(config?: {
     auditDir?: string;
@@ -65,7 +79,8 @@ export class FileAuditProvider implements AuditProvider {
   /**
    * Initialize provider (required by ProviderLifecycle)
    *
-   * Creates audit directory and starts periodic flush timer.
+   * Creates audit directory, cleans up stale archive files, and starts
+   * the periodic flush timer.
    */
   async initialize(_config: Record<string, unknown>): Promise<void> {
     // Validate and resolve audit directory path (F-SEC-M5-002)
@@ -73,6 +88,10 @@ export class FileAuditProvider implements AuditProvider {
 
     // Ensure audit directory exists with restricted permissions
     await fs.mkdir(this.resolvedAuditDir, { recursive: true, mode: 0o700 });
+
+    // Seed the cached date from the current wall clock so the first flush
+    // does not spuriously trigger rotation when the provider starts mid-day.
+    this.currentDateStr = utcDateString(new Date());
 
     logger.info(
       {
@@ -84,29 +103,30 @@ export class FileAuditProvider implements AuditProvider {
       '[audit:file] Initialized'
     );
 
+    // Clean up stale rotated archive files from previous runs.
+    await this.cleanupOldFiles();
+
     // Start periodic flush
     this.flushTimer = setInterval(async () => {
       if (this.buffer.length > 0 && !this.isFlushing) {
         await this.flush();
       }
     }, this.flushInterval);
-
-    // Clean up old audit files
-    await this.cleanupOldFiles();
   }
 
   /**
    * Validate audit directory path (F-SEC-M5-002)
    *
-   * Ensures auditDir is resolved to an absolute path and does not traverse outside
-   * an allowed base directory. Protects against path traversal attacks.
+   * Ensures auditDir is resolved to an absolute path and does not traverse
+   * outside an allowed base directory. Protects against path traversal attacks.
    */
   private async validateAuditDir(): Promise<void> {
     // Resolve to absolute path
     this.resolvedAuditDir = path.resolve(this.auditDir);
 
-    // For Phase 1, we allow any absolute path but validate no '..' components remain
-    // after resolution. In Phase 2/3, consider restricting to a specific base directory.
+    // For Phase 1, we allow any absolute path but validate no '..' components
+    // remain after resolution. In Phase 2/3, consider restricting to a specific
+    // base directory.
     const normalized = path.normalize(this.resolvedAuditDir);
     if (normalized.includes('..')) {
       throw new Error(
@@ -248,10 +268,64 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   /**
+   * Rotate the active audit file if the UTC date has advanced since the last flush.
+   *
+   * Renames `audit.jsonl` → `audit-YYYY-MM-DD.jsonl` (using the *previous* date)
+   * so the archive name matches the events it contains.  After renaming, the
+   * old `currentDateStr` is updated to `todayStr` and stale archives are purged.
+   *
+   * This method is called once per flush — before any bytes are appended — so the
+   * check is a cheap string comparison with no filesystem I/O in the common case.
+   *
+   * @param todayStr UTC date string for the current flush (YYYY-MM-DD)
+   */
+  private async rotateIfNeeded(todayStr: string): Promise<void> {
+    // Common path: same day — nothing to do.
+    if (this.currentDateStr === '' || this.currentDateStr === todayStr) {
+      return;
+    }
+
+    const previousDateStr = this.currentDateStr;
+    const currentFilePath = path.join(this.resolvedAuditDir, CURRENT_AUDIT_FILE);
+    const archivePath = path.join(this.resolvedAuditDir, `audit-${previousDateStr}.jsonl`);
+
+    // Only rotate if the active file exists (it may not on first run).
+    try {
+      await fs.access(currentFilePath);
+    } catch {
+      // No current file — nothing to rotate, just advance the date.
+      this.currentDateStr = todayStr;
+      return;
+    }
+
+    try {
+      await fs.rename(currentFilePath, archivePath);
+      logger.info(
+        { previous_date: previousDateStr, archive: archivePath },
+        '[audit:file] Rotated audit log'
+      );
+    } catch (error) {
+      logger.error(
+        { error, current_file: currentFilePath, archive: archivePath },
+        '[audit:file] Failed to rotate audit log'
+      );
+      // Do not update currentDateStr — next flush will retry the rotation.
+      return;
+    }
+
+    // Advance the cached date only after a successful rename.
+    this.currentDateStr = todayStr;
+
+    // Purge archives that exceed the retention window.
+    await this.cleanupOldFiles();
+  }
+
+  /**
    * Flush buffered events to disk
    *
-   * Writes all buffered events to appropriate daily file.
-   * Groups by date to support proper daily rotation.
+   * Writes all buffered events to `audit.jsonl` (the active log file).
+   * Before writing, checks whether the UTC date has changed since the last
+   * flush; if so, the existing file is rotated to a date-stamped archive.
    *
    * Uses atomic buffer swap and flush lock to prevent race conditions (F-SEC-M5-004).
    */
@@ -272,31 +346,23 @@ export class FileAuditProvider implements AuditProvider {
     this.buffer = [];
 
     try {
-      // Group events by date
-      const eventsByDate = new Map<string, AuditEvent[]>();
+      const todayStr = utcDateString(new Date());
 
-      for (const event of toFlush) {
-        const date = event.timestamp.split('T')[0]!; // Extract YYYY-MM-DD (always present in ISO format)
-        const events = eventsByDate.get(date) || [];
-        events.push(event);
-        eventsByDate.set(date, events);
-      }
+      // Rotate the log file if the UTC date has advanced.
+      await this.rotateIfNeeded(todayStr);
 
-      // Write to each date's file
-      for (const [date, events] of eventsByDate.entries()) {
-        const filePath = getAuditFilePath(this.resolvedAuditDir, date);
+      // All events in this flush go to the single active file.
+      const filePath = path.join(this.resolvedAuditDir, CURRENT_AUDIT_FILE);
+      const lines = toFlush.map(e => JSON.stringify(e)).join('\n') + '\n';
 
-        // Append events as JSONL (one JSON object per line)
-        const lines = events.map(e => JSON.stringify(e)).join('\n') + '\n';
-
-        try {
-          await fs.appendFile(filePath, lines, { encoding: 'utf-8', mode: 0o600 });
-        } catch (error) {
-          logger.error({ file_path: filePath, error }, '[audit:file] Failed to write to file');
-          // Re-buffer failed events (F-SEC-M5-004)
-          this.buffer.unshift(...events);
-          this.enforceBufferLimit();
-        }
+      try {
+        await fs.appendFile(filePath, lines, { encoding: 'utf-8', mode: 0o600 });
+      } catch (error) {
+        logger.error({ file_path: filePath, error }, '[audit:file] Failed to write to file');
+        // Re-buffer failed events (F-SEC-M5-004)
+        this.buffer.unshift(...toFlush);
+        this.enforceBufferLimit();
+        return;
       }
 
       logger.info({ event_count: toFlush.length }, '[audit:file] Flushed events to disk');
@@ -313,8 +379,8 @@ export class FileAuditProvider implements AuditProvider {
   /**
    * Query audit events from JSONL files
    *
-   * Reads and filters JSONL files by date range.
-   * Supports filtering by client_id, user_id, event_type, severity.
+   * Reads the active `audit.jsonl` plus any date-stamped archive files that
+   * fall within the requested date range.
    *
    * @param filters Query filters
    * @returns Array of matching audit events
@@ -329,33 +395,55 @@ export class FileAuditProvider implements AuditProvider {
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
     const endDate = filters.end_time ? new Date(filters.end_time) : new Date();
 
-    // Generate list of dates to scan
+    // Generate list of archive dates to scan (all but today — today is audit.jsonl)
+    const today = utcDateString(new Date());
     const datesToScan: string[] = [];
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      if (dateStr) {
+      const dateStr = utcDateString(currentDate);
+      if (dateStr && dateStr !== today) {
         datesToScan.push(dateStr);
       }
-      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
-    // Read each date's file
+    // Read each archive date file
     for (const date of datesToScan) {
-      const filePath = getAuditFilePath(this.resolvedAuditDir, date);
+      const filePath = path.join(this.resolvedAuditDir, `audit-${date}.jsonl`);
 
       try {
         const events = await readAuditFile(filePath, filters);
         results.push(...events);
 
-        // Stop if we've reached limit
         if (results.length >= limit) {
           break;
         }
       } catch (error) {
-        // File might not exist (no events on that day) - this is okay
+        // File might not exist (no events on that day) — this is okay
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
           logger.error({ file_path: filePath, error }, '[audit:file] Error reading file');
+        }
+      }
+    }
+
+    // Also read the active file if the date range could include today and limit not yet reached.
+    // The active file always uses the current wall-clock date, so include it whenever endDate
+    // is on or after the start of today (UTC). readAuditFile will apply timestamp filters, so
+    // events outside the requested range are naturally excluded.
+    if (results.length < limit) {
+      const startOfToday = new Date(today); // YYYY-MM-DDT00:00:00.000Z
+      if (endDate >= startOfToday) {
+        const activeFilePath = path.join(this.resolvedAuditDir, CURRENT_AUDIT_FILE);
+        try {
+          const events = await readAuditFile(activeFilePath, filters);
+          results.push(...events);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            logger.error(
+              { file_path: activeFilePath, error },
+              '[audit:file] Error reading active file'
+            );
+          }
         }
       }
     }
@@ -365,20 +453,22 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   /**
-   * Clean up old audit files based on retention policy
+   * Delete rotated archive files that fall outside the retention window.
+   *
+   * Only touches files matching the `audit-YYYY-MM-DD.jsonl` pattern —
+   * the active `audit.jsonl` is never deleted here.
+   *
+   * Deletion is logged at debug level (high-frequency operational detail).
    */
   private async cleanupOldFiles(): Promise<void> {
     try {
       const files = await fs.readdir(this.resolvedAuditDir);
       const cutoffDate = new Date(Date.now() - this.retention * 24 * 60 * 60 * 1000);
+      let deletedCount = 0;
 
       for (const file of files) {
-        if (!file.startsWith('audit-') || !file.endsWith('.jsonl')) {
-          continue;
-        }
-
-        // Extract date from filename (audit-YYYY-MM-DD.jsonl)
-        const match = file.match(/audit-(\d{4}-\d{2}-\d{2})\.jsonl/);
+        // Only consider rotated archive files, not the active audit.jsonl
+        const match = file.match(/^audit-(\d{4}-\d{2}-\d{2})\.jsonl$/);
         if (!match || !match[1]) {
           continue;
         }
@@ -386,9 +476,21 @@ export class FileAuditProvider implements AuditProvider {
         const fileDate = new Date(match[1]);
         if (fileDate < cutoffDate) {
           const filePath = path.join(this.resolvedAuditDir, file);
-          await fs.unlink(filePath);
-          logger.info({ file }, '[audit:file] Deleted old audit file');
+          try {
+            await fs.unlink(filePath);
+            deletedCount++;
+            logger.debug({ file }, '[audit:file] Deleted expired archive');
+          } catch (unlinkError) {
+            logger.error({ file, error: unlinkError }, '[audit:file] Failed to delete archive');
+          }
         }
+      }
+
+      if (deletedCount > 0) {
+        logger.debug(
+          { deleted_count: deletedCount, retention_days: this.retention },
+          '[audit:file] Retention cleanup complete'
+        );
       }
     } catch (error) {
       logger.error({ error }, '[audit:file] Error during cleanup');
@@ -396,16 +498,31 @@ export class FileAuditProvider implements AuditProvider {
   }
 }
 
+// ===== Helpers =====
+
 /**
- * Get audit file path for a given date
+ * Return the UTC date string (YYYY-MM-DD) for the given Date object.
+ *
+ * @param date Date to format
+ * @returns UTC date string, e.g. "2026-04-19"
+ */
+export function utcDateString(date: Date): string {
+  return date.toISOString().split('T')[0]!;
+}
+
+/**
+ * Get the path to a rotated archive file for a given date.
+ *
+ * Used in tests and external tooling. The active log is always `audit.jsonl`;
+ * this function returns the name of the archive produced after rotation.
  *
  * @param auditDir Base audit directory
- * @param date Date (ISO 8601 string or Date object)
- * @returns Full path to audit file (e.g., /var/log/ambassador/audit-2026-02-16.jsonl)
+ * @param date Date string (YYYY-MM-DD) or Date object
+ * @returns Full path to the rotated archive file
  */
 export function getAuditFilePath(auditDir: string, date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+  const dateStr = utcDateString(d);
   return path.join(auditDir, `audit-${dateStr}.jsonl`);
 }
 

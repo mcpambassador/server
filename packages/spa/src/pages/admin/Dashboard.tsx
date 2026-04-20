@@ -266,7 +266,15 @@ export function Dashboard() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableHeader>
+                <TableHeader
+                  aria-sort={
+                    mcpUsageSort === 'name'
+                      ? mcpUsageSortDir === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                >
                   <button
                     type="button"
                     onClick={() => toggleSort('name')}
@@ -284,8 +292,16 @@ export function Dashboard() {
                     )}
                   </button>
                 </TableHeader>
-                <TableHeader>Subscribers</TableHeader>
-                <TableHeader>
+                <TableHeader aria-sort="none">Subscribers</TableHeader>
+                <TableHeader
+                  aria-sort={
+                    mcpUsageSort === 'invocations'
+                      ? mcpUsageSortDir === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                >
                   <button
                     type="button"
                     onClick={() => toggleSort('invocations')}
@@ -303,8 +319,8 @@ export function Dashboard() {
                     )}
                   </button>
                 </TableHeader>
-                <TableHeader>Last Invocation</TableHeader>
-                <TableHeader>Status</TableHeader>
+                <TableHeader aria-sort="none">Last Invocation</TableHeader>
+                <TableHeader aria-sort="none">Status</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>

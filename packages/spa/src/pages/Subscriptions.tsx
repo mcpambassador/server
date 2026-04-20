@@ -1,11 +1,15 @@
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { ArrowTopRightOnSquareIcon, ServerStackIcon } from '@heroicons/react/20/solid';
+import { ArrowTopRightOnSquareIcon, ServerStackIcon, TrashIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
+import { Button } from '@/components/catalyst/button';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Badge } from '@/components/catalyst/badge';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { useClients, useClientSubscriptions, useUserSubscriptions } from '@/api/hooks/use-clients';
+import { useClients, useClientSubscriptions, useUserSubscriptions, useUnsubscribe } from '@/api/hooks/use-clients';
 import type { Client, Subscription } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -14,6 +18,23 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
   const { data: subsFromHook, isLoading: hookLoading } = useClientSubscriptions(client.id);
   const subscriptions = providedSubscriptions ?? subsFromHook;
   const isLoading = providedSubscriptions ? false : hookLoading;
+
+  const unsubscribe = useUnsubscribe();
+  const [pendingUnsubscribe, setPendingUnsubscribe] = useState<Subscription | null>(null);
+
+  const handleUnsubscribeConfirm = async () => {
+    if (!pendingUnsubscribe) return;
+    try {
+      await unsubscribe.mutateAsync({
+        clientId: client.id,
+        subscriptionId: pendingUnsubscribe.id,
+      });
+      toast.success(`Unsubscribed from ${pendingUnsubscribe.mcpName}`);
+      setPendingUnsubscribe(null);
+    } catch (error) {
+      toast.error('Failed to unsubscribe', { description: (error as Error)?.message ?? String(error) });
+    }
+  };
 
   return (
     <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 overflow-hidden">
@@ -67,6 +88,9 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
               <TableHeader>Status</TableHeader>
               <TableHeader>Tools</TableHeader>
               <TableHeader>Subscribed</TableHeader>
+              <TableHeader>
+                <span className="sr-only">Actions</span>
+              </TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -97,11 +121,38 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
                     {new Date(sub.createdAt).toLocaleDateString()}
                   </Text>
                 </TableCell>
+                <TableCell>
+                  <Button
+                    plain
+                    title="Unsubscribe from this MCP"
+                    aria-label={`Unsubscribe from ${sub.mcpName}`}
+                    onClick={() => setPendingUnsubscribe(sub)}
+                    disabled={unsubscribe.isPending}
+                  >
+                    <TrashIcon className="size-4 text-zinc-400 hover:text-red-500" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+
+      {/* Unsubscribe Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!pendingUnsubscribe}
+        onClose={(open) => { if (!open) setPendingUnsubscribe(null); }}
+        title="Unsubscribe from MCP?"
+        description={
+          pendingUnsubscribe
+            ? `This will remove ${client.clientName}'s access to "${pendingUnsubscribe.mcpName}". This action cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Unsubscribe"
+        confirmColor="red"
+        onConfirm={handleUnsubscribeConfirm}
+        isLoading={unsubscribe.isPending}
+      />
     </div>
   );
 }

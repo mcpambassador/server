@@ -9,7 +9,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -20,6 +20,9 @@ import {
 } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:subscriptions' });
 
 /**
  * Create a new subscription
@@ -47,8 +50,9 @@ export async function createSubscription(
 
   await compatInsert(db, client_mcp_subscriptions).values(newSubscription);
 
-  console.log(
-    `[db:subscriptions] Created subscription: ${subscription_id} (client ${data.client_id} -> MCP ${data.mcp_id})`
+  log.info(
+    { subscription_id, client_id: data.client_id, mcp_id: data.mcp_id },
+    'Created subscription'
   );
 
   return newSubscription as ClientMcpSubscription;
@@ -135,7 +139,7 @@ export async function updateSubscription(
     .set(updateData)
     .where(eq(client_mcp_subscriptions.subscription_id, subscription_id));
 
-  console.log(`[db:subscriptions] Subscription updated: ${subscription_id}`);
+  log.info({ subscription_id }, 'Subscription updated');
 }
 
 /**
@@ -154,5 +158,5 @@ export async function removeSubscription(
     eq(client_mcp_subscriptions.subscription_id, subscription_id)
   );
 
-  console.log(`[db:subscriptions] Subscription removed: ${subscription_id}`);
+  log.info({ subscription_id }, 'Subscription removed');
 }

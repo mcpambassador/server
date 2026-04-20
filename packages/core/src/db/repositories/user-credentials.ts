@@ -10,7 +10,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq, and } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -21,6 +21,9 @@ import {
 } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:user-credentials' });
 
 /**
  * Store encrypted credential for user-MCP pair
@@ -48,8 +51,9 @@ export async function storeCredential(
 
   await compatInsert(db, user_mcp_credentials).values(newCredential);
 
-  console.log(
-    `[db:user-credentials] Stored credential: ${credential_id} (user ${data.user_id} -> MCP ${data.mcp_id})`
+  log.info(
+    { credential_id, user_id: data.user_id, mcp_id: data.mcp_id },
+    'Stored credential'
   );
 
   return newCredential as UserMcpCredential;
@@ -116,7 +120,7 @@ export async function updateCredential(
     })
     .where(eq(user_mcp_credentials.credential_id, credential_id));
 
-  console.log(`[db:user-credentials] Credential updated: ${credential_id}`);
+  log.info({ credential_id }, 'Credential updated');
 }
 
 /**
@@ -130,7 +134,7 @@ export async function deleteCredential(db: DatabaseClient, credential_id: string
     eq(user_mcp_credentials.credential_id, credential_id)
   );
 
-  console.log(`[db:user-credentials] Credential deleted: ${credential_id}`);
+  log.info({ credential_id }, 'Credential deleted');
 }
 
 /**
@@ -151,5 +155,5 @@ export async function deleteCredentialsForMcp(
     and(eq(user_mcp_credentials.user_id, user_id), eq(user_mcp_credentials.mcp_id, mcp_id))
   );
 
-  console.log(`[db:user-credentials] Credentials deleted for user ${user_id}, MCP ${mcp_id}`);
+  log.info({ user_id, mcp_id }, 'Credentials deleted for user MCP pair');
 }

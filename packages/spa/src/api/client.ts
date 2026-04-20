@@ -1,3 +1,48 @@
+/**
+ * CSRF token manager.
+ *
+ * Fetches the token from GET /v1/csrf-token and caches it in memory.
+ * The server sets the `_csrf` cookie; this module caches the corresponding
+ * HMAC token that must be sent as the `x-csrf-token` request header.
+ *
+ * On a 403 response (CSRF mismatch) the cache is cleared and the next
+ * mutation will re-fetch automatically — this handles token rotation after
+ * session changes (login, logout).
+ */
+let csrfTokenCache: string | null = null;
+let csrfTokenInflight: Promise<string> | null = null;
+
+/**
+ * Fetch (or return cached) CSRF token from the server.
+ *
+ * A pending-promise guard ensures that concurrent callers share a single
+ * in-flight fetch rather than issuing N parallel requests to /v1/csrf-token.
+ */
+async function getCsrfToken(): Promise<string> {
+  if (csrfTokenCache) return csrfTokenCache;
+  if (!csrfTokenInflight) {
+    csrfTokenInflight = fetch('/v1/csrf-token', { credentials: 'include' })
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch CSRF token: ${res.status}`);
+        return res.json() as Promise<{ csrfToken: string }>;
+      })
+      .then(data => {
+        csrfTokenCache = data.csrfToken;
+        return data.csrfToken;
+      })
+      .finally(() => {
+        csrfTokenInflight = null;
+      });
+  }
+  return csrfTokenInflight;
+}
+
+/** Clear the cached token (call on login/logout so next mutation re-fetches). */
+export function clearCsrfToken(): void {
+  csrfTokenCache = null;
+  csrfTokenInflight = null;
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -14,6 +59,9 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string>;
 }
 
+/** HTTP methods that mutate state and require a CSRF token. */
+const CSRF_MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const { params, ...fetchOptions } = options;
 
@@ -23,14 +71,42 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     fullUrl = `${url}?${searchParams.toString()}`;
   }
 
+  const method = (fetchOptions.method ?? 'GET').toUpperCase();
+  const needsCsrf = CSRF_MUTATION_METHODS.has(method);
+
+  // Build headers: attach CSRF token for all state-changing requests.
+  const extraHeaders: Record<string, string> = {};
+  if (fetchOptions.body) extraHeaders['Content-Type'] = 'application/json';
+  if (needsCsrf) {
+    extraHeaders['x-csrf-token'] = await getCsrfToken();
+  }
+
   const response = await fetch(fullUrl, {
     ...fetchOptions,
     credentials: 'include',
     headers: {
-      ...(fetchOptions.body ? { 'Content-Type': 'application/json' } : {}),
+      ...extraHeaders,
       ...fetchOptions.headers,
     },
   });
+
+  // On CSRF rejection: clear the cached token and retry once with a fresh one.
+  // This handles token staleness after login/logout/session rotation.
+  if (response.status === 403 && needsCsrf) {
+    clearCsrfToken();
+    const freshToken = await getCsrfToken();
+    const retryResponse = await fetch(fullUrl, {
+      ...fetchOptions,
+      credentials: 'include',
+      headers: {
+        ...extraHeaders,
+        ...fetchOptions.headers,
+        'x-csrf-token': freshToken,
+      },
+    });
+    // Continue processing with the retried response
+    return processResponse<T>(retryResponse, method);
+  }
 
   if (response.status === 401) {
     // Use raw fetch (no interceptor) to check whether the web UI session is actually
@@ -51,6 +127,14 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     throw new ApiError(401, 'UNAUTHORIZED', 'Unauthorized', 'Session expired or invalid');
   }
 
+  return processResponse<T>(response, method);
+}
+
+/**
+ * Parse an HTTP response into the expected type T.
+ * Handles envelope format, 204 No Content, and error shapes.
+ */
+async function processResponse<T>(response: Response, _method: string): Promise<T> {
   if (!response.ok) {
     let errorData: unknown;
     try {

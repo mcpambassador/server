@@ -1,24 +1,43 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircleIcon, ExclamationTriangleIcon, ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/20/solid';
+import { CheckCircleIcon, ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
-import { Badge } from '@/components/catalyst/badge';
-import { Input } from '@/components/catalyst/input';
-import { Field, Label } from '@/components/catalyst/fieldset';
-import { Textarea } from '@/components/catalyst/textarea';
-import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
-import { Divider } from '@/components/catalyst/divider';
-import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import type { ValidationResult, DiscoveryResult, RegistryMcp } from '@/api/types';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { RegistryImportModal } from '@/components/admin/RegistryImportModal';
+import { mapRegistryEntryToFormData } from '@/lib/registryMapper';
+import { BasicInfoStep } from './wizard/BasicInfoStep';
+import { ConfigurationStep } from './wizard/ConfigurationStep';
+import { ValidateStep } from './wizard/ValidateStep';
+import { ReviewStep } from './wizard/ReviewStep';
 
 const STEPS = ['Basic Info', 'Configuration', 'Validate', 'Review'];
+
+type FormData = {
+  name: string;
+  display_name: string;
+  description: string;
+  icon_url: string;
+  transport_type: 'stdio' | 'http' | 'sse';
+  isolation_mode: 'shared' | 'per_user';
+  config: string;
+  auth_type: 'none' | 'static' | 'oauth2';
+  requires_user_credentials: boolean;
+  credential_schema: string;
+  oauth_auth_url: string;
+  oauth_token_url: string;
+  oauth_scopes: string;
+  oauth_client_id_env: string;
+  oauth_client_secret_env: string;
+  oauth_access_token_env_var: string;
+  oauth_revocation_url: string;
+  oauth_extra_params: string;
+};
 
 export function McpWizard() {
   usePageTitle('Admin - Create MCP');
@@ -34,24 +53,20 @@ export function McpWizard() {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  /** Controls visibility of the community registry browser modal */
   const [registryModalOpen, setRegistryModalOpen] = useState(false);
-  /** Name of the registry entry that was used for pre-filling, shown as an informational badge */
   const [importedFromRegistry, setImportedFromRegistry] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     display_name: '',
     description: '',
     icon_url: '',
-    transport_type: 'stdio' as 'stdio' | 'http' | 'sse',
-    isolation_mode: 'shared' as 'shared' | 'per_user',
+    transport_type: 'stdio',
+    isolation_mode: 'shared',
     config: '{\n  \n}',
-    auth_type: 'none' as 'none' | 'static' | 'oauth2',
+    auth_type: 'none',
     requires_user_credentials: false,
     credential_schema: '{\n  \n}',
-    // OAuth config fields
     oauth_auth_url: '',
     oauth_token_url: '',
     oauth_scopes: '',
@@ -62,74 +77,14 @@ export function McpWizard() {
     oauth_extra_params: '',
   });
 
-  /**
-   * Pre-fills all wizard form fields from the selected community registry entry.
-   * The admin can review and edit any pre-filled value before proceeding.
-   *
-   * Mapping rules:
-   *   - stdio entries: config built from config.command[0] + config.command.slice(1) as args
-   *   - http/sse entries: config built from config.url
-   *   - credential_schema serialised to JSON string for the textarea
-   *   - oauth_config fields spread into individual form fields
-   */
+  const patchFormData = (patch: Partial<FormData>) =>
+    setFormData((prev) => ({ ...prev, ...patch }));
+
   const handleRegistrySelect = (entry: RegistryMcp) => {
-    // Build the config JSON that matches the wizard's textarea format
-    let configObj: Record<string, unknown> = {};
-
-    if (entry.transport_type === 'stdio' && entry.config.command && entry.config.command.length > 0) {
-      // The registry stores command as a full argv array: [executable, ...args]
-      const [cmd, ...args] = entry.config.command;
-      configObj = {
-        command: cmd,
-        args,
-        ...(entry.config.env && Object.keys(entry.config.env).length > 0
-          ? { env: entry.config.env }
-          : {}),
-      };
-    } else if (entry.transport_type === 'http' || entry.transport_type === 'stdio') {
-      // HTTP/SSE: keep url field; also handle edge-case where stdio has no command
-      if (entry.config.url) {
-        configObj = { url: entry.config.url };
-      }
-    }
-
-    // Credential schema → JSON string
-    const credentialSchemaStr =
-      entry.credential_schema && Object.keys(entry.credential_schema).length > 0
-        ? JSON.stringify(entry.credential_schema, null, 2)
-        : '{\n  \n}';
-
-    // OAuth config fields (registry type has auth_url/token_url/scopes/client_id_env/client_secret_env)
-    const oauthRaw = entry.oauth_config;
-    const oauthAuthUrl = oauthRaw?.auth_url ?? '';
-    const oauthTokenUrl = oauthRaw?.token_url ?? '';
-    const oauthScopes = oauthRaw?.scopes ?? '';
-    const oauthClientIdEnv = oauthRaw?.client_id_env ?? '';
-    const oauthClientSecretEnv = oauthRaw?.client_secret_env ?? '';
-
-    setFormData((prev) => ({
-      ...prev,
-      name: entry.name,
-      display_name: entry.display_name,
-      description: entry.description ?? '',
-      icon_url: entry.icon_url ?? '',
-      transport_type: entry.transport_type === 'stdio' ? 'stdio' : 'http',
-      isolation_mode: entry.isolation_mode,
-      config: JSON.stringify(configObj, null, 2),
-      auth_type: entry.auth_type,
-      requires_user_credentials: entry.requires_user_credentials,
-      credential_schema: credentialSchemaStr,
-      oauth_auth_url: oauthAuthUrl,
-      oauth_token_url: oauthTokenUrl,
-      oauth_scopes: oauthScopes,
-      oauth_client_id_env: oauthClientIdEnv,
-      oauth_client_secret_env: oauthClientSecretEnv,
-      // access_token_env_var is not in registry schema — leave unchanged or blank
-      oauth_access_token_env_var: prev.oauth_access_token_env_var,
-      oauth_revocation_url: '',
-      oauth_extra_params: '',
-    }));
-
+    const mapped = mapRegistryEntryToFormData(entry, {
+      oauth_access_token_env_var: formData.oauth_access_token_env_var,
+    });
+    setFormData((prev) => ({ ...prev, ...mapped }));
     setImportedFromRegistry(entry.display_name);
     toast.success('Registry Import', {
       description: `Pre-filled wizard from "${entry.display_name}". Review and edit as needed.`,
@@ -138,11 +93,12 @@ export function McpWizard() {
 
   const handleNext = async () => {
     if (currentStep === 0) {
-      // Basic validation
       const nextErrors: Record<string, string> = {};
       if (!formData.display_name) nextErrors.display_name = 'Display name is required';
       if (!formData.name) nextErrors.name = 'Internal name is required';
-      else if (!/^[a-z0-9_]+$/.test(formData.name)) nextErrors.name = 'Internal name must be lowercase, no spaces, letters, numbers, and underscores only';
+      else if (!/^[a-z0-9_]+$/.test(formData.name))
+        nextErrors.name =
+          'Internal name must be lowercase, no spaces, letters, numbers, and underscores only';
 
       if (Object.keys(nextErrors).length > 0) {
         setErrors(nextErrors);
@@ -153,7 +109,6 @@ export function McpWizard() {
     }
 
     if (currentStep === 1) {
-      // Create or update the MCP
       try {
         let configObj: Record<string, unknown>;
         try {
@@ -164,29 +119,37 @@ export function McpWizard() {
           return;
         }
 
-        // Transport-specific validations
         const configErrors: Record<string, string> = {};
         if (formData.transport_type === 'stdio') {
           const cfg = configObj as Record<string, unknown>;
           const cmd = cfg['command'];
           const args = cfg['args'];
-          if (!cmd || typeof cmd !== 'string' || (cmd as string).trim() === '') {
+          if (!cmd || typeof cmd !== 'string' || cmd.trim() === '') {
             configErrors.config = 'Stdio config must include a non-empty "command" string';
           }
-          if (!Array.isArray(args) || args.length === 0 || (args as unknown[]).some((a: unknown) => typeof a !== 'string' || (a as string).trim() === '')) {
-            configErrors.config = (configErrors.config ? configErrors.config + '. ' : '') + 'Stdio config must include non-empty "args" array';
+          if (
+            !Array.isArray(args) ||
+            args.length === 0 ||
+            (args as unknown[]).some((a: unknown) => typeof a !== 'string' || (a as string).trim() === '')
+          ) {
+            configErrors.config =
+              (configErrors.config ? configErrors.config + '. ' : '') +
+              'Stdio config must include non-empty "args" array';
           }
         }
         if (formData.transport_type === 'http' || formData.transport_type === 'sse') {
           const cfg = configObj as Record<string, unknown>;
-          const url = (cfg['url'] as string) || (cfg['template_url'] as string) || (cfg['endpoint'] as string) || '';
+          const url =
+            (cfg['url'] as string) ||
+            (cfg['template_url'] as string) ||
+            (cfg['endpoint'] as string) ||
+            '';
           if (!url || typeof url !== 'string') {
-            configErrors.config = 'HTTP/SSE config must include a URL string (e.g. "url" or "template_url")';
+            configErrors.config =
+              'HTTP/SSE config must include a URL string (e.g. "url" or "template_url")';
           } else {
             try {
-              // simple URL validation
-               
-              new URL(url as string);
+              new URL(url);
             } catch {
               configErrors.config = 'Provided URL in config is not a valid URL';
             }
@@ -195,12 +158,13 @@ export function McpWizard() {
 
         if (Object.keys(configErrors).length > 0) {
           setErrors(configErrors);
-          toast.error('Configuration Validation', { description: 'Please fix the configuration errors' });
+          toast.error('Configuration Validation', {
+            description: 'Please fix the configuration errors',
+          });
           return;
         }
         setErrors({});
 
-        // Build auth-related fields based on auth_type
         let credentialSchemaObj: Record<string, unknown> | undefined;
         let oauthConfigObj: Record<string, unknown> | undefined;
         let requiresUserCredentials = false;
@@ -219,7 +183,6 @@ export function McpWizard() {
           }
         } else if (authType === 'oauth2') {
           requiresUserCredentials = true;
-          // Validate OAuth required fields
           const oauthErrors: Record<string, string> = {};
           if (!formData.oauth_auth_url.trim()) oauthErrors.oauth_auth_url = 'Authorization URL is required';
           if (!formData.oauth_token_url.trim()) oauthErrors.oauth_token_url = 'Token URL is required';
@@ -234,7 +197,6 @@ export function McpWizard() {
             return;
           }
 
-          // Build OAuth config object
           oauthConfigObj = {
             auth_url: formData.oauth_auth_url.trim(),
             token_url: formData.oauth_token_url.trim(),
@@ -260,7 +222,6 @@ export function McpWizard() {
         }
 
         if (createdMcpId) {
-          // Update existing draft
           await updateMcp.mutateAsync({
             mcpId: createdMcpId,
             data: {
@@ -277,7 +238,6 @@ export function McpWizard() {
             },
           });
         } else {
-          // Create new MCP
           const result = await createMcp.mutateAsync({
             name: formData.name,
             display_name: formData.display_name,
@@ -291,19 +251,21 @@ export function McpWizard() {
             credential_schema: credentialSchemaObj,
             oauth_config: oauthConfigObj,
           });
-
           setCreatedMcpId(result.mcp_id);
         }
       } catch (error) {
-        toast.error(createdMcpId ? 'Update MCP failed' : 'Create MCP failed', { description: (error as Error)?.message ?? String(error) });
+        toast.error(createdMcpId ? 'Update MCP failed' : 'Create MCP failed', {
+          description: (error as Error)?.message ?? String(error),
+        });
         return;
       }
     }
 
     if (currentStep === 2) {
-      // Ensure validation passed before proceeding to review
       if (!validationResult?.valid) {
-        toast.error('Validation Required', { description: 'Please validate the MCP configuration before proceeding' });
+        toast.error('Validation Required', {
+          description: 'Please validate the MCP configuration before proceeding',
+        });
         return;
       }
     }
@@ -312,7 +274,6 @@ export function McpWizard() {
   };
 
   const handleBack = () => {
-    // Clear validation/discovery results when going back from step 2
     if (currentStep === 2) {
       setValidationResult(null);
       setDiscoveryResult(null);
@@ -320,7 +281,7 @@ export function McpWizard() {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleValidateStep = async () => {
+  const handleValidate = async () => {
     if (!createdMcpId) return;
     try {
       const result = await validateMcp.mutateAsync(createdMcpId);
@@ -331,7 +292,7 @@ export function McpWizard() {
     }
   };
 
-  const handleDiscoverStep = async () => {
+  const handleDiscover = async () => {
     if (!createdMcpId) return;
     try {
       const result = await discoverTools.mutateAsync({ mcpId: createdMcpId });
@@ -359,14 +320,11 @@ export function McpWizard() {
   };
 
   const handleSaveDraft = () => {
-    if (createdMcpId) {
-      navigate(`/app/admin/mcps/${createdMcpId}`);
-    }
+    if (createdMcpId) navigate(`/app/admin/mcps/${createdMcpId}`);
   };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Breadcrumb */}
       <Breadcrumb
         items={[
           { label: 'MCPs', href: '/app/admin/mcps' },
@@ -374,27 +332,33 @@ export function McpWizard() {
         ]}
       />
 
-      {/* Header */}
       <div>
         <Heading>Create New MCP</Heading>
         <Text>Multi-step wizard for MCP catalog entry</Text>
       </div>
 
       {/* Step Indicator */}
-      <div className="flex items-center justify-between">
+      <ol role="list" className="flex items-center justify-between">
         {STEPS.map((step, index) => (
-          <div key={step} className="flex items-center">
+          <li key={step} className="flex items-center">
             <div
               className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
                 index <= currentStep
                   ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900'
                   : 'border-zinc-300 bg-white text-zinc-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
               }`}
+              aria-current={index === currentStep ? 'step' : undefined}
             >
               {index < currentStep ? <CheckCircleIcon className="size-5" /> : index + 1}
             </div>
             <div className="ml-2 text-sm">
-              <p className={index <= currentStep ? 'font-medium text-zinc-900 dark:text-white' : 'text-zinc-500 dark:text-zinc-400'}>
+              <p
+                className={
+                  index <= currentStep
+                    ? 'font-medium text-zinc-900 dark:text-white'
+                    : 'text-zinc-500 dark:text-zinc-400'
+                }
+              >
                 {step}
               </p>
             </div>
@@ -405,13 +369,15 @@ export function McpWizard() {
                 }`}
               />
             )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
 
       {/* Step Content Panel */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">{STEPS[currentStep]}</h3>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          {STEPS[currentStep]}
+        </h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mb-6">
           {currentStep === 0 && 'Enter basic MCP information'}
           {currentStep === 1 && 'Configure MCP runtime settings'}
@@ -420,533 +386,42 @@ export function McpWizard() {
         </p>
 
         <div className="space-y-4">
-          {/* Step 0: Basic Info */}
           {currentStep === 0 && (
-            <>
-              {/* Registry import shortcut — only available before an MCP has been created */}
-              {!createdMcpId && (
-                <div className="flex items-center justify-between rounded-lg bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3 ring-1 ring-zinc-200 dark:ring-zinc-700 mb-2">
-                  <div className="flex-1 min-w-0">
-                    {importedFromRegistry ? (
-                      <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        <span className="font-medium">Imported from registry:</span>{' '}
-                        <Badge color="blue">{importedFromRegistry}</Badge>
-                        <span className="ml-2 text-zinc-500 dark:text-zinc-400 text-xs">
-                          All fields pre-filled — review and edit before continuing.
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                        Browse the community registry to pre-fill all fields automatically.
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    color="zinc"
-                    onClick={() => setRegistryModalOpen(true)}
-                    className="ml-4 shrink-0"
-                  >
-                    <ArrowDownTrayIcon data-slot="icon" />
-                    {importedFromRegistry ? 'Change Registry Entry' : 'Import from Registry'}
-                  </Button>
-                </div>
-              )}
-
-              <Field>
-                <Label>Internal Name * (e.g., github, slack)</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="github"
-                  disabled={!!createdMcpId}
-                  aria-invalid={!!errors.name}
-                />
-                {errors.name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.name}</p>}
-                {createdMcpId && (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                    Internal name cannot be changed after creation. Delete this draft and start over if a different name is needed.
-                  </p>
-                )}
-              </Field>
-              <Field>
-                <Label>Display Name *</Label>
-                <Input
-                  value={formData.display_name}
-                  onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-                  placeholder="GitHub"
-                  aria-invalid={!!errors.display_name}
-                />
-                {errors.display_name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.display_name}</p>}
-              </Field>
-              <Field>
-                <Label>Description</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  placeholder="Interact with GitHub repositories and issues"
-                />
-              </Field>
-              <Field>
-                <Label>Icon URL</Label>
-                <Input
-                  value={formData.icon_url}
-                  onChange={(e) => setFormData({ ...formData, icon_url: e.target.value })}
-                  placeholder="https://..."
-                />
-              </Field>
-              <Field>
-                <Label>Transport Type</Label>
-                <Listbox
-                  name="transport-type"
-                  value={formData.transport_type}
-                  onChange={(value: string) =>
-                    setFormData({
-                      ...formData,
-                      transport_type: value as 'stdio' | 'http' | 'sse',
-                    })
-                  }
-                >
-                  <ListboxOption value="stdio">
-                    <ListboxLabel>stdio</ListboxLabel>
-                  </ListboxOption>
-                  <ListboxOption value="http">
-                    <ListboxLabel>http</ListboxLabel>
-                  </ListboxOption>
-                  <ListboxOption value="sse">
-                    <ListboxLabel>sse</ListboxLabel>
-                  </ListboxOption>
-                </Listbox>
-              </Field>
-              <Field>
-                <Label>Isolation Mode</Label>
-                <Listbox
-                  name="isolation-mode"
-                  value={formData.isolation_mode}
-                  onChange={(value: string) =>
-                    setFormData({
-                      ...formData,
-                      isolation_mode: value as 'shared' | 'per_user',
-                    })
-                  }
-                >
-                  <ListboxOption value="shared">
-                    <ListboxLabel>shared</ListboxLabel>
-                  </ListboxOption>
-                  <ListboxOption value="per_user">
-                    <ListboxLabel>per_user</ListboxLabel>
-                  </ListboxOption>
-                </Listbox>
-              </Field>
-            </>
+            <BasicInfoStep
+              formData={formData}
+              errors={errors}
+              createdMcpId={createdMcpId}
+              importedFromRegistry={importedFromRegistry}
+              onChange={patchFormData}
+              onOpenRegistryModal={() => setRegistryModalOpen(true)}
+            />
           )}
-
-          {/* Step 1: Configuration */}
           {currentStep === 1 && (
-            <>
-              <Field>
-                <Label>Configuration (JSON) *</Label>
-                <Textarea
-                  value={formData.config}
-                  onChange={(e) => setFormData({ ...formData, config: e.target.value })}
-                  rows={12}
-                  className="font-mono text-sm"
-                  placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
-                  aria-invalid={!!errors.config}
-                />
-                {errors.config && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.config}</p>}
-              </Field>
-
-              <Field>
-                <Label>Authentication Type</Label>
-                <Listbox
-                  name="auth-type"
-                  value={formData.auth_type}
-                  onChange={(value: string) =>
-                    setFormData({
-                      ...formData,
-                      auth_type: value as 'none' | 'static' | 'oauth2',
-                    })
-                  }
-                >
-                  <ListboxOption value="none">
-                    <ListboxLabel>None (no authentication)</ListboxLabel>
-                  </ListboxOption>
-                  <ListboxOption value="static">
-                    <ListboxLabel>Static Credentials (user provides API keys)</ListboxLabel>
-                  </ListboxOption>
-                  <ListboxOption value="oauth2">
-                    <ListboxLabel>OAuth 2.0 (server-managed OAuth flow)</ListboxLabel>
-                  </ListboxOption>
-                </Listbox>
-              </Field>
-
-              {formData.auth_type === 'static' && (
-                <>
-                  <CheckboxField>
-                    <Checkbox
-                      name="requires_user_credentials"
-                      checked={true}
-                      disabled={true}
-                    />
-                    <Label className="cursor-pointer">
-                      Requires User Credentials (enabled for static auth)
-                    </Label>
-                  </CheckboxField>
-                  <Field>
-                    <Label>Credential Schema (JSON)</Label>
-                    <Textarea
-                      value={formData.credential_schema}
-                      onChange={(e) =>
-                        setFormData({ ...formData, credential_schema: e.target.value })
-                      }
-                      rows={8}
-                      className="font-mono text-sm"
-                      placeholder='{ "type": "object", "required": ["api_key"], "properties": { "api_key": { "type": "string", "description": "API Key" } } }'
-                      aria-invalid={!!errors.credential_schema}
-                    />
-                    {errors.credential_schema && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.credential_schema}</p>}
-                  </Field>
-                </>
-              )}
-
-              {formData.auth_type === 'oauth2' && (
-                <>
-                  <Field>
-                    <Label>Authorization URL *</Label>
-                    <Input
-                      value={formData.oauth_auth_url}
-                      onChange={(e) => setFormData({ ...formData, oauth_auth_url: e.target.value })}
-                      placeholder="https://accounts.google.com/o/oauth2/v2/auth"
-                      aria-invalid={!!errors.oauth_auth_url}
-                    />
-                    {errors.oauth_auth_url && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_auth_url}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      OAuth 2.0 authorization endpoint URL
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Token URL *</Label>
-                    <Input
-                      value={formData.oauth_token_url}
-                      onChange={(e) => setFormData({ ...formData, oauth_token_url: e.target.value })}
-                      placeholder="https://oauth2.googleapis.com/token"
-                      aria-invalid={!!errors.oauth_token_url}
-                    />
-                    {errors.oauth_token_url && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_token_url}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      OAuth 2.0 token endpoint URL
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Scopes *</Label>
-                    <Input
-                      value={formData.oauth_scopes}
-                      onChange={(e) => setFormData({ ...formData, oauth_scopes: e.target.value })}
-                      placeholder="openid email profile"
-                      aria-invalid={!!errors.oauth_scopes}
-                    />
-                    {errors.oauth_scopes && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_scopes}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Space-separated OAuth scopes
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Client ID Environment Variable *</Label>
-                    <Input
-                      value={formData.oauth_client_id_env}
-                      onChange={(e) => setFormData({ ...formData, oauth_client_id_env: e.target.value })}
-                      placeholder="GOOGLE_OAUTH_CLIENT_ID"
-                      aria-invalid={!!errors.oauth_client_id_env}
-                    />
-                    {errors.oauth_client_id_env && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_client_id_env}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Name of the environment variable on the server containing the OAuth client ID (not the actual client ID)
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Client Secret Environment Variable *</Label>
-                    <Input
-                      value={formData.oauth_client_secret_env}
-                      onChange={(e) => setFormData({ ...formData, oauth_client_secret_env: e.target.value })}
-                      placeholder="GOOGLE_OAUTH_CLIENT_SECRET"
-                      aria-invalid={!!errors.oauth_client_secret_env}
-                    />
-                    {errors.oauth_client_secret_env && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_client_secret_env}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Name of the environment variable on the server containing the OAuth client secret
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Access Token Environment Variable *</Label>
-                    <Input
-                      value={formData.oauth_access_token_env_var}
-                      onChange={(e) => setFormData({ ...formData, oauth_access_token_env_var: e.target.value })}
-                      placeholder="GOOGLE_ACCESS_TOKEN"
-                      aria-invalid={!!errors.oauth_access_token_env_var}
-                    />
-                    {errors.oauth_access_token_env_var && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_access_token_env_var}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Name of the environment variable that the MCP expects for the access token
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Revocation URL (optional)</Label>
-                    <Input
-                      value={formData.oauth_revocation_url}
-                      onChange={(e) => setFormData({ ...formData, oauth_revocation_url: e.target.value })}
-                      placeholder="https://oauth2.googleapis.com/revoke"
-                    />
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      OAuth 2.0 token revocation endpoint (optional)
-                    </p>
-                  </Field>
-
-                  <Field>
-                    <Label>Extra Parameters (optional JSON)</Label>
-                    <Textarea
-                      value={formData.oauth_extra_params}
-                      onChange={(e) => setFormData({ ...formData, oauth_extra_params: e.target.value })}
-                      rows={4}
-                      className="font-mono text-sm"
-                      placeholder='{"access_type": "offline", "prompt": "consent"}'
-                      aria-invalid={!!errors.oauth_extra_params}
-                    />
-                    {errors.oauth_extra_params && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.oauth_extra_params}</p>}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      Additional OAuth parameters as JSON object
-                    </p>
-                  </Field>
-                </>
-              )}
-            </>
+            <ConfigurationStep
+              formData={formData}
+              errors={errors}
+              onChange={patchFormData}
+            />
           )}
-
-          {/* Step 2: Validate & Discover */}
           {currentStep === 2 && (
-            <div className="space-y-4">
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                <Button color="zinc" onClick={handleValidateStep} disabled={validateMcp.isPending}>
-                  <ArrowPathIcon data-slot="icon" />
-                  {validateMcp.isPending ? 'Validating...' : 'Validate Configuration'}
-                </Button>
-                <Button
-                  color="zinc"
-                  onClick={handleDiscoverStep}
-                  disabled={discoverTools.isPending || !validationResult?.valid}
-                  title={!validationResult?.valid ? 'Validate first before discovering tools' : undefined}
-                >
-                  <MagnifyingGlassIcon data-slot="icon" />
-                  {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
-                </Button>
-              </div>
-
-              {/* Validation Result */}
-              {validationResult && (
-                <div
-                  className={`flex items-center gap-2 p-4 rounded-lg ${
-                    validationResult.valid ? 'bg-green-50 dark:bg-green-950/50' : 'bg-red-50 dark:bg-red-950/50'
-                  }`}
-                >
-                  {validationResult.valid ? (
-                    <CheckCircleIcon className="size-6 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <ExclamationTriangleIcon className="size-6 text-red-600 dark:text-red-400" />
-                  )}
-                  <div>
-                    <p className="font-semibold text-zinc-900 dark:text-white">
-                      Validation {validationResult.valid ? 'Passed' : 'Failed'}
-                    </p>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {validationResult.valid
-                        ? 'Configuration is valid. You can now discover tools.'
-                        : `${validationResult.errors?.length || 0} error(s) found`}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Validation Errors */}
-              {(validationResult?.errors?.length ?? 0) > 0 && (
-                <div>
-                  <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
-                  <ul className="list-disc list-inside space-y-1">
-                    {validationResult!.errors.map((err: string, i: number) => (
-                      <li key={i} className="text-sm text-red-600 dark:text-red-400">{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Validation Warnings */}
-              {(validationResult?.warnings?.length ?? 0) > 0 && (
-                <div>
-                  <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
-                  <ul className="list-disc list-inside space-y-1">
-                    {validationResult!.warnings.map((warn: string, i: number) => (
-                      <li key={i} className="text-sm text-amber-600 dark:text-amber-400">{warn}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Discovery Result */}
-              {discoveryResult && (
-                <div
-                  className={`flex items-center gap-2 p-4 rounded-lg ${
-                    discoveryResult.status === 'success'
-                      ? 'bg-blue-50 dark:bg-blue-950/50'
-                      : discoveryResult.status === 'skipped'
-                      ? 'bg-amber-50 dark:bg-amber-950/50'
-                      : 'bg-red-50 dark:bg-red-950/50'
-                  }`}
-                >
-                  {(() => {
-                    const dr = discoveryResult as unknown as Record<string, unknown> | null;
-                    const status = dr?.['status'] as string | undefined;
-                    const message = typeof dr?.['message'] === 'string' ? (dr!['message'] as string) : undefined;
-                    const count = typeof dr?.['tool_count'] === 'number' ? (dr!['tool_count'] as number) : undefined;
-                    return (
-                      <>
-                        {status === 'success' ? (
-                          <MagnifyingGlassIcon className="size-6 text-blue-600 dark:text-blue-400" />
-                        ) : (
-                          <ExclamationTriangleIcon className="size-6 text-amber-600 dark:text-amber-400" />
-                        )}
-                        <div>
-                          <p className="font-semibold text-zinc-900 dark:text-white">
-                            {status === 'success'
-                              ? `Discovered ${count ?? 0} tools`
-                              : status === 'skipped'
-                              ? 'Discovery Skipped'
-                              : 'Discovery Failed'}
-                          </p>
-                          {message && (
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Discovered Tools List */}
-              {(() => {
-                const dr = discoveryResult as Record<string, unknown> | null;
-                const toolsArr = Array.isArray(dr?.['tools_discovered']) ? (dr!['tools_discovered'] as unknown[]) : [];
-                return toolsArr.length > 0 ? (
-                <div>
-                  <h4 className="font-medium text-zinc-900 dark:text-white mb-2">
-                    Discovered Tools ({toolsArr.length})
-                  </h4>
-                  <div className="grid gap-2 max-h-64 overflow-y-auto">
-                    {toolsArr.map((tool: unknown, i: number) => {
-                      const t = tool as Record<string, unknown>;
-                      const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
-                      const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
-                      return (
-                        <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                          <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
-                          {desc && (
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null;
-              })()}
-
-              {/* Guidance text when nothing done yet */}
-              {!validationResult && !discoveryResult && (
-                <div className="text-center py-8">
-                  <p className="text-zinc-500 dark:text-zinc-400">
-                    Click "Validate Configuration" to check the MCP setup, then "Discover Tools" to connect and find available tools.
-                  </p>
-                </div>
-              )}
-            </div>
+            <ValidateStep
+              validationResult={validationResult}
+              discoveryResult={discoveryResult}
+              isValidating={validateMcp.isPending}
+              isDiscovering={discoverTools.isPending}
+              onValidate={handleValidate}
+              onDiscover={handleDiscover}
+            />
           )}
-
-          {/* Step 3: Review */}
           {currentStep === 3 && (
-            <div className="space-y-6">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Name</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.name}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Display Name</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.display_name}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Transport</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.transport_type}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Isolation</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.isolation_mode}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Authentication Type</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
-                    {formData.auth_type === 'none' ? 'None' : formData.auth_type === 'static' ? 'Static Credentials' : 'OAuth 2.0'}
-                  </dd>
-                </div>
-                {formData.auth_type === 'oauth2' && (
-                  <div>
-                    <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">OAuth Client ID Env</dt>
-                    <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white font-mono">{formData.oauth_client_id_env}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Validation Status</dt>
-                  <dd>
-                    <Badge
-                      color={validationResult?.valid ? 'green' : 'red'}
-                    >
-                      {validationResult?.valid ? 'Valid' : 'Invalid'}
-                    </Badge>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Tools Discovered</dt>
-                  <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
-                    {discoveryResult?.tool_count ?? 0}
-                  </dd>
-                </div>
-              </dl>
-
-              <Divider />
-
-              <div>
-                <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mb-4">
-                  You can now publish this MCP to make it available to users, or save it as a
-                  draft for later.
-                </p>
-                <div className="flex gap-2">
-                  {validationResult?.valid && (
-                    <Button onClick={handlePublish} disabled={publishMcp.isPending}>
-                      <CheckCircleIcon data-slot="icon" />
-                      {publishMcp.isPending ? 'Publishing...' : 'Publish MCP'}
-                    </Button>
-                  )}
-                  <Button color="zinc" onClick={handleSaveDraft}>
-                    Save as Draft
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <ReviewStep
+              formData={formData}
+              validationResult={validationResult}
+              discoveryResult={discoveryResult}
+              isPublishing={publishMcp.isPending}
+              onPublish={handlePublish}
+              onSaveDraft={handleSaveDraft}
+            />
           )}
         </div>
       </div>
@@ -954,11 +429,7 @@ export function McpWizard() {
       {/* Navigation Buttons */}
       {currentStep < 3 && (
         <div className="flex justify-between">
-          <Button
-            color="zinc"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-          >
+          <Button color="zinc" onClick={handleBack} disabled={currentStep === 0}>
             <ArrowLeftIcon data-slot="icon" />
             Back
           </Button>
@@ -978,7 +449,6 @@ export function McpWizard() {
         </div>
       )}
 
-      {/* Community Registry Import Modal */}
       <RegistryImportModal
         open={registryModalOpen}
         onClose={() => setRegistryModalOpen(false)}

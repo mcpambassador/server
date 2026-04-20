@@ -9,12 +9,15 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq, and, lt, gt } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { oauth_states, type OAuthState, type NewOAuthState } from '../../schema/index.js';
 import { compatInsert, compatSelect, compatDelete, compatTransaction } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:oauth-states' });
 
 /**
  * Create a new OAuth state record
@@ -32,9 +35,7 @@ export async function createOAuthState(
 ): Promise<OAuthState> {
   await compatInsert(db, oauth_states).values(data);
 
-  console.log(
-    `[db:oauth-states] Created state: ${data.state} (user ${data.user_id} -> MCP ${data.mcp_id})`
-  );
+  log.info({ state: data.state, user_id: data.user_id, mcp_id: data.mcp_id }, 'Created state');
 
   return data as OAuthState;
 }
@@ -83,7 +84,7 @@ export async function consumeOAuthState(
     // Delete it (single-use) — inside transaction guarantees atomicity
     await compatDelete(db, oauth_states).where(eq(oauth_states.state, state));
 
-    console.log(`[db:oauth-states] Consumed state: ${state}`);
+    log.info({ state }, 'Consumed state');
 
     return stateRecord;
   });
@@ -110,7 +111,7 @@ export async function cleanupExpiredStates(db: DatabaseClient): Promise<number> 
 
   if (count > 0) {
     await compatDelete(db, oauth_states).where(lt(oauth_states.expires_at, now));
-    console.log(`[db:oauth-states] Cleaned up ${count} expired state(s)`);
+    log.info({ count }, 'Cleaned up expired states');
   }
 
   return count;
@@ -127,5 +128,5 @@ export async function cleanupExpiredStates(db: DatabaseClient): Promise<number> 
 export async function deleteOAuthStatesForUser(db: DatabaseClient, userId: string): Promise<void> {
   await compatDelete(db, oauth_states).where(eq(oauth_states.user_id, userId));
 
-  console.log(`[db:oauth-states] Deleted all states for user ${userId}`);
+  log.info({ userId }, 'Deleted all states for user');
 }

@@ -10,7 +10,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq, sql, isNull } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -22,6 +22,9 @@ import {
 } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:tool-profiles' });
 
 /**
  * Maximum profile inheritance depth (Architecture §3.3)
@@ -70,7 +73,7 @@ export async function createToolProfile(
 
   await compatInsert(db, tool_profiles).values(newProfile);
 
-  console.log(`[db:tool-profiles] Created profile: ${profile_id} (${newProfile.name})`);
+  log.info({ profile_id, name: newProfile.name }, 'Created profile');
 
   return newProfile as ToolProfile;
 }
@@ -165,7 +168,7 @@ export async function updateToolProfile(
     .set({ ...updates, updated_at: now })
     .where(eq(tool_profiles.profile_id, profile_id));
 
-  console.log(`[db:tool-profiles] Profile updated: ${profile_id}`);
+  log.info({ profile_id }, 'Profile updated');
 }
 
 /**
@@ -176,7 +179,7 @@ export async function updateToolProfile(
 export async function deleteToolProfile(db: DatabaseClient, profile_id: string): Promise<void> {
   // FK constraint will reject if any clients reference this profile
   await compatDelete(db, tool_profiles).where(eq(tool_profiles.profile_id, profile_id));
-  console.log(`[db:tool-profiles] Profile deleted: ${profile_id}`);
+  log.info({ profile_id }, 'Profile deleted');
 }
 
 /**
@@ -199,7 +202,7 @@ export async function resolveInheritanceChain(
     const profile = await getToolProfileById(db, current_id);
 
     if (!profile) {
-      console.warn(`[db:tool-profiles] Profile not found in inheritance chain: ${current_id}`);
+      log.warn({ profile_id: current_id }, 'Profile not found in inheritance chain');
       break;
     }
 
@@ -256,10 +259,7 @@ export async function getEffectiveProfile(
       const profileAllowed = JSON.parse(profile.allowed_tools) as string[];
       profileAllowed.forEach(tool => allowed_tools.add(tool));
     } catch (err) {
-      console.error(
-        `[db:tool-profiles] Invalid allowed_tools JSON for profile ${profile.profile_id}:`,
-        err
-      );
+      log.error({ err, profile_id: profile.profile_id }, 'Invalid allowed_tools JSON');
       // Continue with empty array - don't break authorization
     }
 
@@ -268,20 +268,14 @@ export async function getEffectiveProfile(
       const profileDenied = JSON.parse(profile.denied_tools) as string[];
       profileDenied.forEach(tool => denied_tools.add(tool));
     } catch (err) {
-      console.error(
-        `[db:tool-profiles] Invalid denied_tools JSON for profile ${profile.profile_id}:`,
-        err
-      );
+      log.error({ err, profile_id: profile.profile_id }, 'Invalid denied_tools JSON');
     }
 
     // Override rate_limits (child wins)
     try {
       rate_limits = JSON.parse(profile.rate_limits) as RateLimits;
     } catch (err) {
-      console.error(
-        `[db:tool-profiles] Invalid rate_limits JSON for profile ${profile.profile_id}:`,
-        err
-      );
+      log.error({ err, profile_id: profile.profile_id }, 'Invalid rate_limits JSON');
       // Keep previous rate_limits (or default from initialization)
     }
   }

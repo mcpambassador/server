@@ -9,7 +9,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq, and, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -23,6 +23,9 @@ import {
 } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:mcp-catalog' });
 
 /**
  * Create a new MCP catalog entry
@@ -65,7 +68,7 @@ export async function createMcpEntry(
 
   await compatInsert(db, mcp_catalog).values(newEntry);
 
-  console.log(`[db:mcp-catalog] Created MCP entry: ${mcp_id} (${newEntry.name})`);
+  log.info({ mcp_id, name: newEntry.name }, 'Created MCP entry');
 
   return newEntry as McpCatalogEntry;
 }
@@ -177,7 +180,7 @@ export async function updateMcpEntry(
     .set({ ...updates, updated_at: now })
     .where(eq(mcp_catalog.mcp_id, mcp_id));
 
-  console.log(`[db:mcp-catalog] MCP entry updated: ${mcp_id}`);
+  log.info({ mcp_id }, 'MCP entry updated');
 }
 
 /**
@@ -189,7 +192,7 @@ export async function updateMcpEntry(
  */
 export async function deleteMcpEntry(db: DatabaseClient, mcp_id: string): Promise<void> {
   await compatDelete(db, mcp_catalog).where(eq(mcp_catalog.mcp_id, mcp_id));
-  console.log(`[db:mcp-catalog] MCP entry deleted: ${mcp_id}`);
+  log.info({ mcp_id }, 'MCP entry deleted');
 }
 
 /**
@@ -217,7 +220,7 @@ export async function publishMcpEntry(
     })
     .where(eq(mcp_catalog.mcp_id, mcp_id));
 
-  console.log(`[db:mcp-catalog] MCP entry published: ${mcp_id} by ${published_by}`);
+  log.info({ mcp_id, published_by }, 'MCP entry published');
 }
 
 /**
@@ -247,7 +250,7 @@ export async function updateValidationStatus(
     })
     .where(eq(mcp_catalog.mcp_id, mcp_id));
 
-  console.log(`[db:mcp-catalog] MCP validation updated: ${mcp_id} -> ${status}`);
+  log.info({ mcp_id, status }, 'MCP validation updated');
 }
 
 /**
@@ -274,7 +277,7 @@ export async function updateToolCatalog(
     })
     .where(eq(mcp_catalog.mcp_id, mcp_id));
 
-  console.log(`[db:mcp-catalog] Tool catalog updated: ${mcp_id} (${tool_count} tools)`);
+  log.info({ mcp_id, tool_count }, 'Tool catalog updated');
 }
 
 /**
@@ -298,7 +301,7 @@ export async function grantGroupAccess(
 
   await compatInsert(db, mcp_group_access).values(newAccess);
 
-  console.log(`[db:mcp-catalog] Group ${data.group_id} granted access to MCP ${data.mcp_id}`);
+  log.info({ group_id: data.group_id, mcp_id: data.mcp_id }, 'Group granted access to MCP');
 }
 
 /**
@@ -317,7 +320,7 @@ export async function revokeGroupAccess(
     and(eq(mcp_group_access.mcp_id, mcp_id), eq(mcp_group_access.group_id, group_id))
   );
 
-  console.log(`[db:mcp-catalog] Group ${group_id} access revoked for MCP ${mcp_id}`);
+  log.info({ group_id, mcp_id }, 'Group access revoked for MCP');
 }
 
 /**

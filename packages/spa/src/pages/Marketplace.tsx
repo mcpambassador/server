@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MagnifyingGlassIcon, CubeIcon, KeyIcon, ChevronDownIcon, WrenchScrewdriverIcon } from '@heroicons/react/20/solid';
-import clsx from 'clsx';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Input } from '@/components/catalyst/input';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent, TabsPanels } from '@/components/catalyst/tabs';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import type { McpTool } from '@/api/types';
@@ -126,13 +126,94 @@ export function Marketplace() {
     });
   }, [marketplace?.data, searchQuery, activeCategory]);
 
-  function handleCategoryClick(category: string) {
+  function handleCategoryChange(category: string) {
     if (category === ALL_CATEGORY) {
       setSearchParams({}, { replace: true });
     } else {
       setSearchParams({ category }, { replace: true });
     }
   }
+
+  // Derive the index of the selected tab so Catalyst Tabs stays in sync with URL params
+  const allTabKeys = [ALL_CATEGORY, ...categories];
+  const selectedTabIndex = Math.max(allTabKeys.indexOf(activeCategory), 0);
+
+  const McpGrid = ({ mcps }: { mcps: typeof filteredMcps }) => {
+    if (isLoading) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
+              <div className="animate-pulse space-y-3">
+                <div className="h-6 w-3/4 rounded bg-zinc-200 dark:bg-zinc-700" />
+                <div className="h-4 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+                <div className="h-20 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (mcps.length === 0) {
+      return (
+        <EmptyState
+          icon={<CubeIcon className="size-6 text-zinc-400" />}
+          title="No MCPs Found"
+          description={
+            searchQuery || activeCategory !== ALL_CATEGORY
+              ? 'No MCPs match your current filters. Try adjusting your search or category selection.'
+              : 'No MCPs are currently available in the marketplace.'
+          }
+        />
+      );
+    }
+
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {mcps.map((mcp) => (
+          <div
+            key={mcp.id}
+            className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
+          >
+            <div className="flex flex-col flex-1 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">{mcp.name}</h3>
+                <McpIcon iconUrl={mcp.icon_url} name={mcp.name} />
+              </div>
+              <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                {mcp.description || 'No description available'}
+              </p>
+              <div className="space-y-2">
+                <ToolPreview tools={mcp.tools} />
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge color="zinc" className="text-xs">
+                    {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
+                  </Badge>
+                  {mcp.category && (
+                    <Badge color="blue" className="text-xs">
+                      {mcp.category}
+                    </Badge>
+                  )}
+                  {mcp.requiresUserCredentials && (
+                    <Badge color="zinc" className="text-xs">
+                      <KeyIcon className="size-3 mr-1" />
+                      Credentials
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="mt-auto pt-1">
+                <Button href={`/app/marketplace/${mcp.id}`} color="zinc" className="w-full">
+                  View Details
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -153,107 +234,29 @@ export function Marketplace() {
         />
       </div>
 
-      {/* Category filter pills */}
-      {!isLoading && categories.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-          <button
-            type="button"
-            onClick={() => handleCategoryClick(ALL_CATEGORY)}
-            className={clsx(
-              'inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900',
-              activeCategory === ALL_CATEGORY
-                ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/15'
-            )}
-            aria-pressed={activeCategory === ALL_CATEGORY}
-          >
-            All
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => handleCategoryClick(category)}
-              className={clsx(
-                'inline-flex items-center rounded-full px-3 py-1 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900',
-                activeCategory === category
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/15'
-              )}
-              aria-pressed={activeCategory === category}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* MCP Grid */}
-      {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-              <div className="animate-pulse space-y-3">
-                <div className="h-6 w-3/4 rounded bg-zinc-200 dark:bg-zinc-700" />
-                <div className="h-4 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
-                <div className="h-20 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : filteredMcps.length === 0 ? (
-        <EmptyState
-          icon={<CubeIcon className="size-6 text-zinc-400" />}
-          title="No MCPs Found"
-          description={
-            searchQuery || activeCategory !== ALL_CATEGORY
-              ? 'No MCPs match your current filters. Try adjusting your search or category selection.'
-              : 'No MCPs are currently available in the marketplace.'
-          }
-        />
+      {/* Category filter — Catalyst Tabs for keyboard navigation + aria handling */}
+      {!isLoading && categories.length > 0 ? (
+        <Tabs
+          selectedIndex={selectedTabIndex}
+          onChange={(index) => handleCategoryChange(allTabKeys[index] ?? ALL_CATEGORY)}
+        >
+          <TabsList>
+            <TabsTrigger>All</TabsTrigger>
+            {categories.map((category) => (
+              <TabsTrigger key={category}>{category}</TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsPanels>
+            {/* One panel per tab; all panels show the same filtered grid driven by URL state */}
+            {allTabKeys.map((key) => (
+              <TabsContent key={key}>
+                <McpGrid mcps={filteredMcps} />
+              </TabsContent>
+            ))}
+          </TabsPanels>
+        </Tabs>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredMcps.map((mcp) => (
-            <div
-              key={mcp.id}
-              className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
-            >
-              <div className="flex flex-col flex-1 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">{mcp.name}</h3>
-                  <McpIcon iconUrl={mcp.icon_url} name={mcp.name} />
-                </div>
-                <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                  {mcp.description || 'No description available'}
-                </p>
-                <div className="space-y-2">
-                  <ToolPreview tools={mcp.tools} />
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge color="zinc" className="text-xs">
-                      {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
-                    </Badge>
-                    {mcp.category && (
-                      <Badge color="blue" className="text-xs">
-                        {mcp.category}
-                      </Badge>
-                    )}
-                    {mcp.requiresUserCredentials && (
-                      <Badge color="zinc" className="text-xs">
-                        <KeyIcon className="size-3 mr-1" />
-                        Credentials
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-auto pt-1">
-                  <Button href={`/app/marketplace/${mcp.id}`} color="zinc" className="w-full">
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <McpGrid mcps={filteredMcps} />
       )}
     </div>
   );

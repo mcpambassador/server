@@ -552,6 +552,11 @@ export class AmbassadorServer {
       },
     });
 
+    // A.1: Register CORS plugin (default deny per Architecture §7.2)
+    await this.adminServer.register(fastifyCors, {
+      origin: false, // Default deny — matches main API server config
+    });
+
     // Register cookie support
     await this.adminServer.register(fastifyCookie);
 
@@ -566,6 +571,47 @@ export class AmbassadorServer {
       },
       store: this.sessionStore,
       saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
+    });
+
+    // A.2: Register CSRF protection plugin.
+    // Uses cookie mode (no sessionPlugin) so a CSRF secret is available before the user
+    // has an authenticated session. This is required for the login and setup endpoints.
+    // The secret is stored in a `_csrf` cookie (HttpOnly, SameSite=strict, Secure).
+    // Tokens are signed with HMAC-SHA256 using the secret.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const csrfProtection = (await import('@fastify/csrf-protection')).default;
+    await this.adminServer.register(csrfProtection, {
+      cookieKey: '_csrf',
+      cookieOpts: {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        path: '/',
+      },
+      // Read token from custom header only (recommended for SPAs — prevents misuse via
+      // form-encoded body while keeping browser-native form POSTs ineffective).
+      getToken: (req) =>
+        req.headers['x-csrf-token'] as string | undefined,
+    });
+
+    // A.2: CSRF enforcement hook — fires on every state-changing request.
+    // Skips CSRF for X-Admin-Key requests (API key auth is not cookie-based).
+    // Skips CSRF for safe HTTP methods (GET, HEAD, OPTIONS) per RFC 7231.
+    // All cookie-session–based mutations must supply x-csrf-token header.
+    const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+    this.adminServer.addHook('onRequest', async (request, reply) => {
+      if (CSRF_SAFE_METHODS.has(request.method)) return;
+      // API key clients are not cookie-authenticated — no CSRF risk
+      if (request.headers['x-admin-key']) return;
+      // Delegate to the csrfProtection handler registered by the plugin.
+      // csrfProtection is a callback-style middleware (req, reply, next) —
+      // wrap it in a Promise so the async hook awaits the outcome correctly.
+      return new Promise<void>((resolve, reject) => {
+        this.adminServer!.csrfProtection(request, reply, (err?: Error) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
     });
 
     // Security headers hook (SEC-M10-10)
@@ -601,6 +647,14 @@ export class AmbassadorServer {
     // Health endpoint for SPA
     this.adminServer.get('/health', async (_request, reply) => {
       return reply.send({ status: 'ok' });
+    });
+
+    // A.2: CSRF token endpoint — must be GET (safe, no side effects).
+    // The SPA fetches this before any mutation request. The plugin sets the `_csrf`
+    // cookie and returns a fresh token the SPA must send as `x-csrf-token` header.
+    this.adminServer.get('/v1/csrf-token', async (_request, reply) => {
+      const token = await reply.generateCsrf();
+      return reply.send({ csrfToken: token });
     });
 
     // Auth routes
@@ -1759,15 +1813,19 @@ DELETE THIS FILE after recording these values.
    *
    * The key is only shown once — store it securely for testing.
    *
-   * ONLY runs if NODE_ENV is 'development', 'test', or unset.
+   * ONLY runs if NODE_ENV is explicitly 'development' or 'test'.
+   * An undefined or 'production' NODE_ENV is treated as production — no bootstrap.
    *
    * @see Architecture §14.3 Preshared Key Bootstrap
    * @see ADR-019 First-Run Setup Wizard
+   * @see A.3 Security Fix: NODE_ENV must be explicit dev/test (never undefined)
    */
   private async bootstrapDevClient(): Promise<void> {
-    // Only run in dev/test environments
+    // A.3: Only run when NODE_ENV is EXPLICITLY 'development' or 'test'.
+    // Undefined NODE_ENV (e.g. Docker deployments without explicit env) must NOT
+    // trigger bootstrap — it would silently create credential files in production.
     const nodeEnv = process.env.NODE_ENV;
-    if (nodeEnv !== 'development' && nodeEnv !== 'test' && nodeEnv !== undefined) {
+    if (nodeEnv !== 'development' && nodeEnv !== 'test') {
       logger.info('[Server] Skipping dev client key bootstrap (not dev/test environment)');
       return;
     }

@@ -204,7 +204,7 @@ export function Clients() {
       </div>
 
       {/* Table Section */}
-      <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
+      <div className="overflow-x-auto rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         {isLoading ? (
           <div className="p-6 space-y-4">
             <div className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -220,12 +220,16 @@ export function Clients() {
             <TableHead>
               <TableRow>
                 <TableHeader>Name</TableHeader>
-                <TableHeader>Key Prefix</TableHeader>
+                <TableHeader className="hidden md:table-cell">Key Prefix</TableHeader>
                 <TableHeader>Account Status</TableHeader>
                 <TableHeader>Connection</TableHeader>
                 <TableHeader>Last Seen</TableHeader>
-                <TableHeader>Tools</TableHeader>
-                <TableHeader>Expires</TableHeader>
+                <TableHeader>
+                  <span title="Number of active MCP subscriptions for this client">
+                    Subscriptions
+                  </span>
+                </TableHeader>
+                <TableHeader className="hidden md:table-cell">Expires</TableHeader>
                 <TableHeader>Actions</TableHeader>
               </TableRow>
             </TableHead>
@@ -246,7 +250,7 @@ export function Clients() {
                           {client.clientName}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <code className="text-sm text-zinc-500 dark:text-zinc-400">
                           {client.keyPrefix}
                         </code>
@@ -282,7 +286,12 @@ export function Clients() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button plain href={`/app/clients/${client.id}`} title="View client details">
+                          <Button
+                            plain
+                            href={`/app/clients/${client.id}`}
+                            title="View client details"
+                            aria-label={`View details for ${client.clientName}`}
+                          >
                             <EyeIcon data-slot="icon" />
                           </Button>
                           {client.status !== 'revoked' && (
@@ -291,6 +300,11 @@ export function Clients() {
                               onClick={() => handleToggleStatus(client)}
                               disabled={updateClient.isPending}
                               title={client.status === 'active' ? 'Suspend client' : 'Reactivate client'}
+                              aria-label={
+                                client.status === 'active'
+                                  ? `Suspend ${client.clientName}`
+                                  : `Reactivate ${client.clientName}`
+                              }
                             >
                               {client.status === 'active' ? (
                                 <PauseIcon data-slot="icon" />
@@ -307,6 +321,7 @@ export function Clients() {
                             }}
                             disabled={deleteClient.isPending}
                             title="Delete this client"
+                            aria-label={`Delete ${client.clientName}`}
                           >
                             <TrashIcon data-slot="icon" />
                           </Button>

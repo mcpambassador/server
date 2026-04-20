@@ -9,7 +9,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq, and, sql } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -24,6 +24,9 @@ import {
 } from '../../schema/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { compatInsert, compatSelect, compatUpdate, compatDelete } from '../compat.js';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:groups' });
 
 /**
  * Create a new group
@@ -51,7 +54,7 @@ export async function createGroup(
 
   await compatInsert(db, groups).values(newGroup);
 
-  console.log(`[db:groups] Created group: ${group_id} (${newGroup.name})`);
+  log.info({ group_id, name: newGroup.name }, 'Created group');
 
   return newGroup as Group;
 }
@@ -136,7 +139,7 @@ export async function updateGroup(
     .set({ ...updates, updated_at: now })
     .where(eq(groups.group_id, group_id));
 
-  console.log(`[db:groups] Group updated: ${group_id}`);
+  log.info({ group_id }, 'Group updated');
 }
 
 /**
@@ -148,7 +151,7 @@ export async function updateGroup(
  */
 export async function deleteGroup(db: DatabaseClient, group_id: string): Promise<void> {
   await compatDelete(db, groups).where(eq(groups.group_id, group_id));
-  console.log(`[db:groups] Group deleted: ${group_id}`);
+  log.info({ group_id }, 'Group deleted');
 }
 
 /**
@@ -172,7 +175,7 @@ export async function addUserToGroup(
 
   await compatInsert(db, user_groups).values(newUserGroup);
 
-  console.log(`[db:groups] User ${data.user_id} added to group ${data.group_id}`);
+  log.info({ user_id: data.user_id, group_id: data.group_id }, 'User added to group');
 }
 
 /**
@@ -191,7 +194,7 @@ export async function removeUserFromGroup(
     and(eq(user_groups.user_id, user_id), eq(user_groups.group_id, group_id))
   );
 
-  console.log(`[db:groups] User ${user_id} removed from group ${group_id}`);
+  log.info({ user_id, group_id }, 'User removed from group');
 }
 
 /**

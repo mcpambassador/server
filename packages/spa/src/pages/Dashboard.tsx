@@ -14,16 +14,26 @@ export function Dashboard() {
   usePageTitle('Dashboard');
   const { data: clients, isLoading: clientsLoading } = useClients();
   const { data: marketplace, isLoading: marketplaceLoading } = useMarketplace();
-  const { data: subscriptions, isLoading: subscriptionsLoading } = useUserSubscriptions();
+  const {
+    data: subscriptions,
+    isError: subscriptionsError,
+  } = useUserSubscriptions();
 
   const activeClients = clients?.filter(c => c.status === 'active').length ?? 0;
   const totalMcps = marketplace?.data?.length ?? 0;
 
-  // Onboarding checklist: show only when user data has loaded and user appears new
-  const isLoadingUserState = clientsLoading || subscriptionsLoading;
+  // hasClients is determined solely by the clients query — subscription loading/errors
+  // must not block Step 1 ("Create a client key") from auto-completing.
   const hasClients = (clients?.length ?? 0) > 0;
-  const hasSubscriptions = (subscriptions?.length ?? 0) > 0;
-  const showChecklist = !isLoadingUserState && (!hasClients || !hasSubscriptions);
+
+  // hasSubscriptions falls back to false when subscriptions data is unavailable (error or
+  // still loading), so the checklist degrades gracefully without hiding Steps 2-3 forever.
+  const hasSubscriptions = !subscriptionsError && (subscriptions?.length ?? 0) > 0;
+
+  // Show the checklist once we know whether the user has clients (clients query settled),
+  // regardless of whether the subscriptions query is still in flight. This ensures Step 1
+  // auto-completes as soon as the user creates their first client key.
+  const showChecklist = !clientsLoading && (!hasClients || !hasSubscriptions);
 
   const stats = [
     {
@@ -56,6 +66,7 @@ export function Dashboard() {
         <GettingStartedChecklist
           hasClients={hasClients}
           hasSubscriptions={hasSubscriptions}
+          clients={clients}
         />
       )}
 

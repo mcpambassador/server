@@ -10,7 +10,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable no-console, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/require-await */
 
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
@@ -20,6 +20,9 @@ import argon2 from 'argon2';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { logger } from '../../utils/logger.js';
+
+const log = logger.child({ module: 'db:admin-keys' });
 
 /**
  * Argon2id parameters (same as client API keys)
@@ -89,7 +92,7 @@ export async function createAdminKey(
   // Write recovery token to file (0400 permissions - owner read-only)
   await writeRecoveryTokenFile(dataDir, recovery_token);
 
-  console.log('[db:admin-keys] Admin key created');
+  log.info('Admin key created');
 
   return { admin_key, recovery_token };
 }
@@ -109,7 +112,7 @@ export async function authenticateAdminKey(db: DatabaseClient, adminKey: string)
     .limit(1);
 
   if (!activeKey) {
-    console.warn('[db:admin-keys] No active admin key found');
+    log.warn('No active admin key found');
     return false;
   }
 
@@ -118,7 +121,7 @@ export async function authenticateAdminKey(db: DatabaseClient, adminKey: string)
     const match = await argon2.verify(activeKey.key_hash, adminKey);
     return match;
   } catch (err) {
-    console.error('[db:admin-keys] Argon2 verification error:', err);
+    log.error({ err }, 'Argon2 verification error');
     return false;
   }
 }
@@ -185,7 +188,7 @@ export async function rotateAdminKey(
   // Write new recovery token to file
   await writeRecoveryTokenFile(dataDir, new_recovery_token);
 
-  console.log('[db:admin-keys] Admin key rotated (dual verification successful)');
+  log.info('Admin key rotated (dual verification successful)');
 
   return { admin_key: new_admin_key, recovery_token: new_recovery_token };
 }
@@ -248,7 +251,7 @@ export async function recoverAdminKey(
   // Write new recovery token to file
   await writeRecoveryTokenFile(dataDir, new_recovery_token);
 
-  console.log('[db:admin-keys] Admin key recovered (recovery token consumed)');
+  log.info('Admin key recovered (recovery token consumed)');
 
   return { admin_key: new_admin_key, recovery_token: new_recovery_token };
 }
@@ -260,7 +263,7 @@ export async function recoverAdminKey(
  */
 export async function factoryResetAdminKey(db: DatabaseClient): Promise<void> {
   await compatDelete(db, admin_keys);
-  console.log('[db:admin-keys] Factory reset: all admin keys deleted');
+  log.info('Factory reset: all admin keys deleted');
 }
 
 /**
@@ -297,7 +300,7 @@ async function writeRecoveryTokenFile(dataDir: string, recoveryToken: string): P
   // Write file
   fs.writeFileSync(filePath, recoveryToken, { mode: 0o400 }); // Owner read-only
 
-  console.log(`[db:admin-keys] Recovery token written to ${filePath} (permissions: 0400)`);
+  log.info({ filePath }, 'Recovery token written (permissions: 0400)');
 }
 
 /**
