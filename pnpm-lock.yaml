@@ -299,8 +299,8 @@ importers:
         specifier: ^7.71.1
         version: 7.71.1(react@19.2.4)
       react-router:
-        specifier: ^7.13.1
-        version: 7.13.1(react-dom@19.2.4)(react@19.2.4)
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.4)(react@19.2.4)
       react-router-dom:
         specifier: ^7.1.0
         version: 7.13.0(react-dom@19.2.4)(react@19.2.4)
@@ -5885,8 +5885,8 @@ packages:
       set-cookie-parser: 2.7.2
     dev: false
 
-  /react-router@7.13.1(react-dom@19.2.4)(react@19.2.4):
-    resolution: {integrity: sha512-td+xP4X2/6BJvZoX6xw++A2DdEi++YypA69bJUV5oVvqf6/9/9nNlD70YO1e9d3MyamJEBQFEzk6mbfDYbqrSA==}
+  /react-router@7.14.2(react-dom@19.2.4)(react@19.2.4):
+    resolution: {integrity: sha512-yCqNne6I8IB6rVCH7XUvlBK7/QKyqypBFGv+8dj4QBFJiiRX+FG7/nkdAvGElyvVZ/HQP5N19wzteuTARXi5Gw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
