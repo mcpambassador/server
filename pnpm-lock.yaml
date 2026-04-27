@@ -278,8 +278,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(react@19.2.4)
       '@tanstack/react-query':
-        specifier: ^5.62.0
-        version: 5.90.21(react@19.2.4)
+        specifier: ^5.100.5
+        version: 5.100.5(react@19.2.4)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -2727,16 +2727,16 @@ packages:
       vite: 6.4.1(@types/node@20.19.33)
     dev: true
 
-  /@tanstack/query-core@5.90.20:
-    resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
+  /@tanstack/query-core@5.100.5:
+    resolution: {integrity: sha512-t20KrhKkf0HXzqQkPbJ5erhFesup68BAbwFgYmTrS7bxMF7O5MdmL8jUkik4thsG7Hg00fblz30h6yF1d5TxGg==}
     dev: false
 
-  /@tanstack/react-query@5.90.21(react@19.2.4):
-    resolution: {integrity: sha512-0Lu6y5t+tvlTJMTO7oh5NSpJfpg/5D41LlThfepTixPYkJ0sE2Jj0m0f6yYqujBwIXlId87e234+MxG3D3g7kg==}
+  /@tanstack/react-query@5.100.5(react@19.2.4):
+    resolution: {integrity: sha512-aNwj1mi2v2bQ9IxkyR1grLOUkv3BYWoykHy9KDyLNbjC3tsahbOHJibK+Wjtr1wRhG59/AvJhiJG5OlthaCgJA==}
     peerDependencies:
       react: ^18 || ^19
     dependencies:
-      '@tanstack/query-core': 5.90.20
+      '@tanstack/query-core': 5.100.5
       react: 19.2.4
     dev: false
 
