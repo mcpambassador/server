@@ -16,7 +16,7 @@
   "dependencies": {
     "@mcpambassador/core": "workspace:*",
     "@mcpambassador/protocol": "workspace:*",
-    "argon2": "^0.44.0",
+    "argon2": "^0.45.1",
     "drizzle-orm": "^0.29.3",
     "uuid": "^9.0.0"
   },
