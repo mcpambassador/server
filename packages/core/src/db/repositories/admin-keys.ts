@@ -105,6 +105,17 @@ export async function createAdminKey(
  * @returns true if authenticated, false otherwise
  */
 export async function authenticateAdminKey(db: DatabaseClient, adminKey: string): Promise<boolean> {
+  return (await authenticateAdminKeyId(db, adminKey)) !== null;
+}
+
+/**
+ * Same verification as authenticateAdminKey, but returns the matching key's row id
+ * (a non-secret audit identity) or null when the key is invalid.
+ */
+export async function authenticateAdminKeyId(
+  db: DatabaseClient,
+  adminKey: string
+): Promise<number | null> {
   // Fetch active admin key
   const [activeKey] = await compatSelect(db)
     .from(admin_keys)
@@ -113,16 +124,16 @@ export async function authenticateAdminKey(db: DatabaseClient, adminKey: string)
 
   if (!activeKey) {
     log.warn('No active admin key found');
-    return false;
+    return null;
   }
 
   // Timing-safe verification
   try {
     const match = await argon2.verify(activeKey.key_hash, adminKey);
-    return match;
+    return match ? activeKey.id : null;
   } catch (err) {
     log.error({ err }, 'Argon2 verification error');
-    return false;
+    return null;
   }
 }
 

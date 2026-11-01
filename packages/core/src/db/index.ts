@@ -49,6 +49,7 @@ export {
   generateRecoveryToken,
   createAdminKey,
   authenticateAdminKey,
+  authenticateAdminKeyId,
   rotateAdminKey,
   recoverAdminKey,
   factoryResetAdminKey,

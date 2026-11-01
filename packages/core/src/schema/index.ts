@@ -728,6 +728,8 @@ export const oauth_auth_codes = sqliteTable(
     ttl_seconds: integer('ttl_seconds'),
     expires_at: text('expires_at').notNull(),
     used_at: text('used_at'),
+    /** Grant minted from this code; lets a replayed code revoke what it produced (RFC 6749 §4.1.2) */
+    grant_id: text('grant_id'),
   },
   table => ({
     expiresIdx: index('idx_oauth_auth_codes_expires_at').on(table.expires_at),

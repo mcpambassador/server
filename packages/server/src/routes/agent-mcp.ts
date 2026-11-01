@@ -33,13 +33,16 @@ import {
 } from '@mcpambassador/contracts';
 import {
   emitAgentAudit,
+  logPrefix,
   touchGrant,
   validateAgentToken,
   type AgentEndpointDeps,
   type AgentPrincipal,
 } from '../services/agent-endpoint/index.js';
 import {
+  agentScopeAllows,
   invokeAgentTool,
+  KillSwitchError,
   listAgentTools,
   type AgentToolRestriction,
   type ToolServiceDeps,
@@ -65,6 +68,18 @@ function rpcMethods(body: unknown): string[] {
       ? [(m as { method: string }).method]
       : [];
   return Array.isArray(body) ? body.flatMap(one) : one(body);
+}
+
+/** Tool names of tools/call requests in a JSON-RPC body (object or batch) */
+function toolCallNames(body: unknown): string[] {
+  const items = Array.isArray(body) ? body : [body];
+  const out: string[] = [];
+  for (const m of items) {
+    if (!m || typeof m !== 'object') continue;
+    const o = m as { method?: unknown; params?: { name?: unknown } };
+    if (o.method === 'tools/call' && typeof o.params?.name === 'string') out.push(o.params.name);
+  }
+  return out;
 }
 
 function bearerFrom(req: FastifyRequest): string | null {
@@ -105,7 +120,7 @@ export async function registerAgentMcpRoutes(
   app.get(OAUTH_PROTECTED_RESOURCE_MCP_ROUTE, sendMetadata);
 
   // ----- Auth -----
-  const challenge = (error?: 'invalid_token' | 'insufficient_scope'): string =>
+  const challenge = (error?: 'invalid_token'): string =>
     `Bearer resource_metadata="${config.protectedResourceMetadataUrl}"` +
     (error ? `, error="${error}"` : '');
 
@@ -113,26 +128,42 @@ export async function registerAgentMcpRoutes(
     req: FastifyRequest,
     reply: FastifyReply,
     reason: AgentAuthFailureReason,
-    principal?: AgentPrincipal
+    opts: { principal?: AgentPrincipal; token?: string | null; scope?: string } = {}
   ): Promise<FastifyReply> {
+    const { principal, token, scope } = opts;
     await emitAgentAudit(deps, 'agent_auth_failure', {
       ...(principal
         ? { user_id: principal.user_id, bound_client_id: principal.bound_client_id }
         : {}),
       source_ip: req.ip,
       severity: 'warn',
-      metadata: { reason, ...(principal ? { agent_grant_id: principal.grant_id } : {}) },
+      metadata: {
+        reason,
+        ...(token ? { token_prefix: logPrefix(token) } : {}),
+        ...(principal ? { agent_grant_id: principal.grant_id } : {}),
+        ...(scope ? { required_scope: scope } : {}),
+      },
     });
     if (reason === 'bad_origin') {
       return reply.status(403).send(jsonRpcError(-32000, 'Origin not allowed'));
     }
     if (reason === 'token_in_query') {
-      return reply.status(400).send(jsonRpcError(-32000, 'Tokens must not be sent in the URL'));
+      // Treated as "no credentials presented": 401 (never echo or honour a URL token)
+      return reply
+        .status(401)
+        .header(
+          'WWW-Authenticate',
+          `Bearer error="invalid_request", error_description="tokens must not be sent in the URL", resource_metadata="${config.protectedResourceMetadataUrl}"`
+        )
+        .send(jsonRpcError(-32000, 'Tokens must not be sent in the URL'));
     }
     if (reason === 'insufficient_scope') {
       return reply
         .status(403)
-        .header('WWW-Authenticate', challenge('insufficient_scope'))
+        .header(
+          'WWW-Authenticate',
+          `Bearer error="insufficient_scope"${scope ? `, scope="${scope}"` : ''}, resource_metadata="${config.protectedResourceMetadataUrl}"`
+        )
         .send(jsonRpcError(-32000, 'Insufficient scope'));
     }
     // Failed-auth throttle per IP (counts failures only)
@@ -159,11 +190,11 @@ export async function registerAgentMcpRoutes(
     // Browser contexts: exact-match Origin allowlist (DNS-rebinding / CSRF defence)
     const origin = req.headers.origin;
     if (typeof origin === 'string' && !config.allowed_origins.includes(origin)) {
-      await fail(req, reply, 'bad_origin');
+      await fail(req, reply, 'bad_origin', { token: bearerFrom(req) });
       return null;
     }
     if (QUERY_TOKEN_RE.test(req.url)) {
-      await fail(req, reply, 'token_in_query');
+      await fail(req, reply, 'token_in_query', { token: bearerFrom(req) });
       return null;
     }
     const token = bearerFrom(req);
@@ -173,12 +204,12 @@ export async function registerAgentMcpRoutes(
     }
     const result = await validateAgentToken(deps, token);
     if (!result.ok) {
-      await fail(req, reply, result.reason);
+      await fail(req, reply, result.reason, { token });
       return null;
     }
     const p = result.principal;
     if (!p.scopes.some(s => s === 'mcp:*' || s.startsWith('mcp:'))) {
-      await fail(req, reply, 'insufficient_scope', p);
+      await fail(req, reply, 'insufficient_scope', { principal: p, token });
       return null;
     }
     return p;
@@ -241,6 +272,7 @@ export async function registerAgentMcpRoutes(
           : [{ type: 'text' as const, text: JSON.stringify(result ?? null) }];
         return { content, isError: response.metadata?.is_error === true };
       } catch (e) {
+        if (e instanceof KillSwitchError) return text(e.message);
         if (e instanceof AuthorizationError) return text('Tool not permitted');
         if (e instanceof ValidationError) return text(e.message);
         logger.error(`[agent-mcp] tools/call failed: ${String(e)}`);
@@ -255,6 +287,28 @@ export async function registerAgentMcpRoutes(
     const p = await authenticate(req, reply);
     if (!p) return reply;
     await touchGrant(deps, p.grant_id);
+
+    // A tool outside the token's scopes is an auth failure (403 insufficient_scope), not a tool error.
+    // Allowlist and kill-switch denials stay JSON-RPC tool results (same text as /v1/tools/invoke).
+    const callNames = toolCallNames(req.body);
+    if (callNames.length > 0) {
+      await prepareUser(p);
+      const catalog = await host.toolDeps.toolRouter.getIsolationAwareToolCatalog(
+        host.toolDeps.db,
+        p.user_id,
+        p.bound_client_id
+      );
+      for (const name of callNames) {
+        const tool = catalog.find(t => t.name === name);
+        if (tool && !agentScopeAllows(p.scopes, tool)) {
+          return fail(req, reply, 'insufficient_scope', {
+            principal: p,
+            token: bearerFrom(req),
+            scope: `mcp:${tool.source_mcp}`,
+          });
+        }
+      }
+    }
 
     // Rate limit tools/call per grant and per user (before doing any work)
     const calls = rpcMethods(req.body).filter(m => m === 'tools/call').length;
@@ -322,14 +376,17 @@ export async function registerAgentMcpRoutes(
   });
 
   // ----- GET / DELETE /mcp: stateless server — no standalone SSE stream, no sessions -----
-  const notAllowed = async (req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
+  // Auth runs in onRequest so an unauthenticated DELETE/GET gets 401 before body parsing (an empty
+  // JSON body would otherwise 400 first).
+  const authOnRequest = async (req: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const p = await authenticate(req, reply);
-    if (!p) return reply;
-    return reply
+    return p ? undefined : reply;
+  };
+  const notAllowed = async (_req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
+    reply
       .status(405)
       .header('Allow', 'POST')
       .send(jsonRpcError(-32000, 'Method not allowed: this MCP endpoint is stateless (POST only)'));
-  };
-  app.get(AGENT_MCP_ROUTE, notAllowed);
-  app.delete(AGENT_MCP_ROUTE, notAllowed);
+  app.get(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
+  app.delete(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
 }

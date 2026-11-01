@@ -30,6 +30,7 @@ import {
   createGrant,
   listGrants,
   revokeGrant,
+  revokeClientGrantsWithAudit,
   adminCreateClient,
   adminListGrants,
   isAcceptableRedirectUri,
@@ -623,5 +624,99 @@ describe('R2: bound client lifecycle + persisted settings', () => {
     });
     const d = await getConsentDetails(deps, 'u1', requestId);
     expect(d.redirect_uri_host).toBe('localhost:7777');
+  });
+});
+
+describe('S5 revoke grants on client suspend/revoke', () => {
+  it("revokes only that client's grants, retains rows, closes streams, audits each", async () => {
+    const g1 = await createGrant(deps, 'u1', {
+      bound_client_id: 'k1',
+      label: 'a',
+      scopes: ['mcp:github'],
+    });
+    const g2 = await createGrant(deps, 'u1', {
+      bound_client_id: 'k1b',
+      label: 'b',
+      scopes: ['mcp:slack'],
+    });
+    events.length = 0;
+    const closed: string[] = [];
+    const n = await revokeClientGrantsWithAudit(
+      { db, audit: deps.audit, onGrantsRevoked: ids => closed.push(...ids) },
+      'k1',
+      'admin-key:ak1',
+      '9.9.9.9',
+      'bound_client_suspended'
+    );
+    expect(n).toBe(1);
+    expect(closed).toEqual([g1.grant_id]);
+    expect(await verifyAccessToken(deps, g1.access_token)).toEqual({
+      ok: false,
+      reason: 'revoked',
+    });
+    expect((await verifyAccessToken(deps, g2.access_token)).ok).toBe(true);
+    const ev = events.filter(e => e.action === 'agent_grant_revoked');
+    expect(ev).toHaveLength(1);
+    expect(ev[0].metadata).toMatchObject({
+      agent_grant_id: g1.grant_id,
+      revoked_by: 'admin-key:ak1',
+      reason: 'bound_client_suspended',
+    });
+    const all = await adminListGrants(deps, { include_inactive: true, limit: 10 });
+    expect(all.items.find((i: any) => i.grant_id === g1.grant_id)).toMatchObject({
+      revoked_by: 'admin-key:ak1',
+    });
+    // idempotent
+    expect(
+      await revokeClientGrantsWithAudit({ db, audit: deps.audit }, 'k1', 'x', '1.1.1.1', 'r')
+    ).toBe(0);
+  });
+});
+
+describe('auth code replay + DCR cap scope', () => {
+  it('replaying a used code revokes the grant it produced', async () => {
+    const id = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    expect((await verifyAccessToken(deps, tok.access_token)).ok).toBe(true);
+    events.length = 0;
+    await expect(
+      exchangeToken(deps, tokenReq(id, code, verifier), '6.6.6.6')
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    expect(await verifyAccessToken(deps, tok.access_token)).toEqual({
+      ok: false,
+      reason: 'revoked',
+    });
+    const ev = events.find(e => e.action === 'agent_grant_revoked');
+    expect(ev.metadata).toMatchObject({
+      reason: 'auth_code_reuse',
+      revoked_by: 'system:auth_code_reuse',
+    });
+  });
+
+  it('a different client replaying the code does not revoke the grant', async () => {
+    const id = await newClient();
+    const other = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    await expect(
+      exchangeToken(deps, tokenReq(other, code, verifier), '6.6.6.6')
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    expect((await verifyAccessToken(deps, tok.access_token)).ok).toBe(true);
+  });
+
+  it('max_oauth_clients counts DCR clients only (admin-registered do not consume the cap)', async () => {
+    deps.config.max_oauth_clients = 1;
+    await newClient();
+    await newClient();
+    await expect(
+      registerClient(deps, { client_name: 'd1', redirect_uris: [REDIRECT] }, '3.3.3.1')
+    ).resolves.toBeTruthy();
+    await expect(
+      registerClient(deps, { client_name: 'd2', redirect_uris: [REDIRECT] }, '3.3.3.2')
+    ).rejects.toMatchObject({ status: 503 });
+    await expect(newClient()).resolves.toBeTruthy();
   });
 });

@@ -24,7 +24,7 @@ import {
   updateUserClientName,
 } from '../services/client-service.js';
 import type { AuditProvider } from '@mcpambassador/core';
-import { emitAgentAudit } from '../services/agent-endpoint/index.js';
+import { emitAgentAudit, revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
 import { createClientSchema, updateClientSchema, clientIdParamsSchema } from './schemas.js';
 
 export interface ClientRoutesConfig {
@@ -216,6 +216,13 @@ export async function registerClientRoutes(
 
         if (body.status === 'suspended') {
           await suspendUserClient(db, userId, params.clientId, isAdmin);
+          await revokeClientGrantsWithAudit(
+            { db, audit, onGrantsRevoked },
+            params.clientId,
+            userId,
+            request.ip ?? '0.0.0.0',
+            'bound_client_suspended'
+          );
         } else if (body.status === 'active') {
           await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }

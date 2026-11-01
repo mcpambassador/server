@@ -12,7 +12,9 @@ import { createUser } from '../../src/auth/user-auth.js';
 
 // Helper to extract cookie from set-cookie header
 function extractCookie(setCookieHeader?: string | string[] | undefined): string | undefined {
-  const sc = Array.isArray(setCookieHeader) ? setCookieHeader[0] : setCookieHeader;
+  // Prefer the non-empty cookie (a regenerated session also emits a clearing Set-Cookie)
+  const list = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  const sc = list.find(c => c && /^[^=]+=[^;]+/.test(c)) ?? list[0];
   if (!sc) return undefined;
   const m = sc.match(/([^=]+)=([^;]+);?/);
   return m ? `${m[1]}=${m[2]}` : undefined;
@@ -85,6 +87,42 @@ describe('Auth Routes', () => {
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body);
       expect(body.error.code).toBe('BAD_REQUEST');
+    });
+  });
+
+  describe('session fixation (TD-015)', () => {
+    it('issues a new session id on login and invalidates the previous one', async () => {
+      const login = () =>
+        server.fastify.inject({
+          method: 'POST',
+          url: '/v1/auth/login',
+          payload: { username: 'testuser', password: 'test1234' },
+          headers: prior ? { cookie: prior } : {},
+        });
+      let prior: string | undefined;
+      const first = await login();
+      expect(first.statusCode).toBe(200);
+      prior = extractCookie(first.headers['set-cookie']);
+      expect(prior).toBeDefined();
+
+      const second = await login();
+      expect(second.statusCode).toBe(200);
+      const fresh = extractCookie(second.headers['set-cookie']);
+      expect(fresh).toBeDefined();
+      expect(fresh).not.toBe(prior);
+
+      const old = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: prior! },
+      });
+      expect(old.statusCode).toBe(401);
+      const cur = await server.fastify.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: fresh! },
+      });
+      expect(cur.statusCode).toBe(200);
     });
   });
 

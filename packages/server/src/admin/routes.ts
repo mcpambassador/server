@@ -44,6 +44,7 @@ export interface AdminRoutesConfig {
   dataDir: string;
   killSwitchManager: KillSwitchManager;
   userPool: UserMcpPool | null;
+  onGrantsRevoked?: (grantIds: string[]) => void;
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
 }
@@ -144,7 +145,12 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminProfileRoutes, { db, audit });
 
   // Client API key management (3 endpoints)
-  fastify.register(registerAdminClientRoutes, { db, audit, userPool });
+  fastify.register(registerAdminClientRoutes, {
+    db,
+    audit,
+    userPool,
+    onGrantsRevoked: opts.onGrantsRevoked,
+  });
 
   // Session management (2 endpoints)
   fastify.register(registerAdminSessionRoutes, { db, audit, userPool });

@@ -12,8 +12,40 @@
 
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { authenticateAdminKey } from '@mcpambassador/core';
+import { authenticateAdminKeyId } from '@mcpambassador/core';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Set once an X-Admin-Key header has been VERIFIED for this request (S4 audit identity). */
+    adminKeyId?: string;
+  }
+}
+
+/**
+ * Verify the X-Admin-Key header once per request (result cached on the request).
+ * 'none'    — no header presented
+ * 'valid'   — header verified; request.adminKeyId is set
+ * 'invalid' — header presented but wrong: callers MUST answer 401 and never fall back to a cookie session (S2)
+ */
+export async function verifyAdminKeyHeader(
+  db: DatabaseClient,
+  request: FastifyRequest
+): Promise<'none' | 'valid' | 'invalid'> {
+  const header = request.headers['x-admin-key'];
+  if (header === undefined) return 'none';
+  if (request.adminKeyId) return 'valid';
+  if (typeof header !== 'string' || header.length === 0) return 'invalid';
+  const id = await authenticateAdminKeyId(db, header);
+  if (id === null) return 'invalid';
+  request.adminKeyId = String(id);
+  return 'valid';
+}
+
+/** Audit actor for key-authenticated requests: `admin-key:<key id>` (never any part of the secret). */
+export function adminKeyActor(request: FastifyRequest): string | undefined {
+  return request.adminKeyId ? `admin-key:${request.adminKeyId}` : undefined;
+}
 
 /**
  * Admin authentication pre-handler hook (API key only)
@@ -27,17 +59,7 @@ import { wrapError, ErrorCodes } from './reply-envelope.js';
 export function authenticateAdmin(db: DatabaseClient): preHandlerHookHandler {
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const adminKey = request.headers['x-admin-key'];
-
-    if (!adminKey || typeof adminKey !== 'string') {
-      return reply
-        .status(401)
-        .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
-    }
-
-    const isValid = await authenticateAdminKey(db, adminKey);
-
-    if (!isValid) {
+    if ((await verifyAdminKeyHeader(db, request)) !== 'valid') {
       return reply
         .status(401)
         .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
@@ -63,14 +85,14 @@ export function authenticateAdmin(db: DatabaseClient): preHandlerHookHandler {
 export function authenticateAdminOrSession(db: DatabaseClient): preHandlerHookHandler {
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    // Option 1: Check for X-Admin-Key header
-    const adminKey = request.headers['x-admin-key'];
-    if (adminKey && typeof adminKey === 'string') {
-      const isValid = await authenticateAdminKey(db, adminKey);
-      if (isValid) {
-        return; // Authentication successful
-      }
-      // If key provided but invalid, fall through to session check
+    // Option 1: X-Admin-Key header. A header that is present but invalid is a hard 401 (S2):
+    // it must never fall through to a cookie session.
+    const keyState = await verifyAdminKeyHeader(db, request);
+    if (keyState === 'valid') return;
+    if (keyState === 'invalid') {
+      return reply
+        .status(401)
+        .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
     }
 
     // Option 2: Check for user session with admin privileges

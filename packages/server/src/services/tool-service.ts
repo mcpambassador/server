@@ -27,6 +27,31 @@ export interface ToolServiceDeps {
   toolRouter: ToolRouter;
   mcpManager: SharedMcpManager;
   userPool: UserMcpPool;
+  /** Admin kill switches (keys `mcp:<name>` / `client:<id>`); enforced on every invocation path */
+  killSwitch?: { isActive(type: string, target: string): boolean };
+}
+
+/** Thrown when an admin kill switch blocks the tool's MCP or the calling client. */
+export class KillSwitchError extends Error {
+  constructor() {
+    super('Tool disabled by kill switch');
+    this.name = 'KillSwitchError';
+  }
+}
+
+/** Shared pre-check for stdio and agent invocations (kill switches were previously not enforced). */
+async function assertNotKilled(
+  deps: ToolServiceDeps,
+  userId: string,
+  clientId: string,
+  toolName: string
+): Promise<void> {
+  const ks = deps.killSwitch;
+  if (!ks) return;
+  if (ks.isActive('client', clientId)) throw new KillSwitchError();
+  const catalog = await deps.toolRouter.getIsolationAwareToolCatalog(deps.db, userId, clientId);
+  const tool = catalog.find(t => t.name === toolName);
+  if (tool?.source_mcp && ks.isActive('mcp', tool.source_mcp)) throw new KillSwitchError();
 }
 
 /** Thrown when an authenticated session has no matching DB record (DB inconsistency). */
@@ -159,6 +184,7 @@ export async function invokeTool(
     client_id: clientId,
     arguments: call.arguments,
   };
+  await assertNotKilled(deps, userId, clientId, call.tool);
   const router = buildInvocationRouter(deps, userId, clientId);
   return deps.pipeline.invoke(pipelineRequest, authRequest, router);
 }
@@ -172,15 +198,20 @@ export interface AgentToolRestriction {
   tool_allowlist: string[] | null;
 }
 
-/** scope `mcp:*` or `mcp:<source_mcp>`, then the optional tool allowlist */
+/** scope `mcp:*` or `mcp:<source_mcp>` */
+export function agentScopeAllows(scopes: string[], tool: { source_mcp?: string }): boolean {
+  return (
+    scopes.includes('mcp:*') ||
+    (tool.source_mcp !== undefined && scopes.includes(`mcp:${tool.source_mcp}`))
+  );
+}
+
+/** Scope, then the optional tool allowlist */
 export function agentMayUseTool(
   r: AgentToolRestriction,
   tool: { name: string; source_mcp?: string }
 ): boolean {
-  const scopeOk =
-    r.scopes.includes('mcp:*') ||
-    (tool.source_mcp !== undefined && r.scopes.includes(`mcp:${tool.source_mcp}`));
-  if (!scopeOk) return false;
+  if (!agentScopeAllows(r.scopes, tool)) return false;
   return r.tool_allowlist === null || r.tool_allowlist.includes(tool.name);
 }
 
@@ -230,6 +261,7 @@ export async function invokeAgentTool(
   call: { tool: string; arguments: Record<string, unknown> },
   sourceIp: string
 ): Promise<ToolInvocationResponse> {
+  await assertNotKilled(deps, agent.user_id, agent.bound_client_id, call.tool);
   const router = buildInvocationRouter(deps, agent.user_id, agent.bound_client_id, t =>
     agentMayUseTool(restriction, t)
   );

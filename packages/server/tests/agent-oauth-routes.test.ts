@@ -347,6 +347,36 @@ describe('agent oauth routes', () => {
   });
 });
 
+describe('S1 form parser is scoped to /oauth/*', () => {
+  it('non-OAuth routes reject application/x-www-form-urlencoded (415)', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/v1/users/me/agent-grants',
+      headers: FORM,
+      payload: 'label=x',
+    });
+    expect(r.statusCode).toBe(415);
+    const admin = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/oauth-clients',
+      headers: FORM,
+      payload: 'client_name=x',
+    });
+    expect(admin.statusCode).toBe(415);
+  });
+
+  it('/oauth/token still accepts form bodies', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/oauth/token',
+      headers: FORM,
+      payload: 'grant_type=bogus',
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json().error).toBe('unsupported_grant_type');
+  });
+});
+
 describe('S5 cookie-free guard + info route', () => {
   it('classifies cookie-free paths', () => {
     for (const u of ['/mcp', '/mcp?x=1', '/oauth/token', '/.well-known/oauth-protected-resource'])
