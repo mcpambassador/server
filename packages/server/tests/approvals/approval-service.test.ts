@@ -14,6 +14,9 @@ import {
   closeDatabase,
   revokeAgentGrant,
   revokeGrantsForBoundClient,
+  revokeTokenFamily,
+  updateToolPin,
+  updateToolPinsAtomic,
   deleteMcpEntry,
   setApprovalVoidObserver,
   type DatabaseClient,
@@ -577,5 +580,47 @@ describe('lifecycle voids (core hooks, audited via the observer)', () => {
     await decide(id, { decision: 'deny' });
     await revokeAgentGrant(db, 'g1', 'admin');
     expect(row(id).status).toBe('denied');
+  });
+});
+
+describe('lifecycle voids: token family and pins (ADR-023 §8)', () => {
+  const seedPin = (status: string, hash: string | null): void => {
+    raw(db)
+      .prepare(
+        `INSERT INTO tool_pins (pin_id, mcp_id, scope_user_id, tool_name, status, approved_hash, first_seen_at, updated_at) VALUES ('p1','m1',NULL,'create_issue',?,?,?,?)`
+      )
+      .run(status, hash, '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z');
+  };
+  it("revoking a token family voids that grant's open requests", async () => {
+    raw(db)
+      .prepare(
+        `INSERT INTO agent_tokens (token_hash, kind, grant_id, family_id, expires_at, created_at) VALUES ('t1','refresh','g1','f1',?,?)`
+      )
+      .run(GRANT_EXP, '2026-11-01T00:00:00.000Z');
+    const id = await create();
+    const other = await create({ grantId: 'g2', argsHash: HASH(2) });
+    await revokeTokenFamily(db, 'f1');
+    expect(row(id)).toMatchObject({
+      status: 'voided',
+      void_reason: 'grant_revoked',
+      preview: null,
+    });
+    expect(row(other).status).toBe('pending');
+  });
+  it('a pin leaving "approved" voids that tool\'s requests only', async () => {
+    seedPin('approved', 'h1');
+    const id = await create();
+    const other = await create({ toolName: 'other', argsHash: HASH(2) });
+    await updateToolPin(db, 'p1', { status: 'rejected' });
+    expect(row(id)).toMatchObject({ status: 'voided', void_reason: 'pin_revoked' });
+    expect(row(other).status).toBe('pending');
+  });
+  it('a changed approved_hash voids (atomic path); an unchanged one does not', async () => {
+    seedPin('approved', 'h1');
+    const id = await create();
+    await updateToolPinsAtomic(db, [{ pinId: 'p1', patch: { approved_hash: 'h1' } }]);
+    expect(row(id).status).toBe('pending');
+    await updateToolPinsAtomic(db, [{ pinId: 'p1', patch: { approved_hash: 'h2' } }]);
+    expect(row(id)).toMatchObject({ status: 'voided', void_reason: 'definition_changed' });
   });
 });

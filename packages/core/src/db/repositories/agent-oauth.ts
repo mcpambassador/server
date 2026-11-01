@@ -534,9 +534,15 @@ export async function deleteOAuthClient(db: DatabaseClient, clientId: string): P
   await compatDelete(db, oauth_clients).where(eq(oauth_clients.client_id, clientId));
 }
 export async function revokeTokenFamily(db: DatabaseClient, familyId: string): Promise<void> {
+  // ADR-023 §8: a revoked token family voids the open approvals of the grant(s) it belongs to.
+  const fam = (await compatSelect(db, { g: agent_tokens.grant_id })
+    .from(agent_tokens)
+    .where(eq(agent_tokens.family_id, familyId))) as { g: string }[];
+  const grantIds = [...new Set(fam.map(r => r.g))];
   await compatUpdate(db, agent_tokens)
     .set({ revoked_at: now() })
     .where(and(eq(agent_tokens.family_id, familyId), isNull(agent_tokens.revoked_at)));
+  await voidApprovalsForLifecycle(db, { grantIds }, 'grant_revoked');
 }
 export async function deleteAgentToken(db: DatabaseClient, tokenHash: string): Promise<void> {
   await compatDelete(db, agent_tokens).where(eq(agent_tokens.token_hash, tokenHash));

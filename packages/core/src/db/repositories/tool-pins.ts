@@ -9,6 +9,7 @@ import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { tool_pins, mcp_catalog, user_mcp_credentials } from '../../schema/index.js';
 import { compatInsert, compatSelect, compatUpdate } from '../compat.js';
+import { voidApprovalsForLifecycle } from './approvals.js';
 
 export type ToolPinStatusValue = 'approved' | 'pending_review' | 'rejected';
 
@@ -124,7 +125,36 @@ export async function updateToolPin(
   pinId: string,
   patch: Partial<Omit<ToolPinRecord, 'pin_id' | 'mcp_id' | 'scope_user_id' | 'tool_name'>>
 ): Promise<void> {
+  const [before] = (await compatSelect(db)
+    .from(tool_pins)
+    .where(eq(tool_pins.pin_id, pinId))
+    .limit(1)) as any[];
   await compatUpdate(db, tool_pins).set(patch).where(eq(tool_pins.pin_id, pinId));
+  if (before) await voidIfPinMoved(db, [toRecord(before)], [patch]);
+}
+
+/**
+ * ADR-023 §8: a pin that stops being approved, or whose approved hash changes, voids the open
+ * approvals for that (mcp, tool).
+ */
+async function voidIfPinMoved(
+  db: DatabaseClient,
+  befores: ToolPinRecord[],
+  patches: Array<Parameters<typeof updateToolPin>[2]>
+): Promise<void> {
+  for (let i = 0; i < befores.length; i++) {
+    const b = befores[i]!;
+    const p = patches[i]!;
+    const revoked = b.status === 'approved' && p.status !== undefined && p.status !== 'approved';
+    const hashMoved = p.approved_hash !== undefined && p.approved_hash !== b.approved_hash;
+    if (revoked || hashMoved) {
+      await voidApprovalsForLifecycle(
+        db,
+        { mcpId: b.mcp_id, toolName: b.tool_name },
+        revoked ? 'pin_revoked' : 'definition_changed'
+      );
+    }
+  }
 }
 
 /** Apply several pin patches in ONE transaction (all or none). */
@@ -133,6 +163,18 @@ export async function updateToolPinsAtomic(
   updates: Array<{ pinId: string; patch: Parameters<typeof updateToolPin>[2] }>
 ): Promise<void> {
   if (updates.length === 0) return;
+  const befores: ToolPinRecord[] = [];
+  const kept: typeof updates = [];
+  for (const u of updates) {
+    const [b] = (await compatSelect(db)
+      .from(tool_pins)
+      .where(eq(tool_pins.pin_id, u.pinId))
+      .limit(1)) as any[];
+    if (b) {
+      befores.push(toRecord(b));
+      kept.push(u);
+    }
+  }
   const d = db as any;
   if ('execute' in d && typeof d.execute === 'function') {
     await d.transaction(async (tx: any) => {
@@ -146,6 +188,11 @@ export async function updateToolPinsAtomic(
         tx.update(tool_pins).set(u.patch).where(eq(tool_pins.pin_id, u.pinId)).run();
     });
   }
+  await voidIfPinMoved(
+    db,
+    befores,
+    kept.map(u => u.patch)
+  );
 }
 
 /** Number of pending_review pins for one (mcp, scope): flood-cap input (D4b). */
