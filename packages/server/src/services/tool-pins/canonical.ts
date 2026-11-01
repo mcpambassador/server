@@ -57,6 +57,20 @@ export function canonicalizeToolDefinition(definition: ToolDefinition): Canonica
   };
 }
 
+/**
+ * D6: hash of the {name, description, inputSchema} projection of a tool, the only fields the publish-time
+ * `tool_catalog` snapshot records. Applied identically to a snapshot entry and to the live tool, so
+ * extra live fields (title, annotations, ...) don't make an unchanged tool look modified.
+ */
+export function snapshotProjectionHash(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const proj: Record<string, unknown> = {};
+  for (const k of ['name', 'description', 'inputSchema']) if (r[k] !== undefined) proj[k] = r[k];
+  const parsed = parseToolDefinition(proj);
+  return parsed.ok ? canonicalizeToolDefinition(parsed.definition).hash : undefined;
+}
+
 /** sha256 of an already-canonical string (for verifying stored definitions). */
 export function hashCanonical(canonical: string): string {
   return createHash('sha256').update(canonical, 'utf8').digest('hex');

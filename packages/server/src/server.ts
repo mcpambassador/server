@@ -491,7 +491,7 @@ export class AmbassadorServer {
     {
       const { ToolPinService } = await import('./services/tool-pins/pin-service.js');
       const pinAudit = this.audit!;
-      const pins = new ToolPinService(this.db!, (action, metadata) => {
+      const pinAuditFn = (action: string, metadata: Record<string, unknown>): void => {
         void pinAudit
           .emit({
             event_id: crypto.randomUUID(),
@@ -506,10 +506,14 @@ export class AmbassadorServer {
             metadata,
           })
           .catch(err => logger.error({ err }, '[tool-pins] audit emit failed'));
-      });
+      };
+      const pins = new ToolPinService(this.db!, pinAuditFn);
       await pins.load();
       this.toolPins = pins;
-      this.toolRouter.setPinService(pins);
+      const { ToolPinBaseline } = await import('./services/tool-pins/baseline.js');
+      const baseline = new ToolPinBaseline(this.db!, pins, pinAuditFn);
+      await baseline.init();
+      this.toolRouter.setPinService(pins, (mcpId, scope) => baseline.baselineFor(mcpId, scope));
     }
     logger.info('[Server] Per-user MCP pool initialized');
 

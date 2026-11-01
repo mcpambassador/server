@@ -161,3 +161,14 @@ export async function setMcpPinPolicy(
     .set({ pin_policy: policy })
     .where(eq(mcp_catalog.mcp_id, mcpId));
 }
+
+/** ADR-021 D6: publish-time tool snapshots of every catalog MCP (one-shot baseline). */
+export async function listMcpToolSnapshots(
+  db: DatabaseClient
+): Promise<Array<{ mcp_id: string; tool_catalog: string }>> {
+  const rows = (await compatSelect(db).from(mcp_catalog)) as any[];
+  return rows.map(r => ({
+    mcp_id: r.mcp_id as string,
+    tool_catalog: (r.tool_catalog as string) ?? '[]',
+  }));
+}

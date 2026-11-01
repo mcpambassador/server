@@ -33,6 +33,7 @@ import {
   hashCanonical,
   parseToolDefinition,
   sanitizeToolNameForLog,
+  snapshotProjectionHash,
 } from './canonical.js';
 import { hasReservedName, scanToolDefinition } from './flags.js';
 
@@ -52,7 +53,7 @@ export interface ObserveArgs {
   /** Raw `tools/list` entries from the downstream, untrusted */
   liveTools: unknown[];
   policy: PinPolicy;
-  /** D6 baseline: tool name -> hash of the publish-time snapshot. Present only for baseline MCPs. */
+  /** D6 baseline: tool name -> snapshotProjectionHash of the publish-time snapshot entry. Present only for baseline MCPs. */
   baseline?: Map<string, string>;
 }
 
@@ -114,6 +115,13 @@ export class ToolPinService {
       }
     }
     this.pins.set(key(rec.mcp_id, rec.scope_user_id, rec.tool_name), loaded);
+  }
+
+  /** True if any pin row exists for this (mcp, scope): the scope has been observed before. */
+  hasScopeRows(mcpId: string, scopeUserId: string | null): boolean {
+    const prefix = key(mcpId, scopeUserId, '');
+    for (const k of this.pins.keys()) if (k.startsWith(prefix)) return true;
+    return false;
   }
 
   getPin(mcpId: string, scopeUserId: string | null, toolName: string): ToolPinRecord | undefined {
@@ -196,7 +204,7 @@ export class ToolPinService {
         // D6: baseline MCPs are not governed by pin_policy on first observation. Equal to the
         // publish-time snapshot and clean => approved by the migration; anything else => pending.
         const clean = !blocking && !assessed.tooLarge && assessed.flags.codes.length === 0;
-        if (clean && args.baseline.get(name) === assessed.hash) {
+        if (clean && args.baseline.get(name) === snapshotProjectionHash(raw)) {
           approve = true;
           approvedBy = SYSTEM_MIGRATION_ACTOR;
         } else if (!assessed.flags.codes.includes('baseline_mismatch')) {
