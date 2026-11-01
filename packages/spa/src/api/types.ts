@@ -208,6 +208,9 @@ export interface McpCatalogEntry {
   tool_count?: number;
   /** ADR-021; absent until the server exposes it on GET /v1/admin/mcps/:id (treated as 'review') */
   pin_policy?: 'review' | 'auto';
+  /** ADR-023: MCP-wide approval default for tools first seen after it is set */
+  default_requires_approval?: boolean;
+  default_approver?: 'owner' | 'admin';
   /** Where the MCP came from; pin_policy 'auto' is only allowed for 'custom' */
   origin?: 'custom' | 'registry' | 'import' | 'unknown';
   validation_result?: Record<string, unknown>;

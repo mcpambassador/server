@@ -29,6 +29,7 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { PinPolicyCard } from '@/components/admin/PinPolicyCard';
+import { ToolPolicyPanel } from '@/components/admin/ToolPolicyPanel';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import {
   useAdminMcp,
@@ -819,6 +820,14 @@ export function McpDetail() {
           <TabsContent>
             <div className="space-y-4">
               <PinPolicyCard mcpId={mcp.mcp_id} policy={mcp.pin_policy} origin={mcp.origin} />
+              <ToolPolicyPanel
+                mcpId={mcp.mcp_id}
+                toolNames={parsedTools
+                  .map((t: unknown) => (t as Record<string, unknown>)['name'])
+                  .filter((n: unknown): n is string => typeof n === 'string')}
+                defaultRequires={mcp.default_requires_approval}
+                defaultApprover={mcp.default_approver}
+              />
               <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                 <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
                   Configuration
