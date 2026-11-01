@@ -11,6 +11,7 @@
  * @see Architecture §7.3: Downstream MCP Management
  */
 
+import { mergeCredentialEnv } from './credential-env.js';
 import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
@@ -398,8 +399,13 @@ export async function discoverTools(
           | Record<string, { env_var?: string }>
           | undefined;
         for (const [fieldName, fieldValue] of Object.entries(adminCredentials)) {
-          // Look up env_var mapping in credential_schema
-          const envVarName = properties?.[fieldName]?.env_var ?? fieldName;
+          // (c) Only fields declared in credential_schema.properties are ever injected
+          if (!properties || !Object.prototype.hasOwnProperty.call(properties, fieldName)) {
+            warnings.push(`Credential field '${fieldName}' is not in credential_schema; ignored`);
+            continue;
+          }
+          // Look up env_var mapping in credential_schema (fallback: the field name; TD-048)
+          const envVarName = properties[fieldName]?.env_var ?? fieldName;
 
           // Security check: block dangerous env vars
           if (isBlockedEnvName(envVarName)) {
@@ -486,7 +492,12 @@ export async function discoverTools(
 
     // Merge admin-provided credential env vars if present
     if (credentialEnvVars) {
-      dsConfig.env = { ...dsConfig.env, ...credentialEnvVars };
+      // TD-049: fixed config.env wins over credential-derived names
+      const merged = mergeCredentialEnv(dsConfig.env, credentialEnvVars);
+      for (const name of merged.dropped) {
+        warnings.push(`Credential env var '${name}' collides with fixed env; ignored`);
+      }
+      dsConfig.env = merged.env;
     }
 
     // Merge OAuth headers if present

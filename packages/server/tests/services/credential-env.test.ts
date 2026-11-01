@@ -27,6 +27,29 @@ describe('mapStaticCredentialEnv (TD-048)', () => {
     expect(mapStaticCredentialEnv(undefined, { A: 'x' })).toEqual({});
   });
 
+  it('submitted fields that are not schema properties are never injected', () => {
+    const schema = { properties: { ALPACA_API_KEY: {} } };
+    expect(
+      mapStaticCredentialEnv(schema, {
+        ALPACA_API_KEY: 'k',
+        ALPACA_PAPER_TRADE: 'false',
+        PATH: '/x',
+      })
+    ).toEqual({ ALPACA_API_KEY: 'k' });
+  });
+
+  it('field-name fallback is matched against the denylist case-insensitively', () => {
+    const out = mapStaticCredentialEnv(
+      { properties: { ld_preload: {}, Npm_Config_Registry: {} } },
+      {
+        ld_preload: 'x',
+        Npm_Config_Registry: 'y',
+      }
+    );
+    expect(Object.keys(out)).toHaveLength(2);
+    expect(Object.keys(out).every(isBlockedEnvName)).toBe(true);
+  });
+
   it('denylisted names are still blocked (the pool rejects them at spawn)', () => {
     const out = mapStaticCredentialEnv(
       { properties: { LD_PRELOAD: {}, NPM_CONFIG_REGISTRY: {} } },
