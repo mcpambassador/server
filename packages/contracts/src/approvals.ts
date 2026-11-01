@@ -79,7 +79,12 @@ export const APPROVAL_SPA_PATH_PREFIX = '/app/approvals/';
  */
 export function buildApprovalUrl(uiBaseUrl: string, approvalId: string): string {
   if (!APPROVAL_ID_PATTERN.test(approvalId)) throw new Error('invalid approval id');
-  return new URL(APPROVAL_SPA_PATH_PREFIX + approvalId, uiBaseUrl).href;
+  const url = new URL(APPROVAL_SPA_PATH_PREFIX + approvalId, uiBaseUrl);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error('approval UI base URL must be https (or loopback http)');
+  }
+  return url.href;
 }
 /** `_meta` key on a tool result carrying the pipeline's ApprovalToolResult (also `metadata.approval`). */
 export const APPROVAL_META_KEY = 'ambassador/approval';
@@ -117,6 +122,7 @@ export const APPROVAL_VOID_REASONS = [
   'definition_changed',
   'kill_switch',
   'client_suspended',
+  'client_deleted',
   'client_mismatch',
   'user_disabled',
   'policy_removed',
@@ -141,6 +147,8 @@ export const APPROVAL_UNAVAILABLE_REASONS = [
   'arguments_too_large',
   'too_many_pending',
   'rate_limited',
+  /** Stdio client sessions (no grant) cannot be approved; the gated call is refused. */
+  'not_supported_for_client',
 ] as const;
 export const approvalUnavailableReasonSchema = z.enum(APPROVAL_UNAVAILABLE_REASONS);
 export type ApprovalUnavailableReason = z.infer<typeof approvalUnavailableReasonSchema>;
@@ -332,4 +340,6 @@ export const APPROVAL_UNAVAILABLE_REASON_TEXT = {
   arguments_too_large: 'The arguments are too large to be reviewed by a person.',
   too_many_pending: 'Too many approval requests are already waiting.',
   rate_limited: 'Approval requests are being created too fast.',
+  not_supported_for_client:
+    'This tool needs human approval, which is not supported for this connection type.',
 } as const satisfies Record<ApprovalUnavailableReason, string>;

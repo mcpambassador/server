@@ -12,6 +12,8 @@ import crypto from 'crypto';
 import argon2 from 'argon2';
 import {
   revokeGrantsForBoundClient,
+  voidApprovalsForLifecycleBestEffort,
+  withDeferredVoidAudits,
   type AgentGrantRecord,
   type DatabaseClient,
 } from '@mcpambassador/core';
@@ -224,6 +226,8 @@ export async function suspendUserClient(
     : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
   await compatUpdate(db, clients).set({ status: 'suspended' }).where(whereClause);
+  // ADR-023: open approvals bound to this client die with the suspension (also when no grant is live)
+  await voidApprovalsForLifecycleBestEffort(db, { boundClientId: clientId }, 'client_suspended');
 
   logger.info(`[ClientService] User ${userId} suspended client ${clientId}`);
 }
@@ -279,24 +283,26 @@ export async function revokeUserClient(
 
   // Hard delete: permanently remove client and cascade delete subscriptions
   // CR-M4: Wrap in transaction for atomicity
-  await compatTransaction(db, async () => {
-    // ADR-020 revoke-and-retain: revoke agent grants/tokens bound to this client BEFORE the delete
-    // (the FK then nulls agent_grants.bound_client_id; the revoked rows are kept)
-    revokedGrants = await revokeGrantsForBoundClient(db, clientId, userId);
+  await withDeferredVoidAudits(() =>
+    compatTransaction(db, async () => {
+      // ADR-020 revoke-and-retain: revoke agent grants/tokens bound to this client BEFORE the delete
+      // (the FK then nulls agent_grants.bound_client_id; the revoked rows are kept)
+      revokedGrants = await revokeGrantsForBoundClient(db, clientId, userId, 'client_deleted');
 
-    // First delete all subscriptions for this client
-    await compatDelete(db, client_mcp_subscriptions).where(
-      eq(client_mcp_subscriptions.client_id, clientId)
-    );
+      // First delete all subscriptions for this client
+      await compatDelete(db, client_mcp_subscriptions).where(
+        eq(client_mcp_subscriptions.client_id, clientId)
+      );
 
-    // Then delete the client itself
-    // Use only client_id for admins, or both client_id and user_id for regular users
-    const whereClause = isAdmin
-      ? eq(clients.client_id, clientId)
-      : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
+      // Then delete the client itself
+      // Use only client_id for admins, or both client_id and user_id for regular users
+      const whereClause = isAdmin
+        ? eq(clients.client_id, clientId)
+        : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
-    await compatDelete(db, clients).where(whereClause);
-  });
+      await compatDelete(db, clients).where(whereClause);
+    })
+  );
 
   logger.info(
     `[ClientService] User ${userId} deleted client ${clientId} and cascaded subscriptions`

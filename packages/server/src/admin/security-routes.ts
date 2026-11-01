@@ -14,14 +14,18 @@
  * @see Architecture §16.4 Admin API Design Principles
  */
 
-import { KILL_SWITCH_LIST_ROUTE, type KillSwitchSummary } from '@mcpambassador/contracts';
+import {
+  KILL_SWITCH_LIST_ROUTE,
+  parseKillSwitchTarget,
+  type KillSwitchSummary,
+} from '@mcpambassador/contracts';
 import { adminKeyActor } from './middleware.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger, publicErrorMessage } from '@mcpambassador/core';
+import { getMcpEntryById, logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { killSwitchSchema, killSwitchParamsSchema } from './schemas.js';
@@ -30,6 +34,8 @@ import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 /**
  * Admin security routes plugin configuration
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface AdminSecurityRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
@@ -61,7 +67,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         .send(
           wrapError(
             ErrorCodes.VALIDATION_ERROR,
-            'Invalid kill switch request: target must be client:<id> or mcp:<name>, body { enabled: boolean }'
+            'Invalid kill switch request: target must be client:<id>, mcp:<name> or tool:<mcp_id>:<tool_name>, body { enabled: boolean }'
           )
         );
     }
@@ -69,6 +75,30 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
     const body = parsedBody.data;
 
     const actor = adminKeyActor(request) ?? request.session?.userId ?? 'admin-unknown';
+
+    // ADR-025 M1: ENABLING a tool switch must name a real catalog entry (a switch keyed on a name or a
+    // stale id would silently kill nothing). Disabling stays permissive so a stale switch can be cleared.
+    if (body.enabled) {
+      const parsedTarget = parseKillSwitchTarget(target);
+      if (parsedTarget?.type === 'tool') {
+        if (!UUID_RE.test(parsedTarget.mcpId)) {
+          return reply
+            .status(400)
+            .send(
+              wrapError(
+                ErrorCodes.VALIDATION_ERROR,
+                'tool kill switch needs the MCP catalog id (UUID), not its name'
+              )
+            );
+        }
+        const entry = await getMcpEntryById(db, parsedTarget.mcpId);
+        if (!entry) {
+          return reply
+            .status(404)
+            .send(wrapError(ErrorCodes.NOT_FOUND, 'MCP not found in catalog'));
+        }
+      }
+    }
 
     // Persisted + in-memory (TD-022). If persistence fails the switch (when activating) still holds in
     // this process, but the caller gets a 500 so they know it won't survive a restart.

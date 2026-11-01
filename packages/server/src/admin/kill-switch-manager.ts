@@ -5,7 +5,7 @@
  * synchronous lookups on the hot path and persisted to the `kill_switches` table (TD-022): loaded at
  * startup, written on every change, so a restart never silently clears an active switch.
  *
- * Key format: `type:target` (e.g. "client:cli_123", "mcp:github"). Active = present.
+ * Key format: `type:target` (e.g. "client:cli_123", "mcp:github", "tool:<mcp_id>:<tool_name>"). Active = present.
  *
  * @see CR-M10-001, TD-022
  */
@@ -16,10 +16,11 @@ import {
   deleteKillSwitch,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { parseKillSwitchTarget } from '@mcpambassador/contracts';
 
 export interface ActiveKillSwitch {
   target: string;
-  type: 'client' | 'mcp';
+  type: 'client' | 'mcp' | 'tool';
   activated_at: string;
   activated_by: string;
 }
@@ -27,7 +28,14 @@ export interface ActiveKillSwitch {
 export class KillSwitchManager {
   private state = new Map<string, ActiveKillSwitch>();
 
+  /** ADR-023: runs after an ACTIVATION is in memory and persisted (voids open approvals in its scope). */
+  private onActivated?: (target: string, actor: string) => Promise<void>;
+
   constructor(private readonly db?: DatabaseClient) {}
+
+  setActivationHook(fn: (target: string, actor: string) => Promise<void>): void {
+    this.onActivated = fn;
+  }
 
   /** Replace in-memory state with the persisted switches (call once at startup, after migrations). */
   async load(): Promise<number> {
@@ -38,7 +46,7 @@ export class KillSwitchManager {
   }
 
   /**
-   * Activate / deactivate `target` ("client:<id>" | "mcp:<name>"). Fails closed: an activation takes
+   * Activate / deactivate `target` ("client:<id>" | "mcp:<name>" | "tool:<mcp_id>:<tool_name>"). Fails closed: an activation takes
    * effect in memory first, then is persisted; if persistence throws the switch stays active for this
    * process and the caller learns it will not survive a restart.
    */
@@ -48,12 +56,16 @@ export class KillSwitchManager {
       // an earlier failed persist. The original activation record is kept in both places.
       const rec: ActiveKillSwitch = this.state.get(target) ?? {
         target,
-        type: target.startsWith('client:') ? 'client' : 'mcp',
+        type: parseKillSwitchTarget(target)?.type ?? 'mcp',
         activated_at: new Date().toISOString(),
         activated_by: actor,
       };
       this.state.set(target, rec);
       if (this.db) await upsertKillSwitch(this.db, rec);
+      // The kill is already effective (and blocks the gate before it can create or consume), so a
+      // failing hook must not fail or undo the activation; it throws into the caller's error path
+      // only after the switch is set, so the operator sees it and can press Kill again to retry.
+      if (this.onActivated) await this.onActivated(target, actor);
     } else {
       // Persist the removal first so a failed delete doesn't report a switch as cleared.
       if (this.db) await deleteKillSwitch(this.db, target);

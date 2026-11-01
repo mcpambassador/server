@@ -8,6 +8,9 @@
  */
 import { createHash } from 'node:crypto';
 import {
+  APPROVAL_META_KEY,
+  APPROVAL_STATUS_TEXT,
+  APPROVAL_UNAVAILABLE_REASON_TEXT,
   META_TOOL_NAMES,
   RESERVED_TOOL_PREFIX,
   SEARCH_TOOLS_DEFAULT_LIMIT,
@@ -22,7 +25,7 @@ import {
   type SearchToolsResult,
   type ToolSearchHit,
 } from '@mcpambassador/contracts';
-import type { ToolDescriptor } from '@mcpambassador/protocol';
+import type { ToolApprovalResult, ToolDescriptor } from '@mcpambassador/protocol';
 import { stripControlAndInvisible } from '../tool-pins/canonical.js';
 import {
   KillSwitchError,
@@ -116,7 +119,35 @@ export const META_TOOL_DEFINITIONS: ReadonlyArray<{
 export type MetaToolResult = {
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
+  /** ADR-023 gate outcome only: `{ "ambassador/approval": ApprovalToolResult }` */
+  _meta?: Record<string, unknown>;
+  structuredContent?: Record<string, unknown>;
 };
+
+/**
+ * ADR-023: the result of a gated call is pure server output: exactly one server-authored text block
+ * built from fixed templates (no tool name, arguments, MCP name or client label), plus the same
+ * object in `_meta["ambassador/approval"]` and `structuredContent`, with isError: true.
+ */
+export function approvalResult(a: ToolApprovalResult): MetaToolResult {
+  let t: string = APPROVAL_STATUS_TEXT[a.status];
+  if (a.status === 'approval_unavailable') {
+    t += ` ${APPROVAL_UNAVAILABLE_REASON_TEXT[a.reason]}`;
+  } else if (a.status === 'approval_required') {
+    t += ` Approval ID: ${a.approval_id}. Expires: ${a.expires_at}. Retry in ${a.retry_after_seconds} seconds. Review: ${a.approval_url}`;
+  } else if (a.status === 'approval_denied') {
+    if (a.approval_id) t += ` Approval ID: ${a.approval_id}.`;
+    if (a.retry_after_seconds > 0) t += ` Do not retry for ${a.retry_after_seconds} seconds.`;
+  } else {
+    t += ` Approval ID: ${a.approval_id}.`;
+  }
+  return {
+    content: [{ type: 'text', text: t }],
+    isError: true,
+    _meta: { [APPROVAL_META_KEY]: a },
+    structuredContent: { ...a },
+  };
+}
 
 const text = (msg: string, isError = false): MetaToolResult => ({
   content: [{ type: 'text', text: msg }],
@@ -130,6 +161,8 @@ export interface MetaToolContext {
   restriction: AgentToolRestriction;
   mode: DisclosureMode;
   sourceIp: string;
+  /** `_meta["ambassador/approval_id"]` the agent sent (read before the namespace is dropped) */
+  approvalId?: string;
   /** audit `agent_tool_discovery` (never throws) */
   auditDiscovery(metadata: Record<string, unknown>): Promise<void>;
 }
@@ -274,7 +307,7 @@ async function describe(ctx: MetaToolContext, args: unknown): Promise<MetaToolRe
 
 /** Maps invocation failures to the same results as a direct tools/call */
 export async function runToolCall(
-  ctx: Pick<MetaToolContext, 'deps' | 'agent' | 'restriction' | 'mode' | 'sourceIp'>,
+  ctx: Pick<MetaToolContext, 'deps' | 'agent' | 'restriction' | 'mode' | 'sourceIp' | 'approvalId'>,
   name: string,
   args: Record<string, unknown>,
   extra: { sourceMcp?: string; via?: MetaToolName }
@@ -288,12 +321,15 @@ export async function runToolCall(
       ctx.sourceIp,
       {
         ...(extra.sourceMcp !== undefined ? { sourceMcp: extra.sourceMcp } : {}),
+        ...(ctx.approvalId !== undefined ? { approvalId: ctx.approvalId } : {}),
         auditMetadata: {
           disclosure_mode: ctx.mode,
           ...(extra.via ? { via: extra.via } : {}),
         },
       }
     );
+    // Gate outcome first: it is set only by the pipeline from the router's own field
+    if (response.metadata?.approval) return approvalResult(response.metadata.approval);
     const err = response.metadata?.error;
     if (err) return text(typeof err === 'string' ? err : 'Tool invocation failed', true);
     const result = response.result;
