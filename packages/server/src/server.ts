@@ -8,6 +8,14 @@ import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
 import { isAgentEndpointPath } from './spa-handler.js';
 import {
+  listPermittedTools,
+  invokeTool,
+  resolveSessionUserId,
+  SessionBindingError,
+  SessionStateError,
+  type ToolServiceDeps,
+} from './services/tool-service.js';
+import {
   SharedMcpManager,
   UserMcpPool,
   ToolRouter,
@@ -29,7 +37,6 @@ import {
   type AuthorizationProvider,
   type AuditProvider,
   type SessionContext,
-  type PipelineToolInvocationRequest,
   AuthorizationError,
   AmbassadorError,
   user_sessions,
@@ -61,7 +68,6 @@ import {
 } from './services/agent-endpoint/index.js';
 import type {
   ToolCatalogResponse,
-  ToolDescriptor,
   HeartbeatResponse,
   DisconnectResponse,
   ErrorResponse,
@@ -825,6 +831,20 @@ export class AmbassadorServer {
    * Authentication helper - extracts and validates auth from request
    * Returns SessionContext on success, throws 401 on failure
    */
+  private getToolServiceDeps(): ToolServiceDeps {
+    if (!this.db || !this.authz || !this.pipeline) {
+      throw new Error('Server not properly initialized');
+    }
+    return {
+      db: this.db,
+      authz: this.authz,
+      pipeline: this.pipeline,
+      toolRouter: this.toolRouter,
+      mcpManager: this.mcpManager,
+      userPool: this.userPool,
+    };
+  }
+
   private async authenticate(request: FastifyRequest): Promise<SessionContext> {
     if (!this.authn) throw new Error('Authentication provider not initialized');
 
@@ -1382,84 +1402,35 @@ export class AmbassadorServer {
     // MCP ENDPOINTS (authenticated)
     // ==========================================================================
 
-    // Tool catalog endpoint (M6.4)
+    // Tool catalog endpoint (M6.4) — logic lives in services/tool-service.ts (shared with /mcp)
     this.fastify.get('/v1/tools', async (request, reply) => {
       try {
-        // Authenticate request
         const session = await this.authenticate(request);
-
-        // Get profile directly from session (Phase 3)
-        if (!this.db || !this.authz) {
-          throw new Error('Server not properly initialized');
-        }
-
-        if (!session.client_id || typeof session.client_id !== 'string') {
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session missing client binding',
-          });
-        }
-
-        // M17.4: Get aggregated tool catalog from tool router (shared + per-user)
-        // Fetch session record to get user_id
-        const sessionRecord = await this.db.query.user_sessions.findFirst({
-          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
-        });
-        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
-        if (!sessionRecord) {
-          this.fastify!.log.warn(
-            { sessionId: session.session_id },
-            '[Server] Session record not found for authenticated session'
-          );
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session state inconsistent',
-          });
-        }
-        const userId = sessionRecord.user_id ?? '';
-        const aggregatedTools = await this.toolRouter.getIsolationAwareToolCatalog(
-          this.db,
-          userId,
-          session.client_id
-        );
-
-        // Filter tools based on client's profile
-        // Check each tool against allowed_tools (glob patterns) and denied_tools
-        const allowedTools: ToolDescriptor[] = [];
-
-        for (const tool of aggregatedTools) {
-          // Use authz provider to check if tool is allowed
-          const authzResult = await this.authz.authorize(session, {
-            tool_name: tool.name,
-            tool_arguments: {}, // Not needed for catalog check
-          });
-
-          if (authzResult.decision === 'permit') {
-            // Transform from AggregatedTool to protocol ToolDescriptor
-            allowedTools.push({
-              name: tool.name,
-              description: tool.description || '',
-              input_schema: tool.inputSchema,
-              metadata: {
-                mcp_server: tool.source_mcp,
-              },
-            });
-          }
-        }
-
-        // Return tool catalog
+        const deps = this.getToolServiceDeps();
+        const userId = await resolveSessionUserId(deps.db, session);
+        const tools = await listPermittedTools(deps, session, userId);
         const response: ToolCatalogResponse = {
-          tools: allowedTools,
+          tools,
           api_version: '1.0',
           timestamp: new Date().toISOString(),
         };
-
         return reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
+          });
+        } else if (err instanceof SessionBindingError) {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
+          });
+        } else if (err instanceof SessionStateError) {
+          this.fastify!.log.warn('[Server] Session record not found for authenticated session');
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
           });
         } else {
           logger.error('[/v1/tools] Error:', err);
@@ -1483,7 +1454,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Validate request body
         const body = request.body as any;
         if (!body || typeof body !== 'object') {
           return reply.status(400).send({
@@ -1491,14 +1461,12 @@ export class AmbassadorServer {
             message: 'Request body must be a JSON object',
           });
         }
-
         if (!body.tool || typeof body.tool !== 'string') {
           return reply.status(400).send({
             error: 'Bad Request',
             message: 'Missing or invalid "tool" field',
           });
         }
-
         if (!body.arguments || typeof body.arguments !== 'object') {
           return reply.status(400).send({
             error: 'Bad Request',
@@ -1506,7 +1474,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Authenticate request
         const session = await this.authenticate(request);
 
         // F-SEC-M5-007: Validate client_id from session (defense-in-depth)
@@ -1517,14 +1484,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Transform protocol request → pipeline internal request
-        const pipelineRequest: PipelineToolInvocationRequest = {
-          tool_name: body.tool,
-          client_id: session.client_id,
-          arguments: body.arguments,
-        };
-
-        // Build AuthRequest
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(request.headers)) {
           if (typeof value === 'string') {
@@ -1532,78 +1491,8 @@ export class AmbassadorServer {
           }
         }
         // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
-        const sourceIp = this.getSourceIp(request);
+        const authRequest = { headers, sourceIp: this.getSourceIp(request) };
 
-        const authRequest = {
-          headers,
-          sourceIp,
-        };
-
-        // M17.5: Create router function for pipeline (use tool router)
-        // Extract userId from session
-        const sessionRec = await this.db!.query.user_sessions.findFirst({
-          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
-        });
-        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
-        if (!sessionRec) {
-          this.fastify!.log.warn(
-            { sessionId: session.session_id },
-            '[Server] Session record not found for authenticated session'
-          );
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session state inconsistent',
-          });
-        }
-        const userId = sessionRec.user_id ?? '';
-        const clientId = session.client_id;
-
-        if (!clientId || typeof clientId !== 'string') {
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session missing client binding',
-          });
-        }
-
-        const router = async (toolName: string, args: Record<string, unknown>) => {
-          const mcpRequest = {
-            tool_name: toolName,
-            arguments: args,
-          };
-
-          const allowedTools = await this.toolRouter.getIsolationAwareToolCatalog(
-            this.db!,
-            userId,
-            clientId
-          );
-
-          const allowedTool = allowedTools.find(tool => tool.name === toolName);
-          if (!allowedTool) {
-            throw new AuthorizationError('Tool not subscribed for this client');
-          }
-
-          // Route to the exact allowed MCP source to avoid name-collision bypasses
-          // (e.g., shared and per-user MCP exposing the same tool name).
-          const sharedTool = this.mcpManager.getToolDescriptor(toolName);
-          const userTool = this.userPool.getToolDescriptor(userId, toolName);
-
-          let mcpResponse;
-          if (sharedTool?.source_mcp === allowedTool.source_mcp) {
-            mcpResponse = await this.mcpManager.invokeTool(mcpRequest);
-          } else if (userTool?.source_mcp === allowedTool.source_mcp) {
-            mcpResponse = await this.userPool.invokeTool(userId, mcpRequest);
-          } else {
-            throw new AuthorizationError('Tool source does not match client subscription');
-          }
-
-          return {
-            content: mcpResponse.content,
-            isError: mcpResponse.isError,
-            mcpServer: allowedTool.source_mcp,
-          };
-        };
-
-        // Invoke through AAA pipeline (with null check for pipeline)
         if (!this.pipeline) {
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1611,7 +1500,15 @@ export class AmbassadorServer {
           });
         }
 
-        const response = await this.pipeline.invoke(pipelineRequest, authRequest, router);
+        const deps = this.getToolServiceDeps();
+        const userId = await resolveSessionUserId(deps.db, session);
+        const response = await invokeTool(
+          deps,
+          session,
+          userId,
+          { tool: body.tool, arguments: body.arguments },
+          authRequest
+        );
 
         return reply.send(response);
       } catch (err) {
@@ -1626,6 +1523,17 @@ export class AmbassadorServer {
           return reply.status(403).send({
             error: 'Forbidden',
             message: 'Access denied',
+          });
+        } else if (err instanceof SessionStateError) {
+          this.fastify!.log.warn('[Server] Session record not found for authenticated session');
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
+          });
+        } else if (err instanceof SessionBindingError) {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
           });
         } else {
           logger.error('[/v1/tools/invoke] Error:', err);
