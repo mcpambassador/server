@@ -8,7 +8,7 @@
  * @see Architecture §4.3 Tool Catalog Resolution
  */
 
-import { grantedMcpIdsForUser } from './mcp-access.js';
+import { toolAccessForUser } from './mcp-access.js';
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { AggregatedTool } from '../downstream/types.js';
 import {
@@ -66,9 +66,9 @@ export async function resolveEffectiveTools(
   // Get all active subscriptions
   const subscriptions = await listSubscriptionsForClient(db, clientId);
   // ADR-025 M2/M4: same call-time group grant check as the tool router (filter, never mutate)
-  const granted = await grantedMcpIdsForUser(db, client.user_id);
+  const access = await toolAccessForUser(db, client.user_id);
   const activeSubscriptions = subscriptions.filter(
-    sub => sub.status === 'active' && granted.has(sub.mcp_id)
+    sub => sub.status === 'active' && access.granted.has(sub.mcp_id)
   );
 
   const aggregatedTools: AggregatedTool[] = [];
@@ -92,6 +92,11 @@ export async function resolveEffectiveTools(
 
     // Determine which tools to include
     let toolsToInclude: any[] = toolCatalog;
+
+    // ADR-025: per-tool group policy (union across the user's granting active groups)
+    if (!access.unrestricted(mcp.mcp_id)) {
+      toolsToInclude = toolsToInclude.filter(tool => access.permits(mcp.mcp_id, tool.name));
+    }
 
     // Filter by selected_tools if non-empty
     if (selectedTools.length > 0) {

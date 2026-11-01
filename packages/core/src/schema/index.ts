@@ -571,10 +571,34 @@ export const mcp_group_access = sqliteTable(
       .references(() => groups.group_id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     assigned_at: text('assigned_at').notNull(),
     assigned_by: text('assigned_by').notNull(),
+    /** ADR-025: 'all' (default) | 'allow' (only the listed tools) | 'deny' (all but the listed). */
+    tool_mode: text('tool_mode', { enum: ['all', 'allow', 'deny'] })
+      .notNull()
+      .default('all'),
   },
   table => ({
     pk: uniqueIndex('unique_mcp_group_access').on(table.mcp_id, table.group_id),
     groupIdx: index('idx_mcp_group_access_group_id').on(table.group_id),
+  })
+);
+
+/**
+ * mcp_group_access_tools table (ADR-025)
+ *
+ * Exact tool names for an 'allow'/'deny' grant. Keyed by name, not pin hash; rows cascade with the grant.
+ */
+export const mcp_group_access_tools = sqliteTable(
+  'mcp_group_access_tools',
+  {
+    mcp_id: text('mcp_id').notNull(),
+    group_id: text('group_id').notNull(),
+    tool_name: text('tool_name').notNull(),
+    created_at: text('created_at').notNull(),
+    created_by: text('created_by').notNull(),
+  },
+  table => ({
+    pk: primaryKey({ columns: [table.mcp_id, table.group_id, table.tool_name] }),
+    groupIdx: index('idx_mcp_group_access_tools_group').on(table.group_id),
   })
 );
 
@@ -1079,6 +1103,8 @@ export type McpCatalogEntry = typeof mcp_catalog.$inferSelect;
 export type NewMcpCatalogEntry = typeof mcp_catalog.$inferInsert;
 export type McpGroupAccess = typeof mcp_group_access.$inferSelect;
 export type NewMcpGroupAccess = typeof mcp_group_access.$inferInsert;
+export type McpGroupAccessTool = typeof mcp_group_access_tools.$inferSelect;
+export type NewMcpGroupAccessTool = typeof mcp_group_access_tools.$inferInsert;
 export type ClientMcpSubscription = typeof client_mcp_subscriptions.$inferSelect;
 export type NewClientMcpSubscription = typeof client_mcp_subscriptions.$inferInsert;
 export type UserMcpCredential = typeof user_mcp_credentials.$inferSelect;

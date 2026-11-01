@@ -3,8 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  addUserToGroup,
   closeDatabase,
+  compatInsert,
+  createGroup,
   createMcpEntry,
+  grantGroupAccess,
+  users,
   initializeDatabase,
   runMigrations,
   type DatabaseClient,
@@ -52,6 +57,19 @@ describe('ToolRouter tool kill switch (before dedupe)', () => {
       ).mcp_id;
     const alpha = await mk('alpha');
     const beta = await mk('beta');
+    // ADR-025 M2/M4: grants are checked at list time, so u1 needs a group that grants both MCPs.
+    const now = new Date().toISOString();
+    await compatInsert(db, users).values({
+      user_id: 'u1',
+      username: 'u1',
+      display_name: 'u1',
+      created_at: now,
+      updated_at: now,
+    } as never);
+    const g = await createGroup(db, { name: 'g-ks', description: '', created_by: 't' } as never);
+    await addUserToGroup(db, { user_id: 'u1', group_id: g.group_id, assigned_by: 't' });
+    for (const m of [alpha, beta])
+      await grantGroupAccess(db, { mcp_id: m, group_id: g.group_id, assigned_by: 't' });
     subs = [
       { mcp_id: alpha, status: 'active' },
       { mcp_id: beta, status: 'active' },

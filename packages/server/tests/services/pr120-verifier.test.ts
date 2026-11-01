@@ -39,6 +39,9 @@ describe('server boot with tracked migrations', () => {
     db.exec('DROP TABLE tool_policies');
     db.exec('ALTER TABLE mcp_catalog DROP COLUMN default_requires_approval');
     db.exec('ALTER TABLE mcp_catalog DROP COLUMN default_approver');
+    // ...and 0007 (ADR-025)
+    db.exec('DROP TABLE mcp_group_access_tools');
+    db.exec('ALTER TABLE mcp_group_access DROP COLUMN tool_mode');
     db.close();
 
     s = await restartAgentTestServer(s, opts);

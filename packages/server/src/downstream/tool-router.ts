@@ -323,8 +323,9 @@ export class ToolRouter {
 
     // ADR-025 M2/M4: group grants are evaluated at call time for every MCP. Filter, never mutate:
     // the subscription row stays, so re-granting restores access.
-    const { grantedMcpIdsForUser } = await import('../services/mcp-access.js');
-    const granted = await grantedMcpIdsForUser(db, userId);
+    const { toolAccessForUser } = await import('../services/mcp-access.js');
+    const access = await toolAccessForUser(db, userId);
+    const granted = access.granted;
 
     const tools: AggregatedTool[] = [];
     const seenToolNames = new Set<string>();
@@ -368,6 +369,13 @@ export class ToolRouter {
       if (this.killSwitch) {
         const ks = this.killSwitch;
         mcpTools = mcpTools.filter(tool => !ks.isActive('tool', `${mcpEntry.mcp_id}:${tool.name}`));
+      }
+
+      // ADR-025 §3.3 / S2: per-tool group policy (union across the user's granting active groups),
+      // applied per MCP BEFORE selected_tools and the same-name dedupe, so a denied tool never
+      // shadows or is shadowed by another MCP's tool.
+      if (!access.unrestricted(mcpEntry.mcp_id)) {
+        mcpTools = mcpTools.filter(tool => access.permits(mcpEntry.mcp_id, tool.name));
       }
 
       // Apply tool selection filter if specified
