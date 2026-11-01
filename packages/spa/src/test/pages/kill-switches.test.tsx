@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -70,7 +69,7 @@ describe('KillSwitches', () => {
     expect(killButtons).toHaveLength(4); // 2 clients + 2 MCPs, none killed
     expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
 
-    await userEvent.click(killButtons[0]);
+    await userEvent.click(killButtons[0]!);
     await userEvent.click(await screen.findByRole('button', { name: 'Activate kill switch' }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client:c1');
@@ -92,7 +91,7 @@ describe('KillSwitches', () => {
     expect(screen.getAllByText('Kill switch active')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Kill' })).toHaveLength(2);
 
-    await userEvent.click(restore[0]); // client:c2 renders first
+    await userEvent.click(restore[0]!); // client:c2 renders first
     await userEvent.click(await screen.findByRole('button', { name: 'Restore access' }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client:c2');
