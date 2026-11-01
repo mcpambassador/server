@@ -45,15 +45,20 @@ function redactSecretFlagValues(args: string[]): string[] {
 }
 
 export class StdioMcpConnection extends EventEmitter {
-  // F-SEC-M6-003: Buffer size limits to prevent OOM
-  private static readonly MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
   private static readonly MAX_MESSAGE_SIZE = 1 * 1024 * 1024; // 1MB
+  // TD-045: an oversize line is discarded in streaming mode (bounded memory) and fails only the request
+  // it answers. A line that never ends past this many bytes is a runaway: kill the process (it respawns).
+  private static readonly MAX_DISCARD_BYTES = 64 * 1024 * 1024;
+  private static readonly EDGE_BYTES = 512;
   // F-SEC-M6-006: Pending request limit to prevent memory leak
   private static readonly MAX_PENDING_REQUESTS = 100;
 
   private config: DownstreamMcpConfig;
   private process: ChildProcess | null = null;
   private messageBuffer = '';
+  // TD-045: set while discarding the rest of an oversize line
+  private discarding: { head: string; tail: string; bytes: number } | null = null;
+  private stopRequested = false;
   private pendingRequests = new Map<
     number,
     {
@@ -88,6 +93,9 @@ export class StdioMcpConnection extends EventEmitter {
    * Start the MCP process
    */
   async start(): Promise<void> {
+    this.stopRequested = false;
+    this.messageBuffer = '';
+    this.discarding = null;
     logger.info(`[MCP:${this.config.name}] Starting stdio process...`);
 
     // Reset state for restart support
@@ -178,7 +186,8 @@ export class StdioMcpConnection extends EventEmitter {
       this.errorBuffer.push(exitMsg, 'error');
       this.processExited = true;
       this.isHealthy = false;
-      this.emit('disconnect');
+      this.rejectAllPending(new Error(`[${this.config.name}] MCP process exited`));
+      this.emit('disconnect', { intentional: this.stopRequested });
     });
 
     // Handle process errors
@@ -245,50 +254,114 @@ export class StdioMcpConnection extends EventEmitter {
   }
 
   /**
-   * Handle stdout data (JSON-RPC messages)
+   * Handle stdout data (JSON-RPC messages, newline-delimited).
+   * TD-045: memory stays bounded by MAX_MESSAGE_SIZE. A line over the limit is dropped in streaming mode and
+   * only the request it answers is failed (id read from the line's head/tail); the process is not killed.
    */
   private handleStdout(data: Buffer): void {
-    this.messageBuffer += data.toString();
+    let chunk = data.toString();
 
-    // F-SEC-M6-003: Check buffer size limit
-    if (this.messageBuffer.length > StdioMcpConnection.MAX_BUFFER_SIZE) {
-      logger.error(
-        `[MCP:${this.config.name}] Buffer exceeded ${StdioMcpConnection.MAX_BUFFER_SIZE} bytes, killing process`
-      );
-      this.process?.kill('SIGKILL');
-      this.isHealthy = false;
-      this.messageBuffer = '';
-      this.emit('error', new Error('Buffer size limit exceeded'));
-      return;
-    }
-
-    // Try to parse complete JSON-RPC messages (newline-delimited)
-    const lines = this.messageBuffer.split('\n');
-    this.messageBuffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // F-SEC-M6-003: Check individual message size
-      if (line.length > StdioMcpConnection.MAX_MESSAGE_SIZE) {
-        logger.error(
-          `[MCP:${this.config.name}] Message exceeded ${StdioMcpConnection.MAX_MESSAGE_SIZE} bytes, discarding`
-        );
+    while (chunk.length > 0) {
+      if (this.discarding) {
+        const nl = chunk.indexOf('\n');
+        const part = nl === -1 ? chunk : chunk.slice(0, nl);
+        this.discarding.bytes += part.length;
+        this.discarding.tail = (this.discarding.tail + part).slice(-StdioMcpConnection.EDGE_BYTES);
+        if (nl === -1) {
+          if (this.discarding.bytes > StdioMcpConnection.MAX_DISCARD_BYTES) {
+            this.killRunaway();
+          }
+          return;
+        }
+        const d = this.discarding;
+        this.discarding = null;
+        this.failOversize(d.head, d.tail, d.bytes);
+        chunk = chunk.slice(nl + 1);
         continue;
       }
 
-      try {
-        const message = JSON.parse(line);
-        this.handleMessage(message);
-      } catch (err) {
-        // Metadata only: a raw downstream line can carry tool results or tokens
-        // (never the SyntaxError message: it embeds a snippet of the input)
-        logger.error(
-          { errName: err instanceof Error ? err.name : typeof err, lineLength: line.length },
-          `[MCP:${this.config.name}] Failed to parse message`
-        );
+      this.messageBuffer += chunk;
+      chunk = '';
+      const lines = this.messageBuffer.split('\n');
+      this.messageBuffer = lines.pop() ?? ''; // incomplete tail stays buffered
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.length > StdioMcpConnection.MAX_MESSAGE_SIZE) {
+          this.failOversize(
+            line.slice(0, StdioMcpConnection.EDGE_BYTES),
+            line.slice(-StdioMcpConnection.EDGE_BYTES),
+            line.length
+          );
+          continue;
+        }
+        try {
+          const message = JSON.parse(line);
+          this.handleMessage(message);
+        } catch (err) {
+          // Metadata only: a raw downstream line can carry tool results or tokens
+          // (never the SyntaxError message: it embeds a snippet of the input)
+          logger.error(
+            { errName: err instanceof Error ? err.name : typeof err, lineLength: line.length },
+            `[MCP:${this.config.name}] Failed to parse message`
+          );
+        }
+      }
+
+      if (this.messageBuffer.length > StdioMcpConnection.MAX_MESSAGE_SIZE) {
+        // Partial line already over the limit: switch to discard mode, keep only its edges.
+        const buf = this.messageBuffer;
+        this.messageBuffer = '';
+        this.discarding = {
+          head: buf.slice(0, StdioMcpConnection.EDGE_BYTES),
+          tail: buf.slice(-StdioMcpConnection.EDGE_BYTES),
+          bytes: buf.length,
+        };
+        if (this.discarding.bytes > StdioMcpConnection.MAX_DISCARD_BYTES) this.killRunaway();
       }
     }
+  }
+
+  /** TD-045: fail the request an oversize response answers (never hangs to the 30s timeout). */
+  private failOversize(head: string, tail: string, bytes: number): void {
+    logger.error(
+      `[MCP:${this.config.name}] Message of ${bytes} bytes exceeded ${StdioMcpConnection.MAX_MESSAGE_SIZE}, discarded`
+    );
+    this.errorBuffer.push(`Oversize message (${bytes} bytes) discarded`, 'error');
+    const err = new Error(
+      `[${this.config.name}] Response too large (limit ${StdioMcpConnection.MAX_MESSAGE_SIZE} bytes)`
+    );
+    // Top-level id only: right after the opening brace, or right before the closing one.
+    const m =
+      /^\s*\{\s*(?:"jsonrpc"\s*:\s*"2\.0"\s*,\s*)?"id"\s*:\s*(\d+)\s*,/.exec(head) ??
+      /,\s*"id"\s*:\s*(\d+)\s*\}\s*$/.exec(tail);
+    const id = m ? Number(m[1]) : undefined;
+    const pending = id !== undefined ? this.pendingRequests.get(id) : undefined;
+    if (pending && id !== undefined) {
+      clearTimeout(pending.timeout);
+      this.pendingRequests.delete(id);
+      pending.reject(err);
+    } else {
+      // Cannot tell whose answer it was: fail all in-flight requests fast rather than let them hang.
+      this.rejectAllPending(err);
+    }
+  }
+
+  private rejectAllPending(err: Error): void {
+    for (const [id, p] of this.pendingRequests) {
+      clearTimeout(p.timeout);
+      this.pendingRequests.delete(id);
+      p.reject(err);
+    }
+  }
+
+  /** TD-045: a line that never ends. Kill the process; the exit handler fails pending and the manager respawns it. */
+  private killRunaway(): void {
+    logger.error(`[MCP:${this.config.name}] Unterminated output over limit, killing process`);
+    this.discarding = null;
+    this.isHealthy = false;
+    this.process?.kill('SIGKILL');
+    this.emit('error', new Error('Output size limit exceeded'));
   }
 
   /**
@@ -439,6 +512,7 @@ export class StdioMcpConnection extends EventEmitter {
    */
   async stop(): Promise<void> {
     logger.info(`[MCP:${this.config.name}] Stopping...`);
+    this.stopRequested = true;
 
     if (this.process) {
       this.process.kill('SIGTERM');
@@ -465,6 +539,9 @@ export class StdioMcpConnection extends EventEmitter {
     this.startedAt = null;
     this.isHealthy = false;
     this.processExited = false;
+    this.messageBuffer = '';
+    this.discarding = null;
+    this.rejectAllPending(new Error(`[${this.config.name}] MCP stopped`));
     logger.info(`[MCP:${this.config.name}] Stopped`);
   }
 
