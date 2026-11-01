@@ -1,0 +1,17 @@
+# Extend the default ruleset; only the allowlist below is custom.
+title = "mcpambassador gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Log-redaction test canaries (TD-026/TD-028)"
+# These three files deliberately contain credential-shaped fixtures (PEM markers, JWTs, key=value
+# pairs) so the redaction code can be tested. Current sources assemble them at runtime, but earlier
+# commits on fix/log-redaction (#117) contain the literals, and the PR scan covers every commit.
+# Scoped to exactly these files; do not widen.
+paths = [
+  '''packages/core/__tests__/log-redaction\.test\.ts''',
+  '''packages/server/tests/downstream/stdio-redaction\.test\.ts''',
+  '''packages/server/tests/log-redaction/driver\.ts''',
+]

@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Lint logger calls (pino argument form)
+        run: pnpm lint:logger
+
       - name: Format check
         run: pnpm format:check
 

@@ -25,11 +25,15 @@ const SENSITIVE_PARAMS = new Set([
  * @param url - The URL string (possibly with query params containing credentials)
  * @returns URL with credential values replaced by ***REDACTED***
  */
-export function redactUrl(url: string): string {
+export function redactUrl(input: string): string {
   // Empty string → return empty string
-  if (url === '') {
+  if (input === '') {
     return '';
   }
+
+  // Strip userinfo (user:pass@) from every URL in the text, including ones embedded in error
+  // messages such as fetch's "URL that includes credentials" TypeError.
+  const url = input.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]*@/gi, '$1***@');
 
   try {
     // Try to parse URL

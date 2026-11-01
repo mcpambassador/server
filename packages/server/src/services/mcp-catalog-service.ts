@@ -148,9 +148,8 @@ export async function updateMcpCatalogEntry(
     if (hasStructuralChanges) {
       // MCP-001: Generic error message to avoid info leakage
       logger.warn(
-        '[MCP Catalog] Blocked structural update on published MCP:',
-        mcpId,
-        Object.keys(updates)
+        { mcpId, fields: Object.keys(updates) },
+        '[MCP Catalog] Blocked structural update on published MCP'
       );
       throw new Error('PUBLISHED_MCP_STRUCTURAL_CHANGE');
     }

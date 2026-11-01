@@ -202,8 +202,8 @@ export async function discoverTools(
           );
         } catch (err) {
           logger.error(
-            `[DiscoveryEngine] Failed to decrypt admin credential for MCP ${entry.name}:`,
-            err
+            { err },
+            `[DiscoveryEngine] Failed to decrypt admin credential for MCP ${entry.name}:`
           );
           return {
             status: 'error',
@@ -296,8 +296,8 @@ export async function discoverTools(
             );
           } catch (refreshErr) {
             logger.error(
-              `[DiscoveryEngine] Failed to refresh OAuth token for MCP ${entry.name}:`,
-              refreshErr
+              { err: refreshErr },
+              `[DiscoveryEngine] Failed to refresh OAuth token for MCP ${entry.name}:`
             );
 
             // Check if token was revoked (401/invalid_grant)
@@ -318,7 +318,10 @@ export async function discoverTools(
 
                 logger.warn(`[DiscoveryEngine] OAuth token revoked for MCP ${entry.name}`);
               } catch (updateErr) {
-                logger.error(`[DiscoveryEngine] Failed to mark credential as revoked:`, updateErr);
+                logger.error(
+                  { err: updateErr },
+                  `[DiscoveryEngine] Failed to mark credential as revoked:`
+                );
               }
 
               return {
@@ -601,14 +604,14 @@ export async function discoverTools(
         await connection.stop();
       } catch (cleanupErr) {
         // Ignore cleanup errors
-        logger.warn(`[ToolDiscoveryEngine] Cleanup error for ${entry.name}:`, cleanupErr);
+        logger.warn({ err: cleanupErr }, `[ToolDiscoveryEngine] Cleanup error for ${entry.name}:`);
       }
     }
   } catch (outerErr) {
     // Catch any unexpected errors in the outer try block
     logger.error(
-      `[DiscoveryEngine] Unexpected error during discovery for MCP ${entry.name}:`,
-      outerErr
+      { err: outerErr },
+      `[DiscoveryEngine] Unexpected error during discovery for MCP ${entry.name}:`
     );
     return {
       status: 'error',
