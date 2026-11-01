@@ -32,7 +32,12 @@ export class HttpMcpConnection extends EventEmitter {
    */
   private sanitizeError(err: unknown): string {
     const msg = err instanceof Error ? err.message : String(err);
-    return redactUrl(msg);
+    return redactSecretsInString(redactUrl(msg));
+  }
+
+  /** Only way to write to errorBuffer: text is scrubbed (URL userinfo, query secrets, tokens). */
+  private pushError(msg: string): void {
+    this.errorBuffer.push(redactSecretsInString(redactUrl(msg)), 'error');
   }
 
   private config: DownstreamMcpConfig;
@@ -215,7 +220,7 @@ export class HttpMcpConnection extends EventEmitter {
       if (response.error) {
         const errorMsg = `JSON-RPC error: ${JSON.stringify(response.error)}`;
         // M33.1: Log JSON-RPC errors
-        this.errorBuffer.push(redactSecretsInString(errorMsg), 'error');
+        this.pushError(errorMsg);
         throw new Error(errorMsg);
       }
 
@@ -226,14 +231,14 @@ export class HttpMcpConnection extends EventEmitter {
     } catch (err) {
       // M33.1: Log connection/fetch errors
       const errorMsg = err instanceof Error ? err.message : String(err);
-      this.errorBuffer.push(`Request failed (${method}): ${errorMsg}`, 'error');
+      this.pushError(`Request failed (${method}): ${errorMsg}`);
 
       // Circuit breaker: track consecutive failures
       this.consecutiveFailures++;
       if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
         const circuitMsg = `Circuit breaker triggered after ${this.consecutiveFailures} failures`;
         logger.error(`[MCP:${this.config.name}] ${circuitMsg}`);
-        this.errorBuffer.push(circuitMsg, 'error');
+        this.pushError(circuitMsg);
         this.isHealthy = false;
         this.emit('error', new Error('Circuit breaker: too many consecutive failures'));
       }
@@ -328,7 +333,8 @@ export class HttpMcpConnection extends EventEmitter {
         endIndex = hashIndex;
       }
 
-      return url.substring(0, endIndex);
+      // Userinfo (user:pass@) is a credential too; keep ${...} placeholders intact
+      return redactUrl(url.substring(0, endIndex));
     })();
 
     return {

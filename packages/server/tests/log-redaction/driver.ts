@@ -106,13 +106,13 @@ async function stdioScenarios(): Promise<void> {
 const H = ${JSON.stringify(hostile('se'))};
 console.error(H);
 console.error('line two ' + H);
-// secrets split across stderr chunks (write boundary inside the credential)
+// very long line with a credential deep inside
+console.error('x'.repeat(90000) + ' amb_pk_${N}longcore ' + 'y'.repeat(20000));
+// secrets split across stderr chunks (written after the long line so the halves stay on one line) (write boundary inside the credential)
 process.stderr.write('before amb_pk_${N}splitA');
 setTimeout(() => process.stderr.write('splitB${N}splittail end\\n'), 150);
 setTimeout(() => process.stderr.write('Bearer ${N}bsplitA'), 300);
 setTimeout(() => process.stderr.write('bsplitB${N}bsplittail\\n'), 450);
-// very long line with a credential deep inside
-console.error('x'.repeat(90000) + ' amb_pk_${N}longcore ' + 'y'.repeat(20000));
 setTimeout(() => process.exit(3), 800);
 `
   );
