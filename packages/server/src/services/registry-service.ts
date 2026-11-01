@@ -9,6 +9,41 @@ const registryEntrySchema = createMcpSchema.extend({
 });
 
 /**
+ * ADR-024: the only keys of a registry entry this server reads, lists or installs. Anything else
+ * (sync provenance such as `source`, `official_name`, `package_integrity`, `flags`, or any other
+ * unknown key) is dropped when the registry is cached, so it is never persisted into the catalog or
+ * echoed by the admin API. Copied key by key into a fresh object (no spread, no `__proto__`).
+ */
+const REGISTRY_ENTRY_KEYS = [
+  'name',
+  'display_name',
+  'description',
+  'icon_url',
+  'transport_type',
+  'config',
+  'auth_type',
+  'oauth_config',
+  'isolation_mode',
+  'requires_user_credentials',
+  'credential_schema',
+  'tags',
+  'category',
+  'repository_url',
+  'documentation_url',
+  'version',
+  'maintainer',
+  'verified',
+] as const;
+
+export function pickRegistryEntry(entry: RegistryMcpEntry): RegistryMcpEntry {
+  const out: Record<string, unknown> = {};
+  for (const key of REGISTRY_ENTRY_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(entry, key)) out[key] = (entry as never)[key];
+  }
+  return out as unknown as RegistryMcpEntry;
+}
+
+/**
  * Registry-import only: an empty or whitespace `scopes` means "none declared" (e.g. Supabase ships
  * `scopes: ''`). Drop it so the partial oauth parse accepts it; createMcpSchema itself is unchanged.
  */
@@ -207,10 +242,10 @@ export class RegistryService {
       for (const entry of parsed.mcps) {
         const check = this.checkEntry(entry);
         if (check.status === 'ok') {
-          valid.push(entry);
+          valid.push(pickRegistryEntry(entry));
         } else if (check.status === 'unavailable') {
           // Valid entry, but only the server-side secret is missing: list it, install disabled
-          valid.push(entry);
+          valid.push(pickRegistryEntry(entry));
           unavailable.set(entry.name, check.reason);
           logger.info(
             `[RegistryService] Registry entry '${cleanForLog(entry.name, 100)}' not installable on this server: ${check.reason}`
