@@ -350,7 +350,9 @@ describe('search / describe / call serve only approved, in-scope tools', () => {
   it('call_tool executes through the pipeline; the mcp argument disambiguates a shared name', async () => {
     const amb = await tool(tok, CALL, { name: 'echo', arguments: { x: 1 } });
     expect(isErr(amb)).toBe(true);
-    expect(text(amb)).toMatch(/^ambiguous: specify mcp \(candidates: .*pd-a.*pd-b|.*pd-b.*pd-a\)$/);
+    expect(text(amb)).toMatch(
+      /^ambiguous: specify mcp \(candidates: (?:.*pd-a.*pd-b|.*pd-b.*pd-a)\)$/
+    );
     const before = [callsTo('pd-a', 'echo'), callsTo('pd-b', 'echo')];
     expect(callsTo('pd-a', 'echo')).toBe(before[0]);
     const ok = await tool(tok, CALL, { name: 'echo', mcp: 'pd-b', arguments: { x: 1 } });
