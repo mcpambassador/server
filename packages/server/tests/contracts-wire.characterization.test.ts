@@ -328,6 +328,199 @@ add('apiResponse(string)', C.apiResponseSchema(z.string()), [
   { data: 'x' },
 ]);
 
+// ===== ADR-023 approval contracts (#135) =====
+const AID = 'abcd1234-ef56-7890';
+const SUMMARY = {
+  approval_id: AID,
+  status: 'pending',
+  mcp_id: 'm1',
+  mcp_name: 'github',
+  tool_name: 'create_issue',
+  grant_id: 'g1',
+  grant_label: 'laptop',
+  bound_client_id: null,
+  user_id: 'u1',
+  required_approver: 'owner',
+  args_hash: H64,
+  created_at: '2026-11-01T00:00:00Z',
+  expires_at: '2026-11-01T00:15:00Z',
+  decided_at: null,
+  decided_by: null,
+  approver_role: null,
+  self_approved: false,
+};
+const DETAIL = {
+  ...SUMMARY,
+  preview: '{"a":1}',
+  definition_changed: false,
+  read_only: false,
+  decision_reason: null,
+  void_reason: null,
+};
+const POLICY = {
+  mcp_id: 'm1',
+  tool_name: 'create_issue',
+  requires_approval: true,
+  approver: 'admin',
+  updated_by: 'u1',
+  updated_at: '2026-11-01T00:00:00Z',
+};
+add('approver', C.approverSchema, ['owner', 'admin', 'root']);
+add('approvalStatus', C.approvalStatusSchema, ['pending', 'consumed', 'approved ', 'PENDING']);
+add('approvalDecision', C.approvalDecisionSchema, ['approve', 'deny', 'allow']);
+add('approvalVoidReason', C.approvalVoidReasonSchema, ['grant_revoked', 'kill_switch', 'other']);
+add('approvalRejectReason', C.approvalRejectReasonSchema, ['args_mismatch', 'wrong_grant', 'x_']);
+add('approvalUnavailableReason', C.approvalUnavailableReasonSchema, ['rate_limited', 'nope']);
+add('approvalArgsHash', C.approvalArgsHashSchema, [
+  H64,
+  H64.toUpperCase(),
+  'a'.repeat(63),
+  'g'.repeat(64),
+]);
+add('toolPolicy', C.toolPolicySchema, [
+  POLICY,
+  { ...POLICY, approver: 'x' },
+  { ...POLICY, tool_name: '' },
+  { ...POLICY, tool_name: 'a'.repeat(257) },
+  { ...POLICY, extra: 1 },
+]);
+add('putToolPolicyRequest', C.putToolPolicyRequestSchema, [
+  { requires_approval: true, approver: 'owner' },
+  { requires_approval: true },
+  { requires_approval: false },
+  { requires_approval: false, approver: 'admin' },
+  { requires_approval: true, approver: 'x' },
+  { requires_approval: true, approver: 'owner', extra: 1 },
+]);
+add('toolPolicyListResponse', C.toolPolicyListResponseSchema, [
+  { policies: [] },
+  { policies: [POLICY] },
+  { policies: [{ ...POLICY, approver: 'x' }] },
+]);
+add('setApprovalDefaultRequest', C.setApprovalDefaultRequestSchema, [
+  { default_requires_approval: true, default_approver: 'admin' },
+  { default_requires_approval: true },
+  { default_requires_approval: false },
+  { default_requires_approval: true, default_approver: 'x' },
+  { default_requires_approval: false, extra: 1 },
+]);
+add('approvalRequestSummary', C.approvalRequestSummarySchema, [
+  SUMMARY,
+  { ...SUMMARY, status: 'bogus' },
+  { ...SUMMARY, args_hash: 'zz' },
+  { ...SUMMARY, bound_client_id: 'c1', decided_by: 'u2', approver_role: 'admin' },
+  { ...SUMMARY, approver_role: 'root', self_approved: 'no' },
+  { ...SUMMARY, extra: 1 },
+]);
+add('approvalRequestDetail', C.approvalRequestDetailSchema, [
+  DETAIL,
+  { ...DETAIL, preview: null, void_reason: 'kill_switch' },
+  { ...DETAIL, preview: 'x'.repeat(8193) },
+  { ...DETAIL, void_reason: 'bogus', read_only: 1 },
+  SUMMARY,
+]);
+add('approvalListQuery', C.approvalListQuerySchema, [
+  { status: 'pending' },
+  { limit: '25' },
+  { limit: 25 },
+  { limit: '0' },
+  { limit: '101' },
+  { limit: '1.5' },
+  { limit: 'abc' },
+  { cursor: 'c', mcp_id: 'm1' },
+  { cursor: '' },
+  { cursor: 'c'.repeat(513) },
+  { status: 'bogus' },
+]);
+add('approvalListResponse', C.approvalListResponseSchema, [
+  { items: [], next_cursor: null },
+  { items: [SUMMARY], next_cursor: 'abc' },
+  { items: [SUMMARY] },
+  { items: [{ ...SUMMARY, status: 'x' }], next_cursor: 1 },
+]);
+add('approvalQueueSummary', C.approvalQueueSummarySchema, [
+  { pending_count: 0 },
+  { pending_count: 3 },
+  { pending_count: -1 },
+  { pending_count: 1.5 },
+]);
+add('approvalDecisionRequest', C.approvalDecisionRequestSchema, [
+  { decision: 'approve', expected_args_hash: H64 },
+  { decision: 'deny', expected_args_hash: H64, reason: 'no' },
+  { decision: 'deny', expected_args_hash: H64, reason: 'r'.repeat(501) },
+  { decision: 'maybe', expected_args_hash: H64 },
+  { decision: 'approve' },
+  { decision: 'approve', expected_args_hash: 'abc' },
+  { decision: 'approve', expected_args_hash: H64, extra: 1 },
+]);
+add('reauthRequest', C.reauthRequestSchema, [
+  { password: 'p' },
+  { password: '' },
+  { password: 'p'.repeat(1025) },
+  { password: 'p', extra: 1 },
+]);
+add('reauthResponse', C.reauthResponseSchema, [
+  { reauthenticated_until: '2026-11-01T00:05:00Z', window_seconds: 300 },
+  { reauthenticated_until: '', window_seconds: 300 },
+  { reauthenticated_until: 'x', window_seconds: 0 },
+  { reauthenticated_until: 'x', window_seconds: 1.5 },
+]);
+add('approvalRequiredResult', C.approvalRequiredResultSchema, [
+  {
+    status: 'approval_required',
+    approval_id: AID,
+    expires_at: 'e',
+    retry_after_seconds: 5,
+    approval_url: 'https://app.example/app/approvals/' + AID,
+  },
+  {
+    status: 'approval_required',
+    approval_id: 'short',
+    expires_at: 'e',
+    retry_after_seconds: 5,
+    approval_url: 'u',
+  },
+  {
+    status: 'approval_required',
+    approval_id: AID,
+    expires_at: 'e',
+    retry_after_seconds: -1,
+    approval_url: '',
+  },
+  {
+    status: 'approval_denied',
+    approval_id: AID,
+    expires_at: 'e',
+    retry_after_seconds: 5,
+    approval_url: 'u',
+  },
+]);
+add('approvalDeniedResult', C.approvalDeniedResultSchema, [
+  { status: 'approval_denied', approval_id: AID, retry_after_seconds: 0 },
+  { status: 'approval_denied', approval_id: null, retry_after_seconds: 3600 },
+  { status: 'approval_denied', approval_id: 'bad id!', retry_after_seconds: 0 },
+  { status: 'approval_denied', retry_after_seconds: 0 },
+]);
+add('approvalExpiredResult', C.approvalExpiredResultSchema, [
+  { status: 'approval_expired', approval_id: AID },
+  { status: 'approval_expired', approval_id: null },
+  { status: 'approval_expired' },
+]);
+add('approvalUnavailableResult', C.approvalUnavailableResultSchema, [
+  { status: 'approval_unavailable', reason: 'rate_limited' },
+  { status: 'approval_unavailable', reason: 'other' },
+  { status: 'approval_unavailable' },
+]);
+add('approvalToolResult', C.approvalToolResultSchema, [
+  { status: 'approval_expired', approval_id: AID },
+  { status: 'approval_denied', approval_id: null, retry_after_seconds: 1 },
+  { status: 'approval_unavailable', reason: 'rate_limited' },
+  { status: 'approval_unavailable', reason: 'x' },
+  { status: 'approval_required', approval_id: AID },
+  { status: 'unknown' },
+  { approval_id: AID },
+]);
+
 const outcome = (schema: z.ZodTypeAny, input: unknown): unknown => {
   const r = schema.safeParse(input);
   return r.success

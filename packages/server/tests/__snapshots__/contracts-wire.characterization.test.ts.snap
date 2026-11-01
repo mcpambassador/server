@@ -788,6 +788,2967 @@ exports[`contracts wire behavior (accept/reject, parsed output, failing paths) >
 ]
 `;
 
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalArgsHash 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalDecision 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "approve",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": "deny",
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalDecisionRequest 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "decision",
+        "expected_args_hash",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+        "decision",
+        "expected_args_hash",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "decision": "approve",
+        "expected_args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "decision": "deny",
+        "expected_args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reason": "no",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "decision",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "expected_args_hash",
+      ],
+    },
+  ],
+  [
+    "#17",
+    {
+      "ok": false,
+      "paths": [
+        "expected_args_hash",
+      ],
+    },
+  ],
+  [
+    "#18",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalDeniedResult 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "retry_after_seconds",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "retry_after_seconds",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "retry_after_seconds": 0,
+        "status": "approval_denied",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "approval_id": null,
+        "retry_after_seconds": 3600,
+        "status": "approval_denied",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalExpiredResult 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "status": "approval_expired",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalListQuery 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "data": {},
+      "ok": true,
+    },
+  ],
+  [
+    "#11",
+    {
+      "data": {},
+      "ok": true,
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "status": "pending",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "limit": 25,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "data": {
+        "limit": 25,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "limit",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "limit",
+      ],
+    },
+  ],
+  [
+    "#17",
+    {
+      "ok": false,
+      "paths": [
+        "limit",
+      ],
+    },
+  ],
+  [
+    "#18",
+    {
+      "ok": false,
+      "paths": [
+        "limit",
+      ],
+    },
+  ],
+  [
+    "#19",
+    {
+      "data": {
+        "cursor": "c",
+        "mcp_id": "m1",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#20",
+    {
+      "ok": false,
+      "paths": [
+        "cursor",
+      ],
+    },
+  ],
+  [
+    "#21",
+    {
+      "ok": false,
+      "paths": [
+        "cursor",
+      ],
+    },
+  ],
+  [
+    "#22",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalListResponse 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "items",
+        "next_cursor",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "items",
+        "next_cursor",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "items": [],
+        "next_cursor": null,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "items": [
+          {
+            "approval_id": "abcd1234-ef56-7890",
+            "approver_role": null,
+            "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bound_client_id": null,
+            "created_at": "2026-11-01T00:00:00Z",
+            "decided_at": null,
+            "decided_by": null,
+            "expires_at": "2026-11-01T00:15:00Z",
+            "grant_id": "g1",
+            "grant_label": "laptop",
+            "mcp_id": "m1",
+            "mcp_name": "github",
+            "required_approver": "owner",
+            "self_approved": false,
+            "status": "pending",
+            "tool_name": "create_issue",
+            "user_id": "u1",
+          },
+        ],
+        "next_cursor": "abc",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "next_cursor",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "items.0.status",
+        "next_cursor",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalQueueSummary 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "pending_count",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "pending_count",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "pending_count": 0,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "pending_count": 3,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "pending_count",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "pending_count",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalRejectReason 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "args_mismatch",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": "wrong_grant",
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalRequestDetail 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approver_role",
+        "args_hash",
+        "bound_client_id",
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "decision_reason",
+        "definition_changed",
+        "expires_at",
+        "grant_id",
+        "grant_label",
+        "mcp_id",
+        "mcp_name",
+        "preview",
+        "read_only",
+        "required_approver",
+        "self_approved",
+        "status",
+        "tool_name",
+        "user_id",
+        "void_reason",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approver_role",
+        "args_hash",
+        "bound_client_id",
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "decision_reason",
+        "definition_changed",
+        "expires_at",
+        "grant_id",
+        "grant_label",
+        "mcp_id",
+        "mcp_name",
+        "preview",
+        "read_only",
+        "required_approver",
+        "self_approved",
+        "status",
+        "tool_name",
+        "user_id",
+        "void_reason",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approver_role": null,
+        "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bound_client_id": null,
+        "created_at": "2026-11-01T00:00:00Z",
+        "decided_at": null,
+        "decided_by": null,
+        "decision_reason": null,
+        "definition_changed": false,
+        "expires_at": "2026-11-01T00:15:00Z",
+        "grant_id": "g1",
+        "grant_label": "laptop",
+        "mcp_id": "m1",
+        "mcp_name": "github",
+        "preview": "{"a":1}",
+        "read_only": false,
+        "required_approver": "owner",
+        "self_approved": false,
+        "status": "pending",
+        "tool_name": "create_issue",
+        "user_id": "u1",
+        "void_reason": null,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approver_role": null,
+        "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bound_client_id": null,
+        "created_at": "2026-11-01T00:00:00Z",
+        "decided_at": null,
+        "decided_by": null,
+        "decision_reason": null,
+        "definition_changed": false,
+        "expires_at": "2026-11-01T00:15:00Z",
+        "grant_id": "g1",
+        "grant_label": "laptop",
+        "mcp_id": "m1",
+        "mcp_name": "github",
+        "preview": null,
+        "read_only": false,
+        "required_approver": "owner",
+        "self_approved": false,
+        "status": "pending",
+        "tool_name": "create_issue",
+        "user_id": "u1",
+        "void_reason": "kill_switch",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "preview",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "read_only",
+        "void_reason",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "decision_reason",
+        "definition_changed",
+        "preview",
+        "read_only",
+        "void_reason",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalRequestSummary 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approver_role",
+        "args_hash",
+        "bound_client_id",
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "expires_at",
+        "grant_id",
+        "grant_label",
+        "mcp_id",
+        "mcp_name",
+        "required_approver",
+        "self_approved",
+        "status",
+        "tool_name",
+        "user_id",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approver_role",
+        "args_hash",
+        "bound_client_id",
+        "created_at",
+        "decided_at",
+        "decided_by",
+        "expires_at",
+        "grant_id",
+        "grant_label",
+        "mcp_id",
+        "mcp_name",
+        "required_approver",
+        "self_approved",
+        "status",
+        "tool_name",
+        "user_id",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approver_role": null,
+        "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bound_client_id": null,
+        "created_at": "2026-11-01T00:00:00Z",
+        "decided_at": null,
+        "decided_by": null,
+        "expires_at": "2026-11-01T00:15:00Z",
+        "grant_id": "g1",
+        "grant_label": "laptop",
+        "mcp_id": "m1",
+        "mcp_name": "github",
+        "required_approver": "owner",
+        "self_approved": false,
+        "status": "pending",
+        "tool_name": "create_issue",
+        "user_id": "u1",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "args_hash",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approver_role": "admin",
+        "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bound_client_id": "c1",
+        "created_at": "2026-11-01T00:00:00Z",
+        "decided_at": null,
+        "decided_by": "u2",
+        "expires_at": "2026-11-01T00:15:00Z",
+        "grant_id": "g1",
+        "grant_label": "laptop",
+        "mcp_id": "m1",
+        "mcp_name": "github",
+        "required_approver": "owner",
+        "self_approved": false,
+        "status": "pending",
+        "tool_name": "create_issue",
+        "user_id": "u1",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "approver_role",
+        "self_approved",
+      ],
+    },
+  ],
+  [
+    "#17",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approver_role": null,
+        "args_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bound_client_id": null,
+        "created_at": "2026-11-01T00:00:00Z",
+        "decided_at": null,
+        "decided_by": null,
+        "expires_at": "2026-11-01T00:15:00Z",
+        "grant_id": "g1",
+        "grant_label": "laptop",
+        "mcp_id": "m1",
+        "mcp_name": "github",
+        "required_approver": "owner",
+        "self_approved": false,
+        "status": "pending",
+        "tool_name": "create_issue",
+        "user_id": "u1",
+      },
+      "ok": true,
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalRequiredResult 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approval_url",
+        "expires_at",
+        "retry_after_seconds",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+        "approval_url",
+        "expires_at",
+        "retry_after_seconds",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "approval_url": "https://app.example/app/approvals/abcd1234-ef56-7890",
+        "expires_at": "e",
+        "retry_after_seconds": 5,
+        "status": "approval_required",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "approval_id",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "approval_url",
+        "retry_after_seconds",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalStatus 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "pending",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": "consumed",
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalToolResult 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approval_id": "abcd1234-ef56-7890",
+        "status": "approval_expired",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "approval_id": null,
+        "retry_after_seconds": 1,
+        "status": "approval_denied",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "data": {
+        "reason": "rate_limited",
+        "status": "approval_unavailable",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "approval_url",
+        "expires_at",
+        "retry_after_seconds",
+      ],
+    },
+  ],
+  [
+    "#17",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+  [
+    "#18",
+    {
+      "ok": false,
+      "paths": [
+        "status",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalUnavailableReason 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "rate_limited",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalUnavailableResult 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+        "status",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "reason": "rate_limited",
+        "status": "approval_unavailable",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "reason",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approvalVoidReason 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "grant_revoked",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": "kill_switch",
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > approver 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": "owner",
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": "admin",
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
 exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > authorizeQuery 1`] = `
 [
   [
@@ -2610,6 +5571,478 @@ exports[`contracts wire behavior (accept/reject, parsed output, failing paths) >
 ]
 `;
 
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > putToolPolicyRequest 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "requires_approval",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+        "requires_approval",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approver": "owner",
+        "requires_approval": true,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "approver",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "data": {
+        "requires_approval": false,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#15",
+    {
+      "data": {
+        "approver": "admin",
+        "requires_approval": false,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "approver",
+      ],
+    },
+  ],
+  [
+    "#17",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > reauthRequest 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "password",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+        "password",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "password": "p",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "password",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "password",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > reauthResponse 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "reauthenticated_until",
+        "window_seconds",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "reauthenticated_until",
+        "window_seconds",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "reauthenticated_until": "2026-11-01T00:05:00Z",
+        "window_seconds": 300,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "reauthenticated_until",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "window_seconds",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "window_seconds",
+      ],
+    },
+  ],
+]
+`;
+
 exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > redirectUri 1`] = `
 [
   [
@@ -3305,6 +6738,166 @@ exports[`contracts wire behavior (accept/reject, parsed output, failing paths) >
       "ok": false,
       "paths": [
         "query",
+      ],
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > setApprovalDefaultRequest 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "default_requires_approval",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "",
+        "default_requires_approval",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "default_approver": "admin",
+        "default_requires_approval": true,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "default_approver",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "data": {
+        "default_requires_approval": false,
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "default_approver",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "ok": false,
+      "paths": [
+        "",
       ],
     },
   ],
@@ -5545,6 +9138,333 @@ exports[`contracts wire behavior (accept/reject, parsed output, failing paths) >
         "updated_at": "b",
       },
       "ok": true,
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > toolPolicy 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "approver",
+        "mcp_id",
+        "requires_approval",
+        "tool_name",
+        "updated_at",
+        "updated_by",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "approver",
+        "mcp_id",
+        "requires_approval",
+        "tool_name",
+        "updated_at",
+        "updated_by",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "approver": "admin",
+        "mcp_id": "m1",
+        "requires_approval": true,
+        "tool_name": "create_issue",
+        "updated_at": "2026-11-01T00:00:00Z",
+        "updated_by": "u1",
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "ok": false,
+      "paths": [
+        "approver",
+      ],
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "tool_name",
+      ],
+    },
+  ],
+  [
+    "#15",
+    {
+      "ok": false,
+      "paths": [
+        "tool_name",
+      ],
+    },
+  ],
+  [
+    "#16",
+    {
+      "data": {
+        "approver": "admin",
+        "mcp_id": "m1",
+        "requires_approval": true,
+        "tool_name": "create_issue",
+        "updated_at": "2026-11-01T00:00:00Z",
+        "updated_by": "u1",
+      },
+      "ok": true,
+    },
+  ],
+]
+`;
+
+exports[`contracts wire behavior (accept/reject, parsed output, failing paths) > toolPolicyListResponse 1`] = `
+[
+  [
+    "#0",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#1",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#2",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#3",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#4",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#5",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#6",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#7",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#8",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#9",
+    {
+      "ok": false,
+      "paths": [
+        "",
+      ],
+    },
+  ],
+  [
+    "#10",
+    {
+      "ok": false,
+      "paths": [
+        "policies",
+      ],
+    },
+  ],
+  [
+    "#11",
+    {
+      "ok": false,
+      "paths": [
+        "policies",
+      ],
+    },
+  ],
+  [
+    "#12",
+    {
+      "data": {
+        "policies": [],
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#13",
+    {
+      "data": {
+        "policies": [
+          {
+            "approver": "admin",
+            "mcp_id": "m1",
+            "requires_approval": true,
+            "tool_name": "create_issue",
+            "updated_at": "2026-11-01T00:00:00Z",
+            "updated_by": "u1",
+          },
+        ],
+      },
+      "ok": true,
+    },
+  ],
+  [
+    "#14",
+    {
+      "ok": false,
+      "paths": [
+        "policies.0.approver",
+      ],
     },
   ],
 ]
