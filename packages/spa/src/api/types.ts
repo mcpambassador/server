@@ -206,6 +206,8 @@ export interface McpCatalogEntry {
     inputSchema?: Record<string, unknown>;
   }>;
   tool_count?: number;
+  /** ADR-021; absent until the server exposes it on GET /v1/admin/mcps/:id (treated as 'review') */
+  pin_policy?: 'review' | 'auto';
   validation_result?: Record<string, unknown>;
   last_validated_at?: string;
   created_at: string;
