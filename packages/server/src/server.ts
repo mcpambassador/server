@@ -81,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { mapStaticCredentialEnv } from './services/credential-env.js';
 import { spawnableMcpIdsForUser } from './services/mcp-access.js';
 import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
@@ -1375,20 +1376,8 @@ export class AmbassadorServer {
                 ? JSON.parse(mcpEntry.credential_schema)
                 : mcpEntry.credential_schema;
 
-            // Map credential fields to environment variables according to schema
-            const envVars: Record<string, string> = {};
-            if (schema && typeof schema === 'object' && schema.properties) {
-              for (const [fieldName, fieldDef] of Object.entries(
-                schema.properties as Record<string, any>
-              )) {
-                const envVarName = fieldDef.env_var;
-                const credValue = decryptedCreds[fieldName];
-
-                if (envVarName && credValue) {
-                  envVars[envVarName] = credValue;
-                }
-              }
-            }
+            // Map credential fields to env vars (explicit env_var, else the field name; TD-048)
+            const envVars = mapStaticCredentialEnv(schema, decryptedCreds);
 
             if (Object.keys(envVars).length > 0) {
               credMap.set(mcpEntry.name, { envVars, headers: {} });

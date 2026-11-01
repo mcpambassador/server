@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 import { validateMcpConfig, validateToolName } from './types.js';
 import { isBlockedEnvName } from '../services/runner-guard.js';
+import { mergeCredentialEnv } from '../services/credential-env.js';
 import { RespawnController, type RespawnEventSink } from './respawn.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
@@ -205,19 +206,24 @@ export class UserMcpPool {
               }
             }
 
+            // TD-049: fixed config.env wins; a colliding credential is dropped (name only logged)
+            const merged = mergeCredentialEnv(config.env, creds.envVars);
+            for (const name of merged.dropped) {
+              logger.warn(
+                `[UserMcpPool] Credential env var '${name}' collides with fixed env for ${config.name}; ignoring the credential`
+              );
+            }
+
             finalConfig = {
               ...config,
-              env: {
-                ...config.env,
-                ...creds.envVars,
-              },
+              env: merged.env,
               headers: {
                 ...config.headers,
                 ...creds.headers,
               },
             };
 
-            const envCount = Object.keys(creds.envVars).length;
+            const envCount = Object.keys(creds.envVars).length - merged.dropped.length;
             const headerCount = Object.keys(creds.headers).length;
             logger.info(
               `[UserMcpPool] Injected credentials for ${config.name}: ${envCount} env vars, ${headerCount} headers`
