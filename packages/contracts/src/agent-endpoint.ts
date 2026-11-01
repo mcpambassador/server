@@ -325,6 +325,8 @@ export const AGENT_AUDIT_ACTIONS = [
   'agent_refresh_reuse_detected',
   'oauth_client_registered',
   'oauth_client_disabled',
+  'oauth_client_deleted',
+  'agent_endpoint_settings_updated',
   'agent_auth_failure',
 ] as const;
 export type AgentAuditAction = (typeof AGENT_AUDIT_ACTIONS)[number];
