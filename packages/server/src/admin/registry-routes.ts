@@ -9,7 +9,7 @@
 
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { RegistryService } from '../services/registry-service.js';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
@@ -102,7 +102,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = publicErrorMessage(error);
 
       if (message.includes('Registry not loaded')) {
         return reply
@@ -149,7 +149,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
 
       return reply.send({ ok: true, data: entry });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = publicErrorMessage(error);
 
       if (message.includes('Registry not loaded')) {
         return reply
@@ -216,7 +216,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
           },
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = publicErrorMessage(error);
 
         if (message.includes('Registry not loaded')) {
           return reply
@@ -266,7 +266,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = publicErrorMessage(error);
 
       // Log error but return 502 for network failures
       logger.error({ err: error }, '[registry-routes] Failed to refresh registry');

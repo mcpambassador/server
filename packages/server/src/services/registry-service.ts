@@ -76,6 +76,7 @@ import {
   createMcpEntry,
   getGroupByName,
   grantGroupAccess,
+  publicErrorMessage,
 } from '@mcpambassador/core';
 
 export interface RegistryConfig {
@@ -234,7 +235,7 @@ export class RegistryService {
           (unavailable.size ? ` (${unavailable.size} not installable on this server)` : '')
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = publicErrorMessage(error);
       logger.error(`[RegistryService] Failed to fetch registry: ${message}`);
 
       // Keep serving stale cache if available
@@ -480,7 +481,7 @@ export class RegistryService {
       } catch (e) {
         return {
           success: false,
-          message: `MCP '${name}' has an invalid oauth_config: ${e instanceof Error ? e.message : 'rejected'}`,
+          message: `MCP '${name}' has an invalid oauth_config: ${e instanceof OAuthConfigError ? 'secret binding rejected' : 'rejected'}`,
         };
       }
     }
@@ -541,7 +542,7 @@ export class RegistryService {
         }
       } catch (err) {
         groupAccessGranted = false;
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = publicErrorMessage(err);
         logger.error(`[RegistryService] Failed to grant 'all-users' group access: ${msg}`);
       }
 
@@ -564,7 +565,7 @@ export class RegistryService {
         message,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = publicErrorMessage(error);
       logger.error({ err: error }, `[RegistryService] Failed to install MCP '${name}'`);
 
       return {

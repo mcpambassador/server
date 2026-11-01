@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -29,6 +29,7 @@ import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
 import { registerAdminToolPinRoutes } from './tool-pin-routes.js';
+import { registerAdminToolPolicyRoutes } from './tool-policy-routes.js';
 import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
@@ -70,6 +71,8 @@ export interface AdminRoutesConfig {
   getToolPins?: () => import('../services/tool-pins/pin-service.js').ToolPinService | null;
   /** Called after a pin decision / policy change so cached catalog observations are re-evaluated */
   onToolPinsChanged?: () => void;
+  /** ADR-023: approval service accessor (null until initialised) */
+  getApprovals?: () => import('../services/approvals/service.js').ApprovalService | null;
   /** One instance per server so the reload mutex spans both listeners (8443 and 9443). */
   catalogReloader?: CatalogReloader;
 }
@@ -156,7 +159,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         .send(
           wrapError(
             ErrorCodes.CONFLICT,
-            error instanceof Error ? error.message : 'Resource conflict'
+            error instanceof Error ? publicErrorMessage(error) : 'Resource conflict'
           )
         );
     }
@@ -167,7 +170,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         .send(
           wrapError(
             ErrorCodes.BAD_REQUEST,
-            error instanceof Error ? error.message : 'Invalid request'
+            error instanceof Error ? publicErrorMessage(error) : 'Invalid request'
           )
         );
     }
@@ -229,6 +232,12 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     audit,
     getPins: opts.getToolPins ?? (() => null),
     onChanged: opts.onToolPinsChanged,
+  });
+
+  // ADR-023: tool approval policy + MCP approval default (3 endpoints)
+  fastify.register(registerAdminToolPolicyRoutes, {
+    db,
+    getApprovals: opts.getApprovals ?? (() => null),
   });
 
   // MCP catalog management (7 endpoints)

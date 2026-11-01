@@ -25,7 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { getMcpEntryById, logger } from '@mcpambassador/core';
+import { getMcpEntryById, logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { KillSwitchManager } from './kill-switch-manager.js';
 import { killSwitchSchema, killSwitchParamsSchema } from './schemas.js';
@@ -190,7 +190,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         source_ip: sourceIp,
         action: 'hmac_secret_rotation_failed',
         metadata: {
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: err instanceof Error ? publicErrorMessage(err) : 'Unknown error',
           actor: 'admin',
         },
       });
