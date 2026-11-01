@@ -20,12 +20,25 @@ function normalizeRegistryOauth(oc: unknown): unknown {
   return oc;
 }
 
+/** TD-035: fixed text; must never name env vars or hosts. */
+export const REGISTRY_UNAVAILABLE_REASON =
+  'requires a server-side OAuth client secret for this provider';
+
+type EntryCheck =
+  | { status: 'ok' }
+  | { status: 'invalid'; reason: string }
+  | { status: 'unavailable'; reason: string };
+
 export interface SkippedRegistryEntry {
   name: string;
   reason: string;
 }
 
-/** Same rule as the admin routes' safeIssueMessage: zod enum/literal messages echo the received value. */
+/**
+ * Deliberate 4-line copy of safeIssueMessage in admin/routes.ts (importing it from here would create
+ * an import cycle: routes.ts -> registry-service.ts). Keep the two in sync: zod enum/literal
+ * messages echo the received value, so they are replaced.
+ */
 function safeIssueMessage(i: { code: string; message: string }): string {
   return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
     ? 'Invalid value'
@@ -109,6 +122,10 @@ export interface RegistryData {
 export interface RegistryMcpWithStatus extends RegistryMcpEntry {
   installed: boolean;
   installed_mcp_id?: string;
+  /** TD-035: false when this server cannot install the entry (see unavailable_reason). */
+  installable: boolean;
+  /** Generic, fixed-text reason (never env var names) when installable is false. */
+  unavailable_reason?: string;
 }
 
 /**
@@ -122,6 +139,8 @@ export class RegistryService {
   private cachedRegistry: RegistryData | null = null;
   private lastFetchedAt: Date | null = null;
   private skippedEntries: SkippedRegistryEntry[] = [];
+  /** TD-035: valid entries this server cannot install yet (secret not configured), name -> reason */
+  private unavailableEntries = new Map<string, string>();
 
   private secretStore: SecretStore;
 
@@ -182,25 +201,35 @@ export class RegistryService {
       // TD-031: validate each entry like the admin create path; skip (and record) the bad ones
       const valid: RegistryMcpEntry[] = [];
       const skipped: SkippedRegistryEntry[] = [];
+      const unavailable = new Map<string, string>();
       for (const entry of parsed.mcps) {
-        const reason = this.checkEntry(entry);
-        if (reason === null) {
+        const check = this.checkEntry(entry);
+        if (check.status === 'ok') {
           valid.push(entry);
+        } else if (check.status === 'unavailable') {
+          // Valid entry, but only the server-side secret is missing: list it, install disabled
+          valid.push(entry);
+          unavailable.set(entry.name, check.reason);
+          logger.info(
+            `[RegistryService] Registry entry '${cleanForLog(entry.name, 100)}' not installable on this server: ${check.reason}`
+          );
         } else {
           const name = cleanForLog((entry as { name?: unknown } | null)?.name ?? '(unnamed)', 100);
-          skipped.push({ name, reason });
-          logger.warn(`[RegistryService] Skipping registry entry '${name}': ${reason}`);
+          skipped.push({ name, reason: check.reason });
+          logger.warn(`[RegistryService] Skipping registry entry '${name}': ${check.reason}`);
         }
       }
       parsed.mcps = valid;
       this.skippedEntries = skipped;
+      this.unavailableEntries = unavailable;
 
       this.cachedRegistry = parsed;
       this.lastFetchedAt = new Date();
 
       logger.info(
         `[RegistryService] Registry cached: ${valid.length} entries from ${cleanForLog(parsed.registry.name, 100)}` +
-          (skipped.length ? ` (${skipped.length} skipped as invalid)` : '')
+          (skipped.length ? ` (${skipped.length} skipped as invalid)` : '') +
+          (unavailable.size ? ` (${unavailable.size} not installable on this server)` : '')
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -215,7 +244,17 @@ export class RegistryService {
     }
   }
 
-  /** Entries dropped by the last fetch (name and reason only; no entry contents). */
+  private installability(name: string): { installable: boolean; unavailable_reason?: string } {
+    const reason = this.unavailableEntries.get(name);
+    return reason ? { installable: false, unavailable_reason: reason } : { installable: true };
+  }
+
+  /** TD-035: valid entries this server cannot install (name and fixed generic reason). */
+  getUnavailableEntries(): SkippedRegistryEntry[] {
+    return Array.from(this.unavailableEntries, ([name, reason]) => ({ name, reason }));
+  }
+
+  /** INVALID entries dropped by the last fetch (name and reason only; no entry contents). */
   getSkippedEntries(): SkippedRegistryEntry[] {
     return [...this.skippedEntries];
   }
@@ -224,8 +263,10 @@ export class RegistryService {
    * TD-031: schema + oauth binding check for one registry entry.
    * Returns null when acceptable, else a short reason (never entry values beyond field paths).
    */
-  private checkEntry(entry: unknown): string | null {
-    if (!entry || typeof entry !== 'object') return 'entry is not an object';
+  private checkEntry(entry: unknown): EntryCheck {
+    if (!entry || typeof entry !== 'object') {
+      return { status: 'invalid', reason: 'entry is not an object' };
+    }
     const e = entry as Record<string, unknown>;
     const r = registryEntrySchema.safeParse(
       e.oauth_config === undefined
@@ -234,13 +275,22 @@ export class RegistryService {
     );
     if (!r.success) {
       const issue = r.error.issues[0];
-      return cleanForLog(
-        `${issue?.path.join('.') || 'entry'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`,
-        200
-      );
+      return {
+        status: 'invalid',
+        reason: cleanForLog(
+          `${issue?.path.join('.') || 'entry'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`,
+          200
+        ),
+      };
     }
     const oc = r.data.oauth_config;
     if (oc?.client_secret_env && oc.token_url) {
+      // UNAVAILABLE (TD-035): the entry is well-formed (https URLs and *_CLIENT_ID were enforced by
+      // the schema above) and only the server-side secret is not configured. A secret that exists
+      // but is not bound to this token_url host stays INVALID.
+      if (!this.secretStore.has(oc.client_secret_env)) {
+        return { status: 'unavailable', reason: REGISTRY_UNAVAILABLE_REASON };
+      }
       try {
         this.secretStore.assertOAuthConfig({
           client_secret_env: oc.client_secret_env,
@@ -251,12 +301,16 @@ export class RegistryService {
         });
       } catch (e) {
         // No env var names or hosts in the reason (OAuthConfigError messages can name them)
-        return e instanceof OAuthConfigError
-          ? 'oauth_config: secret binding rejected'
-          : 'oauth_config: rejected';
+        return {
+          status: 'invalid',
+          reason:
+            e instanceof OAuthConfigError
+              ? 'oauth_config: secret binding rejected'
+              : 'oauth_config: rejected',
+        };
       }
     }
-    return null;
+    return { status: 'ok' };
   }
 
   /**
@@ -314,6 +368,7 @@ export class RegistryService {
       ...entry,
       installed: installed.has(entry.name),
       installed_mcp_id: installed.get(entry.name),
+      ...this.installability(entry.name),
     }));
   }
 
@@ -341,6 +396,7 @@ export class RegistryService {
       ...entry,
       installed: !!existing,
       installed_mcp_id: existing?.mcp_id,
+      ...this.installability(entry.name),
     };
   }
 
@@ -370,6 +426,14 @@ export class RegistryService {
       return {
         success: false,
         message: `MCP '${name}' not found in registry`,
+      };
+    }
+
+    const unavailableReason = this.unavailableEntries.get(name);
+    if (unavailableReason) {
+      return {
+        success: false,
+        message: `MCP '${name}' is not installable on this server: ${unavailableReason}`,
       };
     }
 
