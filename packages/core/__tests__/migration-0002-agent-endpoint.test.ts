@@ -108,20 +108,37 @@ describe('migration 0002 (agent endpoint)', () => {
     expect(codes).toContain('code_hash');
   });
 
-  it('foreign keys cascade: deleting a user removes grants and tokens', () => {
+  it('foreign keys cascade: deleting the user OR the bound Ambassador client removes grants and tokens', () => {
+    for (const victim of ['user', 'client'] as const) {
+      const db = old();
+      db.exec(sql('0002_adr020_agent_endpoint.sql'));
+      db.pragma('foreign_keys = ON');
+      const uid = (db.prepare('SELECT user_id FROM users LIMIT 1').get() as { user_id: string })
+        .user_id;
+      const cid = (
+        db.prepare('SELECT client_id FROM clients LIMIT 1').get() as { client_id: string }
+      ).client_id;
+      db.prepare(
+        "INSERT INTO agent_grants (grant_id,user_id,bound_client_id,label,scopes,resource,created_at,expires_at) VALUES ('g',?,?,'l','[]','r','t','t')"
+      ).run(uid, cid);
+      db.prepare(
+        "INSERT INTO agent_tokens (token_hash,kind,grant_id,expires_at,created_at) VALUES ('h','access','g','t','t')"
+      ).run();
+      if (victim === 'user') db.prepare('DELETE FROM users WHERE user_id=?').run(uid);
+      else db.prepare('DELETE FROM clients WHERE client_id=?').run(cid);
+      expect(db.prepare('SELECT count(*) c FROM agent_grants').get(), victim).toEqual({ c: 0 });
+      expect(db.prepare('SELECT count(*) c FROM agent_tokens').get(), victim).toEqual({ c: 0 });
+    }
+  });
+
+  it('bound_client_id is NOT NULL on grants and auth codes', () => {
     const db = old();
     db.exec(sql('0002_adr020_agent_endpoint.sql'));
-    db.pragma('foreign_keys = ON');
-    const uid = (db.prepare('SELECT user_id FROM users LIMIT 1').get() as { user_id: string })
-      .user_id;
-    db.prepare(
-      "INSERT INTO agent_grants (grant_id,user_id,label,scopes,resource,created_at,expires_at) VALUES ('g',?,'l','[]','r','t','t')"
-    ).run(uid);
-    db.prepare(
-      "INSERT INTO agent_tokens (token_hash,kind,grant_id,expires_at,created_at) VALUES ('h','access','g','t','t')"
-    ).run();
-    db.prepare('DELETE FROM users WHERE user_id=?').run(uid);
-    expect(db.prepare('SELECT count(*) c FROM agent_grants').get()).toEqual({ c: 0 });
-    expect(db.prepare('SELECT count(*) c FROM agent_tokens').get()).toEqual({ c: 0 });
+    for (const tbl of ['agent_grants', 'oauth_auth_codes']) {
+      const col = (
+        db.prepare(`PRAGMA table_info(${tbl})`).all() as { name: string; notnull: number }[]
+      ).find(c => c.name === 'bound_client_id');
+      expect(col?.notnull, tbl).toBe(1);
+    }
   });
 });
