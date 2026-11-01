@@ -454,6 +454,18 @@ export class UserMcpPool {
     return instanceSet.aggregatedTools.find(tool => tool.name === toolName);
   }
 
+  /** ADR-021: re-run tools/list on every ready per-user connection (periodic re-discovery). */
+  async refreshAllTools(): Promise<void> {
+    const jobs: Promise<unknown>[] = [];
+    for (const set of this.userInstances.values()) {
+      if (set.status !== 'ready') continue;
+      for (const conn of set.connections.values()) {
+        if (conn.isConnected()) jobs.push(conn.refreshToolList().catch(() => undefined));
+      }
+    }
+    await Promise.allSettled(jobs);
+  }
+
   /** ADR-021: raw cached `tools/list` array of one of the user's MCP instances (undefined if not ready). */
   getRawToolsFor(userId: string, mcpName: string): readonly unknown[] | undefined {
     const set = this.userInstances.get(userId);

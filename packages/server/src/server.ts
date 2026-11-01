@@ -173,6 +173,9 @@ export class AmbassadorServer {
   private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
   private toolPins: import('./services/tool-pins/pin-service.js').ToolPinService | null = null;
+  private toolPinRediscovery:
+    | import('./services/tool-pins/rediscovery.js').ToolPinRediscovery
+    | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
@@ -514,6 +517,16 @@ export class AmbassadorServer {
       const baseline = new ToolPinBaseline(this.db!, pins, pinAuditFn);
       await baseline.init();
       this.toolRouter.setPinService(pins, (mcpId, scope) => baseline.baselineFor(mcpId, scope));
+      const { ToolPinRediscovery, rediscoveryHoursFromEnv } =
+        await import('./services/tool-pins/rediscovery.js');
+      this.toolPinRediscovery = new ToolPinRediscovery({
+        db: this.db!,
+        mcpManager: this.mcpManager,
+        userPool: this.userPool,
+        toolRouter: this.toolRouter,
+        intervalHours: rediscoveryHoursFromEnv(),
+      });
+      this.toolPinRediscovery.start();
     }
     logger.info('[Server] Per-user MCP pool initialized');
 
@@ -730,6 +743,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1645,6 +1660,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -2029,6 +2046,8 @@ DELETE THIS FILE after recording the value.
       logger.info('[Server] Shutting down audit provider...');
       await this.audit.shutdown?.();
     }
+
+    this.toolPinRediscovery?.stop();
 
     // M17.3: Shutdown per-user MCP pool first
     logger.info('[Server] Shutting down per-user MCP pool...');

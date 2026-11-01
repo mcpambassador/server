@@ -499,6 +499,10 @@ export const mcp_catalog = sqliteTable(
     pin_policy: text('pin_policy', { enum: ['review', 'auto'] })
       .notNull()
       .default('review'),
+    // ADR-021: only 'custom' (admin-created) MCPs may use pin_policy=auto
+    origin: text('origin', { enum: ['custom', 'registry', 'import', 'unknown'] })
+      .notNull()
+      .default('unknown'),
     requires_user_credentials: integer('requires_user_credentials', { mode: 'boolean' })
       .notNull()
       .default(false),

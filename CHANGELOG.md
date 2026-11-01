@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `server.trust_proxy` / `MCP_AMBASSADOR_TRUST_PROXY` no longer accept hop counts (Fastify 5.12 disables them because they let direct clients spoof `X-Forwarded-*`). Use `true`, `false`, or an IP/CIDR list; a bare number in the env var is rejected at startup.
 
 ### Security
+- Tool definition pinning (ADR-021): every downstream tool definition is hashed (RFC 8785 canonical JSON + SHA-256) and pinned. Agents only ever see the admin-approved definition, never the live one, on `/v1/tools`, `/mcp` tools/list, invocation and the insufficient-scope pre-check; arguments are validated against the approved `inputSchema`. A new or changed definition goes to a review queue (`pending_review`); the previously approved one keeps serving. Flags (injection-like phrases, zero-width/bidi characters, oversize, reserved or duplicate names) are shown to the reviewer and never auto-decide. Audit events carry hashes only.
 - Query strings are redacted from request logs and 404 responses; admin-key failures are rate limited per IP and format-checked before argon2; OAuth `state` and raw downstream error bodies are no longer logged.
 - Kill switches persist across restarts (`kill_switches` table) and are enforced in the invocation router; killed tools/clients are hidden from tool listings.
 - Agent endpoint: deleting an OAuth client now disables it first, then revokes (and retains) its grants and deletes it in one transaction, closes the grants' live `/mcp` streams and audits each as `agent_grant_revoked`. Disabling a client also closes its live streams.
@@ -19,9 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Registry install persists only the schema-validated `oauth_config` (unknown keys are dropped).
 
 ### Added
+- Admin API for the pin review queue: `GET /v1/admin/tool-pins` (+ `/summary`, `/:pinId`), `POST /v1/admin/tool-pins/:pinId/approve|reject|confirm-baseline`, `PATCH /v1/admin/mcps/:mcpId/pin-policy`. Decisions need the pin's current `expected_hash`; `apply_to: all_users` writes the all-users baseline pin. Five rejections in 24h hold an MCP's new pending items (approved definitions keep serving).
+- Pin policy per MCP: `review` (default) or `auto` (first-seen tools auto-approved; later changes still need review). `auto` is allowed only for MCPs created by an admin (new `mcp_catalog.origin`); registry and imported MCPs always require review.
+- Re-discovery: `notifications/tools/list_changed` from a stdio downstream triggers an immediate re-fetch, and all connections are re-fetched every `TOOL_PIN_REDISCOVERY_HOURS` (default 6, `0` disables the periodic run).
 - `GET /v1/users/me/agent-endpoint` returns `resource_url` (the canonical MCP resource URL, `null` when the endpoint is disabled).
 
 ### Changed
+- Upgrade behaviour for pinning (migration `0004_tool_pins.sql`): the first discovery after upgrade runs a one-shot baseline against each MCP's publish-time `tool_catalog` snapshot. Matching, unflagged tools are approved as `system:migration` and listed as "baseline, never human-reviewed" until an admin confirms them; everything else is `pending_review`. Until that first discovery runs, MCPs show no tools. Served descriptions are the approved full text (bounded by the 64 KB definition cap), not the former 500-character truncation.
 - Migrations are tracked (TD-032): `schema_migrations(filename, sha256, applied_at)`. An existing untracked database is bootstrapped once (0000-0003 re-run idempotently, then recorded); later files run exactly once, each in its own transaction with its record, with no already-exists tolerance. Startup refuses (`MigrationIntegrityError`) if an applied migration file's hash changed. Hashes are line-ending-normalised (`.gitattributes` forces LF for `*.sql`). A new migration containing `PRAGMA foreign_keys` is refused (it is a no-op inside the transaction, so a table rebuild would cascade-delete children). The bootstrap logs the recorded filenames and hashes at warn.
 
 ## [0.9.1] - 2026-04-19

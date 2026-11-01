@@ -274,6 +274,11 @@ export class StdioMcpConnection extends EventEmitter {
       }
     } else {
       // Notification or unsolicited message
+      if (message.method === 'notifications/tools/list_changed') {
+        // ADR-021: the caller re-fetches tools/list; the pin filter decides what the agent may see.
+        this.emit('tools_list_changed');
+        return;
+      }
       logger.info(`[MCP:${this.config.name}] Notification:`, message);
     }
   }

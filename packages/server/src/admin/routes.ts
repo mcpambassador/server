@@ -28,6 +28,7 @@ import { registerAdminAuditRoutes } from './audit-routes.js';
 import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
+import { registerAdminToolPinRoutes } from './tool-pin-routes.js';
 import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
@@ -62,6 +63,10 @@ export interface AdminRoutesConfig {
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
   secretStore?: SecretStore;
+  /** ADR-021: tool pin service accessor (null until initialised) */
+  getToolPins?: () => import('../services/tool-pins/pin-service.js').ToolPinService | null;
+  /** Called after a pin decision / policy change so cached catalog observations are re-evaluated */
+  onToolPinsChanged?: () => void;
 }
 
 /**
@@ -212,6 +217,12 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
 
   // Group management (9 endpoints)
   fastify.register(registerAdminGroupRoutes, { db, audit });
+  fastify.register(registerAdminToolPinRoutes, {
+    db,
+    audit,
+    getPins: opts.getToolPins ?? (() => null),
+    onChanged: opts.onToolPinsChanged,
+  });
 
   // MCP catalog management (7 endpoints)
   fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
