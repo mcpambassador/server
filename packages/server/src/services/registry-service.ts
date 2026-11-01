@@ -388,7 +388,7 @@ export class RegistryService {
         if (!parsed.success) {
           const issue = parsed.error.issues[0];
           throw new OAuthConfigError(
-            `${issue?.path.join('.') || 'oauth_config'}: ${issue?.message ?? 'invalid'}`
+            `${issue?.path.join('.') || 'oauth_config'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`
           );
         }
         const oc = parsed.data;
