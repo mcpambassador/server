@@ -216,6 +216,8 @@ async function main() {
       ambassadorConfig = await loadConfig(configPath, {
         enforcement: 'block',
         scrub_env_vars: true,
+        // TD-027: vars the server reads itself after config load; all other credential vars are still scrubbed.
+        preserve_env_vars: ['REGISTRY_TOKEN', 'GITHUB_OAUTH_CLIENT_SECRET'],
       });
       logger.info('[Server] Configuration loaded successfully');
 

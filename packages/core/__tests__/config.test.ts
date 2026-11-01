@@ -281,4 +281,57 @@ authentication:
       (e: Error) => e.message.includes('api_key') && !e.message.includes('FAKESECRET')
     );
   });
+
+  describe('env scrub (TD-027)', () => {
+    const yamlText = `
+server:
+  host: 0.0.0.0
+  port: 8443
+authentication:
+  provider: api_key
+  config: {}
+authorization:
+  provider: local_rbac
+  config: {}
+audit:
+  provider: file
+  config: {}
+database:
+  type: sqlite
+  url: ./data/test.db
+downstream_mcps: []
+`;
+    const names = ['TD027_REGISTRY_TOKEN', 'TD027_OTHER_SECRET', 'TD027_PLAIN'];
+    afterEach(() => names.forEach(n => delete process.env[n]));
+
+    it('scrubs credential-looking env vars by default', async () => {
+      process.env.TD027_REGISTRY_TOKEN = 'a';
+      process.env.TD027_OTHER_SECRET = 'b';
+      process.env.TD027_PLAIN = 'c';
+      await fs.writeFile(configPath, yamlText);
+      await loadConfig(configPath, { scrub_env_vars: true });
+      expect(process.env.TD027_REGISTRY_TOKEN).toBeUndefined();
+      expect(process.env.TD027_OTHER_SECRET).toBeUndefined();
+      expect(process.env.TD027_PLAIN).toBe('c');
+    });
+
+    it('preserves only the named vars; still scrubs the rest', async () => {
+      process.env.TD027_REGISTRY_TOKEN = 'a';
+      process.env.TD027_OTHER_SECRET = 'b';
+      await fs.writeFile(configPath, yamlText);
+      await loadConfig(configPath, {
+        scrub_env_vars: true,
+        preserve_env_vars: ['TD027_REGISTRY_TOKEN'],
+      });
+      expect(process.env.TD027_REGISTRY_TOKEN).toBe('a');
+      expect(process.env.TD027_OTHER_SECRET).toBeUndefined();
+    });
+
+    it('preserve matches exact names only, not substrings', async () => {
+      process.env.TD027_OTHER_SECRET = 'b';
+      await fs.writeFile(configPath, yamlText);
+      await loadConfig(configPath, { scrub_env_vars: true, preserve_env_vars: ['TD027_OTHER'] });
+      expect(process.env.TD027_OTHER_SECRET).toBeUndefined();
+    });
+  });
 });
