@@ -12,6 +12,7 @@ import {
   invokeTool,
   resolveSessionUserId,
   SessionBindingError,
+  KillSwitchError,
   SessionStateError,
   type ToolServiceDeps,
 } from './services/tool-service.js';
@@ -880,6 +881,7 @@ export class AmbassadorServer {
       toolRouter: this.toolRouter,
       mcpManager: this.mcpManager,
       userPool: this.userPool,
+      killSwitch: this.killSwitchManager,
     };
   }
 
@@ -1554,6 +1556,11 @@ export class AmbassadorServer {
           return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
+          });
+        } else if (err instanceof KillSwitchError) {
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: err.message,
           });
         } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
