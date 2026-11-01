@@ -1,68 +1,72 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
-import * as child_process from 'child_process';
+import { describe, it, afterEach, expect, vi } from 'vitest';
+import { EventEmitter } from 'events';
 import { STDIO_SAFE_ENV, makeMcpConfig } from './helpers';
 
-let StdioMcpConnection: any;
-
-beforeEach(() => {
-  // reset module variable
-  StdioMcpConnection = undefined;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-describe('StdioMcpConnection environment whitelist (SEC-M9-02)', () => {
-  it('passes only whitelisted env vars + config.env to spawn', async () => {
-    try {
-      const mod = await import('../../../src/downstream/stdio-connection');
-      StdioMcpConnection = (mod as any).StdioMcpConnection;
-    } catch (err) {
-      // skip if implementation missing
-      return expect(true).toBeTruthy();
-    }
-
-    // stub spawn
-    const spawnMock = vi.spyOn(child_process, 'spawn').mockImplementation(() => {
-      const ev: any = require('events').EventEmitter.prototype;
-      const fakeStdout = new (require('events').EventEmitter)();
-      const fakeStderr = new (require('events').EventEmitter)();
-      const fakeStdin = { write: () => {}, end: () => {} };
+// Mock child_process.spawn so no real process starts and we can inspect the env it was given.
+// (The previous version imported '../../../src/...' (wrong depth), caught the failure and returned,
+// so it asserted nothing.)
+const spawnCalls: any[][] = [];
+vi.mock('child_process', async orig => {
+  const actual = await orig<typeof import('child_process')>();
+  return {
+    ...actual,
+    spawn: (...args: any[]) => {
+      spawnCalls.push(args);
       return {
-        stdout: fakeStdout,
-        stderr: fakeStderr,
-        stdin: fakeStdin,
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+        stdin: { write: () => {}, end: () => {}, on: () => {} },
         pid: 12345,
         kill: () => {},
         on: () => {},
       };
-    });
+    },
+  };
+});
 
-    // Set an env var on process.env that must NOT be passed through
+import {
+  StdioMcpConnection,
+  SAFE_ENV_VARS,
+  SERVER_CONTROLLED_ENV_VARS,
+} from '../../src/downstream/stdio-connection.js';
+
+// Server-controlled vars (UV_*, NPM_CONFIG_CACHE) are forwarded when set in the server env, so clear
+// them here: the exact-key assertion must hold even if the developer's shell exports them.
+const touched = [...STDIO_SAFE_ENV, ...SERVER_CONTROLLED_ENV_VARS, 'SHOULD_NOT_PASS'];
+const saved: Record<string, string | undefined> = {};
+
+afterEach(() => {
+  for (const k of touched) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+  spawnCalls.length = 0;
+});
+
+describe('StdioMcpConnection environment whitelist (SEC-M9-02)', () => {
+  it('whitelist in the product matches the one this test expects', () => {
+    expect([...SAFE_ENV_VARS].sort()).toEqual([...STDIO_SAFE_ENV].sort());
+  });
+
+  it('passes only whitelisted env vars + config.env to spawn', async () => {
+    for (const k of touched) saved[k] = process.env[k];
+    for (const k of STDIO_SAFE_ENV) process.env[k] = `val-${k}`;
     process.env['SHOULD_NOT_PASS'] = 'bad';
+    for (const k of SERVER_CONTROLLED_ENV_VARS) delete process.env[k];
 
-    const config = makeMcpConfig({ transport: 'stdio', env: { MCP_ONLY: 'yes' } });
-    const conn = new StdioMcpConnection(config);
-    await conn.start();
+    const conn = new StdioMcpConnection(
+      makeMcpConfig({ transport: 'stdio', env: { MCP_ONLY: 'yes' } }) as any
+    );
+    void conn.start().catch(() => undefined); // fake child never answers; spawn is synchronous
+    await new Promise(r => setTimeout(r, 20));
 
-    // assert spawn was called and capture env
-    expect(spawnMock).toHaveBeenCalled();
-    const call = spawnMock.mock.calls[0];
-    const options = call[2] || {};
-    const passedEnv = options.env || {};
+    expect(spawnCalls.length).toBe(1);
+    const env = spawnCalls[0]![2].env as Record<string, string>;
 
-    // whitelist keys present
-    for (const k of STDIO_SAFE_ENV) {
-      expect(k in passedEnv).toBe(true);
-    }
-
-    // MCP-specific env is present
-    expect(passedEnv.MCP_ONLY).toBe('yes');
-
-    // process env keys that are not whitelisted should not be present
-    expect(passedEnv.SHOULD_NOT_PASS).toBeUndefined();
-
-    await conn.stop();
+    for (const k of STDIO_SAFE_ENV) expect(env[k]).toBe(`val-${k}`);
+    expect(env['MCP_ONLY']).toBe('yes');
+    expect(env['SHOULD_NOT_PASS']).toBeUndefined();
+    // nothing beyond whitelist + config.env
+    expect(Object.keys(env).sort()).toEqual([...STDIO_SAFE_ENV, 'MCP_ONLY'].sort());
   });
 });
