@@ -236,4 +236,35 @@ describe('TD-045 review fixes', () => {
       vi.useRealTimers();
     }
   });
+  it('throttles audit after the failing threshold: once, then hourly summary, none per retry', async () => {
+    const events: string[] = [];
+    const rc = new RespawnController('shared', a => events.push(a));
+    const conn = {
+      start: () => Promise.reject(new Error('boom')),
+      stop: async () => undefined,
+    } as never;
+    vi.useFakeTimers();
+    try {
+      rc.schedule(
+        'k',
+        conn,
+        () => true,
+        () => undefined
+      );
+      // ~2h of retries at the 30s cap
+      for (let i = 0; i < 240; i++) await vi.advanceTimersByTimeAsync(31_000);
+      const failing = events.filter(e => e === 'mcp_respawn_failing').length;
+      expect(failing).toBeGreaterThanOrEqual(2);
+      expect(failing).toBeLessThanOrEqual(4);
+      expect(events.filter(e => e === 'mcp_process_exited').length).toBeLessThanOrEqual(
+        RespawnController.FAILING_AFTER
+      );
+      expect(events.filter(e => e === 'mcp_respawn_failed').length).toBeLessThanOrEqual(
+        RespawnController.FAILING_AFTER
+      );
+    } finally {
+      rc.close();
+      vi.useRealTimers();
+    }
+  });
 });

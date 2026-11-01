@@ -23,11 +23,14 @@ export class RespawnController {
   static readonly BASE_MS = 1000;
   static readonly CAP_MS = 30000;
   static readonly STABLE_MS = 60000;
+  /** Past the failing threshold, at most one summary event per this interval until recovery. */
+  static readonly SUMMARY_MS = 3600000;
 
   private attempts = new Map<string, number>();
   private timers = new Map<string, NodeJS.Timeout>();
   private inflight = new Set<string>();
   private generation = new Map<string, number>();
+  private lastSummary = new Map<string, number>();
   private closed = false;
 
   constructor(
@@ -78,9 +81,16 @@ export class RespawnController {
     );
     const gen = this.gen(key);
     logger.warn(`[respawn] ${this.scope}:${key} respawn ${attempt} in ${delay}ms`);
-    this.emit('mcp_process_exited', key, { reason, attempt, delay_ms: delay });
-    if (attempt === RespawnController.FAILING_AFTER + 1) {
+    // Audit volume: per-attempt events only within the normal budget; past it, `mcp_respawn_failing`
+    // once, then an hourly summary, until `mcp_respawned`.
+    if (attempt <= RespawnController.FAILING_AFTER) {
+      this.emit('mcp_process_exited', key, { reason, attempt, delay_ms: delay });
+    } else if (attempt === RespawnController.FAILING_AFTER + 1) {
+      this.lastSummary.set(key, Date.now());
       this.emit('mcp_respawn_failing', key, { attempts: attempt - 1, will_keep_retrying: true });
+    } else if (Date.now() - (this.lastSummary.get(key) ?? 0) >= RespawnController.SUMMARY_MS) {
+      this.lastSummary.set(key, Date.now());
+      this.emit('mcp_respawn_failing', key, { attempts: attempt - 1, summary: true });
     }
     const timer = setTimeout(() => {
       this.timers.delete(key);
@@ -96,6 +106,7 @@ export class RespawnController {
             return;
           }
           await afterStart();
+          this.lastSummary.delete(key);
           this.emit('mcp_respawned', key, { attempt });
           const t = setTimeout(() => {
             if (this.gen(key) === gen) this.attempts.delete(key);
@@ -105,7 +116,8 @@ export class RespawnController {
         .catch(err => {
           this.inflight.delete(key);
           logger.error({ err }, `[respawn] ${this.scope}:${key} respawn failed`);
-          this.emit('mcp_respawn_failed', key, { attempt });
+          if (attempt <= RespawnController.FAILING_AFTER)
+            this.emit('mcp_respawn_failed', key, { attempt });
           if (this.gen(key) === gen)
             this.plan(key, connection, isCurrent, afterStart, 'respawn_failed');
         });
@@ -120,6 +132,7 @@ export class RespawnController {
     if (t) clearTimeout(t);
     this.timers.delete(key);
     this.attempts.delete(key);
+    this.lastSummary.delete(key);
     this.generation.set(key, this.gen(key) + 1);
   }
 

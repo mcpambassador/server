@@ -159,6 +159,13 @@ export class StdioMcpConnection extends EventEmitter {
       this.rejectAllPending(new Error(`[${this.config.name}] MCP process unavailable`));
     });
 
+    for (const stream of [childProcess.stdout, childProcess.stderr]) {
+      stream?.on('error', (err: Error) => {
+        logger.warn({ errName: err.name }, `[MCP:${this.config.name}] stream error`);
+        this.errorBuffer.push(`stream error: ${err.name}`, 'error');
+      });
+    }
+
     // Handle stdout (JSON-RPC responses)
     childProcess.stdout?.on('data', (data: Buffer) => {
       this.handleStdout(data);
