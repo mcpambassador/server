@@ -12,6 +12,7 @@ import {
   TOOL_PIN_AUTO_HOLD_REJECTIONS,
   TOOL_PIN_AUTO_HOLD_WINDOW_HOURS,
   TOOL_PIN_BLOCKING_FLAG_CODES,
+  TOOL_PIN_INFORMATIONAL_FLAG_CODES,
   SYSTEM_MIGRATION_ACTOR,
   TOOL_PIN_FLAG_RULES_VERSION,
   TOOL_PIN_MAX_PENDING_PER_SCOPE,
@@ -196,6 +197,7 @@ export class ToolPinService {
         r.mcp_id === mcpId &&
         r.rejected_hash &&
         r.status === 'rejected' &&
+        !isRevoked(r) &&
         Date.parse(r.updated_at) >= cutoff
       )
         n++;
@@ -232,6 +234,23 @@ export class ToolPinService {
     if (blocking.length > 0) return { ok: false, code: 'blocked', flags: blocking };
     if (hashCanonical(pin.pending_definition) !== pin.pending_hash)
       return { ok: false, code: 'corrupt' };
+
+    if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
+      // S3: never overwrite a different pending item on the all-users pin; refuse before changing anything.
+      const base = this.pins.get(key(pin.mcp_id, null, pin.tool_name))?.rec;
+      if (base && base.status === 'pending_review' && base.pending_hash !== pin.pending_hash) {
+        this.audit('tool_pin_baseline_conflict', {
+          pin_id: pin.pin_id,
+          baseline_pin_id: base.pin_id,
+          mcp_id: pin.mcp_id,
+          tool: sanitizeToolNameForLog(pin.tool_name),
+          attempted_hash: pin.pending_hash,
+          pending_hash: base.pending_hash,
+          actor: o.actor,
+        });
+        return { ok: false, code: 'baseline_conflict' };
+      }
+    }
 
     const ts = nowIso();
     const patch: Partial<ToolPinRecord> = {
@@ -328,6 +347,8 @@ export class ToolPinService {
       rejected_hash: pin.pending_hash,
       pending_hash: null,
       pending_definition: null,
+      // a rejection of a pin with no approved version is not a revoke: clear the revoke marker
+      ...(pin.approved_hash ? {} : { approved_at: null, approved_by: null }),
       updated_at: ts,
     };
     await updateToolPin(this.db, pin.pin_id, patch);
@@ -350,6 +371,53 @@ export class ToolPinService {
       logger.warn({ mcp_id: pin.mcp_id }, '[tool-pins] MCP auto-held after repeated rejections');
     }
     return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /**
+   * D7: withdraw an APPROVED definition. The tool is hidden at once (also for per-user scopes that relied on
+   * a NULL-scope pin); the old hash is recorded as rejected so it is not re-raised, and a new hash goes pending.
+   */
+  async revoke(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    if (!pin.approved_hash) return { ok: false, code: 'not_approved' };
+    if (pin.approved_hash !== o.expectedHash) return { ok: false, code: 'stale' };
+    const ts = nowIso();
+    const patch: Partial<ToolPinRecord> = {
+      status: 'rejected',
+      approved_hash: null,
+      approved_definition: null,
+      // approved_at/approved_by are kept as the revoke marker (status rejected, no approved_hash, approved_at set)
+      pending_hash: null,
+      pending_definition: null,
+      rejected_hash: pin.approved_hash,
+      updated_at: ts,
+    };
+    await updateToolPin(this.db, pin.pin_id, patch);
+    this.index({ ...pin, ...patch } as ToolPinRecord);
+    this.audit('tool_pin_revoked', {
+      pin_id: pin.pin_id,
+      mcp_id: pin.mcp_id,
+      scope_user_id: pin.scope_user_id,
+      tool: sanitizeToolNameForLog(pin.tool_name),
+      revoked_hash: pin.approved_hash,
+      previously_approved_by: pin.approved_by,
+      actor: o.actor,
+      reason_given: Boolean(o.reason),
+    });
+    return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /** (c) True if this exact definition was rejected or revoked for the same (mcp, tool) in ANY scope. */
+  private rejectedAnywhere(mcpId: string, toolName: string, hash: string): boolean {
+    for (const l of this.pins.values()) {
+      if (l.rec.mcp_id === mcpId && l.rec.tool_name === toolName && l.rec.rejected_hash === hash)
+        return true;
+    }
+    return false;
   }
 
   /** D6: a human confirms a `system:migration` baseline pin. `expectedHash` must equal approved_hash. */
@@ -389,7 +457,7 @@ export class ToolPinService {
     const heldMcps = new Set<string>();
     for (const l of this.pins.values()) {
       if (l.rec.status === 'pending_review') pending++;
-      if (l.rec.approved_by === SYSTEM_MIGRATION_ACTOR) baseline++;
+      if (l.rec.approved_by === SYSTEM_MIGRATION_ACTOR && l.rec.approved_hash) baseline++;
       heldMcps.add(l.rec.mcp_id);
     }
     const held = this.heldScopes();
@@ -473,14 +541,29 @@ export class ToolPinService {
       if (args.baseline !== undefined) {
         // D6: baseline MCPs are not governed by pin_policy on first observation. Equal to the
         // publish-time snapshot and clean => approved by the migration; anything else => pending.
-        const clean = !blocking && !assessed.tooLarge && assessed.flags.codes.length === 0;
-        if (clean && args.baseline.get(name) === snapshotProjectionHash(raw)) {
+        // Clean = no flag other than the explicit informational (length-only) ones.
+        const clean =
+          !blocking &&
+          !assessed.tooLarge &&
+          assessed.flags.codes.every(c =>
+            (TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c)
+          );
+        if (
+          clean &&
+          !this.rejectedAnywhere(mcpId, name, assessed.hash) &&
+          args.baseline.get(name) === snapshotProjectionHash(raw)
+        ) {
           approve = true;
           approvedBy = SYSTEM_MIGRATION_ACTOR;
         } else if (!assessed.flags.codes.includes('baseline_mismatch')) {
           assessed.flags.codes = [...assessed.flags.codes, 'baseline_mismatch' as const].sort();
         }
-      } else if (policy === 'auto' && !blocking && !assessed.tooLarge) {
+      } else if (
+        policy === 'auto' &&
+        !blocking &&
+        !assessed.tooLarge &&
+        !this.rejectedAnywhere(mcpId, name, assessed.hash)
+      ) {
         approve = true;
         approvedBy = SYSTEM_AUTO;
       }
@@ -700,9 +783,22 @@ export type DecisionResult =
   | { ok: true; pin: ToolPinRecord }
   | {
       ok: false;
-      code: 'not_found' | 'not_pending' | 'stale' | 'blocked' | 'corrupt' | 'not_baseline';
+      code:
+        | 'not_found'
+        | 'not_pending'
+        | 'stale'
+        | 'blocked'
+        | 'corrupt'
+        | 'not_baseline'
+        | 'not_approved'
+        | 'baseline_conflict';
       flags?: string[];
     };
+
+/** A revoked pin: rejected, no approved version, approved_at kept as the marker (reject() clears it). */
+function isRevoked(r: ToolPinRecord): boolean {
+  return r.status === 'rejected' && !r.approved_hash && r.approved_at !== null;
+}
 
 function parseFlags(raw: string | null): ToolPinFlags {
   if (!raw) return { rules_version: TOOL_PIN_FLAG_RULES_VERSION, codes: [] };

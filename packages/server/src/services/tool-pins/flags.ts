@@ -12,6 +12,8 @@ import {
   type ToolPinFlags,
 } from '@mcpambassador/contracts';
 
+import { hasUnsupportedPattern } from './schema-patterns.js';
+
 const LONG_DESCRIPTION_CHARS = 2000;
 
 const INSTRUCTION_PHRASES: RegExp[] = [
@@ -92,6 +94,7 @@ export function scanToolDefinition(def: ToolDefinition): ToolPinFlags {
     if (BASE64_BLOB.test(t)) codes.add('base64_blob');
     if (MARKUP.test(t)) codes.add('markup');
   }
+  if (hasUnsupportedPattern(def.inputSchema)) codes.add('pattern_unsupported');
   // SEC-M9-05: agents only see the first N code points of the description.
   if (
     def.description &&

@@ -7,6 +7,7 @@
  * GET  /v1/admin/tool-pins/summary          → ToolPinQueueSummary (SPA badge)
  * POST /v1/admin/tool-pins/:pinId/approve   → body ToolPinDecisionRequest → ToolPinDetail
  * POST /v1/admin/tool-pins/:pinId/reject    → body ToolPinDecisionRequest → ToolPinDetail
+ * POST /v1/admin/tool-pins/:pinId/revoke   → body ToolPinRevokeRequest → ToolPinDetail (D7: withdraw an APPROVED definition; tool hidden at once)
  * POST /v1/admin/tool-pins/:pinId/confirm-baseline body ToolPinConfirmBaselineRequest → ToolPinDetail (D6: human confirms a system:migration pin)
  * PATCH /v1/admin/mcps/:mcpId/pin-policy    → body { pin_policy } ; `auto` rejected (400) for registry/imported MCPs
  *
@@ -22,6 +23,7 @@ export const ADMIN_TOOL_PINS_SUMMARY_ROUTE = '/v1/admin/tool-pins/summary';
 export const ADMIN_TOOL_PIN_ROUTE = '/v1/admin/tool-pins/:pinId';
 export const ADMIN_TOOL_PIN_APPROVE_ROUTE = '/v1/admin/tool-pins/:pinId/approve';
 export const ADMIN_TOOL_PIN_REJECT_ROUTE = '/v1/admin/tool-pins/:pinId/reject';
+export const ADMIN_TOOL_PIN_REVOKE_ROUTE = '/v1/admin/tool-pins/:pinId/revoke';
 export const ADMIN_TOOL_PIN_CONFIRM_BASELINE_ROUTE = '/v1/admin/tool-pins/:pinId/confirm-baseline';
 export const ADMIN_MCP_PIN_POLICY_ROUTE = '/v1/admin/mcps/:mcpId/pin-policy';
 
@@ -100,6 +102,8 @@ export const TOOL_PIN_FLAG_CODES = [
   'duplicate_name',
   /** Description is over TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS; agents see only the prefix (SEC-M9-05). */
   'truncated_on_serve',
+  /** inputSchema has a pattern/patternProperties RE2 cannot compile: that keyword is not enforced (rest of the schema is). Disqualifies the baseline. */
+  'pattern_unsupported',
 ] as const;
 
 /** Flags that make a pin permanently non-approvable: approve (any apply_to) and confirm-baseline return 409. */
@@ -109,6 +113,14 @@ export const TOOL_PIN_BLOCKING_FLAG_CODES = [
   'duplicate_name',
   /** Oversize definition (> 64 KB canonical): stored as a size marker, never approvable. */
   'canonical_too_large',
+] as const;
+/**
+ * Flags that only describe a definition (length), not a risk. The D6 baseline treats a tool carrying ONLY these
+ * as "clean". Explicit allow-list: any code not listed here (including future ones) disqualifies a baseline approval.
+ */
+export const TOOL_PIN_INFORMATIONAL_FLAG_CODES = [
+  'long_description',
+  'truncated_on_serve',
 ] as const;
 export const toolPinFlagCodeSchema = z.enum(TOOL_PIN_FLAG_CODES);
 export type ToolPinFlagCode = z.infer<typeof toolPinFlagCodeSchema>;
@@ -209,6 +221,13 @@ export const toolPinConfirmBaselineRequestSchema = z.object({
 });
 export type ToolPinConfirmBaselineRequest = z.infer<typeof toolPinConfirmBaselineRequestSchema>;
 
+export const toolPinRevokeRequestSchema = z.object({
+  /** Must equal the pin's current approved_hash, so an admin revokes exactly the definition they looked at. */
+  expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
+  reason: z.string().max(500).optional(),
+});
+export type ToolPinRevokeRequest = z.infer<typeof toolPinRevokeRequestSchema>;
+
 export const setPinPolicyRequestSchema = z.object({ pin_policy: pinPolicySchema });
 export type SetPinPolicyRequest = z.infer<typeof setPinPolicyRequestSchema>;
 
@@ -220,6 +239,8 @@ export const TOOL_PIN_AUDIT_ACTIONS = [
   'tool_definition_changed',
   'tool_pin_approved',
   'tool_pin_rejected',
+  'tool_pin_revoked',
+  'tool_pin_baseline_conflict',
   'tool_pin_flagged',
   'tool_pin_queue_capped',
   'tool_pin_baseline_run',
