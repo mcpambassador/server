@@ -67,7 +67,7 @@ export const DISCLOSURE_MODE_OPTIONS: { value: DisclosureMode; label: string }[]
   Object.keys(DISCLOSURE_MODE_LABELS) as DisclosureMode[]
 ).map(value => ({ value, label: DISCLOSURE_MODE_LABELS[value] }));
 export const DISCLOSURE_MODE_HELP =
-  'Progressive: the agent sees 3 tools (search, describe, call) instead of the full list; same permissions.';
+  'Progressive: the agent sees 3 tools (search, describe, call) instead of the full list; same permissions, and it can still call a tool by name.';
 export function disclosureModeLabel(mode: DisclosureMode): string {
   return DISCLOSURE_MODE_LABELS[mode];
 }

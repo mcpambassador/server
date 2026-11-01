@@ -175,4 +175,25 @@ describe('disclosure mode (ADR-022)', () => {
     await screen.findByTestId('grant-token');
     expect(bodies[0]).toMatchObject({ disclosure_mode: 'progressive' });
   });
+  it('one-shot dialog resets the mode to full after cancel', async () => {
+    server.use(
+      endpoint,
+      http.get('/v1/users/me/agent-grants', () =>
+        HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
+      ),
+      http.get('/v1/users/me/clients', () =>
+        ok([{ id: 'c1', clientName: 'Laptop', status: 'active' }])
+      )
+    );
+    renderAt(<AgentAccess />, '/app/agent-access');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: /Tool list/ }),
+      'progressive'
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
+    expect(await screen.findByRole('combobox', { name: /Tool list/ })).toHaveValue('full');
+  });
 });

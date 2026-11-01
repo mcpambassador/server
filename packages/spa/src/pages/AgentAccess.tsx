@@ -95,6 +95,7 @@ function CreateGrantDialog({
     setClientId(null);
     setScopes(new Set());
     setToolsText('');
+    setDisclosureMode('full');
     setTtlChoice(null);
     setResult(null);
     setError(null);
