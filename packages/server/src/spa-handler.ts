@@ -6,6 +6,24 @@ import type { DatabaseClient } from '@mcpambassador/core';
 import fs from 'fs';
 
 /**
+ * ADR-020: paths owned by the agent endpoint (/mcp, /.well-known/oauth-*, /oauth/*).
+ * They must never fall through to the SPA index.html, and (being bearer/client
+ * authenticated, not cookie-based) must stay off the cookie CSRF path.
+ * `/app/oauth/consent` is an SPA route and is NOT matched.
+ */
+export function isAgentEndpointPath(url: string): boolean {
+  const q = url.indexOf('?');
+  const p = q === -1 ? url : url.slice(0, q);
+  return (
+    p === '/mcp' ||
+    p.startsWith('/mcp/') ||
+    p.startsWith('/.well-known/oauth-') ||
+    p === '/oauth' ||
+    p.startsWith('/oauth/')
+  );
+}
+
+/**
  * M24.10: SPA Handler
  * Serves the React SPA for routes matching /app/*
  */
@@ -109,7 +127,8 @@ export async function registerSpaHandler(
     if (
       request.method === 'GET' &&
       !request.url.startsWith('/v1/') &&
-      !request.url.startsWith('/health')
+      !request.url.startsWith('/health') &&
+      !isAgentEndpointPath(request.url)
     ) {
       return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
     }

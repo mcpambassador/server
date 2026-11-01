@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { eq, or } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
+import { isAgentEndpointPath } from './spa-handler.js';
 import {
   SharedMcpManager,
   UserMcpPool,
@@ -611,6 +612,9 @@ export class AmbassadorServer {
     const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
     this.adminServer.addHook('onRequest', async (request, reply) => {
       if (CSRF_SAFE_METHODS.has(request.method)) return;
+      // ADR-020: /oauth/*, /mcp are bearer/client-authenticated (never cookie), so a
+      // disabled endpoint answers a JSON 404 rather than a CSRF 403.
+      if (isAgentEndpointPath(request.url)) return;
       // API key clients are not cookie-authenticated — no CSRF risk
       if (request.headers['x-admin-key']) return;
       // Delegate to the csrfProtection handler registered by the plugin.
