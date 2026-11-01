@@ -11,7 +11,7 @@ import {
   type OAuthTokenSet,
 } from '@mcpambassador/core';
 import type { CredentialVault } from './credential-vault.js';
-import { SecretStore } from './secret-store.js';
+import { SecretStore, OAuthConfigError } from './secret-store.js';
 
 export interface OAuthTokenManagerConfig {
   db: DatabaseClient;
@@ -332,10 +332,6 @@ export class OAuthTokenManager {
     try {
       // 2. Resolve client_id/secret
       const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-      const clientSecret = this.resolveClientSecret(
-        oauthConfig.client_secret_env,
-        oauthConfig.token_url
-      );
 
       // 4. Try refresh_token first, then access_token
       const tokensToRevoke: Array<{ token: string; hint: string }> = [];
@@ -348,6 +344,11 @@ export class OAuthTokenManager {
 
       for (const { token, hint } of tokensToRevoke) {
         try {
+          // B3: bind the secret to the URL actually being fetched (revocation_url), not token_url
+          const clientSecret = this.resolveClientSecret(
+            oauthConfig.client_secret_env,
+            oauthConfig.revocation_url
+          );
           // 3. POST to revocation_url
           const params = new URLSearchParams();
           params.set('token', token);
@@ -372,7 +373,10 @@ export class OAuthTokenManager {
           }
         } catch (err) {
           // 5. Catch errors and log — never throw
-          logger.error(`[OAuthTokenManager] Error revoking ${hint}:`, err);
+          logger.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            `[OAuthTokenManager] Error revoking ${hint}`
+          );
         }
       }
     } catch (err) {
@@ -397,6 +401,10 @@ export class OAuthTokenManager {
    * @throws Error if the environment variable is not set
    */
   private resolveEnvVar(envVarName: string): string {
+    // S2: only *_CLIENT_ID names; other env vars (e.g. DATABASE_URL) are never readable here
+    if (!/_CLIENT_ID$/.test(envVarName)) {
+      throw new OAuthConfigError('client_id_env must end with _CLIENT_ID');
+    }
     const value = process.env[envVarName];
     if (!value) {
       throw new Error(`OAuth environment variable not set: ${envVarName}`);

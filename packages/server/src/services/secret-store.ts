@@ -39,8 +39,13 @@ export class SecretStore {
     }
     let host: string;
     try {
-      host = new URL(tokenUrl).hostname.toLowerCase();
-    } catch {
+      const u = new URL(tokenUrl);
+      if (u.protocol !== 'https:') {
+        throw new OAuthConfigError('client_secret_env requires an https URL');
+      }
+      host = u.hostname.toLowerCase();
+    } catch (e) {
+      if (e instanceof OAuthConfigError) throw e;
       throw new OAuthConfigError('token_url is not a valid URL');
     }
     if (!entry.allowedTokenHosts.includes(host)) {

@@ -34,6 +34,9 @@ const envVarName = z
     'Must be a valid environment variable name (e.g., GOOGLE_OAUTH_CLIENT_ID)'
   );
 
+/** TD-027 S2: client ids are read from the environment, so only *_CLIENT_ID names are allowed. */
+const clientIdEnvName = envVarName.regex(/_CLIENT_ID$/, 'client_id_env must end with _CLIENT_ID');
+
 /**
  * Create MCP catalog entry schema
  */
@@ -63,7 +66,7 @@ export const createMcpSchema = z.object({
         .url()
         .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
       scopes: z.string().min(1),
-      client_id_env: envVarName,
+      client_id_env: clientIdEnvName,
       client_secret_env: envVarName,
       revocation_url: z
         .string()
@@ -100,7 +103,7 @@ export const updateMcpSchema = z.object({
         .url()
         .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
       scopes: z.string().min(1),
-      client_id_env: envVarName,
+      client_id_env: clientIdEnvName,
       client_secret_env: envVarName,
       revocation_url: z
         .string()
