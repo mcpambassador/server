@@ -266,6 +266,8 @@ export class ToolPinService {
       applyTo?: 'this_scope' | 'all_users';
       actor: string;
       reason?: string;
+      /** TD-034: approve a definition whose exact hash was revoked earlier. Audited. */
+      force?: boolean;
     }
   ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
@@ -283,6 +285,9 @@ export class ToolPinService {
     if (blocking.length > 0) return { ok: false, code: 'blocked', flags: blocking };
     if (hashCanonical(pin.pending_definition) !== pin.pending_hash)
       return { ok: false, code: 'corrupt' };
+    // TD-034: a hash an admin already withdrew is not re-approved by accident.
+    const wasRevoked = this.isRevoked(pin.mcp_id, pin.tool_name, pin.pending_hash);
+    if (wasRevoked && !o.force) return { ok: false, code: 'previously_revoked' };
 
     if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
       // S3: never overwrite a different pending item on the all-users pin; refuse before changing anything.
@@ -352,6 +357,7 @@ export class ToolPinService {
       baseline_written: baselineWritten,
       actor: o.actor,
       reason_given: Boolean(o.reason),
+      ...(wasRevoked ? { forced_previously_revoked: true } : {}),
     });
     return { ok: true, pin: this.getById(pin.pin_id)! };
   }
@@ -508,6 +514,16 @@ export class ToolPinService {
       reason_given: Boolean(o.reason),
     });
     return { ok: true, pin: this.getById(pin.pin_id)!, revokedPinIds: pinIds };
+  }
+
+  /** TD-034: true when `hash` was revoked for this (mcp, tool) in ANY scope. */
+  isRevoked(mcpId: string, toolName: string, hash: string): boolean {
+    for (const l of this.pins.values()) {
+      const r = l.rec;
+      if (r.mcp_id !== mcpId || r.tool_name !== toolName) continue;
+      if (parseRevoked(r.revoked_hashes).includes(hash)) return true;
+    }
+    return false;
   }
 
   /** (c) True if this exact definition was rejected or revoked for the same (mcp, tool) in ANY scope. */
@@ -896,7 +912,8 @@ export type DecisionResult =
         | 'corrupt'
         | 'not_baseline'
         | 'not_approved'
-        | 'baseline_conflict';
+        | 'baseline_conflict'
+        | 'previously_revoked';
       flags?: string[];
     };
 
