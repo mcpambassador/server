@@ -4,6 +4,7 @@
 
 import { parseTrustProxyEnv } from '../trust-proxy.js';
 import { AmbassadorServer } from '../server.js';
+import { SUPPORTED_OAUTH_CLIENT_SECRETS } from '../services/secret-store.js';
 import path from 'path';
 import fs from 'fs';
 import yaml from 'yaml';
@@ -215,12 +216,11 @@ async function main() {
   // expansion, catalog-defined env var names cannot reach them).
   const registryConfig = loadRegistryConfig(configPath);
   const oauthClientSecrets: Record<string, { value: string; allowedTokenHosts: string[] }> = {};
-  const githubSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
-  if (githubSecret) {
-    oauthClientSecrets.GITHUB_OAUTH_CLIENT_SECRET = {
-      value: githubSecret,
-      allowedTokenHosts: ['github.com'],
-    };
+  for (const [name, spec] of Object.entries(SUPPORTED_OAUTH_CLIENT_SECRETS)) {
+    const value = process.env[name];
+    if (value) {
+      oauthClientSecrets[name] = { value, allowedTokenHosts: [...spec.allowedTokenHosts] };
+    }
   }
 
   if (configPath) {
