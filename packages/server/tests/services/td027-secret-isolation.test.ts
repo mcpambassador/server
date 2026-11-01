@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { HttpMcpConnection } from '../../src/downstream/http-connection.js';
 import { OAuthTokenManager } from '../../src/services/oauth-token-manager.js';
+import { SecretStore, OAuthConfigError } from '../../src/services/secret-store.js';
 import { RegistryService } from '../../src/services/registry-service.js';
 
 // TD-027: server secrets must not be reachable by catalog-supplied URLs or OAuth env var names.
@@ -14,16 +15,16 @@ afterEach(() => {
 });
 
 describe('http-connection URL expansion (TD-027 / B1)', () => {
-  it('does not expand ${VAR} from process.env', () => {
+  it('does not expand ${VAR} from process.env (fails closed, no request)', () => {
     process.env.REGISTRY_TOKEN = SECRET;
     const conn = new HttpMcpConnection({
       name: 'x',
       transport: 'http',
       url: 'https://evil.example/x?t=${REGISTRY_TOKEN}',
     } as never);
-    const url = (conn as unknown as { resolveUrl(): string }).resolveUrl();
-    expect(url).not.toContain(SECRET);
-    expect(url).toContain('${REGISTRY_TOKEN}');
+    expect(() => (conn as unknown as { resolveUrl(): string }).resolveUrl()).toThrow(
+      /unresolved variable.*REGISTRY_TOKEN/
+    );
   });
 
   it('still expands ${VAR} from config.env', () => {
@@ -55,9 +56,9 @@ describe('OAuthTokenManager client secrets (TD-027 / B2)', () => {
       db: {} as never,
       vault: {} as never,
       callbackBaseUrl: 'https://x',
-      clientSecrets: {
+      secretStore: new SecretStore({
         GITHUB_OAUTH_CLIENT_SECRET: { value: SECRET, allowedTokenHosts: ['github.com'] },
-      },
+      }),
     });
 
   it('refuses client_secret_env naming a non-registered var (e.g. REGISTRY_TOKEN)', async () => {
@@ -66,7 +67,7 @@ describe('OAuthTokenManager client secrets (TD-027 / B2)', () => {
     const f = vi.spyOn(globalThis, 'fetch');
     await expect(
       mgr().refreshAccessToken(oauth({ client_secret_env: 'REGISTRY_TOKEN' }), 'rt')
-    ).rejects.toThrow(/not available/);
+    ).rejects.toBeInstanceOf(OAuthConfigError);
     expect(f).not.toHaveBeenCalled();
   });
 
@@ -75,7 +76,7 @@ describe('OAuthTokenManager client secrets (TD-027 / B2)', () => {
     const f = vi.spyOn(globalThis, 'fetch');
     await expect(
       mgr().refreshAccessToken(oauth({ token_url: 'https://evil.example/token' }), 'rt')
-    ).rejects.toThrow(/not permitted/);
+    ).rejects.toBeInstanceOf(OAuthConfigError);
     expect(f).not.toHaveBeenCalled();
   });
 
@@ -84,7 +85,7 @@ describe('OAuthTokenManager client secrets (TD-027 / B2)', () => {
     const f = vi.spyOn(globalThis, 'fetch');
     await expect(
       mgr().refreshAccessToken(oauth({ token_url: 'https://github.com.evil.example/t' }), 'rt')
-    ).rejects.toThrow(/not permitted/);
+    ).rejects.toBeInstanceOf(OAuthConfigError);
     expect(f).not.toHaveBeenCalled();
   });
 
@@ -98,6 +99,30 @@ describe('OAuthTokenManager client secrets (TD-027 / B2)', () => {
     await mgr().refreshAccessToken(oauth(), 'rt');
     expect(String(f.mock.calls[0]![0])).toBe('https://github.com/login/oauth/access_token');
     expect(String((f.mock.calls[0]![1] as RequestInit).body)).toContain(`client_secret=${SECRET}`);
+  });
+});
+
+describe('SecretStore binding (create/update-time check)', () => {
+  const store = new SecretStore({
+    GITHUB_OAUTH_CLIENT_SECRET: { value: SECRET, allowedTokenHosts: ['GitHub.com'] },
+  });
+  it('accepts a permitted host (case-insensitive)', () => {
+    expect(() =>
+      store.assertBinding(
+        'GITHUB_OAUTH_CLIENT_SECRET',
+        'https://github.com/login/oauth/access_token'
+      )
+    ).not.toThrow();
+  });
+  it('rejects other hosts with the contract message', () => {
+    expect(() =>
+      store.assertBinding('GITHUB_OAUTH_CLIENT_SECRET', 'https://evil.example/t')
+    ).toThrow('client_secret_env not permitted for this token_url');
+  });
+  it('rejects names not in the store', () => {
+    expect(() => store.assertBinding('REGISTRY_TOKEN', 'https://github.com/t')).toThrow(
+      OAuthConfigError
+    );
   });
 });
 
