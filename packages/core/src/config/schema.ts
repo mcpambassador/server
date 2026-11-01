@@ -47,14 +47,14 @@ const RegistrationConfigSchema = z.object({
 
 const AuthenticationConfigSchema = z.object({
   provider: z.string(), // 'api_key', 'jwt', 'oidc', 'saml', 'mtls'
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
 });
 
 // ===== §10 Authorization Configuration =====
 
 const AuthorizationConfigSchema = z.object({
   provider: z.string(), // 'local_rbac', 'ldap', 'opa'
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
 });
 
 // ===== §11 Audit Configuration =====
@@ -62,7 +62,7 @@ const AuthorizationConfigSchema = z.object({
 const AuditConfigSchema = z.object({
   provider: z.string(), // 'file', 'database', 'syslog', 'siem'
   on_failure: z.enum(['block', 'buffer']).default('buffer'),
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
 });
 
 // ===== §8 Downstream MCP Configuration =====
@@ -72,7 +72,7 @@ const DownstreamMcpConfigSchema = z.object({
   transport: z.enum(['stdio', 'sse', 'http']),
   command: z.array(z.string()).optional(),
   url: z.string().optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
   timeout_ms: z.number().int().min(100).optional(),
   health_check_interval_ms: z.number().int().min(1000).optional(),
 });
@@ -189,9 +189,24 @@ const AgentEndpointConfigSchema = z
         /** Failed bearer auth on /mcp per minute per IP before 429 */
         failed_auth_per_minute: z.number().int().min(1).default(20),
       })
-      .default({}),
+      .prefault({}),
   })
-  .default({});
+  .prefault({});
+
+// ===== ADR-023: human approval gates =====
+
+const ApprovalsConfigSchema = z
+  .object({
+    /** An admin may not approve their own agent's request (admin-required requests only) */
+    require_distinct_admin: z.boolean().default(false),
+    /** How long a request may wait for a human (seconds) */
+    pending_ttl_seconds: z.number().int().min(60).max(86400).default(900),
+    /** How long an approval may be used by the retry (seconds) */
+    approved_use_ttl_seconds: z.number().int().min(30).max(3600).default(600),
+    /** Reaper interval (seconds) */
+    reaper_interval_seconds: z.number().int().min(5).max(3600).default(30),
+  })
+  .optional();
 
 // ===== Root Configuration Schema =====
 
@@ -208,6 +223,7 @@ export const AmbassadorConfigSchema = z.object({
   session: SessionConfigSchema,
   user_pool: UserPoolConfigSchema, // SEC-M17-005: Per-user MCP pool limits
   agent_endpoint: AgentEndpointConfigSchema, // ADR-020
+  approvals: ApprovalsConfigSchema, // ADR-023
 });
 
 // ===== Infer TypeScript type from schema =====

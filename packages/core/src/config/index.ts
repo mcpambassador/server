@@ -127,12 +127,13 @@ export async function loadConfig(
 // Zod issue codes whose messages echo the offending input value; report only the code for these.
 const VALUE_ECHOING_CODES = new Set([
   'invalid_enum_value',
+  'invalid_value',
   'invalid_literal',
   'invalid_union_discriminator',
 ]);
 
 /** Format zod issues as `path: message` pairs. Never includes config values. */
-function formatZodIssues(error: ZodError): string {
+export function formatZodIssues(error: ZodError): string {
   return error.issues
     .map(
       i =>

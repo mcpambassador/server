@@ -18,7 +18,7 @@ export class CatalogReloadConflictError extends Error {
   }
 }
 
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/manager.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -342,7 +342,7 @@ export class CatalogReloader {
         await this.mcpManager.addMcp(config, fingerprint);
         added.push(entry.name);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
+        const errorMsg = publicErrorMessage(err);
         errors.push({ name: entry.name, action: 'add', error: errorMsg });
       }
     });
@@ -357,7 +357,7 @@ export class CatalogReloader {
         await this.mcpManager.updateMcp(entry.name, config, fingerprint);
         updated.push(entry.name);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
+        const errorMsg = publicErrorMessage(err);
         errors.push({ name: entry.name, action: 'update', error: errorMsg });
       }
     }
@@ -368,7 +368,7 @@ export class CatalogReloader {
         await this.mcpManager.removeMcp(name);
         removed.push(name);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
+        const errorMsg = publicErrorMessage(err);
         errors.push({ name, action: 'remove', error: errorMsg });
       }
     });
