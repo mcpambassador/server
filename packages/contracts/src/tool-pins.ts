@@ -144,10 +144,10 @@ export const toolDefinitionSchema = z
     name: z.string().min(1),
     title: z.string().optional(),
     description: z.string().optional(),
-    inputSchema: z.record(z.unknown()).optional(),
-    outputSchema: z.record(z.unknown()).optional(),
-    annotations: z.record(z.unknown()).optional(),
-    icons: z.array(z.record(z.unknown())).optional(),
+    inputSchema: z.record(z.string(), z.unknown()).optional(),
+    outputSchema: z.record(z.string(), z.unknown()).optional(),
+    annotations: z.record(z.string(), z.unknown()).optional(),
+    icons: z.array(z.record(z.string(), z.unknown())).optional(),
   })
   .strip();
 export type ToolDefinition = z.infer<typeof toolDefinitionSchema>;

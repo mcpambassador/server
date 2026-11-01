@@ -63,9 +63,7 @@
       "tinypool": ">=2.1.2"
     },
     "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-mrhx-c7xc-m3w5"
-      ]
+      "ignoreGhsas": []
     }
   }
 }

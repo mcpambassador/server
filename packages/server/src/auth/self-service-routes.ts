@@ -108,7 +108,7 @@ export async function registerSelfServiceRoutes(
         if (err instanceof ZodError) {
           return reply
             .status(400)
-            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request body', err.errors));
+            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request body', err.issues));
         }
 
         fastify.log.error({ err }, '[Auth] Password change error');

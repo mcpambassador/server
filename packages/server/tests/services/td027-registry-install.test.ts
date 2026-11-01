@@ -22,6 +22,8 @@ const entries: Array<[string, Record<string, string>]> = [
   ['reg-http', oc({ token_url: 'http://github.com/login/oauth/access_token' })],
   ['reg-client-id', oc({ client_id_env: 'DATABASE_URL' })],
   ['reg-evil-revoke', oc({ revocation_url: 'https://evil.example/revoke' })],
+  ['reg-canary-url', oc({ token_url: 'LEAKCANARY-7c1e' })],
+  ['reg-canary-env', oc({ client_id_env: 'LEAKCANARY-7c1e' })],
 ];
 
 const yamlDoc = (): string =>
@@ -67,6 +69,14 @@ describe('registry installEntry oauth_config binding', () => {
       const r = await (await svc()).installEntry(name);
       expect(r.success).toBe(false);
       expect(await getMcpEntryByName(server.db, name)).toBeNull();
+    });
+  }
+
+  for (const name of ['reg-canary-url', 'reg-canary-env']) {
+    it(`${name}: the install error never echoes the rejected value`, async () => {
+      const r = await (await svc()).installEntry(name);
+      expect(r.success).toBe(false);
+      expect(JSON.stringify(r)).not.toContain('LEAKCANARY');
     });
   }
 
