@@ -144,6 +144,75 @@ export interface ConsentDetails {
   max_ttl_seconds: number;
 }
 
+// ===== Progressive tool disclosure (ADR-022, 3b) =====
+
+/**
+ * How `/mcp` `tools/list` presents tools for a grant. `full` (default) lists every permitted tool.
+ * `progressive` lists only the three meta-tools (`ambassador__search_tools`, ...).
+ * Stored on the grant (`NOT NULL DEFAULT 'full'`), chosen by the user at consent or one-shot
+ * creation. Never an authorize parameter.
+ */
+export const DISCLOSURE_MODES = ['full', 'progressive'] as const;
+export const disclosureModeSchema = z.enum(DISCLOSURE_MODES);
+export type DisclosureMode = z.infer<typeof disclosureModeSchema>;
+
+/** ADR-022 P1: downstream tools whose name starts with this prefix are hidden and flagged */
+export const RESERVED_TOOL_PREFIX = 'ambassador__';
+export const META_TOOL_NAMES = [
+  'ambassador__search_tools',
+  'ambassador__describe_tool',
+  'ambassador__call_tool',
+] as const;
+export type MetaToolName = (typeof META_TOOL_NAMES)[number];
+
+export const SEARCH_TOOLS_DEFAULT_LIMIT = 20;
+export const SEARCH_TOOLS_MAX_LIMIT = 50;
+export const SEARCH_TOOLS_MAX_QUERY_LENGTH = 200;
+
+/** `search_tools` arguments. Matches name and description of tools the grant may call. */
+export const searchToolsInputSchema = z.object({
+  query: z.string().max(SEARCH_TOOLS_MAX_QUERY_LENGTH),
+  /** Restrict to one MCP (its subscription name) */
+  mcp: z.string().min(1).max(128).optional(),
+  limit: z.number().int().min(1).max(SEARCH_TOOLS_MAX_LIMIT).optional(),
+});
+export type SearchToolsInput = z.infer<typeof searchToolsInputSchema>;
+
+/** `describe_tool` arguments. `mcp` disambiguates a name served by several MCPs (ADR-022 P3). */
+export const describeToolInputSchema = z.object({
+  name: z.string().min(1).max(256),
+  mcp: z.string().min(1).max(128).optional(),
+});
+export type DescribeToolInput = z.infer<typeof describeToolInputSchema>;
+
+/** `call_tool` arguments. `arguments` is validated server-side against the tool's approved schema. */
+export const callToolInputSchema = z.object({
+  name: z.string().min(1).max(256),
+  mcp: z.string().min(1).max(128).optional(),
+  arguments: z.record(z.unknown()).optional(),
+});
+export type CallToolInput = z.infer<typeof callToolInputSchema>;
+
+/** `search_tools` result entry; `summary` is the first sentence of the approved description (<= 200 chars), sanitized */
+export interface ToolSearchHit {
+  name: string;
+  mcp: string;
+  summary: string;
+}
+export interface SearchToolsResult {
+  tools: ToolSearchHit[];
+}
+
+/** `describe_tool` result: the approved (pinned) definition, never the live one */
+export interface DescribeToolResult {
+  name: string;
+  mcp: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+}
+
 /** POST /v1/oauth/consent/:requestId (user session + CSRF) */
 export const consentDecisionSchema = z
   .object({
@@ -157,6 +226,8 @@ export const consentDecisionSchema = z
     /** Clamped to max_ttl_seconds */
     ttl_seconds: z.number().int().min(60),
     label: z.string().min(1).max(128).optional(),
+    /** ADR-022: tool list presentation for this grant; defaults to `full` */
+    disclosure_mode: disclosureModeSchema.optional(),
   })
   .refine(d => d.decision === 'deny' || !!d.bound_client_id, {
     message: 'bound_client_id is required when approving',
@@ -268,6 +339,8 @@ export const createGrantRequestSchema = z.object({
   scopes: z.array(scopeSchema).min(1).max(100),
   tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
   ttl_seconds: z.number().int().min(60).optional(),
+  /** ADR-022: tool list presentation for this grant; defaults to `full` */
+  disclosure_mode: disclosureModeSchema.optional(),
 });
 export type CreateGrantRequest = z.infer<typeof createGrantRequestSchema>;
 
@@ -295,6 +368,8 @@ export interface AgentGrantSummary {
   bound_client_name: string | null;
   scopes: string[];
   tool_allowlist: string[] | null;
+  /** ADR-022 P4: always present (`full` for grants created before 3b) */
+  disclosure_mode: DisclosureMode;
   resource: string;
   created_at: string;
   expires_at: string;
