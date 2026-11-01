@@ -8,6 +8,10 @@
  */
 
 import { z } from 'zod';
+import {
+  assignGroupMcpRequestSchema,
+  groupToolPolicyRequestSchema,
+} from '@mcpambassador/contracts';
 
 // ==========================================================================
 // GROUP SCHEMAS
@@ -72,13 +76,15 @@ export const groupMemberParamsSchema = z.object({
 // GROUP MCP SCHEMAS
 // ==========================================================================
 
-export const assignGroupMcpSchema = z
-  .object({
-    mcp_id: z.string().uuid(),
-  })
-  .strict();
+// ADR-025: optional per-tool policy (defaults to 'all'); shared with the SPA via contracts.
+export const assignGroupMcpSchema = assignGroupMcpRequestSchema;
+export const putGroupMcpToolsSchema = groupToolPolicyRequestSchema;
 
 export const groupMcpParamsSchema = z.object({
   groupId: z.string().uuid(),
+  mcpId: z.string().uuid(),
+});
+
+export const mcpToolsParamsSchema = z.object({
   mcpId: z.string().uuid(),
 });

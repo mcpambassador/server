@@ -23,6 +23,7 @@ import {
   grantGroupAccess,
   revokeGroupAccess,
   listMcpsForGroup,
+  grantGroupAccessWithPolicy,
   getMcpEntryById,
 } from '@mcpambassador/core';
 import type { Group, UserGroup, McpCatalogEntry } from '@mcpambassador/core';
@@ -241,7 +242,14 @@ export async function getUserGroupsService(
  */
 export async function assignMcpToGroupService(
   db: DatabaseClient,
-  data: { mcp_id: string; group_id: string; assigned_by: string }
+  data: {
+    mcp_id: string;
+    group_id: string;
+    assigned_by: string;
+    /** ADR-025: optional per-tool policy; written with the grant in one transaction. */
+    tool_mode?: 'all' | 'allow' | 'deny';
+    tools?: string[];
+  }
 ): Promise<void> {
   // Validate MCP exists (GRP-001: use repository function)
   const mcp = await getMcpEntryById(db, data.mcp_id);
@@ -261,7 +269,21 @@ export async function assignMcpToGroupService(
     throw new Error(`MCP ${data.mcp_id} is already assigned to group ${data.group_id}`);
   }
 
-  await grantGroupAccess(db, data);
+  if (data.tool_mode && data.tool_mode !== 'all') {
+    await grantGroupAccessWithPolicy(db, {
+      mcp_id: data.mcp_id,
+      group_id: data.group_id,
+      tool_mode: data.tool_mode,
+      tools: data.tools ?? [],
+      actor: data.assigned_by,
+    });
+    return;
+  }
+  await grantGroupAccess(db, {
+    mcp_id: data.mcp_id,
+    group_id: data.group_id,
+    assigned_by: data.assigned_by,
+  });
 }
 
 /**

@@ -15,6 +15,7 @@ import { createPaginationEnvelope } from '../admin/pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import { marketplaceQuerySchema } from '../admin/mcp-schemas.js';
 import { getAccessibleMcps } from '../services/mcp-catalog-service.js';
+import { toolAccessForUser, type UserToolAccess } from '../services/mcp-access.js';
 
 /**
  * Marketplace routes config
@@ -30,6 +31,16 @@ export interface MarketplaceRoutesConfig {
  * - GET /v1/marketplace - Browse published MCPs accessible to user
  * - GET /v1/marketplace/:id - Get details of a specific MCP
  */
+function filterToolsByPolicy(tools: unknown[], access: UserToolAccess, mcpId: string): unknown[] {
+  if (access.unrestricted(mcpId)) return tools;
+  return tools.filter(
+    t =>
+      !!t &&
+      typeof (t as { name?: unknown }).name === 'string' &&
+      access.permits(mcpId, (t as { name: string }).name)
+  );
+}
+
 export async function registerMarketplaceRoutes(
   fastify: FastifyInstance,
   config: MarketplaceRoutesConfig
@@ -52,11 +63,13 @@ export async function registerMarketplaceRoutes(
     try {
       // Get all MCPs accessible to user (via groups)
       const mcps = await getAccessibleMcps(db, userId);
+      // ADR-025 S1: show only the tools the user's groups actually offer
+      const access = await toolAccessForUser(db, userId);
 
       // Transform database rows to API contract format
       const transformedMcps = mcps.map(mcp => {
         // Parse JSON fields safely
-        let tools = [];
+        let tools: unknown[] = [];
         try {
           const catalogData =
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
@@ -64,6 +77,7 @@ export async function registerMarketplaceRoutes(
         } catch (err) {
           logger.warn({ err }, `[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`);
         }
+        tools = filterToolsByPolicy(tools, access, mcp.mcp_id);
 
         let credentialSchema = undefined;
         if (mcp.credential_schema) {
@@ -146,6 +160,7 @@ export async function registerMarketplaceRoutes(
         // Get all accessible MCPs for the user and check if this one is accessible
         const accessibleMcps = await getAccessibleMcps(db, userId);
         const mcp = accessibleMcps.find(m => m.mcp_id === mcpId);
+        const access = await toolAccessForUser(db, userId);
 
         if (!mcp) {
           return reply
@@ -154,7 +169,7 @@ export async function registerMarketplaceRoutes(
         }
 
         // Transform to API format (same as list endpoint)
-        let tools = [];
+        let tools: unknown[] = [];
         try {
           const catalogData =
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
@@ -162,6 +177,7 @@ export async function registerMarketplaceRoutes(
         } catch (err) {
           logger.warn({ err }, `[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`);
         }
+        tools = filterToolsByPolicy(tools, access, mcp.mcp_id);
 
         let credentialSchema = undefined;
         if (mcp.credential_schema) {
