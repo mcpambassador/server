@@ -148,21 +148,6 @@ export async function registerAgentOAuthRoutes(
   app: FastifyInstance,
   deps: AgentEndpointDeps
 ): Promise<void> {
-  // RFC 6749 requires application/x-www-form-urlencoded at the token/revoke/register endpoints
-  if (!app.hasContentTypeParser('application/x-www-form-urlencoded')) {
-    app.addContentTypeParser(
-      'application/x-www-form-urlencoded',
-      { parseAs: 'string', bodyLimit: 16 * 1024 },
-      (_req, body, done) => {
-        try {
-          done(null, Object.fromEntries(new URLSearchParams(body as string)));
-        } catch (e) {
-          done(e as Error, undefined);
-        }
-      }
-    );
-  }
-
   // ---- Authorization server metadata (RFC 8414) ----
   app.get(OAUTH_AS_METADATA_ROUTE, async (_req, reply) =>
     reply
@@ -221,66 +206,82 @@ export async function registerAgentOAuthRoutes(
     }
   });
 
-  // ---- /oauth/token ----
-  app.post(OAUTH_TOKEN_ROUTE, async (req, reply) => {
-    try {
-      const parsed = tokenRequestSchema.safeParse(bodyObject(req));
-      if (!parsed.success) {
-        const gt = bodyObject(req)['grant_type'];
-        if (gt !== 'authorization_code' && gt !== 'refresh_token') {
-          throw new OAuthError('unsupported_grant_type', 'Unsupported grant_type');
+  // S1: the form-urlencoded parser lives in an ENCAPSULATED plugin so it applies ONLY to the
+  // RFC 6749/7591/7009 endpoints below; every other route on this listener stays JSON-only.
+  await app.register(async oauthForm => {
+    oauthForm.addContentTypeParser(
+      'application/x-www-form-urlencoded',
+      { parseAs: 'string', bodyLimit: 16 * 1024 },
+      (_req, body, done) => {
+        try {
+          done(null, Object.fromEntries(new URLSearchParams(body as string)));
+        } catch (e) {
+          done(e as Error, undefined);
         }
-        throw new OAuthError(
-          'invalid_request',
-          parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
-        );
       }
-      const out = await exchangeToken(deps, parsed.data, ipOf(req));
-      return reply.header('Cache-Control', 'no-store').header('Pragma', 'no-cache').send(out);
-    } catch (err) {
-      return oauthFail(reply, err);
-    }
-  });
+    );
 
-  // ---- /oauth/register (RFC 7591; gated) ----
-  app.post(OAUTH_REGISTER_ROUTE, async (req, reply) => {
-    try {
-      const body = clientRegistrationRequestSchema.safeParse(bodyObject(req));
-      if (!body.success) {
-        // RFC 7591: a bad redirect_uris value is invalid_redirect_uri, anything else invalid_client_metadata
-        const badRedirect = body.error.issues.some(i => i.path[0] === 'redirect_uris');
-        throw new OAuthError(
-          badRedirect ? 'invalid_redirect_uri' : 'invalid_client_metadata',
-          body.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
-        );
+    // ---- /oauth/token ----
+    oauthForm.post(OAUTH_TOKEN_ROUTE, async (req, reply) => {
+      try {
+        const parsed = tokenRequestSchema.safeParse(bodyObject(req));
+        if (!parsed.success) {
+          const gt = bodyObject(req)['grant_type'];
+          if (gt !== 'authorization_code' && gt !== 'refresh_token') {
+            throw new OAuthError('unsupported_grant_type', 'Unsupported grant_type');
+          }
+          throw new OAuthError(
+            'invalid_request',
+            parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+          );
+        }
+        const out = await exchangeToken(deps, parsed.data, ipOf(req));
+        return reply.header('Cache-Control', 'no-store').header('Pragma', 'no-cache').send(out);
+      } catch (err) {
+        return oauthFail(reply, err);
       }
-      const out = await registerClient(deps, body.data, ipOf(req));
-      return reply.status(201).header('Cache-Control', 'no-store').send(out);
-    } catch (err) {
-      return oauthFail(reply, err);
-    }
-  });
+    });
 
-  // ---- /oauth/revoke (RFC 7009) ----
-  app.post(OAUTH_REVOKE_ROUTE, async (req, reply) => {
-    try {
-      const parsed = revokeRequestSchema.safeParse(bodyObject(req));
-      if (!parsed.success)
-        throw new OAuthError('invalid_request', 'token and client_id are required');
-      if (
-        !deps.limiter.allow(
-          `token:${ipOf(req)}:${parsed.data.client_id}`,
-          deps.config.rate_limits.token_per_minute,
-          60_000
-        )
-      ) {
-        throw new OAuthError('temporarily_unavailable', 'Rate limit exceeded', 429);
+    // ---- /oauth/register (RFC 7591; gated) ----
+    oauthForm.post(OAUTH_REGISTER_ROUTE, async (req, reply) => {
+      try {
+        const body = clientRegistrationRequestSchema.safeParse(bodyObject(req));
+        if (!body.success) {
+          // RFC 7591: a bad redirect_uris value is invalid_redirect_uri, anything else invalid_client_metadata
+          const badRedirect = body.error.issues.some(i => i.path[0] === 'redirect_uris');
+          throw new OAuthError(
+            badRedirect ? 'invalid_redirect_uri' : 'invalid_client_metadata',
+            body.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+          );
+        }
+        const out = await registerClient(deps, body.data, ipOf(req));
+        return reply.status(201).header('Cache-Control', 'no-store').send(out);
+      } catch (err) {
+        return oauthFail(reply, err);
       }
-      await revokeToken(deps, parsed.data, ipOf(req));
-      return reply.status(200).header('Cache-Control', 'no-store').send();
-    } catch (err) {
-      return oauthFail(reply, err);
-    }
+    });
+
+    // ---- /oauth/revoke (RFC 7009) ----
+    oauthForm.post(OAUTH_REVOKE_ROUTE, async (req, reply) => {
+      try {
+        const parsed = revokeRequestSchema.safeParse(bodyObject(req));
+        if (!parsed.success)
+          throw new OAuthError('invalid_request', 'token and client_id are required');
+        if (
+          !deps.limiter.allow(
+            `token:${ipOf(req)}:${parsed.data.client_id}`,
+            deps.config.rate_limits.token_per_minute,
+            60_000
+          )
+        ) {
+          throw new OAuthError('temporarily_unavailable', 'Rate limit exceeded', 429);
+        }
+        await revokeToken(deps, parsed.data, ipOf(req));
+        return reply.status(200).header('Cache-Control', 'no-store').send();
+      } catch (err) {
+        return oauthFail(reply, err);
+      }
+    });
   });
 
   // ---- User grants ----
