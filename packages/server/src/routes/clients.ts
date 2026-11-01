@@ -24,13 +24,15 @@ import {
   updateUserClientName,
 } from '../services/client-service.js';
 import type { AuditProvider } from '@mcpambassador/core';
-import { emitAgentAudit } from '../services/agent-endpoint/index.js';
+import { emitAgentAudit, revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
 import { createClientSchema, updateClientSchema, clientIdParamsSchema } from './schemas.js';
 
 export interface ClientRoutesConfig {
   db: DatabaseClient;
   /** Audit sink; used to record agent grants revoked by a client delete */
   audit?: AuditProvider;
+  /** Called with the ids of agent grants revoked by a client delete (aborts in-flight /mcp requests) */
+  onGrantsRevoked?: (grantIds: string[]) => void;
 }
 
 /**
@@ -40,7 +42,7 @@ export async function registerClientRoutes(
   fastify: FastifyInstance,
   config: ClientRoutesConfig
 ): Promise<void> {
-  const { db, audit } = config;
+  const { db, audit, onGrantsRevoked } = config;
 
   // ==========================================================================
   // GET /v1/users/me/clients - List user's clients
@@ -214,6 +216,13 @@ export async function registerClientRoutes(
 
         if (body.status === 'suspended') {
           await suspendUserClient(db, userId, params.clientId, isAdmin);
+          await revokeClientGrantsWithAudit(
+            { db, audit, onGrantsRevoked },
+            params.clientId,
+            userId,
+            request.ip ?? '0.0.0.0',
+            'bound_client_suspended'
+          );
         } else if (body.status === 'active') {
           await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
@@ -261,6 +270,7 @@ export async function registerClientRoutes(
 
       try {
         const revoked = await revokeUserClient(db, userId, params.clientId, isAdmin);
+        onGrantsRevoked?.(revoked.map(g => g.grant_id));
         if (audit) {
           for (const g of revoked) {
             await emitAgentAudit({ audit }, 'agent_grant_revoked', {

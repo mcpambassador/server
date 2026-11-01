@@ -13,6 +13,7 @@ import type { FastifyInstance, FastifyPluginCallback, FastifyRequest } from 'fas
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
+import { adminKeyActor } from './middleware.js';
 import {
   createGroupSchema,
   updateGroupSchema,
@@ -60,8 +61,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
    * GRP-002: Use truncated admin key as identifier instead of hardcoded 'admin'
    */
   function getAdminActor(request: FastifyRequest): string {
-    const key = (request.headers['x-admin-key'] as string) || '';
-    return key ? `admin:${key.slice(0, 8)}` : 'admin';
+    return adminKeyActor(request) ?? request.session?.userId ?? 'admin';
   }
 
   // ==========================================================================

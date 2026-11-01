@@ -9,6 +9,7 @@
  * @see M21.6: Auth Route Handlers
  */
 
+import { establishAuthenticatedSession } from './establish-session.js';
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { authenticateUser, getUserById } from './user-auth.js';
@@ -76,41 +77,13 @@ export async function registerAuthRoutes(
       // Reset rate limit on success
       rateLimiter.reset(sourceIp);
 
-      // M-2: Session fixation prevention (H-2)
-      // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
-      // nullify the request.session object, making it impossible to set properties afterward.
-      // As a workaround, we manually clear existing session data to prevent data leakage.
-      // LIMITATION: This does not regenerate the session ID, which is less secure than proper
-      // session regeneration. Consider upgrading @fastify/session when a fixed version is available.
-      //
-      // RATIONALE for accepting this limitation:
-      // - Clearing session data prevents data leakage from prior sessions (primary risk)
-      // - Session fixation risk is partially mitigated by httpOnly, secure, and sameSite=strict cookies
-      // - Our authentication flow generates new sessions on first visit, reducing pre-auth fixation window
-      // - The alternative (broken session after login) is worse for security and UX
-      // - This is tracked for resolution when @fastify/session is patched
-
-      // Clear any existing session data (prevents data leakage from previous sessions)
-      if (request.session.userId) {
-        delete request.session.userId;
-      }
-      if (request.session.username) {
-        delete request.session.username;
-      }
-      if (request.session.isAdmin) {
-        delete request.session.isAdmin;
-      }
-      if (request.session.displayName) {
-        delete request.session.displayName;
-      }
-
-      // Set new authenticated session data
-      request.session.userId = user.user_id;
-      request.session.username = user.username;
-      request.session.isAdmin = user.is_admin;
-      request.session.displayName = user.display_name;
-
-      await request.session.save();
+      // TD-015: new session id on login (fixation defence)
+      await establishAuthenticatedSession(request, {
+        userId: user.user_id,
+        username: user.username,
+        isAdmin: user.is_admin,
+        displayName: user.display_name,
+      });
 
       // Return user info (wrapped in user object, camelCase for frontend)
       return reply.status(200).send(

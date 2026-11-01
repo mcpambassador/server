@@ -26,11 +26,14 @@ import {
   consumePendingAuthRequest,
   createAuthCode,
   consumeAuthCode,
+  setAuthCodeGrant,
+  getAuthCodeAnyState,
   createAgentGrant,
   getAgentGrant,
   listAgentGrantsForUser,
   listAllAgentGrants,
   revokeAgentGrant,
+  revokeGrantsForBoundClient,
   touchAgentGrant,
   getServerSetting,
   setServerSetting,
@@ -72,6 +75,7 @@ import {
 } from '@mcpambassador/contracts';
 import { generateOpaqueId, generateToken, hashToken, logPrefix, verifyPkceS256 } from './crypto.js';
 import { RateLimiter } from './rate-limiter.js';
+import { AgentStreamRegistry } from './streams.js';
 import {
   getActiveBoundClient,
   listSubscriptionScopes,
@@ -82,6 +86,7 @@ import {
 } from './bound-client.js';
 
 export { hashToken, logPrefix } from './crypto.js';
+export { AgentStreamRegistry } from './streams.js';
 
 /** Resolved, absolute URLs derived from config/PUBLIC_URL only */
 export interface ResolvedAgentEndpointConfig extends AgentEndpointConfig {
@@ -103,6 +108,8 @@ export interface AgentEndpointDeps {
   audit: AuditProvider;
   runtime: AgentEndpointRuntime;
   limiter: RateLimiter;
+  /** In-flight /mcp requests (concurrency cap + abort on revoke) */
+  streams: AgentStreamRegistry;
 }
 
 export function createAgentEndpointDeps(
@@ -116,6 +123,7 @@ export function createAgentEndpointDeps(
     audit,
     runtime: { dynamic_client_registration: config.dynamic_client_registration },
     limiter: new RateLimiter(),
+    streams: new AgentStreamRegistry(),
   };
 }
 
@@ -591,7 +599,28 @@ async function exchangeCode(
     });
     return new OAuthError('invalid_grant', 'Invalid or expired authorization code');
   };
-  if (!code) throw bad('unknown_or_used_code');
+  if (!code) {
+    // RFC 6749 §4.1.2: a replayed code revokes what it already produced.
+    const prior = await getAuthCodeAnyState(deps.db, hashToken(req.code));
+    if (prior?.used_at && prior.grant_id && prior.client_id === client.client_id) {
+      await revokeAgentGrant(deps.db, prior.grant_id, 'system:auth_code_reuse');
+      deps.streams.closeGrant(prior.grant_id);
+      await emitAgentAudit(deps, 'agent_grant_revoked', {
+        user_id: prior.user_id,
+        bound_client_id: prior.bound_client_id,
+        source_ip: sourceIp,
+        severity: 'warn',
+        metadata: {
+          agent_grant_id: prior.grant_id,
+          revoked_by: 'system:auth_code_reuse',
+          reason: 'auth_code_reuse',
+          oauth_client_id: client.client_id,
+        },
+      });
+      throw bad('code_reuse_revoked_grant');
+    }
+    throw bad('unknown_or_used_code');
+  }
   if (code.client_id !== client.client_id) throw bad('client_mismatch');
   if (code.redirect_uri !== req.redirect_uri) throw bad('redirect_mismatch');
   if (!verifyPkceS256(req.code_verifier, code.code_challenge)) throw bad('pkce_failed');
@@ -616,6 +645,7 @@ async function exchangeCode(
     resource: code.resource,
     expires_at: isoIn(ttl),
   });
+  await setAuthCodeGrant(deps.db, code.code_hash, grant.grant_id);
   const family = randomUUID();
   const at = await issueAccessToken(deps, grant, family);
   const rt = deps.config.refresh_tokens_enabled
@@ -735,7 +765,8 @@ async function createClientRecord(
       throw new OAuthError('invalid_redirect_uri', `Unacceptable redirect_uri: ${uri}`);
     }
   }
-  if ((await countOAuthClients(deps.db)) >= deps.config.max_oauth_clients) {
+  // The cap bounds unauthenticated DCR; admin-registered clients don't count toward it.
+  if (via === 'dcr' && (await countOAuthClients(deps.db, 'dcr')) >= deps.config.max_oauth_clients) {
     throw new OAuthError('temporarily_unavailable', 'Client registration limit reached', 503);
   }
   return createOAuthClient(deps.db, {
@@ -797,6 +828,7 @@ export async function revokeToken(
   if (!grant || grant.client_id !== req.client_id) return;
   if (tok.kind === 'refresh' && tok.family_id) await revokeTokenFamily(deps.db, tok.family_id);
   else await revokeSingleToken(deps.db, hash);
+  deps.streams.closeGrant(grant.grant_id);
   await emitAgentAudit(deps, 'agent_token_revoked', {
     user_id: grant.user_id,
     bound_client_id: grant.bound_client_id ?? undefined,
@@ -890,6 +922,7 @@ export async function revokeGrant(
   }
   if (!grant.revoked_at) {
     await revokeAgentGrant(deps.db, grantId, actor.user_id);
+    deps.streams.closeGrant(grantId);
     await emitAgentAudit(deps, 'agent_grant_revoked', {
       user_id: actor.user_id,
       bound_client_id: grant.bound_client_id ?? undefined,
@@ -1050,4 +1083,34 @@ export async function updateSettings(
     },
   });
   return getSettings(deps);
+}
+
+/**
+ * S5: revoke (and retain) every agent grant bound to a client that was suspended / revoked by
+ * an admin or its owner, close their live /mcp streams, and audit each as agent_grant_revoked.
+ */
+export async function revokeClientGrantsWithAudit(
+  deps: {
+    db: DatabaseClient;
+    audit?: AuditProvider;
+    onGrantsRevoked?: (grantIds: string[]) => void;
+  },
+  clientId: string,
+  actor: string,
+  sourceIp: string,
+  reason: string
+): Promise<number> {
+  const revoked = await revokeGrantsForBoundClient(deps.db, clientId, actor);
+  deps.onGrantsRevoked?.(revoked.map(g => g.grant_id));
+  if (deps.audit) {
+    for (const g of revoked) {
+      await emitAgentAudit({ audit: deps.audit }, 'agent_grant_revoked', {
+        user_id: g.user_id,
+        bound_client_id: clientId,
+        source_ip: sourceIp,
+        metadata: { agent_grant_id: g.grant_id, revoked_by: actor, reason },
+      });
+    }
+  }
+  return revoked.length;
 }

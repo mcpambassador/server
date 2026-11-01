@@ -84,6 +84,7 @@ export interface AuthCodeRecord {
   ttl_seconds: number | null;
   expires_at: string;
   used_at: string | null;
+  grant_id?: string | null;
 }
 
 const now = (): string => new Date().toISOString();
@@ -149,6 +150,7 @@ function toCode(r: any): AuthCodeRecord {
     ttl_seconds: r.ttl_seconds ?? null,
     expires_at: r.expires_at,
     used_at: r.used_at ?? null,
+    grant_id: r.grant_id ?? null,
   };
 }
 function toToken(r: any): AgentTokenRecord {
@@ -194,8 +196,12 @@ export async function listOAuthClients(db: DatabaseClient): Promise<OAuthClientR
   const rows = await compatSelect(db).from(oauth_clients);
   return (rows as any[]).map(toClient).sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
-export async function countOAuthClients(db: DatabaseClient): Promise<number> {
-  const rows = await compatSelect(db, { id: oauth_clients.client_id }).from(oauth_clients);
+export async function countOAuthClients(
+  db: DatabaseClient,
+  via?: 'admin' | 'dcr'
+): Promise<number> {
+  const q = compatSelect(db, { id: oauth_clients.client_id }).from(oauth_clients);
+  const rows = via ? await q.where(eq(oauth_clients.registered_via, via)) : await q;
   return (rows as unknown[]).length;
 }
 export async function setOAuthClientDisabled(
@@ -304,6 +310,27 @@ export async function createAuthCode(db: DatabaseClient, data: AuthCodeRecord): 
     scopes: j(data.scopes),
     tool_allowlist: data.tool_allowlist == null ? null : j(data.tool_allowlist),
   });
+}
+/** Link a consumed code to the grant minted from it */
+export async function setAuthCodeGrant(
+  db: DatabaseClient,
+  codeHash: string,
+  grantId: string
+): Promise<void> {
+  await compatUpdate(db, oauth_auth_codes)
+    .set({ grant_id: grantId })
+    .where(eq(oauth_auth_codes.code_hash, codeHash));
+}
+/** Read a code row regardless of used/expired state (replay detection only) */
+export async function getAuthCodeAnyState(
+  db: DatabaseClient,
+  codeHash: string
+): Promise<AuthCodeRecord | null> {
+  const [r] = await compatSelect(db)
+    .from(oauth_auth_codes)
+    .where(eq(oauth_auth_codes.code_hash, codeHash))
+    .limit(1);
+  return r ? toCode(r) : null;
 }
 /** Single-use consume (one conditional UPDATE … RETURNING); null if missing, expired or already used */
 export async function consumeAuthCode(

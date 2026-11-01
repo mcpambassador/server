@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
+import { requestLogSerializers } from './log-serializers.js';
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import crypto from 'crypto';
@@ -12,6 +13,7 @@ import {
   invokeTool,
   resolveSessionUserId,
   SessionBindingError,
+  KillSwitchError,
   SessionStateError,
   type ToolServiceDeps,
 } from './services/tool-service.js';
@@ -75,6 +77,8 @@ import type {
   ErrorResponse,
 } from '@mcpambassador/protocol';
 import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
+import { verifyAdminKeyHeader } from './admin/middleware.js';
+import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -109,14 +113,15 @@ export interface ServerConfig {
   /** Database file path (defaults to dataDir/ambassador.db) */
   dbPath?: string;
   /**
-   * Trust X-Forwarded-For header for source IP (F-SEC-M6-020 remediation)
-   * - false (default): Ignore X-Forwarded-For, use direct connection IP
-   * - true: Trust first IP in X-Forwarded-For (use only if behind trusted proxy)
-   * - string[]: Trust X-Forwarded-For only if request comes from these CIDR ranges
+   * Fastify trustProxy for BOTH listeners (config key server.trust_proxy, env MCP_AMBASSADOR_TRUST_PROXY)
+   * - false (default): ignore X-Forwarded-For, use the direct connection IP
+   * - number: trust that many proxy hops
+   * - string | string[]: trust only these proxy IPs/CIDRs
+   * - true: trust every hop (spoofable)
    *
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
-  trustProxy?: boolean | string[];
+  trustProxy?: boolean | number | string | string[];
   /** Admin UI port (defaults to 9443, 0 for ephemeral) */
   adminPort?: number;
   /** Enable admin UI (defaults to true) */
@@ -225,8 +230,10 @@ export class AmbassadorServer {
 
     // Create Fastify instance with HTTPS + TLS
     this.fastify = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576, // 1MB max request body (F-SEC-M6 condition)
       https: {
@@ -541,8 +548,10 @@ export class AmbassadorServer {
 
     // Create admin Fastify instance with same TLS config
     this.adminServer = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576,
       https: {
@@ -627,8 +636,15 @@ export class AmbassadorServer {
       // ADR-020: /oauth/*, /mcp are bearer/client-authenticated (never cookie), so a
       // disabled endpoint answers a JSON 404 rather than a CSRF 403.
       if (isAgentEndpointPath(request.url)) return;
-      // API key clients are not cookie-authenticated — no CSRF risk
-      if (request.headers['x-admin-key']) return;
+      // S2: CSRF is skipped ONLY when the admin key VALIDATES. A present-but-invalid key is a
+      // 401 here — it never falls through to the cookie session.
+      const keyState = await verifyAdminKeyHeader(this.db!, request);
+      if (keyState === 'valid') return;
+      if (keyState === 'invalid') {
+        return reply
+          .status(401)
+          .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
+      }
       // Delegate to the csrfProtection handler registered by the plugin.
       // csrfProtection is a callback-style middleware (req, reply, next) —
       // wrap it in a Promise so the async hook awaits the outcome correctly.
@@ -664,6 +680,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // Register user-facing API routes on admin server (M29.7)
@@ -704,7 +723,13 @@ export class AmbassadorServer {
 
     // Client routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.adminServer, { db: this.db!, audit: this.audit! });
+    await registerClientRoutes(this.adminServer, {
+      db: this.db!,
+      audit: this.audit!,
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
+    });
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
@@ -816,30 +841,12 @@ export class AmbassadorServer {
   }
 
   /**
-   * Extract source IP from request, respecting trustProxy configuration
-   *
-   * Security: F-SEC-M6-020 remediation + F-SEC-P1-001 fix
-   * - If trustProxy is false (default): Use only request.ip (direct connection)
-   * - If trustProxy is true: Trust first IP in X-Forwarded-For header
-   * - Always falls back to '0.0.0.0' if no IP available
-   *
-   * @param request - Fastify request object
-   * @returns Source IP address as string
+   * Source IP of the request. Fastify resolves X-Forwarded-For itself according to the
+   * `trustProxy` option (S3), so this is just request.ip: with trust_proxy=false (default) a
+   * spoofed header is ignored; with a hop count / CIDR list only trusted proxies are believed.
    */
   private getSourceIp(request: FastifyRequest): string {
-    if (this.config.trustProxy) {
-      // Trust X-Forwarded-For (first IP in comma-separated list)
-      const forwardedHeader = request.headers['x-forwarded-for'];
-      const forwardedFor =
-        (Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader) ||
-        request.ip ||
-        '0.0.0.0';
-      return forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
-      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
-    } else {
-      // Default: Ignore X-Forwarded-For, use direct connection IP
-      return request.ip ?? '0.0.0.0';
-    }
+    return request.ip ?? '0.0.0.0';
   }
 
   /**
@@ -857,6 +864,7 @@ export class AmbassadorServer {
       toolRouter: this.toolRouter,
       mcpManager: this.mcpManager,
       userPool: this.userPool,
+      killSwitch: this.killSwitchManager,
     };
   }
 
@@ -1532,6 +1540,11 @@ export class AmbassadorServer {
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
           });
+        } else if (err instanceof KillSwitchError) {
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: err.message,
+          });
         } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
           // F-SEC-M6-021 remediation: Use instanceof instead of string matching
@@ -1577,6 +1590,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // F-SEC-M6-005: Detailed health endpoint (admin only)
@@ -1614,7 +1630,15 @@ export class AmbassadorServer {
     // ADR-020: MCP resource server (off by default)
     if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
       const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
-      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps());
+      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps(), {
+        toolDeps: this.getToolServiceDeps(),
+        userPool: this.userPool,
+        ensureUserMcps: async (userId: string) => {
+          if (this.userPool.hasActiveInstances(userId)) return;
+          const creds = await this.loadUserCredentialsForMcps(userId);
+          await this.userPool.spawnForUser(userId, creds);
+        },
+      });
     }
 
     // M24.10: Register SPA handler (must be last to avoid intercepting API routes)

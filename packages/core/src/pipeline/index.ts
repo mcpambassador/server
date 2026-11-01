@@ -43,6 +43,42 @@ export interface PipelineToolInvocationRequest {
 }
 
 /**
+ * Session established by the remote agent endpoint's own bearer-token validator
+ * (`validateAgentToken`). It is accepted ONLY as a function argument from internal callers
+ * (never derived from request data); the pipeline still runs authz, validation, routing and audit.
+ */
+export interface AgentSession {
+  user_id: string;
+  /** Ambassador client the grant is bound to (authz uses its profile) */
+  bound_client_id: string;
+  grant_id: string;
+  scopes: string[];
+}
+
+export interface PipelineInvokeOptions {
+  /** Skips the authn provider; the caller has already validated the agent token. */
+  preAuthenticatedSession?: AgentSession;
+}
+
+/** SessionContext for an agent session (authz keys off client_id = the bound client) */
+export function buildAgentSessionContext(agent: AgentSession): SessionContext {
+  if (!agent.user_id || !agent.bound_client_id || !agent.grant_id) {
+    throw new AuthenticationError('Invalid agent session');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    session_id: `agent:${agent.grant_id}`,
+    client_id: agent.bound_client_id,
+    user_id: agent.user_id,
+    auth_method: 'oauth',
+    groups: [],
+    attributes: { grant_id: agent.grant_id, scopes: agent.scopes.join(' ') },
+    issued_at: now,
+    expires_at: now + 60,
+  };
+}
+
+/**
  * Pipeline configuration
  */
 export interface PipelineConfig {
@@ -90,7 +126,8 @@ export class Pipeline {
       args: Record<string, unknown>
     ) => Promise<{ content: unknown; isError?: boolean; mcpServer?: string }>,
     toolSchema?: ToolSchema,
-    argumentRestrictions?: ArgumentRestrictions
+    argumentRestrictions?: ArgumentRestrictions,
+    options?: PipelineInvokeOptions
   ): Promise<ToolInvocationResponse> {
     // F-SEC-M3-012: Input validation
     if (!request.tool_name || !request.client_id) {
@@ -107,7 +144,17 @@ export class Pipeline {
       // ===== Stage 1: Authentication =====
       logger.debug(`[pipeline] AuthN: client_id=${request.client_id}`);
 
-      const authResult = await this.authn.authenticate(authRequest);
+      const agent = options?.preAuthenticatedSession;
+      if (agent && request.client_id !== agent.bound_client_id) {
+        throw new ValidationError('client_id does not match the agent session binding');
+      }
+      const authResult = agent
+        ? {
+            success: true as const,
+            session: buildAgentSessionContext(agent),
+            error: undefined,
+          }
+        : await this.authn.authenticate(authRequest);
 
       if (!authResult.success || !authResult.session) {
         // AuthN failure — audit and reject
@@ -143,6 +190,9 @@ export class Pipeline {
         source_ip: authRequest.sourceIp,
         action: 'authentication',
         authz_decision: undefined,
+        ...(agent
+          ? { metadata: { bound_client_id: agent.bound_client_id, grant_id: agent.grant_id } }
+          : {}),
       });
 
       // ===== Stage 2: Authorization =====
