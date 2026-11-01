@@ -159,6 +159,33 @@ describe('AgentAccess', () => {
     await waitFor(() => expect(deleted).toBe('g1'));
   });
 
+  it('loads more grants via cursor', async () => {
+    const cursors: (string | null)[] = [];
+    server.use(
+      http.get('/v1/users/me/agent-grants', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        cursors.push(cursor);
+        return cursor
+          ? HttpResponse.json({
+              ok: true,
+              data: [{ ...grant, grant_id: 'g2', label: 'Second' }],
+              pagination: { has_more: false, total_count: 2 },
+            })
+          : HttpResponse.json({
+              ok: true,
+              data: [grant],
+              pagination: { has_more: true, total_count: 2, next_cursor: 'c1' },
+            });
+      })
+    );
+    renderAt(<AgentAccess />, '/app/agent-access');
+    expect(await screen.findByText('CI bot')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Second')).toBeInTheDocument();
+    expect(cursors).toEqual([null, 'c1']);
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
   it('shows empty state', async () => {
     server.use(
       http.get('/v1/users/me/agent-grants', () =>
