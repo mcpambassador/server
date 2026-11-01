@@ -7,7 +7,8 @@ import type {
   ToolInvocationRequest,
   ToolInvocationResponse,
 } from './types.js';
-import { validateMcpConfig, validateToolName, BLOCKED_ENV_VARS } from './types.js';
+import { validateMcpConfig, validateToolName } from './types.js';
+import { isBlockedEnvName } from '../services/runner-guard.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 
@@ -170,9 +171,9 @@ export class UserMcpPool {
           if (credentials && credentials.has(config.name)) {
             const creds = credentials.get(config.name)!;
 
-            // SEC-H3: Validate credential env var names against BLOCKED_ENV_VARS
+            // SEC-H3 / TD-039: validate credential env var names (case-insensitive, prefix families)
             for (const key of Object.keys(creds.envVars)) {
-              if (BLOCKED_ENV_VARS.includes(key.toUpperCase())) {
+              if (isBlockedEnvName(key)) {
                 throw new Error(
                   `Credential env var '${key}' matches blocked env var for ${config.name}`
                 );
@@ -181,7 +182,7 @@ export class UserMcpPool {
 
             // Skip 'Authorization' header validation (it's expected for OAuth)
             for (const key of Object.keys(creds.headers)) {
-              if (key !== 'Authorization' && BLOCKED_ENV_VARS.includes(key.toUpperCase())) {
+              if (key !== 'Authorization' && isBlockedEnvName(key)) {
                 throw new Error(
                   `Credential header '${key}' matches blocked env var for ${config.name}`
                 );

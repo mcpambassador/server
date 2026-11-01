@@ -28,6 +28,12 @@ export interface DownstreamMcpConfig {
 /**
  * F-SEC-M6-001: Security-sensitive environment variables that must not be overridden
  */
+import { checkRunnerCommand, isBlockedEnvName } from '../services/runner-guard.js';
+
+/**
+ * @deprecated Exact-name list kept for compatibility. Use `isBlockedEnvName` (TD-039): it is
+ * case-insensitive and also covers whole prefix families (npm_config_*, PIP_*, UV_*, PYTHON*, ...).
+ */
 export const BLOCKED_ENV_VARS = [
   'PATH',
   'LD_PRELOAD',
@@ -167,10 +173,16 @@ export function validateMcpConfig(config: DownstreamMcpConfig): void {
       }
     }
 
+    // TD-039: runner-changing options (--registry, --from, -p/--print, ...) in either form
+    const runnerIssue = checkRunnerCommand(config.command);
+    if (runnerIssue) {
+      throw new Error(`[${config.name}] ${runnerIssue}`);
+    }
+
     // Check for dangerous environment variables
     if (config.env) {
       for (const key of Object.keys(config.env)) {
-        if (BLOCKED_ENV_VARS.includes(key)) {
+        if (isBlockedEnvName(key)) {
           throw new Error(
             `[${config.name}] Environment variable '${key}' is blocked for security reasons`
           );

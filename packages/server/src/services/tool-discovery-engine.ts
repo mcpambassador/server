@@ -16,7 +16,8 @@ import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { HttpMcpConnection } from '../downstream/http-connection.js';
 import type { DownstreamMcpConfig, ToolDescriptor } from '../downstream/types.js';
-import { validateToolName, BLOCKED_ENV_VARS } from '../downstream/types.js';
+import { validateToolName } from '../downstream/types.js';
+import { isBlockedEnvName } from './runner-guard.js';
 
 /**
  * Error codes for tool discovery failures
@@ -401,7 +402,7 @@ export async function discoverTools(
           const envVarName = properties?.[fieldName]?.env_var ?? fieldName;
 
           // Security check: block dangerous env vars
-          if (BLOCKED_ENV_VARS.includes(envVarName.toUpperCase())) {
+          if (isBlockedEnvName(envVarName)) {
             return {
               status: 'error',
               tools_discovered: [],
