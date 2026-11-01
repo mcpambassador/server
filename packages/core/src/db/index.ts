@@ -156,3 +156,6 @@ export type {
   AuditRequestSummary,
   AuditResponseSummary,
 } from '../schema/index.js';
+
+// ADR-020 agent OAuth repositories (stubs until P3)
+export * from './repositories/agent-oauth.js';

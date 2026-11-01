@@ -54,6 +54,10 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
+import {
+  resolveAgentEndpointConfig,
+  type AgentEndpointDeps,
+} from './services/agent-endpoint/index.js';
 import type {
   ToolCatalogResponse,
   ToolDescriptor,
@@ -720,6 +724,13 @@ export class AmbassadorServer {
       userPool: this.userPool,
       portalBaseUrl,
     });
+
+    // ADR-020: agent authorization server (off by default)
+    const agentEndpointConfig = this.config.ambassadorConfig?.agent_endpoint;
+    if (agentEndpointConfig?.enabled) {
+      const { registerAgentOAuthRoutes } = await import('./routes/agent-oauth.js');
+      await registerAgentOAuthRoutes(this.adminServer, this.buildAgentEndpointDeps());
+    }
 
     logger.info('[Admin] User-facing API routes registered');
 
@@ -1706,6 +1717,12 @@ export class AmbassadorServer {
       userPool: this.userPool,
     });
 
+    // ADR-020: MCP resource server (off by default)
+    if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
+      const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
+      await registerAgentMcpRoutes(this.fastify, this.buildAgentEndpointDeps());
+    }
+
     // M23.4: Register marketplace routes
     const { registerMarketplaceRoutes } = await import('./routes/marketplace.js');
     await registerMarketplaceRoutes(this.fastify, {
@@ -1722,6 +1739,21 @@ export class AmbassadorServer {
   /**
    * Start the server
    */
+  /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
+  private buildAgentEndpointDeps(): AgentEndpointDeps {
+    const cfg = this.config.ambassadorConfig!.agent_endpoint;
+    const strip = (u: string): string => u.replace(/\/+$/, '');
+    const issuer = strip(
+      cfg.issuer_url ??
+        this.config.publicUrl ??
+        `https://${this.config.serverName}:${this.config.adminPort}`
+    );
+    const agentBaseUrl = strip(
+      cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
+    );
+    return { db: this.db!, config: resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }) };
+  }
+
   async start(): Promise<void> {
     if (!this.fastify) {
       throw new Error('Server not initialized - call initialize() first');
