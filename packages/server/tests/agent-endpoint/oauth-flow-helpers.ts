@@ -22,6 +22,28 @@ const form = (o: Record<string, string | undefined>): string =>
     Object.entries(o).filter(([, v]) => v !== undefined) as [string, string][]
   ).toString();
 
+const boundCache = new WeakMap<UserSession, string>();
+
+/** Create one of the user's own Ambassador clients (the thing a grant binds to). */
+export async function createAmbClient(sess: UserSession, name = 'bound-client'): Promise<string> {
+  const res = await sess.request({
+    method: 'POST',
+    url: '/v1/users/me/clients',
+    payload: { client_name: name },
+  });
+  if (res.statusCode !== 201) throw new Error(`createAmbClient: ${res.statusCode} ${res.body}`);
+  return JSON.parse(res.body).data.client.id as string;
+}
+
+/** The user's default Ambassador client used for bound_client_id (created lazily, cached). */
+export async function boundClientId(sess: UserSession): Promise<string> {
+  const hit = boundCache.get(sess);
+  if (hit) return hit;
+  const id = await createAmbClient(sess, 'default-bound');
+  boundCache.set(sess, id);
+  return id;
+}
+
 /** Admin pre-registers a public OAuth client; returns client_id. */
 export async function registerAdminClient(
   s: AgentTestServer,
@@ -96,6 +118,7 @@ export async function approveAndGetCode(
 ): Promise<{ code: string; state: string | null; redirectUrl: string }> {
   const res = await decide(sess, requestId, {
     decision: 'approve',
+    bound_client_id: body['bound_client_id'] ?? (await boundClientId(sess)),
     scopes: ['mcp:*'],
     ttl_seconds: 3600,
     ...body,
