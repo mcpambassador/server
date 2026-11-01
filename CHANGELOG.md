@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The browser/user API (every cookie-authenticated route, incl. login, session, CSRF token and user endpoints) is served on the admin/SPA listener (9443) only. It is no longer registered on the client port (8443); browsers or scripts that called it on 8443 must use 9443. 8443 now serves only the MCP client protocol and the agent endpoint.
 - `server.trust_proxy` / `MCP_AMBASSADOR_TRUST_PROXY` no longer accept hop counts (Fastify 5.12 disables them because they let direct clients spoof `X-Forwarded-*`). Use `true`, `false`, or an IP/CIDR list; a bare number in the env var is rejected at startup.
 
+### Added
+
+- Progressive tool disclosure (ADR-022): a remote agent grant has a `disclosure_mode` (`full`, the default, or `progressive`) chosen by the user at consent or one-shot creation. In `progressive` mode `/mcp` `tools/list` returns only `ambassador__search_tools`, `ambassador__describe_tool` and `ambassador__call_tool`; they run through the same scope, allowlist, pin, authorization, kill-switch and audit path as a direct call, and a hidden, pending, revoked, reserved-name or out-of-scope tool answers "Unknown tool" like a nonexistent one. Same-named tools of different MCPs are told apart by an optional `mcp` argument (ambiguous names are refused with the candidates). Calls made through `call_tool` are audited with `via` and `disclosure_mode`; discovery is audited as `agent_tool_discovery` with query length and hash only. Search/describe draw from their own rate bucket at twice the per-grant call limit. Migration `0005_agent_grant_disclosure_mode.sql` adds the column to `agent_grants` and `oauth_auth_codes`; existing grants stay `full`.
+
+### Changed
+
+- Tool descriptions are no longer cut to 500 UTF-16 units when a downstream MCP is discovered; the full text is stored and the 500 code-point cut (never splitting a surrogate pair) happens only when a definition is served. Admin MCP views therefore show full descriptions.
+- The `/mcp` insufficient-scope pre-check resolves a tool against the full catalog (same-named tools of different MCPs kept apart) and looks through one level of `ambassador__call_tool`.
+
 ### Fixed
 
 - `POST /v1/admin/users` now adds the new user to `all-users` like every other creation path (without it the user got 403 on subscribe).

@@ -260,7 +260,7 @@ async function describe(ctx: MetaToolContext, args: unknown): Promise<MetaToolRe
     mcp: r.mcp,
     // already T(approved_definition): cut to 500 code points by the catalog (ADR-021 D1')
     description: r.tool.description ?? '',
-    inputSchema: (r.tool.input_schema as Record<string, unknown>) ?? { type: 'object' },
+    inputSchema: r.tool.input_schema ?? { type: 'object' },
   };
   return text(JSON.stringify(result));
 }
