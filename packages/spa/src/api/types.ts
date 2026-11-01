@@ -297,16 +297,8 @@ export interface DownstreamStatus {
   }>;
 }
 
-/**
- * One ACTIVE kill switch from GET /v1/admin/kill-switches (a target is active iff listed).
- * TODO: replace with KillSwitchSummary from @mcpambassador/contracts once platform's SHA lands.
- */
-export interface KillSwitchEntry {
-  target: string; // `client:<id>` | `mcp:<name>`
-  type: 'client' | 'mcp';
-  activated_at: string;
-  activated_by: string;
-}
+/** One ACTIVE kill switch from GET /v1/admin/kill-switches (a target is active iff listed). */
+export type { KillSwitchSummary } from '@mcpambassador/contracts';
 
 export interface KillSwitchResponse {
   target: string;

@@ -17,7 +17,7 @@ import type {
   Session,
   DownstreamStatus,
   KillSwitchResponse,
-  KillSwitchEntry,
+  KillSwitchSummary,
   Profile,
   PaginatedResponse,
   AdminClient,
@@ -450,7 +450,7 @@ export function useDownstream() {
 export function useKillSwitches() {
   return useQuery({
     queryKey: ['admin', 'kill-switches'],
-    queryFn: () => apiClient.get<KillSwitchEntry[]>('/v1/admin/kill-switches'),
+    queryFn: () => apiClient.get<KillSwitchSummary[]>('/v1/admin/kill-switches'),
   });
 }
 
