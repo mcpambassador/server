@@ -376,7 +376,16 @@ export async function registerAgentMcpRoutes(
         await server.connect(transport);
         reply.hijack();
         raw.setHeader('Cache-Control', 'no-store');
-        await transport.handleRequest(req.raw, raw, req.body);
+        const handled = transport.handleRequest(req.raw, raw, req.body);
+        // The SDK wraps req/res with @hono/node-server's listener, which learns the body was consumed
+        // only from the incoming stream's 'end' event. Fastify already consumed it (req.body is
+        // parsed), so 'end' fired before hono subscribed; hono then "drains" the request after the
+        // response and, 500ms later, calls socket.destroySoon(). On real sockets IncomingMessage is
+        // already destroyed (hono no-ops), but on inject()/light-my-request streams it is not and the
+        // fake socket has no destroySoon (unhandled TypeError). handleRequest has subscribed
+        // synchronously by now, so tell hono the body is already fully read.
+        if (req.raw.readableEnded) req.raw.emit('end');
+        await handled;
       } catch (e) {
         logger.error(`[agent-mcp] request failed: ${String(e)}`);
         if (!raw.headersSent) {
