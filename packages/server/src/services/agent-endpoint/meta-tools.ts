@@ -198,7 +198,7 @@ function capResponse(obj: { tools: ToolSearchHit[] }): SearchToolsResult {
   const out: ToolSearchHit[] = [];
   let size = 2;
   for (const h of obj.tools) {
-    size += JSON.stringify(h).length + 1;
+    size += Buffer.byteLength(JSON.stringify(h), 'utf8') + 1;
     if (size > MAX_RESPONSE_BYTES) break;
     out.push(h);
   }
@@ -217,6 +217,8 @@ async function search(ctx: MetaToolContext, args: unknown): Promise<MetaToolResu
   for (const t of all) {
     if (hits.length >= limit) break;
     if (t.name.startsWith(RESERVED_TOOL_PREFIX)) continue;
+    // Never hand out a name that would not resolve when sent back (sanitizing must not alter it)
+    if (stripControlAndInvisible(t.name) !== t.name) continue;
     const owner = t.metadata?.mcp_server ?? '';
     if (mcp !== undefined && owner !== mcp) continue;
     if (!matches(t, qTokens)) continue;

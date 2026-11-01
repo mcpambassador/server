@@ -159,6 +159,10 @@ export type DisclosureMode = z.infer<typeof disclosureModeSchema>;
 
 /** ADR-022 P1: downstream tools whose name starts with this prefix are hidden and flagged */
 export const RESERVED_TOOL_PREFIX = TOOL_PIN_RESERVED_NAME_PREFIX;
+/**
+ * The meta-tools are served for BOTH modes: in `full` mode they are not listed by tools/list but a
+ * `tools/call` of one still works (same authorization path as a direct call).
+ */
 export const META_TOOL_NAMES = [
   'ambassador__search_tools',
   'ambassador__describe_tool',
