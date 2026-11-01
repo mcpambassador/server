@@ -16,6 +16,8 @@ import {
   AGENT_GRANT_ROUTE,
   ADMIN_OAUTH_CLIENTS_ROUTE,
   ADMIN_OAUTH_CLIENT_ROUTE,
+  ADMIN_AGENT_GRANTS_ROUTE,
+  ADMIN_AGENT_GRANT_ROUTE,
   ADMIN_AGENT_ENDPOINT_SETTINGS_ROUTE,
   type OAuthErrorResponse,
 } from '@mcpambassador/contracts';
@@ -48,6 +50,9 @@ export async function registerAgentOAuthRoutes(
   app.get(ADMIN_OAUTH_CLIENTS_ROUTE, async (_req, reply) => reply.status(501).send(env501));
   app.post(ADMIN_OAUTH_CLIENTS_ROUTE, async (_req, reply) => reply.status(501).send(env501));
   app.delete(ADMIN_OAUTH_CLIENT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
+  app.patch(ADMIN_OAUTH_CLIENT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
+  app.get(ADMIN_AGENT_GRANTS_ROUTE, async (_req, reply) => reply.status(501).send(env501));
+  app.delete(ADMIN_AGENT_GRANT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
   app.get(ADMIN_AGENT_ENDPOINT_SETTINGS_ROUTE, async (_req, reply) =>
     reply.status(501).send(env501)
   );

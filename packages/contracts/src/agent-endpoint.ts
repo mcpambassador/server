@@ -36,6 +36,8 @@ export const AGENT_GRANT_ROUTE = '/v1/users/me/agent-grants/:grantId';
 /** Admin API, 9443 */
 export const ADMIN_OAUTH_CLIENTS_ROUTE = '/v1/admin/oauth-clients';
 export const ADMIN_OAUTH_CLIENT_ROUTE = '/v1/admin/oauth-clients/:clientId';
+export const ADMIN_AGENT_GRANTS_ROUTE = '/v1/admin/agent-grants';
+export const ADMIN_AGENT_GRANT_ROUTE = '/v1/admin/agent-grants/:grantId';
 export const ADMIN_AGENT_ENDPOINT_SETTINGS_ROUTE = '/v1/admin/agent-endpoint/settings';
 
 // ===== Token prefixes =====
@@ -254,6 +256,30 @@ export interface OAuthClientSummary {
   last_used_at: string | null;
   disabled: boolean;
 }
+/** PATCH /v1/admin/oauth-clients/:clientId → OAuthClientSummary (disables/enables; audited oauth_client_disabled) */
+export const adminPatchClientRequestSchema = z.object({ disabled: z.boolean() });
+export type AdminPatchClientRequest = z.infer<typeof adminPatchClientRequestSchema>;
+
+/**
+ * GET /v1/admin/agent-grants → paginated envelope ({ok,data,pagination:{has_more,total_count,next_cursor}})
+ * of AdminAgentGrantSummary. Same cursor/limit convention as other admin lists.
+ * DELETE /v1/admin/agent-grants/:grantId → RevokeGrantResponse; audited with the admin identity
+ * (agent_grant_revoked, actor = admin, target user in metadata).
+ */
+export const adminListGrantsQuerySchema = z.object({
+  user_id: z.string().optional(),
+  include_inactive: z.coerce.boolean().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type AdminListGrantsQuery = z.infer<typeof adminListGrantsQuerySchema>;
+export interface AdminAgentGrantSummary extends AgentGrantSummary {
+  user_id: string;
+  username: string;
+  revoked_by: string | null;
+}
+
+/** PUT /v1/admin/agent-endpoint/settings → AgentEndpointSettings (the updated settings). */
 export const adminUpdateSettingsRequestSchema = z.object({
   dynamic_client_registration: z.boolean(),
 });
