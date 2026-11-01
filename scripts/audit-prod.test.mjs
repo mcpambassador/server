@@ -14,7 +14,9 @@ const out = (advisories, v = {}) =>
     metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, ...v } },
   });
 const base = { ignored: new Set(), now: new Date('2026-11-01') };
-const TD = 'GHSA-gpj5-g38j-94v9';
+// Synthetic fixture: these tests must not depend on the live TRACKED list (entries come and go as upgrades land).
+const TD = 'GHSA-test-fixture-0001';
+const FIXTURE_TRACKED = { [TD]: { td: 'TD-000', pkg: 'fixture', reviewBy: '2026-12-31' } };
 
 test('fails closed on {}', () =>
   assert.notEqual(evaluate({ ...base, stdout: '{}', exitCode: 0 }).code, 0));
@@ -46,8 +48,11 @@ test('untracked high blocks', () =>
 test('tracked ignore passes before review-by, blocks after', () => {
   const stdout = out({ 1: adv(TD, 'high') }, { high: 1 });
   const ignored = new Set([TD]);
-  assert.equal(evaluate({ stdout, exitCode: 1, ignored, now: new Date('2026-11-01') }).code, 0);
-  assert.equal(evaluate({ stdout, exitCode: 1, ignored, now: new Date('2027-01-02') }).code, 1);
+  const tracked = FIXTURE_TRACKED;
+  const early = evaluate({ stdout, exitCode: 1, ignored, tracked, now: new Date('2026-11-01') });
+  assert.equal(early.code, 0);
+  const late = evaluate({ stdout, exitCode: 1, ignored, tracked, now: new Date('2027-01-02') });
+  assert.equal(late.code, 1);
 });
 test('ignored but untracked id blocks', () =>
   assert.equal(
@@ -64,7 +69,7 @@ test('clean passes', () =>
 
 test('malformed reviewBy fails closed', () => {
   for (const reviewBy of ['2026-13-45', '31/12/2026', undefined, '']) {
-    const tracked = { [TD]: { td: 'TD-019', pkg: 'drizzle-orm', reviewBy } };
+    const tracked = { [TD]: { td: 'TD-000', pkg: 'fixture', reviewBy } };
     const r = evaluate({
       stdout: out({ 1: adv(TD, 'high') }, { high: 1 }),
       exitCode: 1,
