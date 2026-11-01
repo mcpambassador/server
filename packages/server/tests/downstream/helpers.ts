@@ -4,6 +4,7 @@ export function makeMcpConfig(overrides: Partial<Record<string, any>> = {}) {
   const name = overrides.name ?? `mcp-${randomUUID().slice(0, 8)}`;
   return {
     name,
+    mcp_id: overrides.mcp_id ?? `id-${name}`,
     transport: overrides.transport ?? 'stdio',
     command: overrides.command ?? ['node', './mcp.js'],
     env: overrides.env ?? {},

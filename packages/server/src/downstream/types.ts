@@ -12,6 +12,8 @@ import { z } from 'zod';
  */
 export interface DownstreamMcpConfig {
   name: string;
+  /** Catalog id (TD-040): lets the per-user pool spawn only MCPs the user is granted and subscribed to */
+  mcp_id?: string;
   transport: 'stdio' | 'http' | 'sse';
 
   // stdio transport

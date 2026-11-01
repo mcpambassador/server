@@ -38,6 +38,8 @@ export interface ClientRoutesConfig {
   audit?: AuditProvider;
   /** Called with the ids of agent grants revoked by a client delete (aborts in-flight /mcp requests) */
   onGrantsRevoked?: (grantIds: string[]) => void;
+  /** TD-040: the user's spawnable MCP set may have changed (client suspended/reactivated/deleted) */
+  onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
 }
 
 /**
@@ -47,7 +49,7 @@ export async function registerClientRoutes(
   fastify: FastifyInstance,
   config: ClientRoutesConfig
 ): Promise<void> {
-  const { db, audit, onGrantsRevoked } = config;
+  const { db, audit, onGrantsRevoked, onUserAccessChanged } = config;
 
   // ==========================================================================
   // GET /v1/users/me/clients - List user's clients
@@ -233,6 +235,9 @@ export async function registerClientRoutes(
         } else if (body.status === 'active') {
           await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
+        if (body.status === 'suspended' || body.status === 'active') {
+          await onUserAccessChanged?.([userId], 'client_status_changed').catch(() => undefined);
+        }
 
         const client = await getUserClient(db, userId, params.clientId, isAdmin);
 
@@ -278,6 +283,7 @@ export async function registerClientRoutes(
       try {
         const revoked = await revokeUserClient(db, userId, params.clientId, isAdmin);
         onGrantsRevoked?.(revoked.map(g => g.grant_id));
+        await onUserAccessChanged?.([userId], 'client_deleted').catch(() => undefined);
         if (audit) {
           for (const g of revoked) {
             await emitAgentAudit({ audit }, 'agent_grant_revoked', {

@@ -2,6 +2,9 @@ import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { makeMcpConfig, makeTool } from './helpers';
 
+// TD-040: tests that are not about the allowed-set accept every configured MCP
+const ALL = { has: () => true } as unknown as ReadonlySet<string>;
+
 // Mock connection classes
 class MockConnection extends EventEmitter {
   private config: any;
@@ -98,12 +101,74 @@ describe('UserMcpPool - Spawn/Terminate Lifecycle', () => {
       healthCheckIntervalMs: 0, // Disable health check for tests
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
 
     expect(pool.hasActiveInstances('user1')).toBe(true);
 
     const catalog = pool.getToolCatalog('user1');
     expect(catalog.length).toBeGreaterThan(0);
+
+    await pool.shutdown();
+  });
+
+  it('spawnForUser() starts only MCPs in the allowed set (TD-040)', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+
+    const configs = [
+      makeMcpConfig({ name: 'mcp1', transport: 'stdio' }),
+      makeMcpConfig({ name: 'mcp2', transport: 'stdio' }),
+      makeMcpConfig({ name: 'mcp3', transport: 'stdio', mcp_id: undefined }),
+    ];
+    // a config without an mcp_id can never be allowed
+    delete (configs[2] as { mcp_id?: string }).mcp_id;
+
+    const pool = new UserMcpPool({
+      mcpConfigs: configs,
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1']));
+    const names = new Set(pool.getToolCatalog('user1').map(t => t.source_mcp));
+    expect(names.has('mcp2')).toBe(false);
+    expect(names.has('mcp3')).toBe(false);
+    expect(pool.getStatus().totalConnections).toBe(1);
+
+    await pool.spawnForUser('user2', undefined, new Set());
+    expect(pool.getStatus().totalConnections).toBe(1); // empty set: nothing started
+  });
+
+  it('terminate + respawn picks up a later grant and drops a revoked MCP (TD-040 S1)', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+
+    const pool = new UserMcpPool({
+      mcpConfigs: [
+        makeMcpConfig({ name: 'mcp1', transport: 'stdio' }),
+        makeMcpConfig({ name: 'mcp2', transport: 'stdio' }),
+      ],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+    const sources = () => new Set(pool.getToolCatalog('user1').map(t => t.source_mcp));
+
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1']));
+    expect(sources().has('mcp2')).toBe(false);
+
+    // spawnForUser returns early while instances exist: a later grant needs the terminate hook
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1', 'id-mcp2']));
+    expect(sources().has('mcp2')).toBe(false);
+
+    await pool.terminateForUser('user1');
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1', 'id-mcp2']));
+    expect(sources().has('mcp2')).toBe(true);
+
+    // revocation: terminate + respawn with the smaller set stops the revoked MCP
+    await pool.terminateForUser('user1');
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1']));
+    expect(sources().has('mcp2')).toBe(false);
+    expect(sources().has('mcp1')).toBe(true);
 
     await pool.shutdown();
   });
@@ -120,11 +185,11 @@ describe('UserMcpPool - Spawn/Terminate Lifecycle', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
     const catalog1 = pool.getToolCatalog('user1');
 
     // Call again - should be idempotent
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
     const catalog2 = pool.getToolCatalog('user1');
 
     expect(catalog1.length).toBe(catalog2.length);
@@ -145,7 +210,7 @@ describe('UserMcpPool - Spawn/Terminate Lifecycle', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
     expect(pool.hasActiveInstances('user1')).toBe(true);
 
     await pool.terminateForUser('user1');
@@ -186,7 +251,7 @@ describe('UserMcpPool - Spawn/Terminate Lifecycle', () => {
     expect(pool.hasActiveInstances('user1')).toBe(false);
 
     // After spawn
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
     expect(pool.hasActiveInstances('user1')).toBe(true);
 
     // After terminate
@@ -213,7 +278,7 @@ describe('UserMcpPool - Tool Catalog', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
 
     const catalog = pool.getToolCatalog('user1');
     expect(Array.isArray(catalog)).toBe(true);
@@ -259,7 +324,7 @@ describe('UserMcpPool - Tool Catalog', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
     expect(pool.getToolCatalog('user1').length).toBeGreaterThan(0);
 
     await pool.terminateForUser('user1');
@@ -285,7 +350,7 @@ describe('UserMcpPool - Resource Limits (M17.6)', () => {
     });
 
     try {
-      await pool.spawnForUser('user1');
+      await pool.spawnForUser('user1', undefined, ALL);
       // If we get here, we spawned more than maxInstancesPerUser
       // Check if resource limit is enforced correctly
       expect(true).toBeTruthy(); // Pass if no error (implementation may allow first spawn)
@@ -313,10 +378,10 @@ describe('UserMcpPool - Resource Limits (M17.6)', () => {
     });
 
     try {
-      await pool.spawnForUser('user1');
+      await pool.spawnForUser('user1', undefined, ALL);
       expect(true).toBeTruthy(); // First user should succeed
 
-      await pool.spawnForUser('user2'); // This may exceed total limit
+      await pool.spawnForUser('user2', undefined, ALL); // This may exceed total limit
       expect(true).toBeTruthy();
     } catch (err: any) {
       // Should be ServiceUnavailableError with appropriate message
@@ -342,7 +407,7 @@ describe('UserMcpPool - Resource Limits (M17.6)', () => {
     });
 
     try {
-      await pool.spawnForUser('user1');
+      await pool.spawnForUser('user1', undefined, ALL);
       expect(true).toBeTruthy();
     } catch (err: any) {
       // Error message should indicate which limit was hit
@@ -372,8 +437,8 @@ describe('UserMcpPool - Shutdown', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
-    await pool.spawnForUser('user2');
+    await pool.spawnForUser('user1', undefined, ALL);
+    await pool.spawnForUser('user2', undefined, ALL);
 
     expect(pool.hasActiveInstances('user1')).toBe(true);
     expect(pool.hasActiveInstances('user2')).toBe(true);
@@ -399,8 +464,8 @@ describe('UserMcpPool - Shutdown', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
-    await pool.spawnForUser('user2');
+    await pool.spawnForUser('user1', undefined, ALL);
+    await pool.spawnForUser('user2', undefined, ALL);
 
     const status = pool.getStatus();
     expect(status.totalUserInstances).toBe(2);
@@ -424,7 +489,7 @@ describe('UserMcpPool - Tool Invocation', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
 
     const catalog = pool.getToolCatalog('user1');
     expect(catalog.length).toBeGreaterThan(0);
@@ -474,7 +539,7 @@ describe('UserMcpPool - Tool Invocation', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
 
     const catalog = pool.getToolCatalog('user1');
     const toolName = catalog[0].name;
@@ -498,11 +563,33 @@ describe('UserMcpPool - Tool Invocation', () => {
       healthCheckIntervalMs: 0,
     });
 
-    await pool.spawnForUser('user1');
+    await pool.spawnForUser('user1', undefined, ALL);
 
     const descriptor = pool.getToolDescriptor('user1', 'nonexistent_tool');
     expect(descriptor).toBeUndefined();
 
+    await pool.shutdown();
+  });
+});
+
+describe('UserMcpPool - TD-040 change detection', () => {
+  it('spawnedWithAllowedSet() matches only the exact set the instances were spawned with', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+
+    const pool = new UserMcpPool({
+      mcpConfigs: [makeMcpConfig({ name: 'mcp1', transport: 'stdio' })],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(false); // nothing spawned
+    await pool.spawnForUser('user1', undefined, ALL);
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(true);
+    expect(pool.spawnedWithAllowedSet('user1', new Set())).toBe(false);
+
+    await pool.terminateForUser('user1');
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(false);
     await pool.shutdown();
   });
 });

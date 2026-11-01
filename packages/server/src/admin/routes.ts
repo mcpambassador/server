@@ -64,6 +64,8 @@ export interface AdminRoutesConfig {
   killSwitchManager: KillSwitchManager;
   userPool: UserMcpPool | null;
   onGrantsRevoked?: (grantIds: string[]) => void;
+  /** TD-040: users whose granted/subscribed MCP set changed; the pool is re-synced (non-fatal). */
+  onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
   secretStore?: SecretStore;
@@ -194,6 +196,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     audit,
     userPool,
     onGrantsRevoked: opts.onGrantsRevoked,
+    onUserAccessChanged: opts.onUserAccessChanged,
   });
 
   // Session management (2 endpoints)
@@ -226,7 +229,11 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminUserRoutes, { db, audit, userPool });
 
   // Group management (9 endpoints)
-  fastify.register(registerAdminGroupRoutes, { db, audit });
+  fastify.register(registerAdminGroupRoutes, {
+    db,
+    audit,
+    onUserAccessChanged: opts.onUserAccessChanged,
+  });
   fastify.register(registerAdminToolPinRoutes, {
     db,
     audit,

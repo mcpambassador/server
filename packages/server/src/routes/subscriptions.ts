@@ -31,6 +31,8 @@ import {
 
 export interface SubscriptionRoutesConfig {
   db: DatabaseClient;
+  /** TD-040: re-sync the user's per-user MCP instances after a subscription change (non-fatal). */
+  onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
 }
 
 /**
@@ -40,7 +42,7 @@ export async function registerSubscriptionRoutes(
   fastify: FastifyInstance,
   config: SubscriptionRoutesConfig
 ): Promise<void> {
-  const { db } = config;
+  const { db, onUserAccessChanged } = config;
 
   // ==========================================================================
   // GET /v1/users/me/clients/:clientId/subscriptions - List subscriptions
@@ -141,6 +143,8 @@ export async function registerSubscriptionRoutes(
           mcpId: body.mcp_id,
           selectedTools: body.selected_tools,
         });
+
+        await onUserAccessChanged?.([userId], 'subscription_created').catch(() => undefined);
 
         // Fetch MCP name for response
         const mcp = await getMcpEntryById(db, body.mcp_id);
@@ -254,6 +258,8 @@ export async function registerSubscriptionRoutes(
           status: body.status,
         });
 
+        await onUserAccessChanged?.([userId], 'subscription_updated').catch(() => undefined);
+
         const subscription = await getSubscriptionDetail(db, {
           userId,
           clientId: params.clientId,
@@ -301,6 +307,8 @@ export async function registerSubscriptionRoutes(
           clientId: params.clientId,
           subscriptionId: params.subscriptionId,
         });
+
+        await onUserAccessChanged?.([userId], 'subscription_removed').catch(() => undefined);
 
         return reply.status(204).send();
       } catch (error: any) {

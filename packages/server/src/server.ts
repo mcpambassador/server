@@ -81,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { spawnableMcpIdsForUser } from './services/mcp-access.js';
 import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import { SecretStore } from './services/secret-store.js';
@@ -447,6 +448,7 @@ export class AmbassadorServer {
       const config = JSON.parse(entry.config) as Record<string, unknown>;
       const mcpConfig: DownstreamMcpConfig = {
         name: entry.name,
+        mcp_id: entry.mcp_id,
         transport: entry.transport_type as 'stdio' | 'http' | 'sse',
       };
 
@@ -877,6 +879,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -943,6 +946,7 @@ export class AmbassadorServer {
     await registerClientRoutes(this.adminServer, {
       db: this.db!,
       audit: this.audit!,
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -950,7 +954,10 @@ export class AmbassadorServer {
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
-    await registerSubscriptionRoutes(this.adminServer, { db: this.db! });
+    await registerSubscriptionRoutes(this.adminServer, {
+      db: this.db!,
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
+    });
 
     // Credential routes
     const { registerCredentialRoutes } = await import('./routes/credentials.js');
@@ -1133,6 +1140,68 @@ export class AmbassadorServer {
    * @param userId User UUID
    * @returns Map of MCP name to credentials (env vars and headers)
    */
+  /**
+   * TD-040: the set of MCPs a user may run changed (subscribe/unsubscribe, group grant, membership,
+   * group or client status). Terminate the user's per-user instances so the next ensure/connect
+   * spawns the CURRENT set (this also stops a revoked MCP and its loaded credentials). A user with a
+   * live stdio session is respawned immediately; agent-endpoint users re-ensure on connect.
+   * Non-fatal: failures are logged and audited, never thrown into the admin/user request.
+   */
+  private resyncChain: Promise<void> = Promise.resolve();
+
+  /** Queue a resync (serialized, detached) so admin/user requests never wait on MCP spawns. */
+  private scheduleResync(userIds: string[], reason: string): Promise<void> {
+    this.resyncChain = this.resyncChain.then(() => this.resyncUserMcps(userIds, reason));
+    this.resyncChain.catch(() => undefined);
+    return Promise.resolve();
+  }
+
+  private async resyncUserMcps(userIds: string[], reason: string): Promise<void> {
+    for (const userId of new Set(userIds)) {
+      try {
+        // Unchanged spawnable set since the last spawn: nothing to do.
+        if (
+          this.userPool.spawnedWithAllowedSet(
+            userId,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          )
+        ) {
+          continue;
+        }
+        await this.userPool.terminateForUser(userId);
+        const live = await this.db!.query.user_sessions.findFirst({
+          where: (s, { and, eq, or }) =>
+            and(eq(s.user_id, userId), or(eq(s.status, 'active'), eq(s.status, 'idle'))),
+        });
+        if (live) {
+          const creds = await this.loadUserCredentialsForMcps(userId);
+          await this.userPool.spawnForUser(
+            userId,
+            creds,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          );
+        }
+      } catch (err) {
+        this.fastify?.log.error({ err, userId, reason }, '[Server] Failed to resync per-user MCPs');
+        try {
+          await this.audit?.emit({
+            event_id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            event_type: 'admin_action',
+            severity: 'warn',
+            client_id: undefined,
+            user_id: userId,
+            source_ip: '127.0.0.1',
+            action: 'user_mcp_resync_failed',
+            metadata: { reason },
+          });
+        } catch {
+          /* audit failure must not mask the original one */
+        }
+      }
+    }
+  }
+
   private async loadUserCredentialsForMcps(
     userId: string
   ): Promise<Map<string, import('./downstream/types.js').UserMcpCredentials>> {
@@ -1376,7 +1445,11 @@ export class AmbassadorServer {
           try {
             // M26: Load user credentials and inject into per-user MCPs
             const userCredentials = await this.loadUserCredentialsForMcps(sessionRecord.user_id);
-            await this.userPool.spawnForUser(sessionRecord.user_id, userCredentials);
+            await this.userPool.spawnForUser(
+              sessionRecord.user_id,
+              userCredentials,
+              await spawnableMcpIdsForUser(this.db!, sessionRecord.user_id)
+            );
           } catch (err) {
             // Log but don't fail registration — user just won't have per-user MCPs
             this.fastify!.log.error(
@@ -1478,7 +1551,11 @@ export class AmbassadorServer {
             try {
               // M26: Load user credentials and inject into per-user MCPs
               const userCredentials = await this.loadUserCredentialsForMcps(userId);
-              await this.userPool.spawnForUser(userId, userCredentials);
+              await this.userPool.spawnForUser(
+                userId,
+                userCredentials,
+                await spawnableMcpIdsForUser(this.db!, userId)
+              );
             } catch (err) {
               this.fastify!.log.error(
                 { err, userId },
@@ -1827,6 +1904,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1873,7 +1951,11 @@ export class AmbassadorServer {
         ensureUserMcps: async (userId: string) => {
           if (this.userPool.hasActiveInstances(userId)) return;
           const creds = await this.loadUserCredentialsForMcps(userId);
-          await this.userPool.spawnForUser(userId, creds);
+          await this.userPool.spawnForUser(
+            userId,
+            creds,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          );
         },
       });
     }
