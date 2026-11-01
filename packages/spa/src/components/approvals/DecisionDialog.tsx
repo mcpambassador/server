@@ -9,6 +9,8 @@ import { Textarea } from '@/components/catalyst/textarea';
 import { Input } from '@/components/catalyst/input';
 import {
   APPROVAL_DECISION_REASON_MAX_LENGTH,
+  APPROVAL_REAUTH_REQUIRED_CODE,
+  APPROVAL_REAUTH_REQUIRED_STATUS,
   type ApprovalRequestDetail,
 } from '@mcpambassador/contracts';
 import { useApproval, useDecideApproval, useReauth } from '@/api/hooks/use-approvals';
@@ -16,10 +18,12 @@ import { visibleText } from '@/lib/pin-text';
 import { ApprovalPreview } from './ApprovalPreview';
 
 const errCode = (e: unknown) => (e as { code?: string })?.code;
+const errStatus = (e: unknown) => (e as { status?: number })?.status;
 const errMsg = (e: unknown) => (e as Error)?.message ?? String(e);
 
-/** Codes the server may use to ask for a fresh step-up (ADR-023 §5). */
-const REAUTH_CODES = ['REAUTH_REQUIRED', 'REAUTHENTICATION_REQUIRED'];
+/** The server asks for a fresh step-up with HTTP 428 + `reauth_required` (ADR-023 §5). */
+const needsReauth = (e: unknown) =>
+  errStatus(e) === APPROVAL_REAUTH_REQUIRED_STATUS || errCode(e) === APPROVAL_REAUTH_REQUIRED_CODE;
 
 export function DecisionDialog({
   approvalId,
@@ -56,7 +60,7 @@ export function DecisionDialog({
       onClose();
     } catch (e) {
       setPassword('');
-      if (REAUTH_CODES.includes(errCode(e) ?? '')) {
+      if (needsReauth(e)) {
         setNeedReauth(true);
         toast.error('Confirm your password to continue');
       } else {

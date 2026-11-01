@@ -412,7 +412,7 @@ describe('step-up reauth', () => {
     expect(JSON.stringify(posts[1])).not.toContain('hunter2');
   });
 
-  it('a REAUTH_REQUIRED answer reveals the password field and the retry succeeds', async () => {
+  it('a 428 reauth_required answer reveals the password field and the retry succeeds', async () => {
     fakeScrollableBox();
     server.use(
       session(true),
@@ -422,14 +422,13 @@ describe('step-up reauth', () => {
       http.get(ADMIN_APPROVAL_ROUTE, () => HttpResponse.json({ ok: true, data: detail() }))
     );
     const posts: Post[] = [];
-    // Like the real server: refuse until a reauth has been recorded. (The API client replays a 403
-    // once for CSRF refresh, so the refusal must be stateful, not one-shot.)
+    // Like the real server: 428 reauth_required until a reauth has been recorded.
     mockDecision(true, posts, () =>
       posts.some(p => p.url === AUTH_REAUTH_ROUTE)
         ? HttpResponse.json({ ok: true, data: detail({ status: 'approved' }) })
         : HttpResponse.json(
-            { ok: false, error: { code: 'REAUTH_REQUIRED', message: 'confirm password' } },
-            { status: 403 }
+            { ok: false, error: { code: 'reauth_required', message: 'confirm password' } },
+            { status: 428 }
           )
     );
     renderAt('/app/approvals/ap1');
@@ -444,8 +443,7 @@ describe('step-up reauth', () => {
     await waitFor(() => expect(posts.some(p => p.url === AUTH_REAUTH_ROUTE)).toBe(true));
     await waitFor(() => expect(posts.at(-1)?.url).toBe(decision));
     const urls = posts.map(p => p.url);
-    expect(urls[0]).toBe(decision); // refused first, no password sent
-    expect(urls.slice(-2)).toEqual([AUTH_REAUTH_ROUTE, decision]); // reauth, then the retry
+    expect(urls).toEqual([decision, AUTH_REAUTH_ROUTE, decision]); // refused (428), reauth, retry once
     expect(posts.at(-1)!.body).toEqual({ decision: 'approve', expected_args_hash: HASH });
   });
 });
