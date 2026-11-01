@@ -94,6 +94,7 @@ describe('group tool policy admin API (ADR-025)', () => {
       { tool_mode: 'bogus', tools: [] },
       { tool_mode: 'all', tools: ['t1'] },
       { tool_mode: 'allow', tools: [] },
+      { tool_mode: 'deny', tools: [] },
       { tool_mode: 'deny', tools: 'nope' },
       { tool_mode: 'deny', tools: [''] },
       { tool_mode: 'deny', tools: ['a\u0000b'] },
@@ -110,6 +111,23 @@ describe('group tool policy admin API (ADR-025)', () => {
       const r = await call('PUT', url, payload);
       expect(r.status, JSON.stringify(payload).slice(0, 80)).toBe(400);
     }
+    expect(await rules()).toEqual([]);
+  });
+
+  it("an empty deny list is rejected on PUT and POST, pointing at tool_mode 'all'", async () => {
+    const put = await call('PUT', `/v1/admin/groups/${groupId}/mcps/${mcpId}/tools`, {
+      tool_mode: 'deny',
+      tools: [],
+    });
+    expect(put.status).toBe(400);
+    expect(JSON.stringify(put.body)).toContain("use tool_mode 'all' to grant every tool");
+    const before = await listFor(otherGroupId);
+    const post = await call('POST', `/v1/admin/groups/${otherGroupId}/mcps`, {
+      mcp_id: mcpId,
+      tool_mode: 'deny',
+    });
+    expect(post.status).toBe(400);
+    expect(await listFor(otherGroupId)).toEqual(before);
     expect(await rules()).toEqual([]);
   });
 

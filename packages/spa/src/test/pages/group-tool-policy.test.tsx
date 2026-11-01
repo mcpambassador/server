@@ -156,9 +156,14 @@ describe('group MCP grants: tool policy', () => {
     expect(screen.getByTestId('selection-cleared')).toBeInTheDocument();
     expect(screen.getByTestId('tool-count')).toHaveTextContent('0 selected');
     expect(screen.getByTestId('tool-check-read')).not.toBeChecked();
+    // Empty deny is just 'all' (the server rejects it), so Save stays off until something is ticked.
+    expect(screen.getByTestId('empty-deny')).toBeInTheDocument();
+    expect(screen.getByTestId('save-policy')).toBeDisabled();
+    await user.click(screen.getByTestId('tool-check-write'));
+    expect(screen.queryByTestId('empty-deny')).not.toBeInTheDocument();
     await user.click(screen.getByTestId('save-policy'));
     await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]!.body).toEqual({ tool_mode: 'deny', tools: [] }); // never deny{read}
+    expect(puts[0]!.body).toEqual({ tool_mode: 'deny', tools: ['write'] }); // never deny{read}
   });
 
   it('keeps this grant’s own rule names visible even if the picker does not list them', async () => {

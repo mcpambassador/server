@@ -79,7 +79,9 @@ export function GroupToolPolicyDialog({
   const count = picked.size;
   const tooMany = count > GROUP_TOOL_POLICY_MAX_TOOLS;
   const emptyAllow = mode === 'allow' && count === 0;
-  const invalid = tooMany || emptyAllow;
+  // deny{} is exactly 'all', and the server rejects it.
+  const emptyDeny = mode === 'deny' && count === 0;
+  const invalid = tooMany || emptyAllow || emptyDeny;
 
   const save = async () => {
     try {
@@ -180,7 +182,11 @@ export function GroupToolPolicyDialog({
                 hide the whole MCP.
               </Text>
             )}
-            {mode === 'deny' && count === 0 && <Text>Nothing ticked: members get every tool.</Text>}
+            {emptyDeny && (
+              <Text className="text-amber-600" data-testid="empty-deny">
+                Tick at least one tool to exclude, or choose &quot;All tools&quot;.
+              </Text>
+            )}
           </div>
         )}
       </DialogBody>
