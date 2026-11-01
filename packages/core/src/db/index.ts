@@ -10,6 +10,9 @@
 export {
   initializeDatabase,
   runMigrations,
+  MigrationIntegrityError,
+  MIGRATION_BOOTSTRAP_LAST,
+  type RunMigrationsOptions,
   seedDatabaseIfNeeded,
   closeDatabase,
   checkDatabaseHealth,
