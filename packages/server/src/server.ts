@@ -694,6 +694,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // Register user-facing API routes on admin server (M29.7)
@@ -1601,6 +1604,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // F-SEC-M6-005: Detailed health endpoint (admin only)

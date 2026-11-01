@@ -31,6 +31,7 @@ import {
   listAgentGrantsForUser,
   listAllAgentGrants,
   revokeAgentGrant,
+  revokeGrantsForBoundClient,
   touchAgentGrant,
   getServerSetting,
   setServerSetting,
@@ -1057,4 +1058,34 @@ export async function updateSettings(
     },
   });
   return getSettings(deps);
+}
+
+/**
+ * S5: revoke (and retain) every agent grant bound to a client that was suspended / revoked by
+ * an admin or its owner, close their live /mcp streams, and audit each as agent_grant_revoked.
+ */
+export async function revokeClientGrantsWithAudit(
+  deps: {
+    db: DatabaseClient;
+    audit?: AuditProvider;
+    onGrantsRevoked?: (grantIds: string[]) => void;
+  },
+  clientId: string,
+  actor: string,
+  sourceIp: string,
+  reason: string
+): Promise<number> {
+  const revoked = await revokeGrantsForBoundClient(deps.db, clientId, actor);
+  deps.onGrantsRevoked?.(revoked.map(g => g.grant_id));
+  if (deps.audit) {
+    for (const g of revoked) {
+      await emitAgentAudit({ audit: deps.audit }, 'agent_grant_revoked', {
+        user_id: g.user_id,
+        bound_client_id: clientId,
+        source_ip: sourceIp,
+        metadata: { agent_grant_id: g.grant_id, revoked_by: actor, reason },
+      });
+    }
+  }
+  return revoked.length;
 }

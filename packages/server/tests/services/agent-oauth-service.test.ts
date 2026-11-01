@@ -30,6 +30,7 @@ import {
   createGrant,
   listGrants,
   revokeGrant,
+  revokeClientGrantsWithAudit,
   adminCreateClient,
   adminListGrants,
   isAcceptableRedirectUri,
@@ -623,5 +624,51 @@ describe('R2: bound client lifecycle + persisted settings', () => {
     });
     const d = await getConsentDetails(deps, 'u1', requestId);
     expect(d.redirect_uri_host).toBe('localhost:7777');
+  });
+});
+
+describe('S5 revoke grants on client suspend/revoke', () => {
+  it("revokes only that client's grants, retains rows, closes streams, audits each", async () => {
+    const g1 = await createGrant(deps, 'u1', {
+      bound_client_id: 'k1',
+      label: 'a',
+      scopes: ['mcp:github'],
+    });
+    const g2 = await createGrant(deps, 'u1', {
+      bound_client_id: 'k1b',
+      label: 'b',
+      scopes: ['mcp:slack'],
+    });
+    events.length = 0;
+    const closed: string[] = [];
+    const n = await revokeClientGrantsWithAudit(
+      { db, audit: deps.audit, onGrantsRevoked: ids => closed.push(...ids) },
+      'k1',
+      'admin-key:ak1',
+      '9.9.9.9',
+      'bound_client_suspended'
+    );
+    expect(n).toBe(1);
+    expect(closed).toEqual([g1.grant_id]);
+    expect(await verifyAccessToken(deps, g1.access_token)).toEqual({
+      ok: false,
+      reason: 'revoked',
+    });
+    expect((await verifyAccessToken(deps, g2.access_token)).ok).toBe(true);
+    const ev = events.filter(e => e.action === 'agent_grant_revoked');
+    expect(ev).toHaveLength(1);
+    expect(ev[0].metadata).toMatchObject({
+      agent_grant_id: g1.grant_id,
+      revoked_by: 'admin-key:ak1',
+      reason: 'bound_client_suspended',
+    });
+    const all = await adminListGrants(deps, { include_inactive: true, limit: 10 });
+    expect(all.items.find((i: any) => i.grant_id === g1.grant_id)).toMatchObject({
+      revoked_by: 'admin-key:ak1',
+    });
+    // idempotent
+    expect(
+      await revokeClientGrantsWithAudit({ db, audit: deps.audit }, 'k1', 'x', '1.1.1.1', 'r')
+    ).toBe(0);
   });
 });
