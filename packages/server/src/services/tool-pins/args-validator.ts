@@ -62,6 +62,7 @@ export function validateAgainstApprovedSchema(
       fn = ajv.compile(stripUnsupportedPatterns(schema));
     } catch (err) {
       logger.warn(
+        // td036-allow: logger-only, never returned to a client
         { err: String(err), hash: hash.slice(0, 8) },
         '[tool-pins] approved inputSchema not compilable; argument validation skipped'
       );
@@ -75,6 +76,7 @@ export function validateAgainstApprovedSchema(
   const e = fn.errors?.[0];
   return {
     valid: false,
+    // td036-allow: zod/ajv issue text, not an Error; no bound values
     error: `Invalid arguments: ${e ? `${e.instancePath || '/'} ${e.message ?? 'invalid'}` : 'schema mismatch'}`,
   };
 }

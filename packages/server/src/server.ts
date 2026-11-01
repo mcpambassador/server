@@ -175,6 +175,9 @@ export class AmbassadorServer {
   private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
   private toolPins: import('./services/tool-pins/pin-service.js').ToolPinService | null = null;
+  /** ADR-023 approval gates (policy + request state machine); null until initialised */
+  private approvals: import('./services/approvals/service.js').ApprovalService | null = null;
+  private approvalReaper: NodeJS.Timeout | null = null;
   private toolPinRediscovery:
     | import('./services/tool-pins/rediscovery.js').ToolPinRediscovery
     | null = null;
@@ -543,6 +546,50 @@ export class AmbassadorServer {
     }
     logger.info('[Server] Per-user MCP pool initialized');
 
+    // ADR-023: human approval gates. Hashes/ids-only audit; the reaper expires due requests.
+    {
+      const { ApprovalService } = await import('./services/approvals/service.js');
+      const approvalAudit = this.audit!;
+      const cfg = this.config.ambassadorConfig?.approvals;
+      this.approvals = new ApprovalService(
+        this.db!,
+        (action, metadata) => {
+          void approvalAudit
+            .emit({
+              event_id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              event_type: 'admin_action',
+              severity:
+                action === 'approval_flood_blocked' ||
+                action === 'approval_cooldown_applied' ||
+                action === 'approval_credential_refused' ||
+                action === 'approval_reauth_failed'
+                  ? 'warn'
+                  : 'info',
+              source_ip: '127.0.0.1',
+              action,
+              metadata,
+            })
+            .catch(err => logger.error({ err }, '[approvals] audit emit failed'));
+        },
+        {
+          requireDistinctAdmin: cfg?.require_distinct_admin,
+          pendingTtlSeconds: cfg?.pending_ttl_seconds,
+          approvedUseTtlSeconds: cfg?.approved_use_ttl_seconds,
+        }
+      );
+      const approvals = this.approvals;
+      const { setApprovalVoidObserver } = await import('@mcpambassador/core');
+      setApprovalVoidObserver((rows, reason) => approvals.auditVoidedRows(rows, reason));
+      this.approvalReaper = setInterval(
+        () => {
+          approvals.reap().catch(err => logger.error({ err }, '[approvals] reaper failed'));
+        },
+        (cfg?.reaper_interval_seconds ?? 30) * 1000
+      );
+      this.approvalReaper.unref();
+    }
+
     // Initialize session lifecycle manager (M15)
     // SEC-M17-001: Must be created AFTER UserMcpPool so it can receive valid reference
     // TD-014: Read from config with sensible defaults
@@ -758,6 +805,7 @@ export class AmbassadorServer {
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
       getToolPins: () => this.getToolPins(), // ADR-021
+      getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
@@ -786,6 +834,25 @@ export class AmbassadorServer {
     await registerAuthRoutes(this.adminServer, {
       db: this.db!,
     });
+
+    // ADR-023: reauth + approval queue API (session-only; see approvals-api/session-guard.ts)
+    {
+      const { StepUpStore } = await import('./auth/step-up.js');
+      const { registerReauthRoute } = await import('./auth/reauth-routes.js');
+      const { registerApprovalApiRoutes } = await import('./approvals-api/routes.js');
+      const stepUp = new StepUpStore();
+      await registerReauthRoute(this.adminServer, {
+        db: this.db!,
+        stepUp,
+        emit: (a, m) => this.approvals?.emit(a, m),
+      });
+      await registerApprovalApiRoutes(this.adminServer, {
+        db: this.db!,
+        getApprovals: () => this.approvals,
+        getPins: () => this.toolPins,
+        stepUp,
+      });
+    }
 
     // Setup routes (first-run setup wizard)
     const { registerSetupRoutes } = await import('./auth/setup-routes.js');
@@ -1243,6 +1310,7 @@ export class AmbassadorServer {
         return reply.status(201).send(result);
       } catch (err) {
         if (err instanceof AmbassadorError) {
+          // td036-allow: AmbassadorError text is app-authored (code + fixed message)
           const errBody: ErrorResponse = { error: err.code, message: err.message };
           return reply.status(err.statusCode).send(errBody);
         } else {
@@ -1626,6 +1694,7 @@ export class AmbassadorServer {
         } else if (err instanceof KillSwitchError) {
           return reply.status(403).send({
             error: 'Forbidden',
+            // td036-allow: KillSwitchError text is a fixed app-authored string
             message: err.message,
           });
         } else if (err instanceof AuthorizationError) {
@@ -1676,6 +1745,7 @@ export class AmbassadorServer {
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
       getToolPins: () => this.getToolPins(), // ADR-021
+      getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
@@ -1859,6 +1929,7 @@ DELETE THIS FILE after recording these values.
       writeFileSync(credentialsPath, credentialsContent, { mode: 0o600 });
       logger.info(`[Server] Initial credentials written to ${credentialsPath}`);
     } catch (error) {
+      // td036-allow: logger-only, never returned to a client
       logger.error(`[Server] Failed to write credentials file: ${String(error)}`);
       throw error;
     }
@@ -1972,6 +2043,7 @@ DELETE THIS FILE after recording the value.
       writeFileSync(devKeyPath, devKeyContent, { mode: 0o600 });
       logger.info(`[Server] Dev client key written to ${devKeyPath}`);
     } catch (error) {
+      // td036-allow: logger-only, never returned to a client
       logger.error(`[Server] Failed to write dev client key file: ${String(error)}`);
       throw error;
     }
@@ -2063,6 +2135,8 @@ DELETE THIS FILE after recording the value.
     }
 
     this.toolPinRediscovery?.stop();
+    if (this.approvalReaper) clearInterval(this.approvalReaper);
+    this.approvalReaper = null;
 
     // M17.3: Shutdown per-user MCP pool first
     logger.info('[Server] Shutting down per-user MCP pool...');

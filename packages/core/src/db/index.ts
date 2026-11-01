@@ -165,3 +165,4 @@ export type {
 export * from './repositories/agent-oauth.js';
 export * from './repositories/kill-switches.js';
 export * from './repositories/tool-pins.js';
+export * from './repositories/approvals.js';
