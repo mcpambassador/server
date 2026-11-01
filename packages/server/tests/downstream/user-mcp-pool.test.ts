@@ -139,6 +139,40 @@ describe('UserMcpPool - Spawn/Terminate Lifecycle', () => {
     expect(pool.getStatus().totalConnections).toBe(1); // empty set: nothing started
   });
 
+  it('terminate + respawn picks up a later grant and drops a revoked MCP (TD-040 S1)', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+
+    const pool = new UserMcpPool({
+      mcpConfigs: [
+        makeMcpConfig({ name: 'mcp1', transport: 'stdio' }),
+        makeMcpConfig({ name: 'mcp2', transport: 'stdio' }),
+      ],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+    const sources = () => new Set(pool.getToolCatalog('user1').map(t => t.source_mcp));
+
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1']));
+    expect(sources().has('mcp2')).toBe(false);
+
+    // spawnForUser returns early while instances exist: a later grant needs the terminate hook
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1', 'id-mcp2']));
+    expect(sources().has('mcp2')).toBe(false);
+
+    await pool.terminateForUser('user1');
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1', 'id-mcp2']));
+    expect(sources().has('mcp2')).toBe(true);
+
+    // revocation: terminate + respawn with the smaller set stops the revoked MCP
+    await pool.terminateForUser('user1');
+    await pool.spawnForUser('user1', undefined, new Set(['id-mcp1']));
+    expect(sources().has('mcp2')).toBe(false);
+    expect(sources().has('mcp1')).toBe(true);
+
+    await pool.shutdown();
+  });
+
   it("spawnForUser() is idempotent (calling twice doesn't duplicate)", async () => {
     if (!UserMcpPool) return expect(true).toBeTruthy();
 

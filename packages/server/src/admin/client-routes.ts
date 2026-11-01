@@ -36,6 +36,8 @@ export interface AdminClientRoutesConfig {
   userPool: UserMcpPool | null;
   /** S5: close live agent /mcp streams for grants revoked by suspend/revoke */
   onGrantsRevoked?: (grantIds: string[]) => void;
+  /** TD-040: re-sync the user's per-user MCP instances after a client status change (non-fatal). */
+  onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
 }
 
 /**
@@ -46,7 +48,7 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
   opts: AdminClientRoutesConfig,
   done
 ) => {
-  const { db, audit, userPool, onGrantsRevoked } = opts;
+  const { db, audit, userPool, onGrantsRevoked, onUserAccessChanged } = opts;
 
   // ==========================================================================
   // M18.4: POST /v1/admin/clients
@@ -281,6 +283,10 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
         request.ip ?? '0.0.0.0',
         body.status === 'revoked' ? 'bound_client_revoked' : 'bound_client_suspended'
       );
+    }
+
+    if (statusChanged) {
+      await onUserAccessChanged?.([key.user_id], 'client_status_changed').catch(() => undefined);
     }
 
     const nowIso = new Date().toISOString();

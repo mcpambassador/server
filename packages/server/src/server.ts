@@ -879,6 +879,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
+      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -952,7 +953,10 @@ export class AmbassadorServer {
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
-    await registerSubscriptionRoutes(this.adminServer, { db: this.db! });
+    await registerSubscriptionRoutes(this.adminServer, {
+      db: this.db!,
+      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
+    });
 
     // Credential routes
     const { registerCredentialRoutes } = await import('./routes/credentials.js');
@@ -1135,6 +1139,50 @@ export class AmbassadorServer {
    * @param userId User UUID
    * @returns Map of MCP name to credentials (env vars and headers)
    */
+  /**
+   * TD-040: the set of MCPs a user may run changed (subscribe/unsubscribe, group grant, membership,
+   * group or client status). Terminate the user's per-user instances so the next ensure/connect
+   * spawns the CURRENT set (this also stops a revoked MCP and its loaded credentials). A user with a
+   * live stdio session is respawned immediately; agent-endpoint users re-ensure on connect.
+   * Non-fatal: failures are logged and audited, never thrown into the admin/user request.
+   */
+  private async resyncUserMcps(userIds: string[], reason: string): Promise<void> {
+    for (const userId of new Set(userIds)) {
+      try {
+        await this.userPool.terminateForUser(userId);
+        const live = await this.db!.query.user_sessions.findFirst({
+          where: (s, { and, eq, or }) =>
+            and(eq(s.user_id, userId), or(eq(s.status, 'active'), eq(s.status, 'idle'))),
+        });
+        if (live) {
+          const creds = await this.loadUserCredentialsForMcps(userId);
+          await this.userPool.spawnForUser(
+            userId,
+            creds,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          );
+        }
+      } catch (err) {
+        this.fastify?.log.error({ err, userId, reason }, '[Server] Failed to resync per-user MCPs');
+        try {
+          await this.audit?.emit({
+            event_id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            event_type: 'admin_action',
+            severity: 'warn',
+            client_id: undefined,
+            user_id: userId,
+            source_ip: '127.0.0.1',
+            action: 'user_mcp_resync_failed',
+            metadata: { reason },
+          });
+        } catch {
+          /* audit failure must not mask the original one */
+        }
+      }
+    }
+  }
+
   private async loadUserCredentialsForMcps(
     userId: string
   ): Promise<Map<string, import('./downstream/types.js').UserMcpCredentials>> {
@@ -1837,6 +1885,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
+      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },

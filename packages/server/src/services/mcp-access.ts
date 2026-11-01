@@ -54,7 +54,13 @@ export async function spawnableMcpIdsForUser(
   const rows = (await compatSelect(db, { mcp_id: client_mcp_subscriptions.mcp_id })
     .from(client_mcp_subscriptions)
     .innerJoin(clients, eq(clients.client_id, client_mcp_subscriptions.client_id))
-    .where(and(eq(clients.user_id, userId), eq(client_mcp_subscriptions.status, 'active')))) as {
+    .where(
+      and(
+        eq(clients.user_id, userId),
+        eq(clients.status, 'active'),
+        eq(client_mcp_subscriptions.status, 'active')
+      )
+    )) as {
     mcp_id: string;
   }[];
   return new Set(rows.map(r => r.mcp_id).filter(id => granted.has(id)));

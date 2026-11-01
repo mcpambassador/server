@@ -45,6 +45,8 @@ import {
 export interface AdminGroupRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
+  /** TD-040: re-sync affected users' per-user MCP instances after an access change (non-fatal). */
+  onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
 }
 
 /**
@@ -55,7 +57,20 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
   opts: AdminGroupRoutesConfig,
   done
 ) => {
-  const { db, audit } = opts;
+  const { db, audit, onUserAccessChanged } = opts;
+
+  /** Members of a group (best effort; an error here must not fail the admin call). */
+  async function memberIds(groupId: string): Promise<string[]> {
+    try {
+      return (await listGroupMembersService(db, groupId)).map(m => m.user_id);
+    } catch {
+      return [];
+    }
+  }
+  async function resync(userIds: string[], reason: string): Promise<void> {
+    if (!onUserAccessChanged || userIds.length === 0) return;
+    await onUserAccessChanged(userIds, reason).catch(() => undefined);
+  }
 
   /**
    * Extract admin actor identifier from request
@@ -151,6 +166,8 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 
     try {
       await updateGroupService(db, groupId, updates);
+      if (updates.status !== undefined)
+        await resync(await memberIds(groupId), 'group_status_changed');
 
       // Emit audit event
       await audit.emit({
@@ -192,7 +209,9 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     const nowIso = new Date().toISOString();
 
     try {
+      const affected = await memberIds(groupId);
       await deleteGroupService(db, groupId);
+      await resync(affected, 'group_deleted');
 
       // Emit audit event
       await audit.emit({
@@ -238,6 +257,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         group_id: groupId,
         assigned_by: getAdminActor(request),
       });
+      await resync([body.user_id], 'group_member_added');
 
       // Emit audit event
       await audit.emit({
@@ -279,6 +299,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
 
     try {
       await removeUserFromGroupService(db, userId, groupId);
+      await resync([userId], 'group_member_removed');
 
       // Emit audit event
       await audit.emit({
@@ -336,6 +357,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
         group_id: groupId,
         assigned_by: getAdminActor(request),
       });
+      await resync(await memberIds(groupId), 'group_mcp_assigned');
 
       // Emit audit event
       await audit.emit({
@@ -376,6 +398,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     const nowIso = new Date().toISOString();
 
     await removeMcpFromGroupService(db, mcpId, groupId);
+    await resync(await memberIds(groupId), 'group_mcp_removed');
 
     // Emit audit event
     await audit.emit({
