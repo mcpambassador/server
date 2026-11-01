@@ -194,6 +194,10 @@ describe('service level', () => {
     try {
       raw(db).exec(`ALTER TABLE agent_grants DROP COLUMN kind`);
       // A legacy DB predates migration tracking (TD-032): the next boot bootstraps it.
+      // ...and predates 0004 (ADR-021): the bootstrap only covers <= MIGRATION_BOOTSTRAP_LAST,
+      // so later migrations must find the pre-0004 schema, as on a real legacy DB.
+      raw(db).exec(`DROP TABLE tool_pins`);
+      raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN pin_policy`);
       raw(db).exec(`DROP TABLE schema_migrations`);
     } catch {
       return; // SQLite too old for DROP COLUMN: nothing to simulate

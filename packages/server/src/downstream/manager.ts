@@ -296,6 +296,26 @@ export class SharedMcpManager {
   }
 
   /**
+   * ADR-021: the connection's raw cached `tools/list` array for one MCP (untrusted downstream data).
+   * Identity is stable until the connection re-discovers. undefined when the MCP is unknown or down.
+   */
+  getRawToolsFor(mcpName: string): readonly unknown[] | undefined {
+    const conn = this.connections.get(mcpName);
+    return conn && conn.isConnected() ? conn.getTools() : undefined;
+  }
+
+  /** ADR-021: invoke on a specific MCP, bypassing the name map (which dedupes across MCPs). */
+  async invokeToolOn(
+    mcpName: string,
+    request: ToolInvocationRequest
+  ): Promise<ToolInvocationResponse> {
+    const connection = this.connections.get(mcpName);
+    if (!connection) throw new Error(`MCP connection not found: ${mcpName}`);
+    if (!connection.isConnected()) throw new Error(`MCP not connected: ${mcpName}`);
+    return await connection.invokeTool(request);
+  }
+
+  /**
    * Health check all connections
    */
   async healthCheckAll(): Promise<ConnectionHealth[]> {

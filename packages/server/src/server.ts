@@ -172,6 +172,7 @@ export class AmbassadorServer {
   };
   private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
+  private toolPins: import('./services/tool-pins/pin-service.js').ToolPinService | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
@@ -485,6 +486,31 @@ export class AmbassadorServer {
     }
     this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
+
+    // ADR-021: tool definition pinning. Pins load before any catalog is served; hashes-only audit.
+    {
+      const { ToolPinService } = await import('./services/tool-pins/pin-service.js');
+      const pinAudit = this.audit!;
+      const pins = new ToolPinService(this.db!, (action, metadata) => {
+        void pinAudit
+          .emit({
+            event_id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            event_type: 'admin_action',
+            severity:
+              action === 'tool_definition_changed' || action === 'tool_pin_flagged'
+                ? 'warn'
+                : 'info',
+            source_ip: '127.0.0.1',
+            action,
+            metadata,
+          })
+          .catch(err => logger.error({ err }, '[tool-pins] audit emit failed'));
+      });
+      await pins.load();
+      this.toolPins = pins;
+      this.toolRouter.setPinService(pins);
+    }
     logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
@@ -1706,6 +1732,11 @@ export class AmbassadorServer {
     // DB-persisted admin settings (e.g. DCR toggle) win over the config defaults
     await loadPersistedSettings(this.agentEndpointDeps);
     return this.agentEndpointDeps;
+  }
+
+  /** ADR-021 pin service (null before start) */
+  getToolPins(): import('./services/tool-pins/pin-service.js').ToolPinService | null {
+    return this.toolPins;
   }
 
   async start(): Promise<void> {
