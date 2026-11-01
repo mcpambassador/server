@@ -64,6 +64,7 @@ import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
 import {
   resolveAgentEndpointConfig,
+  createAgentEndpointDeps,
   type AgentEndpointDeps,
 } from './services/agent-endpoint/index.js';
 import type {
@@ -164,6 +165,7 @@ export class AmbassadorServer {
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
+  private agentEndpointDeps: AgentEndpointDeps | null = null;
   private pipeline: Pipeline | null = null;
   private killSwitchManager: KillSwitchManager; // CR-M10-001
   private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005: Admin session store
@@ -1653,6 +1655,8 @@ export class AmbassadorServer {
    */
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
   private buildAgentEndpointDeps(): AgentEndpointDeps {
+    // One shared instance for 9443 and 8443 so runtime settings/rate limits are consistent
+    if (this.agentEndpointDeps) return this.agentEndpointDeps;
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
     const strip = (u: string): string => u.replace(/\/+$/, '');
     const issuer = strip(
@@ -1663,7 +1667,12 @@ export class AmbassadorServer {
     const agentBaseUrl = strip(
       cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
     );
-    return { db: this.db!, config: resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }) };
+    this.agentEndpointDeps = createAgentEndpointDeps(
+      this.db!,
+      resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }),
+      this.audit!
+    );
+    return this.agentEndpointDeps;
   }
 
   async start(): Promise<void> {
