@@ -549,6 +549,7 @@ export class AmbassadorServer {
     // ADR-023: human approval gates. Hashes/ids-only audit; the reaper expires due requests.
     {
       const { ApprovalService } = await import('./services/approvals/service.js');
+      const { approvalUiBaseUrlProblem } = await import('./services/approvals/gate.js');
       const approvalAudit = this.audit!;
       const cfg = this.config.ambassadorConfig?.approvals;
       this.approvals = new ApprovalService(
@@ -579,6 +580,8 @@ export class AmbassadorServer {
         }
       );
       const approvals = this.approvals;
+      const uiProblem = approvalUiBaseUrlProblem(this.approvalUiBaseUrl());
+      if (uiProblem) logger.error(`[approvals] ${uiProblem}; gated tool calls will fail closed`);
       const { setApprovalVoidObserver, setApprovalVoidFailureObserver } =
         await import('@mcpambassador/core');
       setApprovalVoidObserver((rows, reason) => approvals.auditVoidedRows(rows, reason));
@@ -1087,10 +1090,7 @@ export class AmbassadorServer {
         ? {
             approvals: {
               service: this.approvals,
-              uiBaseUrl: (
-                this.config.publicUrl ??
-                `https://${this.config.serverName}:${this.config.adminPort}`
-              ).replace(/\/+$/, ''),
+              uiBaseUrl: this.approvalUiBaseUrl(),
             },
           }
         : {}),
@@ -1915,6 +1915,13 @@ export class AmbassadorServer {
     // DB-persisted admin settings (e.g. DCR toggle) win over the config defaults
     await loadPersistedSettings(this.agentEndpointDeps);
     return this.agentEndpointDeps;
+  }
+
+  /** ADR-023: approval links come from config (PUBLIC_URL), never from the request Host header. */
+  private approvalUiBaseUrl(): string {
+    return (
+      this.config.publicUrl ?? `https://${this.config.serverName}:${this.config.adminPort}`
+    ).replace(/\/+$/, '');
   }
 
   /** ADR-021 pin service (null before start) */

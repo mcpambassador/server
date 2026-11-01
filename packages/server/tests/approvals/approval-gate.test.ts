@@ -20,6 +20,7 @@ import { makeAdminClient } from '../admin-api/helpers.js';
 import { createUser } from '../../src/auth/user-auth.js';
 import type { ApprovalService } from '../../src/services/approvals/service.js';
 import {
+  approvalUiBaseUrlProblem,
   runApprovalGate,
   hashRoutedArguments,
   type GateGrantContext,
@@ -571,5 +572,39 @@ describe('buildApprovalUrl scheme', () => {
   it('rejects plain http for a non-loopback host, allows loopback http', () => {
     expect(() => buildApprovalUrl('http://amb.example', 'apr_abcdefgh')).toThrow();
     expect(buildApprovalUrl('http://127.0.0.1:9443', 'apr_abcdefgh')).toContain('/app/approvals/');
+  });
+});
+
+describe('approval UI base URL startup check', () => {
+  it('flags non-https non-loopback bases and accepts valid ones', () => {
+    expect(approvalUiBaseUrlProblem('http://amb.example')).toMatch(/PUBLIC_URL/);
+    expect(approvalUiBaseUrlProblem('not a url')).toMatch(/PUBLIC_URL/);
+    expect(approvalUiBaseUrlProblem('https://amb.example:9443')).toBeNull();
+    expect(approvalUiBaseUrlProblem('http://localhost:9443')).toBeNull();
+  });
+
+  it('a server with an invalid publicUrl still boots', async () => {
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-appr-url-'));
+    const pre = await initializeDatabase({
+      type: 'sqlite',
+      sqliteFilePath: path.join(d, 'ambassador.db'),
+      seedOnInit: true,
+    });
+    await runMigrations(pre as DatabaseClient);
+    await createAdminKey(pre as DatabaseClient, d);
+    await closeDatabase(pre as DatabaseClient);
+    const s2 = new AmbassadorServer({
+      dataDir: d,
+      port: 0,
+      host: '127.0.0.1',
+      publicUrl: 'http://amb.example',
+      ambassadorConfig: { approvals: {} } as never,
+    } as never);
+    try {
+      await expect(s2.initialize()).resolves.toBeUndefined();
+    } finally {
+      await s2.stop().catch(() => undefined);
+      fs.rmSync(d, { recursive: true, force: true });
+    }
   });
 });

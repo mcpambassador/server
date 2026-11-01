@@ -34,6 +34,20 @@ const canonicalizeJcs = createRequire(import.meta.url)('canonicalize') as (
 /** How soon an agent should poll/retry a pending request. */
 export const APPROVAL_RETRY_AFTER_SECONDS = 10;
 
+/**
+ * Startup check of the approval UI base URL (config PUBLIC_URL, else https://<server>:<admin port>).
+ * Returns an error message when links built from it would be refused, else null. Never throws: a
+ * server that does not use approvals must still boot; gated calls fail closed on their own.
+ */
+export function approvalUiBaseUrlProblem(uiBaseUrl: string): string | null {
+  try {
+    buildApprovalUrl(uiBaseUrl, 'apr_startupcheck');
+    return null;
+  } catch {
+    return 'approval UI base URL is invalid: PUBLIC_URL (publicUrl) must be an https URL, or http on loopback';
+  }
+}
+
 /** Who is calling, from a validated agent session (never from request data). */
 export interface GateGrantContext {
   grantId: string;
