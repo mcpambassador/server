@@ -468,19 +468,24 @@ describe('audit', () => {
     const secret = 'zzq-private-query-needle';
     await tool(tok, SEARCH, { query: secret });
     await tool(tok, CALL, { name: 'btool', arguments: {} });
-    const full = (await grant(client.clientId)).token;
-    await tool(full, 'btool', {});
+    const fullGrant = await grant(client.clientId);
+    await tool(fullGrant.token, 'btool', {});
     await waitForAudit(s, 'agent_tool_discovery');
     const viaLine = await waitForAudit(s, '"via":"ambassador__call_tool"');
     expect(viaLine).toContain('"disclosure_mode":"progressive"');
-    await waitForAudit(s, '"disclosure_mode":"full"');
+    // This test's own direct call: scope the line to this grant. (Earlier tests in the file write
+    // full-mode lines WITH via into the shared audit file, so scanning it whole is order/flush dependent.)
+    const directLine = await waitForAudit(
+      s,
+      `agent:${fullGrant.grantId}`,
+      'btool',
+      '"disclosure_mode":"full"'
+    );
     const disc = auditLines(s).filter(l => l.includes('agent_tool_discovery'));
     expect(disc.length).toBeGreaterThan(0);
     expect(disc.some(l => l.includes('query_length') && l.includes('query_hash'))).toBe(true);
     expect(auditLines(s).join('\n')).not.toContain(secret);
-    expect(
-      auditLines(s).some(l => l.includes('"disclosure_mode":"full"') && l.includes('"via"'))
-    ).toBe(false); // direct calls carry no via
+    expect(directLine).not.toContain('"via"'); // direct calls carry no via
   });
 });
 
