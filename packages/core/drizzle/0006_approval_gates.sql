@@ -5,7 +5,7 @@ CREATE TABLE `tool_policies` (
 	`mcp_id` text NOT NULL REFERENCES `mcp_catalog`(`mcp_id`) ON DELETE CASCADE,
 	`tool_name` text NOT NULL CHECK (length(`tool_name`) BETWEEN 1 AND 256),
 	`requires_approval` integer NOT NULL DEFAULT 0 CHECK (`requires_approval` IN (0,1)),
-	`approver` text NOT NULL DEFAULT 'owner' CHECK (`approver` IN ('owner','admin')),
+	`approver` text NOT NULL CHECK (`approver` IN ('owner','admin')),
 	`updated_by` text NOT NULL,
 	`updated_at` text NOT NULL,
 	PRIMARY KEY (`mcp_id`, `tool_name`)

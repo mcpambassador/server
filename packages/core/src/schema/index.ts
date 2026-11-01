@@ -887,9 +887,7 @@ export const tool_policies = sqliteTable(
       .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade' }),
     tool_name: text('tool_name').notNull(),
     requires_approval: integer('requires_approval', { mode: 'boolean' }).notNull().default(false),
-    approver: text('approver', { enum: ['owner', 'admin'] })
-      .notNull()
-      .default('owner'),
+    approver: text('approver', { enum: ['owner', 'admin'] }).notNull(),
     updated_by: text('updated_by').notNull(),
     updated_at: text('updated_at').notNull(),
   },

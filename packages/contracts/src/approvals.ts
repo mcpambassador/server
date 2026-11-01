@@ -45,6 +45,13 @@ export const APPROVAL_APPROVED_USE_TTL_SECONDS = 600;
 /** Canonical-argument cap AND preview cap (one constant): larger arguments get no approval at all. */
 export const APPROVAL_PREVIEW_MAX_BYTES = 8192;
 export const APPROVAL_REAUTH_WINDOW_SECONDS = 300;
+/**
+ * A decision that needs a fresh step-up answers HTTP 428 with this error code (not 403, which the SPA's CSRF
+ * replay would hit, and not 401, which triggers the login interceptor). The SPA then asks for the password,
+ * calls AUTH_REAUTH_ROUTE and retries the decision once.
+ */
+export const APPROVAL_REAUTH_REQUIRED_STATUS = 428;
+export const APPROVAL_REAUTH_REQUIRED_CODE = 'reauth_required';
 export const APPROVAL_MAX_OPEN_PER_GRANT = 5;
 export const APPROVAL_MAX_OPEN_PER_USER = 20;
 export const APPROVAL_CREATE_RATE_PER_GRANT_PER_MINUTE = 10;
@@ -191,6 +198,8 @@ export type ApprovalRequestSummary = z.infer<typeof approvalRequestSummarySchema
 
 export const approvalRequestDetailSchema = approvalRequestSummarySchema.extend({
   /** Sanitized, redacted argument preview; null once the request is terminal. */
+  // NB: zod max() counts UTF-16 code units, which is never more than the UTF-8 byte count; the DB CHECK on
+  // length(CAST(preview AS BLOB)) is the authoritative byte cap, so this is a coarse guard only.
   preview: z.string().max(APPROVAL_PREVIEW_MAX_BYTES).nullable(),
   /** The serving pin hash changed since the request was made: approving is pointless, the call will fail closed. */
   definition_changed: z.boolean(),

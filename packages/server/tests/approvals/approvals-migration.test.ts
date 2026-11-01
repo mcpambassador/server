@@ -104,6 +104,16 @@ describe('migration 0006 (approval gates)', () => {
       expect(() => ins('admin')).toThrow(/UNIQUE|PRIMARY/);
     });
 
+    it('tool_policies: approver has no default (an explicit choice is required)', () => {
+      expect(() =>
+        db
+          .prepare(
+            `INSERT INTO tool_policies (mcp_id,tool_name,requires_approval,updated_by,updated_at) VALUES ('m1','noapprover',1,'u','now')`
+          )
+          .run()
+      ).toThrow(/NOT NULL/);
+    });
+
     it('approval_requests: status, approver and hash-length CHECKs', () => {
       ['pending', 'approved', 'denied', 'expired', 'voided', 'consumed'].forEach((s, i) =>
         expect(() => req({ status: s, args_hash: String(i).repeat(64) })).not.toThrow()

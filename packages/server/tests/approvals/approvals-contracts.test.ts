@@ -5,6 +5,8 @@ import {
   APPROVAL_STATUSES,
   approvalDecisionRequestSchema,
   approvalListQuerySchema,
+  APPROVAL_REAUTH_REQUIRED_CODE,
+  APPROVAL_REAUTH_REQUIRED_STATUS,
   approvalListResponseSchema,
   approvalQueueSummarySchema,
   approvalRequestDetailSchema,
@@ -167,6 +169,9 @@ describe('approval contracts (ADR-023)', () => {
   });
 
   it('badge summary and reauth', () => {
+    // 428, not 403 (CSRF replay) or 401 (login interceptor)
+    expect(APPROVAL_REAUTH_REQUIRED_STATUS).toBe(428);
+    expect(APPROVAL_REAUTH_REQUIRED_CODE).toBe('reauth_required');
     expect(approvalQueueSummarySchema.safeParse({ pending_count: 3 }).success).toBe(true);
     expect(approvalQueueSummarySchema.safeParse({ pending_count: -1 }).success).toBe(false);
     expect(reauthRequestSchema.safeParse({ password: 'x' }).success).toBe(true);
