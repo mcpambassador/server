@@ -17,6 +17,7 @@ import Database from 'better-sqlite3';
 import postgres from 'postgres';
 import * as schema from '../schema/index.js';
 import { seedDatabase } from '../schema/seed.js';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
@@ -133,29 +134,150 @@ async function initializePostgres(
   return db;
 }
 
+/** Thrown when a recorded migration file no longer matches the hash stored when it was applied. */
+export class MigrationIntegrityError extends Error {
+  constructor(
+    public readonly file: string,
+    public readonly recordedSha256: string,
+    public readonly currentSha256: string
+  ) {
+    super(
+      `[db] Migration ${file} was modified after it was applied (recorded sha256 ${recordedSha256.slice(0, 12)}, ` +
+        `current ${currentSha256.slice(0, 12)}). Refusing to start. Never edit an applied migration; add a new one.`
+    );
+    this.name = 'MigrationIntegrityError';
+  }
+}
+
 /**
- * Run database migrations
+ * Last migration that predates tracking (TD-032). Databases without a schema_migrations table are
+ * bootstrapped by running 0000..this file with the legacy idempotent behaviour (they were re-run at
+ * every start, so ADD COLUMN tolerates "duplicate column name"), then recording them. Files after
+ * this one are applied exactly once with NO tolerance.
+ */
+export const MIGRATION_BOOTSTRAP_LAST = '0003_agent_grant_kind.sql';
+
+export interface RunMigrationsOptions {
+  /** Override the migrations directory (tests). */
+  migrationsDir?: string;
+}
+
+interface SqlRunner {
+  /** Run `fn` in one transaction: commit on success, roll back on throw. */
+  transaction(fn: (tx: SqlExec) => Promise<void>): Promise<void>;
+  exec: SqlExec['exec'];
+  all: SqlExec['all'];
+}
+interface SqlExec {
+  exec(statement: string, params?: unknown[]): Promise<void>;
+  all(statement: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
+}
+
+function makeRunner(db: DatabaseClient): SqlRunner {
+  const client = (db as any).session?.client;
+  if (client?.exec && client?.prepare) {
+    // SQLite (better-sqlite3): DDL is transactional.
+    const exec: SqlExec = {
+      exec: (st, params) => {
+        if (params && params.length > 0) client.prepare(st).run(...params);
+        else client.exec(st);
+        return Promise.resolve();
+      },
+      all: (st, params = []) =>
+        Promise.resolve(client.prepare(st).all(...params) as Record<string, unknown>[]),
+    };
+    return {
+      ...exec,
+      transaction: async fn => {
+        client.exec('BEGIN');
+        try {
+          await fn(exec);
+          client.exec('COMMIT');
+        } catch (err) {
+          if (client.inTransaction) client.exec('ROLLBACK');
+          throw err;
+        }
+      },
+    };
+  }
+  if (client?.unsafe) {
+    // PostgreSQL (postgres.js)
+    const wrap = (c: any): SqlExec => ({
+      exec: async (st, params) => {
+        await c.unsafe(st, (params ?? []) as never[]);
+      },
+      all: async (st, params = []) =>
+        (await c.unsafe(st, params as never[])) as Record<string, unknown>[],
+    });
+    return {
+      ...wrap(client),
+      transaction: async fn => {
+        await client.begin(async (tx: any) => {
+          await fn(wrap(tx));
+        });
+      },
+    };
+  }
+  throw new Error('[db] Unsupported database client for migrations');
+}
+
+const sha256 = (text: string): string =>
+  // Normalise line endings so a CRLF checkout (autocrlf) does not look like an edit.
+  crypto.createHash('sha256').update(text.replace(/\r\n/g, '\n'), 'utf8').digest('hex');
+
+function splitStatements(sqlContent: string): string[] {
+  return sqlContent
+    .split(/-->\s*statement-breakpoint/)
+    .map((st: string) => st.trim())
+    .filter((st: string) => st.length > 0);
+}
+
+async function runStatements(tx: SqlExec, sqlContent: string, tolerant: boolean): Promise<void> {
+  for (const statement of splitStatements(sqlContent)) {
+    try {
+      await tx.exec(statement);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        tolerant &&
+        /duplicate column name|already exists/i.test(msg) &&
+        /ADD COLUMN/i.test(statement)
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/**
+ * Run database migrations (TD-032: tracked).
  *
- * Applies all pending migrations from packages/core/drizzle/
- * Executes .sql files in lexicographic order.
+ * - `schema_migrations(filename PK, sha256, applied_at)` records every applied file.
+ * - No table yet (fresh DB or a pre-tracking DB): bootstrap 0000..MIGRATION_BOOTSTRAP_LAST the legacy
+ *   idempotent way, create the table and record them, all in ONE transaction (a crash leaves no table).
+ * - Afterwards only unrecorded files are applied, each in its own transaction together with its record.
+ *   No "already exists" tolerance for those.
+ * - A recorded file whose hash changed refuses startup (MigrationIntegrityError).
  *
  * @param db Database client
  */
-export async function runMigrations(db: DatabaseClient): Promise<void> {
+export async function runMigrations(
+  db: DatabaseClient,
+  options: RunMigrationsOptions = {}
+): Promise<void> {
   logger.info('[db] Running migrations...');
 
   // ES module compatibility: __dirname replacement
   const currentFileUrl = new URL(import.meta.url);
   const currentDir = path.dirname(currentFileUrl.pathname);
-  const migrationsDir = path.join(currentDir, '../../drizzle');
+  const migrationsDir = options.migrationsDir ?? path.join(currentDir, '../../drizzle');
 
-  // Check if migrations directory exists
   if (!fs.existsSync(migrationsDir)) {
     logger.warn({ migrations_dir: migrationsDir }, '[db] Migrations directory not found');
     return;
   }
 
-  // Read migration files (*.sql) in sorted order
   const files = fs
     .readdirSync(migrationsDir)
     .filter((f: string) => f.endsWith('.sql'))
@@ -166,34 +288,98 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
     return;
   }
 
-  // Execute each migration file
-  for (const file of files) {
-    const filePath = path.join(migrationsDir, file);
-    const sqlContent = fs.readFileSync(filePath, 'utf-8');
+  const read = (file: string): { content: string; hash: string } => {
+    const content = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+    return { content, hash: sha256(content) };
+  };
+  const now = (): string => new Date().toISOString();
+  const runner = makeRunner(db);
+  const isSqlite = Boolean((db as any).session?.client?.prepare);
+  const tableExistsSql = isSqlite
+    ? "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
+    : "SELECT to_regclass('schema_migrations') AS name";
+  const createTableSql =
+    'CREATE TABLE schema_migrations (filename TEXT PRIMARY KEY NOT NULL, sha256 TEXT NOT NULL, applied_at TEXT NOT NULL)';
+  const insertSql = isSqlite
+    ? 'INSERT INTO schema_migrations (filename, sha256, applied_at) VALUES (?, ?, ?)'
+    : 'INSERT INTO schema_migrations (filename, sha256, applied_at) VALUES ($1, $2, $3)';
 
-    logger.info({ file }, '[db] Running migration');
+  const tableRows = await runner.all(tableExistsSql);
+  const tracked = tableRows.length > 0 && tableRows[0] && tableRows[0]['name'] != null;
 
-    try {
-      // Execute raw SQL content (migrations contain full DDL statements)
-      // Note: For production, consider using drizzle-kit migrate() instead
-      if ((db as any).session?.client?.exec) {
-        // SQLite: use underlying better-sqlite3 exec() via session.client
-        (db as any).session.client.exec(sqlContent);
-      } else if ((db as any).session?.client?.unsafe) {
-        // PostgreSQL: use postgres.js unsafe() for raw SQL
-        await (db as any).session.client.unsafe(sqlContent);
-      } else {
-        // Fallback
-        await (db as any).execute(sqlContent);
+  if (!tracked) {
+    const bootstrapFiles = files.filter(f => f <= MIGRATION_BOOTSTRAP_LAST);
+    logger.warn(
+      { files: bootstrapFiles.map(f => ({ file: f, sha256: read(f).hash })) },
+      '[db] Bootstrapping migration tracking: recording these migrations as applied'
+    );
+    await runner.transaction(async tx => {
+      for (const file of bootstrapFiles) {
+        const { content } = read(file);
+        logger.info({ file }, '[db] Running migration (bootstrap)');
+        try {
+          await runStatements(tx, content, true);
+        } catch (err) {
+          logger.error({ file, err }, '[db] Migration failed');
+          throw err;
+        }
       }
-      logger.info({ file }, '[db] Migration complete');
+      await tx.exec(createTableSql);
+      for (const file of bootstrapFiles) {
+        await tx.exec(insertSql, [file, read(file).hash, now()]);
+      }
+    });
+  }
+
+  const recorded = new Map<string, string>(
+    (await runner.all('SELECT filename, sha256 FROM schema_migrations')).map(r => [
+      String(r['filename']),
+      String(r['sha256']),
+    ])
+  );
+
+  // Integrity first, so an edited migration stops the server before anything new is applied.
+  for (const [file, recordedHash] of recorded) {
+    if (!files.includes(file)) {
+      logger.warn({ file }, '[db] Recorded migration file is missing on disk');
+      continue;
+    }
+    const { hash } = read(file);
+    if (hash !== recordedHash) {
+      logger.error({ file }, '[db] Applied migration file was modified');
+      throw new MigrationIntegrityError(file, recordedHash, hash);
+    }
+  }
+
+  // Each migration runs inside a transaction, where PRAGMA foreign_keys is a silent no-op: a table
+  // rebuild (DROP + recreate) would then cascade-delete child rows. Refuse such files up front.
+  for (const file of files) {
+    if (recorded.has(file)) continue;
+    if (/PRAGMA\s+foreign_keys/i.test(read(file).content)) {
+      throw new Error(
+        `[db] Migration ${file} contains PRAGMA foreign_keys, which cannot take effect inside the migration transaction (a table rebuild would cascade-delete child rows). Remove it and rebuild tables without dropping referenced parents.`
+      );
+    }
+  }
+
+  let applied = 0;
+  for (const file of files) {
+    if (recorded.has(file)) continue;
+    const { content, hash } = read(file);
+    logger.info({ file }, '[db] Running migration');
+    try {
+      await runner.transaction(async tx => {
+        await runStatements(tx, content, false);
+        await tx.exec(insertSql, [file, hash, now()]);
+      });
     } catch (err) {
       logger.error({ file, err }, '[db] Migration failed');
       throw err;
     }
+    applied++;
   }
 
-  logger.info({ file_count: files.length }, '[db] All migrations complete');
+  logger.info({ file_count: files.length, applied }, '[db] All migrations complete');
 }
 
 /**

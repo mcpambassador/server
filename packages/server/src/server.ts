@@ -64,6 +64,7 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
+import { AGENT_MCP_ROUTE } from '@mcpambassador/contracts';
 import {
   resolveAgentEndpointConfig,
   createAgentEndpointDeps,
@@ -80,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import { SecretStore } from './services/secret-store.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -149,6 +151,7 @@ export class AmbassadorServer {
   private fastify: FastifyInstance | null = null;
   private adminServer: FastifyInstance | null = null;
   private mcpManager: SharedMcpManager;
+  private catalogReloader!: CatalogReloader; // one instance for both listeners (shared reload mutex)
   private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
   private config: Omit<
@@ -481,6 +484,11 @@ export class AmbassadorServer {
     }
     this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
+    this.catalogReloader = new CatalogReloader(
+      this.db as DatabaseClient,
+      this.mcpManager,
+      this.userPool
+    );
     logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
@@ -692,6 +700,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
@@ -793,6 +802,10 @@ export class AmbassadorServer {
       max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 86400,
       refresh_tokens_enabled:
         !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
+      // Canonical MCP resource URL (what clients register as `claude mcp add ... <url>`)
+      resource_url: agentEndpointConfig?.enabled
+        ? `${this.agentPublicUrls().agentBaseUrl}${AGENT_MCP_ROUTE}`
+        : null,
     });
     if (agentEndpointConfig?.enabled) {
       await registerAgentOAuthRoutes(this.adminServer, await this.buildAgentEndpointDeps());
@@ -1603,6 +1616,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
@@ -1668,20 +1682,28 @@ export class AmbassadorServer {
   /**
    * Start the server
    */
+  /** ADR-020: public issuer and /mcp base URL, from config/PUBLIC_URL, never the request Host */
+  private agentPublicUrls(): { issuer: string; agentBaseUrl: string } {
+    const cfg = this.config.ambassadorConfig!.agent_endpoint;
+    const strip = (u: string): string => u.replace(/\/+$/, '');
+    return {
+      issuer: strip(
+        cfg.issuer_url ??
+          this.config.publicUrl ??
+          `https://${this.config.serverName}:${this.config.adminPort}`
+      ),
+      agentBaseUrl: strip(
+        cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
+      ),
+    };
+  }
+
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
   private async buildAgentEndpointDeps(): Promise<AgentEndpointDeps> {
     // One shared instance for 9443 and 8443 so runtime settings/rate limits are consistent
     if (this.agentEndpointDeps) return this.agentEndpointDeps;
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
-    const strip = (u: string): string => u.replace(/\/+$/, '');
-    const issuer = strip(
-      cfg.issuer_url ??
-        this.config.publicUrl ??
-        `https://${this.config.serverName}:${this.config.adminPort}`
-    );
-    const agentBaseUrl = strip(
-      cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
-    );
+    const { issuer, agentBaseUrl } = this.agentPublicUrls();
     this.agentEndpointDeps = createAgentEndpointDeps(
       this.db!,
       resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }),

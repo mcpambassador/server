@@ -753,6 +753,10 @@ export const agent_grants = sqliteTable(
       onDelete: 'set null',
     }),
     label: text('label').notNull(),
+    /** 'oauth' = issued to an OAuth client (client_id must resolve); 'one_shot' = user-minted, no OAuth client */
+    kind: text('kind', { enum: ['oauth', 'one_shot'] })
+      .notNull()
+      .default('oauth'),
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
     resource: text('resource').notNull(),

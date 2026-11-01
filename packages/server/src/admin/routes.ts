@@ -31,6 +31,7 @@ import { registerAdminGroupRoutes } from './group-routes.js';
 import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
+import { CatalogReloader } from '../services/catalog-reloader.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
 import { registerAdminRegistryRoutes } from './registry-routes.js';
 import type { RegistryService } from '../services/registry-service.js';
@@ -62,6 +63,8 @@ export interface AdminRoutesConfig {
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
   secretStore?: SecretStore;
+  /** One instance per server so the reload mutex spans both listeners (8443 and 9443). */
+  catalogReloader?: CatalogReloader;
 }
 
 /**
@@ -83,6 +86,8 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     registryService,
     secretStore,
   } = opts;
+  const catalogReloader =
+    opts.catalogReloader ?? (userPool ? new CatalogReloader(db, mcpManager, userPool) : undefined);
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -214,7 +219,8 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminGroupRoutes, { db, audit });
 
   // MCP catalog management (7 endpoints)
-  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
+  // Shared reloader so the reload mutex covers publish/archive auto-apply and manual apply.
+  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore, catalogReloader });
 
   // Community registry (4 endpoints)
   if (registryService) {
@@ -226,6 +232,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     db,
     mcpManager,
     userPool,
+    reloader: catalogReloader,
   });
 
   done();
