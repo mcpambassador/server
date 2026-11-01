@@ -153,8 +153,18 @@ export function addSessionMaxAge(headers: unknown, now: number = Date.now()): st
  */
 export class LoginRateLimiter {
   private attempts = new Map<string, { count: number; firstAttempt: number }>();
-  private maxAttempts = 5;
-  private windowMs = 15 * 60 * 1000; // 15 minutes
+  private maxAttempts: number;
+  private windowMs: number;
+
+  constructor(opts: { maxAttempts?: number; windowMs?: number } = {}) {
+    this.maxAttempts = opts.maxAttempts ?? 5;
+    this.windowMs = opts.windowMs ?? 15 * 60 * 1000; // 15 minutes
+  }
+
+  /** Drop all records (tests) */
+  clear(): void {
+    this.attempts.clear();
+  }
 
   /**
    * Check if IP is rate limited
@@ -180,6 +190,13 @@ export class LoginRateLimiter {
    */
   recordFailure(ip: string): void {
     const now = Date.now();
+    // Bound memory: drop expired records once the map grows large
+    if (this.attempts.size >= 10_000) {
+      for (const [k, v] of this.attempts) {
+        if (now - v.firstAttempt > this.windowMs) this.attempts.delete(k);
+      }
+      if (this.attempts.size >= 10_000) this.attempts.clear();
+    }
     const record = this.attempts.get(ip);
 
     if (!record) {

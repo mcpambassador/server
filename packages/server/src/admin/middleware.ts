@@ -14,6 +14,20 @@ import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastif
 import type { DatabaseClient } from '@mcpambassador/core';
 import { authenticateAdminKeyId } from '@mcpambassador/core';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
+import { LoginRateLimiter } from './session.js';
+
+/** Admin keys are `amb_ak_` + 48 base64url chars; anything else can't match, so never feed it to argon2. */
+const ADMIN_KEY_FORMAT = /^amb_ak_[A-Za-z0-9_-]{48}$/;
+
+/**
+ * S6: invalid-key attempts per source IP. Generous (a mistyped key shouldn't lock out the operator)
+ * but bounded, so unauthenticated callers can't force unlimited argon2 verifications.
+ */
+const adminKeyFailures = new LoginRateLimiter({ maxAttempts: 20 });
+/** Test hook */
+export function resetAdminKeyRateLimit(): void {
+  adminKeyFailures.clear();
+}
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -36,8 +50,18 @@ export async function verifyAdminKeyHeader(
   if (header === undefined) return 'none';
   if (request.adminKeyId) return 'valid';
   if (typeof header !== 'string' || header.length === 0) return 'invalid';
+  const ip = request.ip ?? 'unknown';
+  // S6: cheap checks first — rate limit, then format — so garbage never reaches argon2.verify
+  if (adminKeyFailures.isRateLimited(ip)) return 'invalid';
+  if (!ADMIN_KEY_FORMAT.test(header)) {
+    adminKeyFailures.recordFailure(ip);
+    return 'invalid';
+  }
   const id = await authenticateAdminKeyId(db, header);
-  if (id === null) return 'invalid';
+  if (id === null) {
+    adminKeyFailures.recordFailure(ip);
+    return 'invalid';
+  }
   request.adminKeyId = String(id);
   return 'valid';
 }

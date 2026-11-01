@@ -100,3 +100,33 @@ describe('S4 key identity', () => {
     expect(await verifyAdminKeyHeader(s.db, { headers: {} } as any)).toBe('none');
   });
 });
+
+describe('S6 admin key pre-check + rate limit', () => {
+  // Last in the file: the limiter state lives in the server's own module instance (dist) and cannot be reset from here.
+  it('malformed keys are rejected without argon2; 20+ bad attempts from one IP also block a valid key', async () => {
+    const bad = ['amb_ak_short', 'x'.repeat(200), 'amb_ak_' + '!'.repeat(48)];
+    for (const k of bad) {
+      const r = await s.admin.inject({
+        method: 'GET',
+        url: '/v1/admin/oauth-clients',
+        headers: { 'x-admin-key': k },
+      });
+      expect(r.statusCode).toBe(401);
+    }
+    // well-formed but wrong keys count too
+    const wrong = 'amb_ak_' + 'A'.repeat(48);
+    for (let i = 0; i < 20; i++) {
+      await s.admin.inject({
+        method: 'GET',
+        url: '/v1/admin/oauth-clients',
+        headers: { 'x-admin-key': wrong },
+      });
+    }
+    const limited = await s.admin.inject({
+      method: 'GET',
+      url: '/v1/admin/oauth-clients',
+      headers: { 'x-admin-key': s.adminKey },
+    });
+    expect(limited.statusCode).toBe(401);
+  });
+});
