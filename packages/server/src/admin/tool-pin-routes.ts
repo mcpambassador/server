@@ -103,6 +103,9 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
       ...(await summaryOf(r)),
       approved_definition: parseJson(r.approved_definition),
       pending_definition: parseJson(r.pending_definition),
+      previously_revoked: r.pending_hash
+        ? (getPins()?.isRevoked(r.mcp_id, r.tool_name, r.pending_hash) ?? false)
+        : false,
     };
   }
 
@@ -170,6 +173,16 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
             wrapError(
               ErrorCodes.CONFLICT,
               'The all-users pin for this tool has a different pending definition; resolve that first'
+            )
+          );
+      case 'previously_revoked':
+        return reply
+          .status(409)
+          .send(
+            wrapError(
+              ErrorCodes.CONFLICT,
+              'This exact definition was revoked earlier; approve it again with force',
+              [{ code: 'previously_revoked' }]
             )
           );
       case 'not_baseline':
@@ -253,6 +266,7 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
       expectedHash: body.expected_hash,
       applyTo: body.apply_to,
       reason: body.reason,
+      force: body.force === true,
       actor: actorOf(request),
     });
     if (!r.ok) return sendDecisionError(reply, r);
