@@ -1,17 +1,32 @@
 /**
- * TD-036 regression guard: a raw `<e> instanceof Error ? <e>.message` in code that answers HTTP
- * clients, agents, audit metadata or admin results leaks bound SQL parameters when <e> is a
- * DrizzleQueryError (Postgres). Such sites must go through publicErrorMessage(). A site that
- * is legitimately raw (downstream connection errors, logger-only, JSON.parse text) carries a
- * `td036-allow: <reason>` comment within the three lines above it.
+ * TD-036 regression guard: raw error text in code that answers HTTP clients, agents, audit metadata
+ * or admin results leaks bound SQL parameters when the error is a DrizzleQueryError (Postgres).
+ * Such sites must go through publicErrorMessage(). A site that is legitimately raw (app-typed
+ * errors, downstream connection errors, logger-only, JSON.parse/zod/ajv text) carries a
+ * `td036-allow: <reason>` comment on its line or within the three lines above it.
+ *
+ * Scans all of packages/server/src and packages/core/src/pipeline.
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const SRC = join(__dirname, '..', 'src');
-const DIRS = ['admin', 'routes', 'services', 'downstream'];
-const RAW = /instanceof Error\s*\?\s*\w+\.message/g;
+const SERVER_SRC = join(__dirname, '..', 'src');
+const ROOTS = [SERVER_SRC, join(__dirname, '..', '..', 'core', 'src', 'pipeline')];
+
+const V = '(?:err|error|e)';
+const PATTERNS: Array<[string, RegExp]> = [
+  ['instanceof-ternary', /instanceof Error\s*\?\s*\w+\.message/g],
+  ['String(e)', new RegExp(`\\bString\\(\\s*${V}\\s*\\)`, 'g')],
+  ['${e}', new RegExp(`\\$\\{\\s*${V}\\s*\\}`, 'g')],
+  ['e?.message', new RegExp(`\\b${V}\\?\\.message`, 'g')],
+  ['(e as T).message', new RegExp(`\\(${V} as [A-Za-z]+\\)\\.message`, 'g')],
+  ['e.toString()', new RegExp(`\\b${V}\\.toString\\(\\)`, 'g')],
+  [
+    'bare e.message',
+    new RegExp(`\\b${V}\\.message\\b(?!\\s*(?:\\.includes\\(|===|\\.startsWith\\())`, 'g'),
+  ],
+];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap(n => {
@@ -20,40 +35,53 @@ function walk(dir: string): string[] {
   });
 }
 
-export function findRawErrorMessageSites(text: string): number[] {
+export function findRawErrorTextSites(text: string): Array<{ line: number; kind: string }> {
   const lines = text.split('\n');
-  const hits: number[] = [];
-  for (const m of text.matchAll(RAW)) {
-    const line = text.slice(0, m.index).split('\n').length - 1;
-    const window = lines.slice(Math.max(0, line - 3), line + 1).join('\n');
-    if (!window.includes('td036-allow:')) hits.push(line + 1);
+  const hits: Array<{ line: number; kind: string }> = [];
+  for (const [kind, rx] of PATTERNS) {
+    for (const m of text.matchAll(rx)) {
+      const line = text.slice(0, m.index).split('\n').length - 1;
+      // a line that already goes through publicErrorMessage( is fine
+      if (lines[line]?.includes('publicErrorMessage(')) continue;
+      const window = lines.slice(Math.max(0, line - 3), line + 1).join('\n');
+      if (!window.includes('td036-allow:')) hits.push({ line: line + 1, kind });
+    }
   }
   return hits;
 }
 
-describe('TD-036: no raw err.message in client-facing code', () => {
-  it('detector flags a raw site and passes publicErrorMessage and allowlisted sites', () => {
-    expect(findRawErrorMessageSites('x = e instanceof Error ? e.message : String(e);')).toEqual([
-      1,
-    ]);
-    expect(findRawErrorMessageSites('x = e instanceof Error\n  ? e.message : "a";')).toEqual([1]);
-    expect(findRawErrorMessageSites('x = publicErrorMessage(e);')).toEqual([]);
-    expect(
-      findRawErrorMessageSites('x = e instanceof Error ? publicErrorMessage(e) : "a";')
-    ).toEqual([]);
-    expect(
-      findRawErrorMessageSites(
-        '// td036-allow: logger only\nx = e instanceof Error ? e.message : "a";'
-      )
-    ).toEqual([]);
+describe('TD-036: no raw error text in client-facing code', () => {
+  it('detector flags each raw pattern and passes safe or allowlisted forms', () => {
+    const bad = [
+      'x = e instanceof Error ? e.message : String(e);',
+      'x = e instanceof Error\n  ? e.message : "a";',
+      'x = `failed: ${String(err)}`;',
+      'x = `failed: ${error}`;',
+      'x = err?.message;',
+      'x = (err as Error).message;',
+      'x = e.toString();',
+      'x = { message: error.message };',
+    ];
+    for (const src of bad) expect(findRawErrorTextSites(src).length, src).toBeGreaterThan(0);
+
+    const good = [
+      'x = publicErrorMessage(e);',
+      'x = e instanceof Error ? publicErrorMessage(e) : "a";',
+      'if (err.message.includes("x")) y();',
+      'if (err.message === "x") y();',
+      'if (err.message.startsWith("x")) y();',
+      'x = redactSecretsInString(e);',
+      '// td036-allow: logger only\nx = String(err);',
+    ];
+    for (const src of good) expect(findRawErrorTextSites(src), src).toEqual([]);
   });
 
-  it('every raw site under admin/, routes/, services/, downstream/ is allowlisted with a reason', () => {
+  it('every raw error-text site in packages/server/src and core/src/pipeline is allowlisted', () => {
     const offenders: string[] = [];
-    for (const d of DIRS) {
-      for (const f of walk(join(SRC, d))) {
-        for (const line of findRawErrorMessageSites(readFileSync(f, 'utf8'))) {
-          offenders.push(`${relative(SRC, f)}:${line}`);
+    for (const root of ROOTS) {
+      for (const f of walk(root)) {
+        for (const h of findRawErrorTextSites(readFileSync(f, 'utf8'))) {
+          offenders.push(`${relative(join(SERVER_SRC, '..', '..'), f)}:${h.line} [${h.kind}]`);
         }
       }
     }

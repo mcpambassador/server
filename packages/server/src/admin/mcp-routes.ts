@@ -98,14 +98,13 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       (secretStore ?? new SecretStore()).assertOAuthConfig(oauth);
       return true;
     } catch (e) {
-      reply
-        .status(400)
-        .send(
-          wrapError(
-            ErrorCodes.VALIDATION_ERROR,
-            e instanceof OAuthConfigError ? e.message : 'Invalid oauth_config'
-          )
-        );
+      reply.status(400).send(
+        wrapError(
+          ErrorCodes.VALIDATION_ERROR,
+          // td036-allow: OAuthConfigError text is app-authored (no secret names)
+          e instanceof OAuthConfigError ? e.message : 'Invalid oauth_config'
+        )
+      );
       return false;
     }
   };

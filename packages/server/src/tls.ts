@@ -162,6 +162,7 @@ function execCommand(cmd: string, args: string[]): Promise<void> {
     });
 
     proc.on('error', err => {
+      // td036-allow: spawn error during TLS bootstrap, startup only, never sent to a client
       reject(new Error(`Failed to execute ${cmd}: ${err.message}`));
     });
   });

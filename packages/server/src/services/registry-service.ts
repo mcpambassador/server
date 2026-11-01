@@ -459,6 +459,7 @@ export class RegistryService {
         if (!parsed.success) {
           const issue = parsed.error.issues[0];
           throw new OAuthConfigError(
+            // td036-allow: zod/ajv issue text, not an Error; no bound values
             `${issue?.path.join('.') || 'oauth_config'}: ${issue?.message ?? 'invalid'}`
           );
         }

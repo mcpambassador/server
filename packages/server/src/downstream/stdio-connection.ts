@@ -186,6 +186,7 @@ export class StdioMcpConnection extends EventEmitter {
       logger.error({ err }, `[MCP:${this.config.name}] Process error:`);
       // M33.1: Log error to buffer
       this.errorBuffer.push(
+        // td036-allow: already passed through redactSecretsInString
         `Process error: ${redactSecretsInString(err.message, this.secretValues)}`,
         'error'
       );
@@ -358,6 +359,7 @@ export class StdioMcpConnection extends EventEmitter {
       } catch (err) {
         clearTimeout(timeout);
         this.pendingRequests.delete(id);
+        // td036-allow: wraps a downstream error, not a DB error
         reject(err instanceof Error ? err : new Error(String(err)));
       }
     });

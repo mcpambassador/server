@@ -132,6 +132,7 @@ export async function registerAgentMcpRoutes(
   // ----- Auth -----
   const challenge = (error?: 'invalid_token'): string =>
     `Bearer resource_metadata="${config.protectedResourceMetadataUrl}"` +
+    // td036-allow: value is a fixed literal, not an error text
     (error ? `, error="${error}"` : '');
 
   async function fail(
@@ -293,6 +294,7 @@ export async function registerAgentMcpRoutes(
       try {
         await prepareUser(p);
       } catch (e) {
+        // td036-allow: logger-only, never returned to a client
         logger.error(`[agent-mcp] tools/call failed: ${String(e)}`);
         return { content: [{ type: 'text', text: 'Tool invocation failed' }], isError: true };
       }
@@ -437,6 +439,7 @@ export async function registerAgentMcpRoutes(
         if (req.raw.readableEnded) req.raw.emit('end');
         await handled;
       } catch (e) {
+        // td036-allow: logger-only, never returned to a client
         logger.error(`[agent-mcp] request failed: ${String(e)}`);
         if (!raw.headersSent) {
           raw.statusCode = 500;

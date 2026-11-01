@@ -1243,6 +1243,7 @@ export class AmbassadorServer {
         return reply.status(201).send(result);
       } catch (err) {
         if (err instanceof AmbassadorError) {
+          // td036-allow: AmbassadorError text is app-authored (code + fixed message)
           const errBody: ErrorResponse = { error: err.code, message: err.message };
           return reply.status(err.statusCode).send(errBody);
         } else {
@@ -1626,6 +1627,7 @@ export class AmbassadorServer {
         } else if (err instanceof KillSwitchError) {
           return reply.status(403).send({
             error: 'Forbidden',
+            // td036-allow: KillSwitchError text is a fixed app-authored string
             message: err.message,
           });
         } else if (err instanceof AuthorizationError) {
@@ -1859,6 +1861,7 @@ DELETE THIS FILE after recording these values.
       writeFileSync(credentialsPath, credentialsContent, { mode: 0o600 });
       logger.info(`[Server] Initial credentials written to ${credentialsPath}`);
     } catch (error) {
+      // td036-allow: logger-only, never returned to a client
       logger.error(`[Server] Failed to write credentials file: ${String(error)}`);
       throw error;
     }
@@ -1972,6 +1975,7 @@ DELETE THIS FILE after recording the value.
       writeFileSync(devKeyPath, devKeyContent, { mode: 0o600 });
       logger.info(`[Server] Dev client key written to ${devKeyPath}`);
     } catch (error) {
+      // td036-allow: logger-only, never returned to a client
       logger.error(`[Server] Failed to write dev client key file: ${String(error)}`);
       throw error;
     }
