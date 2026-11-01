@@ -105,7 +105,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
       },
     });
     // Continue processing with the retried response
-    return processResponse<T>(retryResponse, method);
+    return processResponse<T>(retryResponse);
   }
 
   if (response.status === 401) {
@@ -127,14 +127,14 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<T>
     throw new ApiError(401, 'UNAUTHORIZED', 'Unauthorized', 'Session expired or invalid');
   }
 
-  return processResponse<T>(response, method);
+  return processResponse<T>(response);
 }
 
 /**
  * Parse an HTTP response into the expected type T.
  * Handles envelope format, 204 No Content, and error shapes.
  */
-async function processResponse<T>(response: Response, _method: string): Promise<T> {
+async function processResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorData: unknown;
     try {

@@ -54,8 +54,14 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
-import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
-import { BoundedSessionStore } from './admin/session.js';
+import type {
+  ToolCatalogResponse,
+  ToolDescriptor,
+  HeartbeatResponse,
+  DisconnectResponse,
+  ErrorResponse,
+} from '@mcpambassador/protocol';
+import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
@@ -468,11 +474,16 @@ export class AmbassadorServer {
 
     // M21: Initialize user session store and register on main server
     logger.info('[Server] Registering user session management...');
-    this.userSessionStore = new UserSessionStore(1000);
+    // Browser-session TTL (session.ui_ttl_seconds, S1) is separate from the 8443 client-session ttl_seconds.
+    // NOTE: this 8443 session is kept (not dead): the self-service/auth routes are also registered on the
+    // main listener (see registerAuthRoutes(this.fastify) below) and need request.session.
+    const uiTtlSeconds = this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800;
+    this.userSessionStore = new UserSessionStore(1000, uiTtlSeconds);
     const { registerUserSession } = await import('./auth/user-session.js');
     await registerUserSession(this.fastify, {
       dataDir: this.config.dataDir,
       store: this.userSessionStore,
+      ttlSeconds: uiTtlSeconds,
     });
     logger.info('[Server] User session management registered');
 
@@ -525,7 +536,10 @@ export class AmbassadorServer {
 
     // Create session store instance if not already created (F-SEC-M10-005)
     if (!this.sessionStore) {
-      this.sessionStore = new BoundedSessionStore(100);
+      this.sessionStore = new BoundedSessionStore(
+        100,
+        this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800
+      );
     }
 
     // Create admin Fastify instance with same TLS config
@@ -568,9 +582,22 @@ export class AmbassadorServer {
         httpOnly: true,
         sameSite: 'strict',
         path: '/', // M29.5: Changed from '/admin' to '/' to support SPA routes
+        // B1/S1: browser session lifetime (absolute, enforced server-side by BoundedSessionStore)
+        maxAge: (this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800) * 1000,
       },
+      rolling: false, // absolute TTL: activity must not extend the cookie
       store: this.sessionStore,
       saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
+    });
+
+    // B1: expose the absolute lifetime as Max-Age on the session cookie too
+    this.adminServer.addHook('onSend', async (_request, reply, payload) => {
+      const fixed = addSessionMaxAge(reply.getHeader('set-cookie'));
+      if (fixed) {
+        void reply.removeHeader('set-cookie');
+        void reply.header('set-cookie', fixed);
+      }
+      return payload;
     });
 
     // A.2: Register CSRF protection plugin.
@@ -590,8 +617,7 @@ export class AmbassadorServer {
       },
       // Read token from custom header only (recommended for SPAs — prevents misuse via
       // form-encoded body while keeping browser-native form POSTs ineffective).
-      getToken: (req) =>
-        req.headers['x-csrf-token'] as string | undefined,
+      getToken: req => req.headers['x-csrf-token'] as string | undefined,
     });
 
     // A.2: CSRF enforcement hook — fires on every state-changing request.
@@ -653,7 +679,7 @@ export class AmbassadorServer {
     // The SPA fetches this before any mutation request. The plugin sets the `_csrf`
     // cookie and returns a fresh token the SPA must send as `x-csrf-token` header.
     this.adminServer.get('/v1/csrf-token', async (_request, reply) => {
-      const token = await reply.generateCsrf();
+      const token = reply.generateCsrf();
       return reply.send({ csrfToken: token });
     });
 
@@ -1096,16 +1122,15 @@ export class AmbassadorServer {
         return reply.status(201).send(result);
       } catch (err) {
         if (err instanceof AmbassadorError) {
-          return reply.status(err.statusCode).send({
-            error: err.code,
-            message: err.message,
-          });
+          const errBody: ErrorResponse = { error: err.code, message: err.message };
+          return reply.status(err.statusCode).send(errBody);
         } else {
           this.fastify!.log.error({ err }, '[Server] Session registration error');
-          return reply.status(500).send({
+          const errBody: ErrorResponse = {
             error: 'registration_failed',
             message: 'Failed to register session',
-          });
+          };
+          return reply.status(500).send(errBody);
         }
       }
     });
@@ -1229,11 +1254,12 @@ export class AmbassadorServer {
           },
         });
 
-        return reply.send({
+        const heartbeatResponse: HeartbeatResponse = {
           status: 'ok',
           session_status: updates.status || sessionRecord.status,
           expires_at: newExpiryIso,
-        });
+        };
+        return reply.send(heartbeatResponse);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({
@@ -1315,10 +1341,11 @@ export class AmbassadorServer {
           },
         });
 
-        return reply.send({
+        const disconnectResponse: DisconnectResponse = {
           status: 'disconnected',
           connection_id: connectionId,
-        });
+        };
+        return reply.send(disconnectResponse);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({

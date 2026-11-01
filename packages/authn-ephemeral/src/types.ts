@@ -3,24 +3,9 @@
  */
 
 /**
- * Registration request body
+ * Registration wire types live in @mcpambassador/protocol (single source of truth).
  */
-export interface RegistrationRequest {
-  preshared_key: string;
-  friendly_name: string;
-  host_tool: string;
-}
-
-/**
- * Registration response
- */
-export interface RegistrationResponse {
-  session_id: string;
-  session_token: string;
-  expires_at: string; // ISO 8601
-  profile_id: string;
-  connection_id: string;
-}
+export type { RegistrationRequest, RegistrationResponse } from '@mcpambassador/protocol';
 
 /**
  * Validated client key result

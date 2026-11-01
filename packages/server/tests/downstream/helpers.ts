@@ -5,7 +5,7 @@ export function makeMcpConfig(overrides: Partial<Record<string, any>> = {}) {
   return {
     name,
     transport: overrides.transport ?? 'stdio',
-    command: overrides.command ?? 'node ./mcp.js',
+    command: overrides.command ?? ['node', './mcp.js'],
     env: overrides.env ?? {},
     url: overrides.url,
     headers: overrides.headers ?? {},

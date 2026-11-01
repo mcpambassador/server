@@ -5,6 +5,32 @@ All notable changes to MCP Ambassador Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-04-19
+
+Hardening release.
+
+### Security
+- CORS policy (`origin: false`) on the admin server
+- CSRF protection (`@fastify/csrf-protection`) on cookie-authenticated endpoints of the admin/SPA listener (9443)
+- Dev client key bootstrap requires explicit `NODE_ENV=development|test`
+- Password policy requires 2 of 4 character classes
+
+### Added
+- Daily audit log rotation with configurable retention (default 90 days)
+
+### Changed
+- All `console.*` replaced by the pino structured logger in production code
+- Browser session cookie `maxAge` (9443 SPA/admin session) and an absolute server-side TTL now derive from new `session.ui_ttl_seconds` (default 28800); the 8443 client-session `session.ttl_seconds` is unchanged (TD-014)
+- `@mcpambassador/protocol` now documents the client-port (8443) wire format: registration types match `POST /v1/sessions/register` (`preshared_key` request; `session_id`/`session_token`/`expires_at`/`profile_id`/`connection_id` response), `ErrorResponse` is the flat `{ error, message }`, added `HeartbeatResponse` and `DisconnectResponse`; `ClientStatus` deprecated. `@mcpambassador/contracts` documents the 9443 admin envelope.
+
+### Fixed
+- Checklist step 2 auto-completes on active subscriptions
+- Subscription listing tolerates Drizzle join shape differences
+- SPA test mocks include `/v1/csrf-token`; lint and formatting errors that blocked CI
+
+### UX
+- MCP wizard decomposed into step components; unsubscribe action on Subscriptions page; real server URL in onboarding snippets; zero-state CTA on MCP detail; accessibility and responsive table fixes
+
 ## [0.9.0-beta.1] - 2026-04-03
 
 Codename: **Homelab Edition**

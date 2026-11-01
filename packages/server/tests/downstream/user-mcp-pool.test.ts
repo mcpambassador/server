@@ -59,11 +59,11 @@ class MockConnection extends EventEmitter {
 }
 
 // Mock the connection imports
-vi.mock('../../../src/downstream/stdio-connection', () => ({
+vi.mock('../../src/downstream/stdio-connection.js', () => ({
   StdioMcpConnection: MockConnection,
 }));
 
-vi.mock('../../../src/downstream/http-connection', () => ({
+vi.mock('../../src/downstream/http-connection.js', () => ({
   HttpMcpConnection: MockConnection,
 }));
 
@@ -71,7 +71,7 @@ let UserMcpPool: any;
 
 beforeEach(async () => {
   try {
-    const mod = await import('../../../src/downstream/user-mcp-pool.js');
+    const mod = await import('../../src/downstream/user-mcp-pool.js');
     UserMcpPool = mod.UserMcpPool;
   } catch (err) {
     console.error('Failed to import UserMcpPool:', err);

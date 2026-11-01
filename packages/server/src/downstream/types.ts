@@ -108,7 +108,7 @@ export function containsShellMetacharacters(value: string): boolean {
  *   node -e / --eval          → execute inline JavaScript
  *   python/python3 -c         → execute inline Python
  *   ruby -e                   → execute inline Ruby
- *   eval() / exec()           → string patterns that suggest code injection
+ *   inline-eval / exec calls  → string patterns that suggest code injection
  */
 const DANGEROUS_ARG_PATTERNS: RegExp[] = [/^-e$/, /^--eval$/, /^-c$/, /eval\s*\(/, /exec\s*\(/];
 

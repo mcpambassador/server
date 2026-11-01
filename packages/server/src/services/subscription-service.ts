@@ -226,30 +226,32 @@ export async function listUserSubscriptions(
   // Drizzle join results may be namespaced by table name (row.client_mcp_subscriptions.*)
   // or flat depending on the Drizzle version and database driver. Handle both shapes
   // defensively to avoid a 500 that would break the dashboard onboarding checklist.
-  const subscriptions: any[] = rows.map((r: any) => {
-    // Prefer the namespaced shape; fall back to the flat row if the namespace is absent
-    const sub = r.client_mcp_subscriptions ?? r;
-    if (!sub || !sub.subscription_id) {
-      // Both shapes failed — log and skip rather than throwing so the endpoint
-      // degrades gracefully (returns a partial result) instead of 500-ing.
-      logger.warn(
-        '[listUserSubscriptions] Unexpected row shape from Drizzle join — skipping row'
-      );
-      return null;
-    }
-    return {
-      subscription_id: sub.subscription_id,
-      client_id: sub.client_id,
-      mcp_id: sub.mcp_id,
-      selected_tools:
-        typeof sub.selected_tools === 'string'
-          ? JSON.parse(sub.selected_tools)
-          : sub.selected_tools,
-      status: sub.status,
-      subscribed_at: sub.subscribed_at,
-      updated_at: sub.updated_at,
-    };
-  }).filter(Boolean);
+  const subscriptions: any[] = rows
+    .map((r: any) => {
+      // Prefer the namespaced shape; fall back to the flat row if the namespace is absent
+      const sub = r.client_mcp_subscriptions ?? r;
+      if (!sub || !sub.subscription_id) {
+        // Both shapes failed — log and skip rather than throwing so the endpoint
+        // degrades gracefully (returns a partial result) instead of 500-ing.
+        logger.warn(
+          '[listUserSubscriptions] Unexpected row shape from Drizzle join — skipping row'
+        );
+        return null;
+      }
+      return {
+        subscription_id: sub.subscription_id,
+        client_id: sub.client_id,
+        mcp_id: sub.mcp_id,
+        selected_tools:
+          typeof sub.selected_tools === 'string'
+            ? JSON.parse(sub.selected_tools)
+            : sub.selected_tools,
+        status: sub.status,
+        subscribed_at: sub.subscribed_at,
+        updated_at: sub.updated_at,
+      };
+    })
+    .filter(Boolean);
 
   // Batch fetch MCP names
   const mcpIds = subscriptions.map((s: any) => s.mcp_id);
