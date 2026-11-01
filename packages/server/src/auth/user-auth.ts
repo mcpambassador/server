@@ -73,6 +73,29 @@ export async function authenticateUser(
 }
 
 /**
+ * M22.4: add a new user to the default "all-users" group. Shared by every user-creation path
+ * (self-service/setup and POST /v1/admin/users). Failure is logged, not fatal, as before.
+ */
+export async function assignDefaultGroup(
+  db: DatabaseClient,
+  userId: string,
+  assignedBy: string
+): Promise<void> {
+  try {
+    const allUsersGroup = await getGroupByName(db, 'all-users');
+    if (allUsersGroup) {
+      await addUserToGroup(db, {
+        user_id: userId,
+        group_id: allUsersGroup.group_id,
+        assigned_by: assignedBy,
+      });
+    }
+  } catch (err) {
+    logger.error({ err }, '[user-auth] Failed to assign user to all-users group');
+  }
+}
+
+/**
  * Create new user with password
  *
  * @param db - Database client
@@ -122,20 +145,7 @@ export async function createUser(
     throw new Error('Failed to create user');
   }
 
-  // M22.4: Auto-assign new user to "all-users" group
-  try {
-    const allUsersGroup = await getGroupByName(db, 'all-users');
-    if (allUsersGroup) {
-      await addUserToGroup(db, {
-        user_id: userId,
-        group_id: allUsersGroup.group_id,
-        assigned_by: data.created_by || 'system',
-      });
-    }
-  } catch (err) {
-    // Log error but don't fail user creation if group assignment fails
-    logger.error('[user-auth] Failed to assign user to all-users group:', err);
-  }
+  await assignDefaultGroup(db, userId, data.created_by || 'system');
 
   return user;
 }

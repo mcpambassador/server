@@ -50,6 +50,12 @@ export const TOOL_PIN_RESERVED_NAME_PREFIX = 'ambassador__';
 /** Tool names in audit metadata and logs: control characters stripped, max length (D5). */
 export const TOOL_NAME_LOG_MAX_LENGTH = 128;
 
+/**
+ * SEC-M9-05 / ADR-021 D1': the description served to agents is the approved description truncated to
+ * this many Unicode code points. The hash and the admin review cover the full text.
+ */
+export const TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS = 500;
+
 // ===== Policy / status =====
 
 export const PIN_POLICIES = ['review', 'auto'] as const;
@@ -90,10 +96,20 @@ export const TOOL_PIN_FLAG_CODES = [
   'reserved_name',
   /** Definition fails toolDefinitionSchema (e.g. description: null): pending, never approvable (approve => 409). */
   'invalid_definition',
+  /** Two tools with the same name in one tools/list: BOTH are hidden, never approvable (approve => 409). */
+  'duplicate_name',
+  /** Description is over TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS; agents see only the prefix (SEC-M9-05). */
+  'truncated_on_serve',
 ] as const;
 
 /** Flags that make a pin permanently non-approvable: approve (any apply_to) and confirm-baseline return 409. */
-export const TOOL_PIN_BLOCKING_FLAG_CODES = ['reserved_name', 'invalid_definition'] as const;
+export const TOOL_PIN_BLOCKING_FLAG_CODES = [
+  'reserved_name',
+  'invalid_definition',
+  'duplicate_name',
+  /** Oversize definition (> 64 KB canonical): stored as a size marker, never approvable. */
+  'canonical_too_large',
+] as const;
 export const toolPinFlagCodeSchema = z.enum(TOOL_PIN_FLAG_CODES);
 export type ToolPinFlagCode = z.infer<typeof toolPinFlagCodeSchema>;
 

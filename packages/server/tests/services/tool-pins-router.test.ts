@@ -105,6 +105,27 @@ describe('pinned catalog + routing (ADR-021 D2/D3)', () => {
     expect(JSON.stringify(cat)).not.toContain('IGNORE PREVIOUS');
   });
 
+  it('serves the approved description truncated to 500 code points and flags truncated_on_serve', async () => {
+    const long = '😀'.repeat(300) + 'x'.repeat(300); // 600 code points, 900+ UTF-16 units
+    raw['mcp-a'] = [{ ...fooA, description: long }];
+    const cat = await router.getIsolationAwareToolCatalog(db, 'u1', 'c1');
+    const served = cat.find(t => t.name === 'foo')!.description!;
+    expect(Array.from(served)).toHaveLength(500);
+    expect(served).toBe(Array.from(long).slice(0, 500).join(''));
+    const rec = pins.getPin(mcpA, null, 'foo')!;
+    expect(rec.flags).toContain('truncated_on_serve');
+    expect(rec.approved_definition).toContain('x'.repeat(300)); // hash/review cover the full text
+  });
+
+  it('a name that appears twice in one tools/list hides BOTH entries', async () => {
+    raw['mcp-a'] = [fooA, { ...fooA, description: 'second foo' }, { ...fooA, name: 'bar' }];
+    const cat = await router.getIsolationAwareToolCatalog(db, 'u1', 'c1');
+    expect(cat.map(t => t.name)).toEqual(['bar']);
+    expect(pins.getPin(mcpA, null, 'foo')!.flags).toContain('duplicate_name');
+    const call = buildInvocationRouter(deps(), 'u1', 'c1');
+    await expect(call('foo', { path: '/x' })).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
   it('a call to foo routes to A (exact source), never to B', async () => {
     const call = buildInvocationRouter(deps(), 'u1', 'c1');
     const res = await call('foo', { path: '/x' });

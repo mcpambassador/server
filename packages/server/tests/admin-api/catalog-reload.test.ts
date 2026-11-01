@@ -72,7 +72,7 @@ describe('Admin API - Catalog Reload (integration)', () => {
     expect(r2.statusCode).toBe(401);
   });
 
-  it('Create per-user MCP -> status shows pending (per_user)', async () => {
+  it('Publishing a per-user MCP auto-applies the catalog (no pending changes left)', async () => {
     // Allow 'true' command for this test (normally restricted for security)
     const originalAllowedCommands = process.env['MCP_ALLOWED_COMMANDS'];
     process.env['MCP_ALLOWED_COMMANDS'] = 'true,npx,node';
@@ -111,7 +111,7 @@ describe('Admin API - Catalog Reload (integration)', () => {
       });
       expect(publishRes.statusCode).toBe(200);
 
-      // Now status should report pending per_user addition
+      // Publish hot-reloads the catalog: nothing is left pending (this used to need a manual apply).
       const statusRes = await handle!.fastify.inject({
         method: 'GET',
         url: '/v1/admin/catalog/status',
@@ -119,8 +119,26 @@ describe('Admin API - Catalog Reload (integration)', () => {
       });
       expect(statusRes.statusCode).toBe(200);
       const status = JSON.parse(statusRes.payload).data;
-      const foundPerUser = status.per_user.to_add.some((x: any) => x.name === created.name);
-      expect(foundPerUser).toBeTruthy();
+      expect(status.per_user.to_add.some((x: any) => x.name === created.name)).toBe(false);
+      expect(status.has_changes).toBe(false);
+
+      // Archiving removes it again, also without a manual apply.
+      const archiveRes = await handle!.fastify.inject({
+        method: 'POST',
+        url: `/v1/admin/mcps/${created.mcp_id}/archive`,
+        headers: { 'X-Admin-Key': handle!.adminKey },
+      });
+      expect(archiveRes.statusCode).toBe(200);
+      const after = JSON.parse(
+        (
+          await handle!.fastify.inject({
+            method: 'GET',
+            url: '/v1/admin/catalog/status',
+            headers: { 'X-Admin-Key': handle!.adminKey },
+          })
+        ).payload
+      ).data;
+      expect(after.has_changes).toBe(false);
     } finally {
       // Restore original env
       if (originalAllowedCommands === undefined) {

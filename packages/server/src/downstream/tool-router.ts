@@ -5,6 +5,7 @@ import { validateToolName } from './types.js';
 import { logger, getMcpPinPolicy } from '@mcpambassador/core';
 import type { PinPolicy } from '@mcpambassador/contracts';
 import type { ToolPinService } from '../services/tool-pins/pin-service.js';
+import { truncateDescriptionForServe } from '../services/tool-pins/flags.js';
 import type { DatabaseClient } from '@mcpambassador/core';
 
 /**
@@ -142,16 +143,27 @@ export class ToolRouter {
     }
     const out: AggregatedTool[] = [];
     const seen = new Set<string>();
+    // duplicate_name: a name that appears twice in one tools/list hides BOTH entries.
+    const counts = new Map<string, number>();
+    for (const t of raw) {
+      const n = (t as { name?: unknown } | null)?.name;
+      if (typeof n === 'string') counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
     for (const t of raw) {
       const name = (t as { name?: unknown } | null)?.name;
       if (typeof name !== 'string' || !validateToolName(name) || seen.has(name)) continue;
       seen.add(name);
+      if ((counts.get(name) ?? 0) > 1) continue;
       const approved = pins.resolveApproved(mcpEntry.mcp_id, scope, name);
       if (!approved) continue;
       const d = approved.definition;
       out.push({
         name,
-        description: d.description,
+        // SEC-M9-05 / ADR-021 D1': agents are served T(approved) = the approved description cut to
+        // 500 code points. The hash and the admin review cover the FULL text; the `truncated_on_serve`
+        // flag marks tools where the two differ. Every serve path must go through this function.
+        description:
+          d.description === undefined ? d.description : truncateDescriptionForServe(d.description),
         inputSchema: (d.inputSchema as AggregatedTool['inputSchema']) ?? { type: 'object' },
         source_mcp: mcpEntry.name,
         pinned_hash: approved.hash,

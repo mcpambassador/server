@@ -111,7 +111,8 @@ export async function getToolPinByKey(
 }
 
 export async function insertToolPin(db: DatabaseClient, rec: ToolPinRecord): Promise<void> {
-  await compatInsert(db, tool_pins).values(rec);
+  // B2: belt and braces against a concurrent observe; the caller re-reads to see who won.
+  await compatInsert(db, tool_pins).values(rec).onConflictDoNothing();
 }
 
 /** Replace the mutable fields of a pin (identity fields stay). */
