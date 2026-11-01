@@ -11,6 +11,9 @@ import {
   initializeDatabase,
   runMigrations,
   closeDatabase,
+  createGroup,
+  addUserToGroup,
+  grantGroupAccess,
   AgentEndpointConfigSchema,
   Pipeline,
   type DatabaseClient,
@@ -135,6 +138,12 @@ beforeEach(async () => {
         `INSERT INTO client_mcp_subscriptions (subscription_id, client_id, mcp_id, status, subscribed_at, updated_at) VALUES (?,?,?,?,?,?)`
       )
       .run(`s-${id}`, 'k1', id, 'active', ts, ts);
+  }
+  // ADR-025 M2: the owner must hold the MCPs through an active group.
+  const grp = await createGroup(db, { name: 'g-u1', description: '', created_by: 'test' } as never);
+  await addUserToGroup(db, { user_id: 'u1', group_id: grp.group_id, assigned_by: 'test' });
+  for (const mcp_id of ['m1', 'm2']) {
+    await grantGroupAccess(db, { mcp_id, group_id: grp.group_id, assigned_by: 'test' });
   }
 });
 afterEach(async () => {

@@ -1,6 +1,7 @@
 /**
  * ADR-020 P4: HTTP-level tests for the 9443 authorization server routes.
  */
+import { grantExistingUser } from './helpers/grants.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -62,6 +63,7 @@ beforeEach(async () => {
       `INSERT INTO client_mcp_subscriptions (subscription_id, client_id, mcp_id, status, subscribed_at, updated_at) VALUES (?,?,?,?,?,?)`
     )
     .run('s1', 'k1', 'm1', 'active', ts, ts);
+  await grantExistingUser(db, 'u1', ['m1']);
   const cfg = resolveAgentEndpointConfig(AgentEndpointConfigSchema.parse({ enabled: true }), {
     issuer: 'https://amb.test:9443',
     agentBaseUrl: 'https://amb.test:8443',

@@ -2,6 +2,7 @@
  * Client delete/disable ordering, stream closing, per-grant audit, and the grant-kind check
  * (follow-up to ADR-020 P4/FB-031).
  */
+import { grantExistingUser } from '../helpers/grants.js';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -82,6 +83,7 @@ beforeEach(async () => {
   db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: path.join(dir, 'a.db') });
   await runMigrations(db);
   seed();
+  await grantExistingUser(db, 'u1', ['m1', 'm2']);
   events = [];
   const cfg = resolveAgentEndpointConfig(
     AgentEndpointConfigSchema.parse({ enabled: true, dynamic_client_registration: true }),

@@ -8,6 +8,7 @@
  */
 
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
+import { grantedMcpIdsForUser } from './mcp-access.js';
 import {
   logger,
   createMcpEntry,
@@ -17,8 +18,6 @@ import {
   updateMcpEntry,
   deleteMcpEntry,
   publishMcpEntry,
-  listMcpsForGroup,
-  listUserGroups,
   listSubscriptionsForMcp,
   updateSubscription,
 } from '@mcpambassador/core';
@@ -277,17 +276,8 @@ export async function getAccessibleMcps(
   db: DatabaseClient,
   userId: string
 ): Promise<McpCatalogEntry[]> {
-  // Get user's groups
-  const userGroups = await listUserGroups(db, userId);
-
-  // FIX 10: Collect unique MCP IDs across all groups (deduplication)
-  const mcpIdSet = new Set<string>();
-  for (const userGroup of userGroups) {
-    const mcpAccess = await listMcpsForGroup(db, userGroup.group_id);
-    for (const access of mcpAccess) {
-      mcpIdSet.add(access.mcp_id);
-    }
-  }
+  // Same grant check as subscribe/call time (ADR-025 M2): active groups only.
+  const mcpIdSet = await grantedMcpIdsForUser(db, userId);
 
   // Batch fetch: get all entries (still N queries but deduplicated)
   const accessibleMcps: McpCatalogEntry[] = [];

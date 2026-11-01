@@ -5,6 +5,7 @@
  * grant's user, be `active`, not key-expired, and the user must be `active`.
  */
 
+import { grantedMcpIdsForUser } from '../mcp-access.js';
 import { eq, and, inArray } from 'drizzle-orm';
 import {
   clients,
@@ -69,12 +70,21 @@ export async function listSubscriptionScopes(
       )
     )) as { mcp_id: string }[];
   if (subs.length === 0) return [];
+  // ADR-025 M2: only MCPs the client's owner is currently granted (active groups) are offered.
+  const [owner] = (await compatSelect(db, { user_id: clients.user_id })
+    .from(clients)
+    .where(eq(clients.client_id, clientId))
+    .limit(1)) as { user_id: string }[];
+  if (!owner) return [];
+  const granted = await grantedMcpIdsForUser(db, owner.user_id);
+  const grantedSubs = subs.filter(s => granted.has(s.mcp_id));
+  if (grantedSubs.length === 0) return [];
   const cat = (await compatSelect(db)
     .from(mcp_catalog)
     .where(
       inArray(
         mcp_catalog.mcp_id,
-        subs.map(s => s.mcp_id)
+        grantedSubs.map(s => s.mcp_id)
       )
     )) as { name: string; description: string }[];
   return cat

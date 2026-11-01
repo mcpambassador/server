@@ -6,7 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 export const LOSS_SQL = `
-  SELECT u.username AS username, c.client_name AS client_name, m.name AS mcp_name
+  SELECT u.username AS username, c.client_name AS client_name, m.name AS mcp_name,
+    CASE WHEN EXISTS (
+      SELECT 1 FROM user_groups ug2
+      JOIN mcp_group_access a2 ON a2.group_id = ug2.group_id
+      WHERE ug2.user_id = c.user_id AND a2.mcp_id = s.mcp_id
+    ) THEN 'only_suspended' ELSE 'no_grant' END AS reason
   FROM client_mcp_subscriptions s
   JOIN clients c ON c.client_id = s.client_id
   JOIN users u ON u.user_id = c.user_id
@@ -15,7 +20,8 @@ export const LOSS_SQL = `
     AND NOT EXISTS (
       SELECT 1 FROM user_groups ug
       JOIN mcp_group_access a ON a.group_id = ug.group_id
-      WHERE ug.user_id = c.user_id AND a.mcp_id = s.mcp_id
+      JOIN groups g ON g.group_id = ug.group_id
+      WHERE ug.user_id = c.user_id AND a.mcp_id = s.mcp_id AND g.status = 'active'
     )
   ORDER BY u.username, m.name, c.client_name`;
 
@@ -24,7 +30,12 @@ export function summarize(rows) {
   const pairs = new Map();
   for (const r of rows) {
     const key = `${r.username}\u0000${r.mcp_name}`;
-    const p = pairs.get(key) ?? { username: r.username, mcp: r.mcp_name, clients: [] };
+    const p = pairs.get(key) ?? {
+      username: r.username,
+      mcp: r.mcp_name,
+      reason: r.reason ?? 'no_grant',
+      clients: [],
+    };
     p.clients.push(r.client_name);
     pairs.set(key, p);
   }
@@ -40,7 +51,7 @@ export function format(s) {
     `Subscriptions that will no longer be served: ${s.subscriptions}`,
     `Affected user/MCP pairs: ${s.pairs.length} (users: ${s.users})`,
   ];
-  for (const p of s.pairs) lines.push(`  ${p.username} -> ${p.mcp} (clients: ${p.clients.join(', ')})`);
+  for (const p of s.pairs) lines.push(`  ${p.username} -> ${p.mcp} [${p.reason}] (clients: ${p.clients.join(', ')})`);
   return lines.join('\n');
 }
 

@@ -2,6 +2,7 @@
  * ADR-025 M2/M4 (TD-037): group grants are evaluated at call time for every MCP, and the check is
  * shared with subscribe. Filter, never mutate: re-granting restores access without re-subscribing.
  */
+import { listSubscriptionScopes } from '../../src/services/agent-endpoint/bound-client.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,6 +10,9 @@ import path from 'node:path';
 import {
   AuthorizationError,
   closeDatabase,
+  compatInsert,
+  clients as clientsTable,
+  client_mcp_subscriptions,
   createMcpEntry,
   initializeDatabase,
   revokeGroupAccess,
@@ -99,8 +103,11 @@ describe('call-time group check (ADR-025 M2/M4)', () => {
     expect(await names()).toEqual([]);
   });
 
-  it('group status (suspended) is never consulted', async () => {
+  it('a suspended group grants nothing; reactivating restores access', async () => {
     await updateGroup(db, groupId, { status: 'suspended' } as never);
+    expect(await names()).toEqual([]);
+    expect(await userHasMcpAccess(db, 'u1', mcpA)).toBe(false);
+    await updateGroup(db, groupId, { status: 'active' } as never);
     expect(await names()).toEqual(['mcp-a.ta', 'mcp-b.tb']);
   });
 
@@ -121,6 +128,36 @@ describe('call-time group check (ADR-025 M2/M4)', () => {
     } as unknown as ToolServiceDeps;
     const invoke = buildInvocationRouter(deps, 'u1', 'c1');
     await expect(invoke('tb', {})).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it('consent scopes drop MCPs the owner is no longer granted (and suspended groups)', async () => {
+    const ts = new Date().toISOString();
+    await compatInsert(db, clientsTable).values({
+      client_id: 'cs1',
+      client_name: 'cs1',
+      key_prefix: 'p',
+      key_hash: 'h',
+      user_id: 'u1',
+      status: 'active',
+      created_at: ts,
+    } as never);
+    for (const [i, mcp_id] of [mcpA, mcpB].entries()) {
+      await compatInsert(db, client_mcp_subscriptions).values({
+        subscription_id: `cs-s${i}`,
+        client_id: 'cs1',
+        mcp_id,
+        status: 'active',
+        subscribed_at: ts,
+        updated_at: ts,
+      } as never);
+    }
+    const names = async (): Promise<string[]> =>
+      (await listSubscriptionScopes(db, 'cs1')).map(x => x.name);
+    expect(await names()).toEqual(['mcp-a', 'mcp-b']);
+    await revokeGroupAccess(db, mcpB, groupId);
+    expect(await names()).toEqual(['mcp-a']);
+    await updateGroup(db, groupId, { status: 'suspended' } as never);
+    expect(await names()).toEqual([]);
   });
 
   it('shared helper: subscribe-time and call-time agree', async () => {

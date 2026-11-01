@@ -22,6 +22,16 @@ export async function seedUserGrants(
     created_at: now,
     updated_at: now,
   } as never);
+  return grantExistingUser(db, userId, mcpIds, groupName);
+}
+
+/** Grant an ALREADY-EXISTING user the given MCPs through a fresh active group. */
+export async function grantExistingUser(
+  db: DatabaseClient,
+  userId: string,
+  mcpIds: string[],
+  groupName = `grp-${userId}`
+): Promise<{ groupId: string }> {
   const group = await createGroup(db, {
     name: groupName,
     description: '',
