@@ -69,6 +69,9 @@ async function waitForAudit(s: AgentTestServer, ...needles: string[]): Promise<s
   }
 }
 
+// waitForAudit polls up to 15s; the 5s default would time out before an audit flush lands
+vi.setConfig({ testTimeout: 30_000 });
+
 const sha = (t: string): string => createHash('sha256').update(t).digest('hex');
 
 describe('audit: contract action list is well-formed', () => {
