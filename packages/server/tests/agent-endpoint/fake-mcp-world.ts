@@ -66,6 +66,15 @@ export async function createFakeMcp(
     });
     if (r.statusCode !== 200) throw new Error(`fake mcp ${step}: ${r.statusCode} ${r.body}`);
   }
+  // ADR-021: admin-created MCPs default to pin_policy=review (fail closed). These harness tests
+  // exercise routing, not pinning, so opt the fake MCP into auto-approval of first-seen tools.
+  const pol = await s.admin.inject({
+    method: 'PATCH',
+    url: `/v1/admin/mcps/${mcpId}/pin-policy`,
+    headers: adminHeaders(s),
+    payload: { pin_policy: 'auto' },
+  });
+  if (pol.statusCode !== 200) throw new Error(`fake mcp pin-policy: ${pol.statusCode} ${pol.body}`);
   return { mcpId, name: o.name, tools };
 }
 
