@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/explicit-function-return-type */
 
+import { parseTrustProxyEnv } from '../trust-proxy.js';
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
 import fs from 'fs';
@@ -228,18 +229,21 @@ async function main() {
           maxInstancesPerUser: ambassadorConfig.user_pool.max_instances_per_user,
           maxTotalInstances: ambassadorConfig.user_pool.max_total_instances,
         };
-        logger.info('[Server] Loaded user_pool config:', userPoolConfig);
+        logger.info({ ...userPoolConfig }, '[Server] Loaded user_pool config');
       }
 
       // Log key configuration values at startup
-      logger.info('[Server] Session config:', {
-        ttl_seconds: ambassadorConfig.session?.ttl_seconds ?? 28800,
-        idle_timeout_seconds: ambassadorConfig.session?.idle_timeout_seconds ?? 1800,
-        spindown_delay_seconds: ambassadorConfig.session?.spindown_delay_seconds ?? 300,
-        heartbeat_interval: ambassadorConfig.session?.heartbeat_expected_interval_seconds ?? 120,
-      });
+      logger.info(
+        {
+          ttl_seconds: ambassadorConfig.session?.ttl_seconds ?? 28800,
+          idle_timeout_seconds: ambassadorConfig.session?.idle_timeout_seconds ?? 1800,
+          spindown_delay_seconds: ambassadorConfig.session?.spindown_delay_seconds ?? 300,
+          heartbeat_interval: ambassadorConfig.session?.heartbeat_expected_interval_seconds ?? 120,
+        },
+        '[Server] Session config'
+      );
     } catch (err) {
-      logger.error('[Server] Failed to load config file:', err);
+      logger.error({ err }, '[Server] Failed to load config file');
       // In production mode, fail hard if config can't be loaded
       if (process.env.NODE_ENV === 'production') {
         logger.error('[Server] Config loading failed in production mode, aborting startup');
@@ -271,6 +275,9 @@ async function main() {
       (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
     host: args.host || ambassadorConfig?.server.host || process.env.MCP_AMBASSADOR_HOST,
     dataDir,
+    trustProxy:
+      parseTrustProxyEnv(process.env.MCP_AMBASSADOR_TRUST_PROXY) ??
+      ambassadorConfig?.server.trust_proxy,
     serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
     logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
     downstreamMcps,
@@ -288,7 +295,7 @@ async function main() {
       await server.stop();
       process.exit(0);
     } catch (err) {
-      logger.error('[Server] Error during shutdown:', err);
+      logger.error({ err }, '[Server] Error during shutdown');
       process.exit(1);
     }
   };
@@ -301,7 +308,7 @@ async function main() {
     await server.initialize();
     await server.start();
   } catch (err) {
-    logger.error('[Server] Failed to start:', err);
+    logger.error({ err }, '[Server] Failed to start');
     process.exit(1);
   }
 }

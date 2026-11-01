@@ -1,4 +1,9 @@
-import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid';
+import {
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/20/solid';
 import { Button } from '@/components/catalyst/button';
 import type { ValidationResult, DiscoveryResult } from '@/api/types';
 
@@ -42,7 +47,9 @@ export function ValidateStep({
       {validationResult && (
         <div
           className={`flex items-center gap-2 p-4 rounded-lg ${
-            validationResult.valid ? 'bg-green-50 dark:bg-green-950/50' : 'bg-red-50 dark:bg-red-950/50'
+            validationResult.valid
+              ? 'bg-green-50 dark:bg-green-950/50'
+              : 'bg-red-50 dark:bg-red-950/50'
           }`}
         >
           {validationResult.valid ? (
@@ -69,7 +76,9 @@ export function ValidateStep({
           <h4 className="font-medium text-red-600 dark:text-red-400 mb-2">Errors</h4>
           <ul className="list-disc list-inside space-y-1">
             {validationResult!.errors.map((err: string, i: number) => (
-              <li key={i} className="text-sm text-red-600 dark:text-red-400">{err}</li>
+              <li key={i} className="text-sm text-red-600 dark:text-red-400">
+                {err}
+              </li>
             ))}
           </ul>
         </div>
@@ -81,7 +90,9 @@ export function ValidateStep({
           <h4 className="font-medium text-amber-600 dark:text-amber-400 mb-2">Warnings</h4>
           <ul className="list-disc list-inside space-y-1">
             {validationResult!.warnings.map((warn: string, i: number) => (
-              <li key={i} className="text-sm text-amber-600 dark:text-amber-400">{warn}</li>
+              <li key={i} className="text-sm text-amber-600 dark:text-amber-400">
+                {warn}
+              </li>
             ))}
           </ul>
         </div>
@@ -94,15 +105,17 @@ export function ValidateStep({
             discoveryResult.status === 'success'
               ? 'bg-blue-50 dark:bg-blue-950/50'
               : discoveryResult.status === 'skipped'
-              ? 'bg-amber-50 dark:bg-amber-950/50'
-              : 'bg-red-50 dark:bg-red-950/50'
+                ? 'bg-amber-50 dark:bg-amber-950/50'
+                : 'bg-red-50 dark:bg-red-950/50'
           }`}
         >
           {(() => {
             const dr = discoveryResult as unknown as Record<string, unknown> | null;
             const status = dr?.['status'] as string | undefined;
-            const message = typeof dr?.['message'] === 'string' ? (dr!['message'] as string) : undefined;
-            const count = typeof dr?.['tool_count'] === 'number' ? (dr!['tool_count'] as number) : undefined;
+            const message =
+              typeof dr?.['message'] === 'string' ? (dr!['message'] as string) : undefined;
+            const count =
+              typeof dr?.['tool_count'] === 'number' ? (dr!['tool_count'] as number) : undefined;
             return (
               <>
                 {status === 'success' ? (
@@ -115,12 +128,10 @@ export function ValidateStep({
                     {status === 'success'
                       ? `Discovered ${count ?? 0} tools`
                       : status === 'skipped'
-                      ? 'Discovery Skipped'
-                      : 'Discovery Failed'}
+                        ? 'Discovery Skipped'
+                        : 'Discovery Failed'}
                   </p>
-                  {message && (
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-                  )}
+                  {message && <p className="text-sm text-zinc-500 dark:text-zinc-400">{message}</p>}
                 </div>
               </>
             );
@@ -147,8 +158,12 @@ export function ValidateStep({
                   typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
                 return (
                   <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
-                    {desc && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>}
+                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">
+                      {name}
+                    </p>
+                    {desc && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
+                    )}
                   </div>
                 );
               })}
@@ -161,7 +176,8 @@ export function ValidateStep({
       {!validationResult && !discoveryResult && (
         <div className="text-center py-8">
           <p className="text-zinc-500 dark:text-zinc-400">
-            Click "Validate Configuration" to check the MCP setup, then "Discover Tools" to connect and find available tools.
+            Click "Validate Configuration" to check the MCP setup, then "Discover Tools" to connect
+            and find available tools.
           </p>
         </div>
       )}

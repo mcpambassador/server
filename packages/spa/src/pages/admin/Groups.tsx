@@ -6,13 +6,31 @@ import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
-import { useAdminGroups, useCreateGroup, useUpdateGroup, useDeleteGroup } from '@/api/hooks/use-admin';
+import {
+  useAdminGroups,
+  useCreateGroup,
+  useUpdateGroup,
+  useDeleteGroup,
+} from '@/api/hooks/use-admin';
 import type { Group } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -48,7 +66,9 @@ export function GroupsAdmin() {
       setCreateDialogOpen(false);
       setCreateFormData({ name: '', description: '' });
     } catch (error) {
-      toast.error('Create group failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Create group failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -65,7 +85,9 @@ export function GroupsAdmin() {
       setEditDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      toast.error('Update group failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Update group failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -76,7 +98,9 @@ export function GroupsAdmin() {
       setDeleteDialogOpen(false);
       setSelectedGroup(null);
     } catch (error) {
-      toast.error('Delete group failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Delete group failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -143,7 +167,7 @@ export function GroupsAdmin() {
                 ))}
               </>
             ) : groups?.data && groups.data.length > 0 ? (
-              groups.data.map((group) => (
+              groups.data.map(group => (
                 <TableRow key={group.group_id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -153,8 +177,15 @@ export function GroupsAdmin() {
                       >
                         {group.name}
                       </Link>
-                      {(group.is_system || group.created_by === 'system' || group.name === 'all-users') && (
-                        <Badge color="purple" title="Auto-created system group. All users are assigned by default.">System</Badge>
+                      {(group.is_system ||
+                        group.created_by === 'system' ||
+                        group.name === 'all-users') && (
+                        <Badge
+                          color="purple"
+                          title="Auto-created system group. All users are assigned by default."
+                        >
+                          System
+                        </Badge>
                       )}
                     </div>
                   </TableCell>
@@ -211,25 +242,21 @@ export function GroupsAdmin() {
       {/* Create Group Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
         <DialogTitle>Create New Group</DialogTitle>
-        <DialogDescription>
-          Add a new group for organizing users
-        </DialogDescription>
+        <DialogDescription>Add a new group for organizing users</DialogDescription>
         <DialogBody>
           <div className="space-y-4">
             <Field>
               <Label>Name *</Label>
               <Input
                 value={createFormData.name}
-                onChange={(e) =>
-                  setCreateFormData({ ...createFormData, name: e.target.value })
-                }
+                onChange={e => setCreateFormData({ ...createFormData, name: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Description</Label>
               <Textarea
                 value={createFormData.description}
-                onChange={(e) =>
+                onChange={e =>
                   setCreateFormData({ ...createFormData, description: e.target.value })
                 }
                 rows={3}
@@ -241,10 +268,7 @@ export function GroupsAdmin() {
           <Button plain onClick={() => setCreateDialogOpen(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!createFormData.name || createGroup.isPending}
-          >
+          <Button onClick={handleCreate} disabled={!createFormData.name || createGroup.isPending}>
             {createGroup.isPending ? 'Creating...' : 'Create'}
           </Button>
         </DialogActions>
@@ -253,27 +277,21 @@ export function GroupsAdmin() {
       {/* Edit Group Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
         <DialogTitle>Edit Group</DialogTitle>
-        <DialogDescription>
-          Update group information
-        </DialogDescription>
+        <DialogDescription>Update group information</DialogDescription>
         <DialogBody>
           <div className="space-y-4">
             <Field>
               <Label>Name</Label>
               <Input
                 value={editFormData.name}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, name: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Description</Label>
               <Textarea
                 value={editFormData.description}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, description: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
                 rows={3}
               />
             </Field>
@@ -293,8 +311,8 @@ export function GroupsAdmin() {
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Are you sure?</AlertTitle>
         <AlertDescription>
-          This will permanently delete the group &quot;{selectedGroup?.name}&quot;. This
-          action cannot be undone.
+          This will permanently delete the group &quot;{selectedGroup?.name}&quot;. This action
+          cannot be undone.
         </AlertDescription>
         <AlertActions>
           <Button plain onClick={() => setDeleteDialogOpen(false)}>

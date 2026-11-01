@@ -23,9 +23,7 @@ function renderPage(ui: React.ReactElement, { route = '/' } = {}) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>
-        {ui}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -61,7 +59,13 @@ describe('SPA form payloads', () => {
       http.post('/v1/users/me/clients', async ({ request }) => {
         captured = await request.json();
         const cap = captured as Record<string, unknown>;
-        return HttpResponse.json({ ok: true, data: { client: { id: 'new', clientName: String(cap['client_name']) }, plaintext_key: 'k' } });
+        return HttpResponse.json({
+          ok: true,
+          data: {
+            client: { id: 'new', clientName: String(cap['client_name']) },
+            plaintext_key: 'k',
+          },
+        });
       })
     );
 

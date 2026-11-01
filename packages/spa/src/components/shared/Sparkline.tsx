@@ -51,11 +51,7 @@ export function Sparkline({ data, width = 200, height = 40, className }: Sparkli
   const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
 
   // Grid lines at 0%, 50%, 100% of chart height
-  const gridYPositions = [
-    padding.top,
-    padding.top + chartHeight / 2,
-    padding.top + chartHeight,
-  ];
+  const gridYPositions = [padding.top, padding.top + chartHeight / 2, padding.top + chartHeight];
 
   const minLabel = min.toLocaleString();
   const maxLabel = max.toLocaleString();

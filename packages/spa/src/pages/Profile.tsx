@@ -68,8 +68,11 @@ export function Profile() {
 
   const passwordStrength = getPasswordStrength(passwordForm.new_password);
   const strengthColor =
-    passwordStrength === 'Strong' ? 'text-green-600 dark:text-green-400' :
-    passwordStrength === 'Medium' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+    passwordStrength === 'Strong'
+      ? 'text-green-600 dark:text-green-400'
+      : passwordStrength === 'Medium'
+        ? 'text-yellow-600 dark:text-yellow-400'
+        : 'text-red-600 dark:text-red-400';
 
   return (
     <div className="space-y-6">
@@ -80,7 +83,9 @@ export function Profile() {
 
       {/* User Information */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">User Information</h3>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          User Information
+        </h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Your account details</p>
 
         {isLoading ? (
@@ -100,7 +105,9 @@ export function Profile() {
             </div>
             {user.displayName && (
               <div>
-                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
+                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                  Display Name
+                </dt>
                 <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.displayName}</dd>
               </div>
             )}
@@ -112,17 +119,23 @@ export function Profile() {
             )}
             <div>
               <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Role</dt>
-              <dd className="text-sm/6 text-zinc-900 dark:text-white">{user.isAdmin ? 'Administrator' : 'User'}</dd>
+              <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                {user.isAdmin ? 'Administrator' : 'User'}
+              </dd>
             </div>
             <div>
-              <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Account Created</dt>
+              <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                Account Created
+              </dt>
               <dd className="text-sm/6 text-zinc-900 dark:text-white">
                 {new Date(user.createdAt).toLocaleDateString()}
               </dd>
             </div>
             {user.lastLoginAt && (
               <div>
-                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Last Login</dt>
+                <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                  Last Login
+                </dt>
                 <dd className="text-sm/6 text-zinc-900 dark:text-white">
                   {new Date(user.lastLoginAt).toLocaleString()}
                 </dd>
@@ -130,22 +143,24 @@ export function Profile() {
             )}
           </dl>
         ) : (
-          <p className="mt-4 text-sm/6 text-zinc-500 dark:text-zinc-400">Failed to load user information</p>
+          <p className="mt-4 text-sm/6 text-zinc-500 dark:text-zinc-400">
+            Failed to load user information
+          </p>
         )}
       </div>
 
       {/* Change Password */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Change Password</h3>
-        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Update your password to keep your account secure</p>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+          Update your password to keep your account secure
+        </p>
 
         <form onSubmit={handlePasswordChange} className="mt-4 space-y-4">
           {passwordSuccess && (
             <InlineAlert color="success">
               <CheckCircleIcon className="size-4" />
-              <InlineAlertDescription>
-                Password changed successfully
-              </InlineAlertDescription>
+              <InlineAlertDescription>Password changed successfully</InlineAlertDescription>
             </InlineAlert>
           )}
 
@@ -161,9 +176,7 @@ export function Profile() {
             <Input
               type="password"
               value={passwordForm.current_password}
-              onChange={(e) =>
-                setPasswordForm({ ...passwordForm, current_password: e.target.value })
-              }
+              onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
               required
             />
           </Field>
@@ -173,15 +186,11 @@ export function Profile() {
             <Input
               type="password"
               value={passwordForm.new_password}
-              onChange={(e) =>
-                setPasswordForm({ ...passwordForm, new_password: e.target.value })
-              }
+              onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
               required
             />
             {passwordForm.new_password && (
-              <p className={`text-sm ${strengthColor}`}>
-                Password strength: {passwordStrength}
-              </p>
+              <p className={`text-sm ${strengthColor}`}>Password strength: {passwordStrength}</p>
             )}
           </Field>
 
@@ -190,9 +199,7 @@ export function Profile() {
             <Input
               type="password"
               value={passwordForm.confirm_password}
-              onChange={(e) =>
-                setPasswordForm({ ...passwordForm, confirm_password: e.target.value })
-              }
+              onChange={e => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
               required
             />
           </Field>

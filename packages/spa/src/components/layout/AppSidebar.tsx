@@ -1,3 +1,4 @@
+import { useAgentEndpointInfo } from '@/api/hooks/use-agent';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeIcon,
@@ -15,6 +16,7 @@ import {
   QueueListIcon,
   ServerStackIcon,
   GlobeAltIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/20/solid';
 import {
   UserCircleIcon as UserCircleIcon16,
@@ -33,11 +35,11 @@ import {
   SidebarSpacer,
 } from '@/components/catalyst/sidebar';
 import { Avatar } from '@/components/catalyst/avatar';
-import { 
-  Dropdown, 
-  DropdownButton, 
-  DropdownMenu, 
-  DropdownItem, 
+import {
+  Dropdown,
+  DropdownButton,
+  DropdownMenu,
+  DropdownItem,
   DropdownDivider,
   DropdownLabel,
 } from '@/components/catalyst/dropdown';
@@ -58,6 +60,7 @@ const userNavItems: NavItem[] = [
   { title: 'My Clients', href: '/app/clients', icon: UserCircleIcon },
   { title: 'Subscriptions', href: '/app/subscriptions', icon: QueueListIcon },
   { title: 'Credentials', href: '/app/credentials', icon: KeyIcon },
+  { title: 'Agent Access', href: '/app/agent-access', icon: ShieldCheckIcon },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -69,6 +72,7 @@ const adminNavItems: NavItem[] = [
   { title: 'User Instances', href: '/app/admin/user-instances', icon: ServerStackIcon },
   { title: 'Audit Logs', href: '/app/admin/audit', icon: DocumentTextIcon },
   { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: PowerIcon },
+  { title: 'Agent Endpoint', href: '/app/admin/agent-endpoint', icon: ShieldCheckIcon },
   { title: 'Settings', href: '/app/admin/settings', icon: Cog6ToothIcon },
 ];
 
@@ -77,7 +81,8 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme, setTheme } = useTheme();
-  
+
+  const { data: agentEndpoint } = useAgentEndpointInfo();
   const { data: session } = useQuery({
     queryKey: ['session'],
     queryFn: authApi.getSession,
@@ -121,23 +126,25 @@ export function AppSidebar() {
         {/* User Section */}
         <SidebarSection>
           <SidebarHeading>User</SidebarHeading>
-          {userNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <SidebarItem key={item.href} href={item.href} current={active}>
-                <Icon />
-                <SidebarLabel>{item.title}</SidebarLabel>
-              </SidebarItem>
-            );
-          })}
+          {userNavItems
+            .filter(item => item.href !== '/app/agent-access' || agentEndpoint?.enabled === true)
+            .map(item => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <SidebarItem key={item.href} href={item.href} current={active}>
+                  <Icon />
+                  <SidebarLabel>{item.title}</SidebarLabel>
+                </SidebarItem>
+              );
+            })}
         </SidebarSection>
 
         {/* Admin Section */}
         {session?.user.isAdmin && (
           <SidebarSection>
             <SidebarHeading>Admin</SidebarHeading>
-            {adminNavItems.map((item) => {
+            {adminNavItems.map(item => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
@@ -170,7 +177,12 @@ export function AppSidebar() {
         <Dropdown>
           <DropdownButton as={SidebarItem}>
             <span className="flex min-w-0 items-center gap-3">
-              <Avatar initials={userInitials} className="size-10 bg-slate-700 text-white" square alt="" />
+              <Avatar
+                initials={userInitials}
+                className="size-10 bg-slate-700 text-white"
+                square
+                alt=""
+              />
               <span className="min-w-0">
                 <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">
                   {session?.user.username}

@@ -17,6 +17,7 @@ import type {
   Session,
   DownstreamStatus,
   KillSwitchResponse,
+  KillSwitchSummary,
   Profile,
   PaginatedResponse,
   AdminClient,
@@ -446,13 +447,23 @@ export function useDownstream() {
 }
 
 // Kill Switches
+export function useKillSwitches() {
+  return useQuery({
+    queryKey: ['admin', 'kill-switches'],
+    queryFn: () => apiClient.get<KillSwitchSummary[]>('/v1/admin/kill-switches'),
+  });
+}
+
 export function useKillSwitch() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ target, enabled }: { target: string; enabled: boolean }) =>
-      apiClient.post<KillSwitchResponse>(`/v1/admin/kill-switch/${target}`, { enabled }),
+      apiClient.post<KillSwitchResponse>(`/v1/admin/kill-switch/${encodeURIComponent(target)}`, {
+        enabled,
+      }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'kill-switches'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
     },

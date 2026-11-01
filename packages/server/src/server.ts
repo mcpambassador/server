@@ -1,11 +1,22 @@
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
+import { requestLogSerializers } from './log-serializers.js';
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import crypto from 'crypto';
 import { eq, or } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
+import { isAgentEndpointPath } from './spa-handler.js';
+import {
+  listPermittedTools,
+  invokeTool,
+  resolveSessionUserId,
+  SessionBindingError,
+  KillSwitchError,
+  SessionStateError,
+  type ToolServiceDeps,
+} from './services/tool-service.js';
 import {
   SharedMcpManager,
   UserMcpPool,
@@ -28,7 +39,6 @@ import {
   type AuthorizationProvider,
   type AuditProvider,
   type SessionContext,
-  type PipelineToolInvocationRequest,
   AuthorizationError,
   AmbassadorError,
   user_sessions,
@@ -54,15 +64,21 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
+import {
+  resolveAgentEndpointConfig,
+  createAgentEndpointDeps,
+  loadPersistedSettings,
+  type AgentEndpointDeps,
+} from './services/agent-endpoint/index.js';
 import type {
   ToolCatalogResponse,
-  ToolDescriptor,
   HeartbeatResponse,
   DisconnectResponse,
   ErrorResponse,
 } from '@mcpambassador/protocol';
 import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
-import { UserSessionStore } from './auth/user-session.js';
+import { verifyAdminKeyHeader } from './admin/middleware.js';
+import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -97,14 +113,14 @@ export interface ServerConfig {
   /** Database file path (defaults to dataDir/ambassador.db) */
   dbPath?: string;
   /**
-   * Trust X-Forwarded-For header for source IP (F-SEC-M6-020 remediation)
-   * - false (default): Ignore X-Forwarded-For, use direct connection IP
-   * - true: Trust first IP in X-Forwarded-For (use only if behind trusted proxy)
-   * - string[]: Trust X-Forwarded-For only if request comes from these CIDR ranges
+   * Fastify trustProxy for BOTH listeners (config key server.trust_proxy, env MCP_AMBASSADOR_TRUST_PROXY)
+   * - false (default): ignore X-Forwarded-For, use the direct connection IP
+   * - string | string[]: trust only these proxy IPs/CIDRs
+   * - true: trust every hop (spoofable)
    *
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
-  trustProxy?: boolean | string[];
+  trustProxy?: boolean | string | string[];
   /** Admin UI port (defaults to 9443, 0 for ephemeral) */
   adminPort?: number;
   /** Enable admin UI (defaults to true) */
@@ -153,10 +169,10 @@ export class AmbassadorServer {
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
+  private agentEndpointDeps: AgentEndpointDeps | null = null;
   private pipeline: Pipeline | null = null;
   private killSwitchManager: KillSwitchManager; // CR-M10-001
   private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005: Admin session store
-  private userSessionStore: UserSessionStore | null = null; // M21: User session store
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
@@ -213,8 +229,10 @@ export class AmbassadorServer {
 
     // Create Fastify instance with HTTPS + TLS
     this.fastify = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576, // 1MB max request body (F-SEC-M6 condition)
       https: {
@@ -261,6 +279,13 @@ export class AmbassadorServer {
     // Run database migrations (creates tables if needed)
     logger.info('[Server] Running database migrations...');
     await runMigrations(this.db as DatabaseClient);
+
+    // TD-022: kill switches survive restarts — load persisted state before any listener starts
+    this.killSwitchManager = new KillSwitchManager(this.db as DatabaseClient);
+    const activeKillSwitches = await this.killSwitchManager.load();
+    if (activeKillSwitches > 0) {
+      logger.warn(`[Server] ${activeKillSwitches} kill switch(es) active (restored from database)`);
+    }
 
     // Seed default profiles if needed
     logger.info('[Server] Seeding database...');
@@ -472,21 +497,6 @@ export class AmbassadorServer {
     startRateLimitCleanup();
     logger.info('[Server] Rate limit cleanup timer started');
 
-    // M21: Initialize user session store and register on main server
-    logger.info('[Server] Registering user session management...');
-    // Browser-session TTL (session.ui_ttl_seconds, S1) is separate from the 8443 client-session ttl_seconds.
-    // NOTE: this 8443 session is kept (not dead): the self-service/auth routes are also registered on the
-    // main listener (see registerAuthRoutes(this.fastify) below) and need request.session.
-    const uiTtlSeconds = this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800;
-    this.userSessionStore = new UserSessionStore(1000, uiTtlSeconds);
-    const { registerUserSession } = await import('./auth/user-session.js');
-    await registerUserSession(this.fastify, {
-      dataDir: this.config.dataDir,
-      store: this.userSessionStore,
-      ttlSeconds: uiTtlSeconds,
-    });
-    logger.info('[Server] User session management registered');
-
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
     // F-SEC-M6-012: No version banner
@@ -544,8 +554,10 @@ export class AmbassadorServer {
 
     // Create admin Fastify instance with same TLS config
     this.adminServer = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576,
       https: {
@@ -627,8 +639,18 @@ export class AmbassadorServer {
     const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
     this.adminServer.addHook('onRequest', async (request, reply) => {
       if (CSRF_SAFE_METHODS.has(request.method)) return;
-      // API key clients are not cookie-authenticated — no CSRF risk
-      if (request.headers['x-admin-key']) return;
+      // ADR-020: /oauth/*, /mcp are bearer/client-authenticated (never cookie), so a
+      // disabled endpoint answers a JSON 404 rather than a CSRF 403.
+      if (isAgentEndpointPath(request.url)) return;
+      // S2: CSRF is skipped ONLY when the admin key VALIDATES. A present-but-invalid key is a
+      // 401 here — it never falls through to the cookie session.
+      const keyState = await verifyAdminKeyHeader(this.db!, request);
+      if (keyState === 'valid') return;
+      if (keyState === 'invalid') {
+        return reply
+          .status(401)
+          .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
+      }
       // Delegate to the csrfProtection handler registered by the plugin.
       // csrfProtection is a callback-style middleware (req, reply, next) —
       // wrap it in a Promise so the async hook awaits the outcome correctly.
@@ -664,6 +686,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // Register user-facing API routes on admin server (M29.7)
@@ -704,7 +729,13 @@ export class AmbassadorServer {
 
     // Client routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.adminServer, { db: this.db! });
+    await registerClientRoutes(this.adminServer, {
+      db: this.db!,
+      audit: this.audit!,
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
+    });
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
@@ -740,6 +771,22 @@ export class AmbassadorServer {
       userPool: this.userPool,
       portalBaseUrl,
     });
+
+    // ADR-020: agent authorization server (off by default)
+    const agentEndpointConfig = this.config.ambassadorConfig?.agent_endpoint;
+    const { registerAgentOAuthRoutes, registerAgentEndpointInfoRoute, registerCookieFreeGuard } =
+      await import('./routes/agent-oauth.js');
+    registerCookieFreeGuard(this.adminServer);
+    await registerAgentEndpointInfoRoute(this.adminServer, {
+      enabled: !!agentEndpointConfig?.enabled,
+      default_grant_ttl_seconds: agentEndpointConfig?.default_grant_ttl_seconds ?? 3600,
+      max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 86400,
+      refresh_tokens_enabled:
+        !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
+    });
+    if (agentEndpointConfig?.enabled) {
+      await registerAgentOAuthRoutes(this.adminServer, await this.buildAgentEndpointDeps());
+    }
 
     logger.info('[Admin] User-facing API routes registered');
 
@@ -800,36 +847,33 @@ export class AmbassadorServer {
   }
 
   /**
-   * Extract source IP from request, respecting trustProxy configuration
-   *
-   * Security: F-SEC-M6-020 remediation + F-SEC-P1-001 fix
-   * - If trustProxy is false (default): Use only request.ip (direct connection)
-   * - If trustProxy is true: Trust first IP in X-Forwarded-For header
-   * - Always falls back to '0.0.0.0' if no IP available
-   *
-   * @param request - Fastify request object
-   * @returns Source IP address as string
+   * Source IP of the request. Fastify resolves X-Forwarded-For itself according to the
+   * `trustProxy` option (S3), so this is just request.ip: with trust_proxy=false (default) a
+   * spoofed header is ignored; with a CIDR list only trusted proxies are believed.
    */
   private getSourceIp(request: FastifyRequest): string {
-    if (this.config.trustProxy) {
-      // Trust X-Forwarded-For (first IP in comma-separated list)
-      const forwardedHeader = request.headers['x-forwarded-for'];
-      const forwardedFor =
-        (Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader) ||
-        request.ip ||
-        '0.0.0.0';
-      return forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
-      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
-    } else {
-      // Default: Ignore X-Forwarded-For, use direct connection IP
-      return request.ip ?? '0.0.0.0';
-    }
+    return request.ip ?? '0.0.0.0';
   }
 
   /**
    * Authentication helper - extracts and validates auth from request
    * Returns SessionContext on success, throws 401 on failure
    */
+  private getToolServiceDeps(): ToolServiceDeps {
+    if (!this.db || !this.authz || !this.pipeline) {
+      throw new Error('Server not properly initialized');
+    }
+    return {
+      db: this.db,
+      authz: this.authz,
+      pipeline: this.pipeline,
+      toolRouter: this.toolRouter,
+      mcpManager: this.mcpManager,
+      userPool: this.userPool,
+      killSwitch: this.killSwitchManager,
+    };
+  }
+
   private async authenticate(request: FastifyRequest): Promise<SessionContext> {
     if (!this.authn) throw new Error('Authentication provider not initialized');
 
@@ -1387,84 +1431,35 @@ export class AmbassadorServer {
     // MCP ENDPOINTS (authenticated)
     // ==========================================================================
 
-    // Tool catalog endpoint (M6.4)
+    // Tool catalog endpoint (M6.4) — logic lives in services/tool-service.ts (shared with /mcp)
     this.fastify.get('/v1/tools', async (request, reply) => {
       try {
-        // Authenticate request
         const session = await this.authenticate(request);
-
-        // Get profile directly from session (Phase 3)
-        if (!this.db || !this.authz) {
-          throw new Error('Server not properly initialized');
-        }
-
-        if (!session.client_id || typeof session.client_id !== 'string') {
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session missing client binding',
-          });
-        }
-
-        // M17.4: Get aggregated tool catalog from tool router (shared + per-user)
-        // Fetch session record to get user_id
-        const sessionRecord = await this.db.query.user_sessions.findFirst({
-          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
-        });
-        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
-        if (!sessionRecord) {
-          this.fastify!.log.warn(
-            { sessionId: session.session_id },
-            '[Server] Session record not found for authenticated session'
-          );
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session state inconsistent',
-          });
-        }
-        const userId = sessionRecord.user_id ?? '';
-        const aggregatedTools = await this.toolRouter.getIsolationAwareToolCatalog(
-          this.db,
-          userId,
-          session.client_id
-        );
-
-        // Filter tools based on client's profile
-        // Check each tool against allowed_tools (glob patterns) and denied_tools
-        const allowedTools: ToolDescriptor[] = [];
-
-        for (const tool of aggregatedTools) {
-          // Use authz provider to check if tool is allowed
-          const authzResult = await this.authz.authorize(session, {
-            tool_name: tool.name,
-            tool_arguments: {}, // Not needed for catalog check
-          });
-
-          if (authzResult.decision === 'permit') {
-            // Transform from AggregatedTool to protocol ToolDescriptor
-            allowedTools.push({
-              name: tool.name,
-              description: tool.description || '',
-              input_schema: tool.inputSchema,
-              metadata: {
-                mcp_server: tool.source_mcp,
-              },
-            });
-          }
-        }
-
-        // Return tool catalog
+        const deps = this.getToolServiceDeps();
+        const userId = await resolveSessionUserId(deps.db, session);
+        const tools = await listPermittedTools(deps, session, userId);
         const response: ToolCatalogResponse = {
-          tools: allowedTools,
+          tools,
           api_version: '1.0',
           timestamp: new Date().toISOString(),
         };
-
         return reply.send(response);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
+          });
+        } else if (err instanceof SessionBindingError) {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
+          });
+        } else if (err instanceof SessionStateError) {
+          this.fastify!.log.warn('[Server] Session record not found for authenticated session');
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
           });
         } else {
           logger.error('[/v1/tools] Error:', err);
@@ -1488,7 +1483,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Validate request body
         const body = request.body as any;
         if (!body || typeof body !== 'object') {
           return reply.status(400).send({
@@ -1496,14 +1490,12 @@ export class AmbassadorServer {
             message: 'Request body must be a JSON object',
           });
         }
-
         if (!body.tool || typeof body.tool !== 'string') {
           return reply.status(400).send({
             error: 'Bad Request',
             message: 'Missing or invalid "tool" field',
           });
         }
-
         if (!body.arguments || typeof body.arguments !== 'object') {
           return reply.status(400).send({
             error: 'Bad Request',
@@ -1511,7 +1503,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Authenticate request
         const session = await this.authenticate(request);
 
         // F-SEC-M5-007: Validate client_id from session (defense-in-depth)
@@ -1522,14 +1513,6 @@ export class AmbassadorServer {
           });
         }
 
-        // Transform protocol request → pipeline internal request
-        const pipelineRequest: PipelineToolInvocationRequest = {
-          tool_name: body.tool,
-          client_id: session.client_id,
-          arguments: body.arguments,
-        };
-
-        // Build AuthRequest
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(request.headers)) {
           if (typeof value === 'string') {
@@ -1537,78 +1520,8 @@ export class AmbassadorServer {
           }
         }
         // Use centralized sourceIp extraction (F-SEC-P1-001 fix)
-        const sourceIp = this.getSourceIp(request);
+        const authRequest = { headers, sourceIp: this.getSourceIp(request) };
 
-        const authRequest = {
-          headers,
-          sourceIp,
-        };
-
-        // M17.5: Create router function for pipeline (use tool router)
-        // Extract userId from session
-        const sessionRec = await this.db!.query.user_sessions.findFirst({
-          where: (sessions, { eq }) => eq(sessions.session_id, session.session_id),
-        });
-        // SEC-M17-004: Fail if session record missing (indicates DB inconsistency)
-        if (!sessionRec) {
-          this.fastify!.log.warn(
-            { sessionId: session.session_id },
-            '[Server] Session record not found for authenticated session'
-          );
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session state inconsistent',
-          });
-        }
-        const userId = sessionRec.user_id ?? '';
-        const clientId = session.client_id;
-
-        if (!clientId || typeof clientId !== 'string') {
-          return reply.status(500).send({
-            error: 'Internal Server Error',
-            message: 'Session missing client binding',
-          });
-        }
-
-        const router = async (toolName: string, args: Record<string, unknown>) => {
-          const mcpRequest = {
-            tool_name: toolName,
-            arguments: args,
-          };
-
-          const allowedTools = await this.toolRouter.getIsolationAwareToolCatalog(
-            this.db!,
-            userId,
-            clientId
-          );
-
-          const allowedTool = allowedTools.find(tool => tool.name === toolName);
-          if (!allowedTool) {
-            throw new AuthorizationError('Tool not subscribed for this client');
-          }
-
-          // Route to the exact allowed MCP source to avoid name-collision bypasses
-          // (e.g., shared and per-user MCP exposing the same tool name).
-          const sharedTool = this.mcpManager.getToolDescriptor(toolName);
-          const userTool = this.userPool.getToolDescriptor(userId, toolName);
-
-          let mcpResponse;
-          if (sharedTool?.source_mcp === allowedTool.source_mcp) {
-            mcpResponse = await this.mcpManager.invokeTool(mcpRequest);
-          } else if (userTool?.source_mcp === allowedTool.source_mcp) {
-            mcpResponse = await this.userPool.invokeTool(userId, mcpRequest);
-          } else {
-            throw new AuthorizationError('Tool source does not match client subscription');
-          }
-
-          return {
-            content: mcpResponse.content,
-            isError: mcpResponse.isError,
-            mcpServer: allowedTool.source_mcp,
-          };
-        };
-
-        // Invoke through AAA pipeline (with null check for pipeline)
         if (!this.pipeline) {
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1616,7 +1529,15 @@ export class AmbassadorServer {
           });
         }
 
-        const response = await this.pipeline.invoke(pipelineRequest, authRequest, router);
+        const deps = this.getToolServiceDeps();
+        const userId = await resolveSessionUserId(deps.db, session);
+        const response = await invokeTool(
+          deps,
+          session,
+          userId,
+          { tool: body.tool, arguments: body.arguments },
+          authRequest
+        );
 
         return reply.send(response);
       } catch (err) {
@@ -1625,12 +1546,28 @@ export class AmbassadorServer {
             error: 'Unauthorized',
             message: 'Valid session token required. Include X-Session-Token header.',
           });
+        } else if (err instanceof KillSwitchError) {
+          return reply.status(403).send({
+            error: 'Forbidden',
+            message: err.message,
+          });
         } else if (err instanceof AuthorizationError) {
           // F-SEC-M5-009: Sanitize reason field (don't expose internal rules)
           // F-SEC-M6-021 remediation: Use instanceof instead of string matching
           return reply.status(403).send({
             error: 'Forbidden',
             message: 'Access denied',
+          });
+        } else if (err instanceof SessionStateError) {
+          this.fastify!.log.warn('[Server] Session record not found for authenticated session');
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session state inconsistent',
+          });
+        } else if (err instanceof SessionBindingError) {
+          return reply.status(500).send({
+            error: 'Internal Server Error',
+            message: 'Session missing client binding',
           });
         } else {
           logger.error('[/v1/tools/invoke] Error:', err);
@@ -1659,6 +1596,9 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
     });
 
     // F-SEC-M6-005: Detailed health endpoint (admin only)
@@ -1688,49 +1628,24 @@ export class AmbassadorServer {
       }
     });
 
-    // ==========================================================================
-    // USER AUTHENTICATION ROUTES (M21)
-    // ==========================================================================
+    // F1: the browser (cookie-session) API — auth, setup, self-service, clients, subscriptions,
+    // credentials, marketplace — lives ONLY on the admin/SPA listener (9443), which has the CSRF hook.
+    // The 8443 listener serves the stdio client (/v1/sessions, /v1/tools*), the admin-key API, and /mcp,
+    // and carries no cookie session.
 
-    // Register user authentication routes
-    const { registerAuthRoutes } = await import('./auth/routes.js');
-    await registerAuthRoutes(this.fastify, {
-      db: this.db!,
-    });
-
-    // Setup routes (first-run setup wizard)
-    const { registerSetupRoutes } = await import('./auth/setup-routes.js');
-    await registerSetupRoutes(this.fastify, { db: this.db! as DatabaseClient, audit: this.audit! });
-
-    // Register user self-service routes
-    const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
-    await registerSelfServiceRoutes(this.fastify, {
-      db: this.db!,
-    });
-
-    // M25: Register client and subscription routes
-    const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.fastify, { db: this.db! });
-
-    const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
-    await registerSubscriptionRoutes(this.fastify, { db: this.db! });
-
-    // M26.8: Register credential routes
-    const { registerCredentialRoutes } = await import('./routes/credentials.js');
-    if (!this.credentialVault) {
-      throw new Error('Credential vault not initialized');
+    // ADR-020: MCP resource server (off by default)
+    if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
+      const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
+      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps(), {
+        toolDeps: this.getToolServiceDeps(),
+        userPool: this.userPool,
+        ensureUserMcps: async (userId: string) => {
+          if (this.userPool.hasActiveInstances(userId)) return;
+          const creds = await this.loadUserCredentialsForMcps(userId);
+          await this.userPool.spawnForUser(userId, creds);
+        },
+      });
     }
-    await registerCredentialRoutes(this.fastify, {
-      db: this.db!,
-      vault: this.credentialVault,
-      userPool: this.userPool,
-    });
-
-    // M23.4: Register marketplace routes
-    const { registerMarketplaceRoutes } = await import('./routes/marketplace.js');
-    await registerMarketplaceRoutes(this.fastify, {
-      db: this.db!,
-    });
 
     // M24.10: Register SPA handler (must be last to avoid intercepting API routes)
     const { registerSpaHandler } = await import('./spa-handler.js');
@@ -1742,6 +1657,30 @@ export class AmbassadorServer {
   /**
    * Start the server
    */
+  /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
+  private async buildAgentEndpointDeps(): Promise<AgentEndpointDeps> {
+    // One shared instance for 9443 and 8443 so runtime settings/rate limits are consistent
+    if (this.agentEndpointDeps) return this.agentEndpointDeps;
+    const cfg = this.config.ambassadorConfig!.agent_endpoint;
+    const strip = (u: string): string => u.replace(/\/+$/, '');
+    const issuer = strip(
+      cfg.issuer_url ??
+        this.config.publicUrl ??
+        `https://${this.config.serverName}:${this.config.adminPort}`
+    );
+    const agentBaseUrl = strip(
+      cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
+    );
+    this.agentEndpointDeps = createAgentEndpointDeps(
+      this.db!,
+      resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }),
+      this.audit!
+    );
+    // DB-persisted admin settings (e.g. DCR toggle) win over the config defaults
+    await loadPersistedSettings(this.agentEndpointDeps);
+    return this.agentEndpointDeps;
+  }
+
   async start(): Promise<void> {
     if (!this.fastify) {
       throw new Error('Server not initialized - call initialize() first');

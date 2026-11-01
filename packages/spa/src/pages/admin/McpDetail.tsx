@@ -1,13 +1,27 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeftIcon, CheckCircleIcon, ArchiveBoxIcon, ArrowPathIcon, ExclamationTriangleIcon, MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/20/solid';
+import {
+  ArrowLeftIcon,
+  CheckCircleIcon,
+  ArchiveBoxIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+  TrashIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
@@ -84,9 +98,8 @@ export function McpDetail() {
   const parsedTools = useMemo(() => {
     if (!mcp?.tool_catalog) return [];
     try {
-      const catalog = typeof mcp.tool_catalog === 'string'
-        ? JSON.parse(mcp.tool_catalog)
-        : mcp.tool_catalog;
+      const catalog =
+        typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
       return Array.isArray(catalog) ? catalog : [];
     } catch {
       return [];
@@ -97,9 +110,10 @@ export function McpDetail() {
   const credentialFields = useMemo(() => {
     if (!mcp?.credential_schema) return [];
     try {
-      const schema = typeof mcp.credential_schema === 'string'
-        ? JSON.parse(mcp.credential_schema)
-        : mcp.credential_schema;
+      const schema =
+        typeof mcp.credential_schema === 'string'
+          ? JSON.parse(mcp.credential_schema)
+          : mcp.credential_schema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
       return Object.entries(props).map(([key, value]: [string, unknown]) => {
@@ -121,8 +135,12 @@ export function McpDetail() {
   const vr = validationResult as Record<string, unknown> | null;
   const dr = discoveryResult as Record<string, unknown> | null;
   const vrWarnings = Array.isArray(vr?.['warnings']) ? (vr!['warnings'] as string[]) : [];
-  const vrTools = Array.isArray(vr?.['tools_discovered']) ? (vr!['tools_discovered'] as unknown[]) : [];
-  const drTools = Array.isArray(dr?.['tools_discovered']) ? (dr!['tools_discovered'] as unknown[]) : [];
+  const vrTools = Array.isArray(vr?.['tools_discovered'])
+    ? (vr!['tools_discovered'] as unknown[])
+    : [];
+  const drTools = Array.isArray(dr?.['tools_discovered'])
+    ? (dr!['tools_discovered'] as unknown[])
+    : [];
 
   // Format uptime from milliseconds to human readable
   const formatUptime = (ms: number): string => {
@@ -130,7 +148,7 @@ export function McpDetail() {
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    
+
     if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
     if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
@@ -166,10 +184,17 @@ export function McpDetail() {
       // Build OAuth config if auth_type is oauth2
       let oauthConfigObj: Record<string, unknown> | undefined;
       if (editFormData.auth_type === 'oauth2') {
-        if (!editFormData.oauth_auth_url.trim() || !editFormData.oauth_token_url.trim() ||
-            !editFormData.oauth_scopes.trim() || !editFormData.oauth_client_id_env.trim() ||
-            !editFormData.oauth_client_secret_env.trim() || !editFormData.oauth_access_token_env_var.trim()) {
-          toast.error('OAuth Configuration', { description: 'Please fill all required OAuth fields' });
+        if (
+          !editFormData.oauth_auth_url.trim() ||
+          !editFormData.oauth_token_url.trim() ||
+          !editFormData.oauth_scopes.trim() ||
+          !editFormData.oauth_client_id_env.trim() ||
+          !editFormData.oauth_client_secret_env.trim() ||
+          !editFormData.oauth_access_token_env_var.trim()
+        ) {
+          toast.error('OAuth Configuration', {
+            description: 'Please fill all required OAuth fields',
+          });
           return;
         }
 
@@ -235,7 +260,10 @@ export function McpDetail() {
     let oauthConfig: Record<string, unknown> = {};
     if (mcp.oauth_config) {
       try {
-        oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : (mcp.oauth_config as Record<string, unknown>);
+        oauthConfig =
+          typeof mcp.oauth_config === 'string'
+            ? JSON.parse(mcp.oauth_config)
+            : (mcp.oauth_config as Record<string, unknown>);
       } catch {
         // Ignore parse errors
       }
@@ -254,9 +282,9 @@ export function McpDetail() {
       auth_type: mcp.auth_type || 'none',
       requires_user_credentials: mcp.requires_user_credentials || false,
       credential_schema: mcp.credential_schema
-        ? (typeof mcp.credential_schema === 'string'
+        ? typeof mcp.credential_schema === 'string'
           ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2)
-          : JSON.stringify(mcp.credential_schema, null, 2))
+          : JSON.stringify(mcp.credential_schema, null, 2)
         : '',
       oauth_auth_url: String(oauthConfig['auth_url'] ?? ''),
       oauth_token_url: String(oauthConfig['token_url'] ?? ''),
@@ -265,7 +293,9 @@ export function McpDetail() {
       oauth_client_secret_env: String(oauthConfig['client_secret_env'] ?? ''),
       oauth_access_token_env_var: String(oauthConfig['access_token_env_var'] ?? ''),
       oauth_revocation_url: String(oauthConfig['revocation_url'] ?? ''),
-      oauth_extra_params: oauthConfig['extra_params'] ? JSON.stringify(oauthConfig['extra_params'], null, 2) : '',
+      oauth_extra_params: oauthConfig['extra_params']
+        ? JSON.stringify(oauthConfig['extra_params'], null, 2)
+        : '',
     });
     setEditDialogOpen(true);
   };
@@ -276,7 +306,9 @@ export function McpDetail() {
       const result = await validateMcp.mutateAsync(mcp.mcp_id);
       setValidationResult(result);
     } catch (error) {
-      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Validate MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -293,14 +325,19 @@ export function McpDetail() {
         toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
       }
     } catch (error) {
-      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Discover Tools failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
   const handleCredentialDiscover = async () => {
     if (!mcp) return;
     try {
-      const result = await discoverTools.mutateAsync({ mcpId: mcp.mcp_id, credentials: credentialValues });
+      const result = await discoverTools.mutateAsync({
+        mcpId: mcp.mcp_id,
+        credentials: credentialValues,
+      });
       setDiscoveryResult(result);
       setCredentialDialogOpen(false);
       setCredentialValues({});
@@ -312,7 +349,9 @@ export function McpDetail() {
         toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
       }
     } catch (error) {
-      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Discover Tools failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -321,7 +360,9 @@ export function McpDetail() {
     try {
       await publishMcp.mutateAsync(mcp.mcp_id);
     } catch (error) {
-      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Publish MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -331,7 +372,9 @@ export function McpDetail() {
       await archiveMcp.mutateAsync(mcp.mcp_id);
       setArchiveDialogOpen(false);
     } catch (error) {
-      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Archive MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -352,9 +395,13 @@ export function McpDetail() {
     try {
       const result = await restartMcp.mutateAsync(mcp.name);
       if (result.connected) {
-        toast.success('MCP Restarted', { description: `${mcp.name} is now online with ${result.tool_count} tools` });
+        toast.success('MCP Restarted', {
+          description: `${mcp.name} is now online with ${result.tool_count} tools`,
+        });
       } else {
-        toast.warning('MCP Restarted', { description: `${mcp.name} restarted but is not connected` });
+        toast.warning('MCP Restarted', {
+          description: `${mcp.name} restarted but is not connected`,
+        });
       }
     } catch (error) {
       toast.error('Restart failed', { description: (error as Error)?.message ?? String(error) });
@@ -363,7 +410,9 @@ export function McpDetail() {
 
   const copyLogs = () => {
     if (logsData?.entries) {
-      const text = logsData.entries.map(e => `[${e.timestamp}] ${e.level}: ${e.message}`).join('\n');
+      const text = logsData.entries
+        .map(e => `[${e.timestamp}] ${e.level}: ${e.message}`)
+        .join('\n');
       navigator.clipboard.writeText(text);
       toast.success('Logs copied to clipboard');
     }
@@ -380,7 +429,9 @@ export function McpDetail() {
     if (!mcp) return;
     try {
       await restartUserMcp.mutateAsync({ userId, mcpName: mcp.name });
-      toast.success('User instance restarted', { description: `Restarted ${mcp.name} for user ${userId}` });
+      toast.success('User instance restarted', {
+        description: `Restarted ${mcp.name} for user ${userId}`,
+      });
     } catch (error) {
       toast.error('Restart failed', { description: (error as Error)?.message ?? String(error) });
     }
@@ -413,10 +464,7 @@ export function McpDetail() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <Breadcrumb
-        items={[
-          { label: 'MCPs', href: '/app/admin/mcps' },
-          { label: mcp.display_name },
-        ]}
+        items={[{ label: 'MCPs', href: '/app/admin/mcps' }, { label: mcp.display_name }]}
       />
 
       {/* Header Row */}
@@ -426,7 +474,9 @@ export function McpDetail() {
           <Text className="font-mono">{mcp.name}</Text>
         </div>
         <div className="flex items-center gap-2">
-          <Badge color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'green' : 'zinc'}>
+          <Badge
+            color={mcp.status === 'draft' ? 'zinc' : mcp.status === 'published' ? 'green' : 'zinc'}
+          >
             {mcp.status}
           </Badge>
           {mcp.validation_status && (
@@ -435,8 +485,8 @@ export function McpDetail() {
                 mcp.validation_status === 'valid'
                   ? 'green'
                   : mcp.validation_status === 'invalid'
-                  ? 'red'
-                  : 'zinc'
+                    ? 'red'
+                    : 'zinc'
               }
             >
               {mcp.validation_status}
@@ -454,17 +504,22 @@ export function McpDetail() {
           <ArrowPathIcon data-slot="icon" />
           Validate
         </Button>
-        <Button 
-          color="zinc" 
+        <Button
+          color="zinc"
           onClick={
             // OAuth MCPs: use admin's stored credential directly
-            mcp.auth_type === 'oauth2' ? handleDiscover :
-            // Static credential MCPs: open credential dialog
-            mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) :
-            // No credentials needed: discover directly
-            handleDiscover
-          } 
-          disabled={discoverTools.isPending || (!mcp.requires_user_credentials && mcp.validation_status !== 'valid')}
+            mcp.auth_type === 'oauth2'
+              ? handleDiscover
+              : // Static credential MCPs: open credential dialog
+                mcp.requires_user_credentials
+                ? () => setCredentialDialogOpen(true)
+                : // No credentials needed: discover directly
+                  handleDiscover
+          }
+          disabled={
+            discoverTools.isPending ||
+            (!mcp.requires_user_credentials && mcp.validation_status !== 'valid')
+          }
         >
           <MagnifyingGlassIcon data-slot="icon" />
           {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
@@ -476,13 +531,21 @@ export function McpDetail() {
           </Button>
         )}
         {mcp.status === 'published' && (
-          <Button color="zinc" onClick={() => setArchiveDialogOpen(true)} disabled={archiveMcp.isPending}>
+          <Button
+            color="zinc"
+            onClick={() => setArchiveDialogOpen(true)}
+            disabled={archiveMcp.isPending}
+          >
             <ArchiveBoxIcon data-slot="icon" />
             Archive
           </Button>
         )}
         {(mcp.status === 'draft' || mcp.status === 'archived') && (
-          <Button color="red" onClick={() => setDeleteDialogOpen(true)} disabled={deleteMcp.isPending}>
+          <Button
+            color="red"
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={deleteMcp.isPending}
+          >
             <TrashIcon data-slot="icon" />
             Delete
           </Button>
@@ -535,10 +598,13 @@ export function McpDetail() {
                 {vrTools.map((tool: unknown, i: number) => {
                   const t = tool as Record<string, unknown>;
                   const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
-                  const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                  const desc =
+                    typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
                   return (
                     <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                      <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                      <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">
+                        {name}
+                      </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">{desc}</p>
                     </div>
                   );
@@ -550,7 +616,7 @@ export function McpDetail() {
       )}
 
       {/* Discovery Results */}
-          {dr && (
+      {dr && (
         <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 space-y-4">
           <div className="flex items-center gap-2">
             {(dr['status'] as string) === 'success' ? (
@@ -559,10 +625,15 @@ export function McpDetail() {
               <ExclamationTriangleIcon className="size-5 text-red-600 dark:text-red-400" />
             )}
             <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
-              Tool Discovery — {(dr['status'] as string) === 'success' ? `${Number(dr['tool_count'] as number) || 0} tools found` : (dr['status'] as string) === 'skipped' ? 'Skipped' : 'Failed'}
+              Tool Discovery —{' '}
+              {(dr['status'] as string) === 'success'
+                ? `${Number(dr['tool_count'] as number) || 0} tools found`
+                : (dr['status'] as string) === 'skipped'
+                  ? 'Skipped'
+                  : 'Failed'}
             </h3>
           </div>
-          {(typeof dr['message'] === 'string') && (
+          {typeof dr['message'] === 'string' && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{dr['message'] as string}</p>
           )}
           {drTools.length > 0 && (
@@ -570,10 +641,13 @@ export function McpDetail() {
               {drTools.map((tool: unknown, i: number) => {
                 const t = tool as Record<string, unknown>;
                 const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
-                const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                const desc =
+                  typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
                 return (
                   <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                    <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">
+                      {name}
+                    </p>
                     {desc && (
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
                     )}
@@ -595,51 +669,85 @@ export function McpDetail() {
         <TabsPanels>
           <TabsContent>
             <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-              <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Information</h3>
+              <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                MCP Information
+              </h3>
               <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
                   <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">MCP ID</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{mcp.mcp_id}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Internal Name</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{mcp.name}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.display_name}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Transport Type</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.transport_type}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Isolation Mode</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.isolation_mode}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Auth Type</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
-                    {mcp.auth_type === 'oauth2' ? 'OAuth 2.0' : mcp.auth_type === 'static' ? 'Static Credentials' : 'None'}
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">
+                    {mcp.mcp_id}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Requires Credentials</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.requires_user_credentials ? 'Yes' : 'No'}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Internal Name
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{mcp.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{new Date(mcp.created_at).toLocaleString()}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Display Name
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.display_name}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Updated</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{new Date(mcp.updated_at).toLocaleString()}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Transport Type
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.transport_type}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Isolation Mode
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">{mcp.isolation_mode}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Auth Type
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                    {mcp.auth_type === 'oauth2'
+                      ? 'OAuth 2.0'
+                      : mcp.auth_type === 'static'
+                        ? 'Static Credentials'
+                        : 'None'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Requires Credentials
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                    {mcp.requires_user_credentials ? 'Yes' : 'No'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Created
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                    {new Date(mcp.created_at).toLocaleString()}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Updated
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                    {new Date(mcp.updated_at).toLocaleString()}
+                  </dd>
                 </div>
               </dl>
               {mcp.description && (
                 <div className="mt-4">
-                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Description</dt>
-                  <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{mcp.description}</dd>
+                  <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                    Description
+                  </dt>
+                  <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                    {mcp.description}
+                  </dd>
                 </div>
               )}
             </div>
@@ -655,33 +763,42 @@ export function McpDetail() {
                     Tools available from this MCP server
                   </p>
                 </div>
-                {(!parsedTools.length) && (mcp.requires_user_credentials || mcp.validation_status === 'valid') && (
-                  <Button 
-                    color="zinc" 
-                    onClick={
-                      // OAuth MCPs: use admin's stored credential
-                      mcp.auth_type === 'oauth2' ? handleDiscover :
-                      // Static credential MCPs: open credential dialog
-                      mcp.requires_user_credentials ? () => setCredentialDialogOpen(true) :
-                      // No credentials needed: discover directly
-                      handleDiscover
-                    } 
-                    disabled={discoverTools.isPending}
-                  >
-                    <MagnifyingGlassIcon data-slot="icon" />
-                    {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
-                  </Button>
-                )}
+                {!parsedTools.length &&
+                  (mcp.requires_user_credentials || mcp.validation_status === 'valid') && (
+                    <Button
+                      color="zinc"
+                      onClick={
+                        // OAuth MCPs: use admin's stored credential
+                        mcp.auth_type === 'oauth2'
+                          ? handleDiscover
+                          : // Static credential MCPs: open credential dialog
+                            mcp.requires_user_credentials
+                            ? () => setCredentialDialogOpen(true)
+                            : // No credentials needed: discover directly
+                              handleDiscover
+                      }
+                      disabled={discoverTools.isPending}
+                    >
+                      <MagnifyingGlassIcon data-slot="icon" />
+                      {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
+                    </Button>
+                  )}
               </div>
               {parsedTools.length > 0 ? (
                 <div className="grid gap-2">
                   {parsedTools.map((tool: unknown, i: number) => {
                     const t = tool as Record<string, unknown>;
-                    const name = typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
-                    const desc = typeof t['description'] === 'string' ? (t['description'] as string) : undefined;
+                    const name =
+                      typeof t['name'] === 'string' ? (t['name'] as string) : `tool-${i}`;
+                    const desc =
+                      typeof t['description'] === 'string'
+                        ? (t['description'] as string)
+                        : undefined;
                     return (
                       <div key={i} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3">
-                        <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
+                        <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">
+                          {name}
+                        </p>
                         {desc && (
                           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{desc}</p>
                         )}
@@ -701,74 +818,125 @@ export function McpDetail() {
           <TabsContent>
             <div className="space-y-4">
               <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Configuration</h3>
-                <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">MCP runtime configuration (JSON)</p>
+                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                  Configuration
+                </h3>
+                <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">
+                  MCP runtime configuration (JSON)
+                </p>
                 <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
-                  {typeof mcp.config === 'string' ? JSON.stringify(JSON.parse(mcp.config), null, 2) : JSON.stringify(mcp.config, null, 2)}
+                  {typeof mcp.config === 'string'
+                    ? JSON.stringify(JSON.parse(mcp.config), null, 2)
+                    : JSON.stringify(mcp.config, null, 2)}
                 </pre>
               </div>
-              {mcp.auth_type === 'oauth2' && mcp.oauth_config && (() => {
-                let oauthConfig: Record<string, unknown> = {};
-                try {
-                  oauthConfig = typeof mcp.oauth_config === 'string' ? JSON.parse(mcp.oauth_config) : (mcp.oauth_config as Record<string, unknown>);
-                } catch {
-                  return null;
-                }
-                return (
-                  <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">OAuth 2.0 Configuration</h3>
-                    <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Server-managed OAuth settings</p>
-                    <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4">
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Authorization URL</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['auth_url'] ?? '')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Token URL</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['token_url'] ?? '')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Scopes</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['scopes'] ?? '')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client ID Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['client_id_env'] ?? '')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Client Secret Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['client_secret_env'] ?? '')}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Access Token Environment Variable</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">{String(oauthConfig['access_token_env_var'] ?? '')}</dd>
-                      </div>
-                      {Boolean(oauthConfig['revocation_url']) && (
+              {mcp.auth_type === 'oauth2' &&
+                mcp.oauth_config &&
+                (() => {
+                  let oauthConfig: Record<string, unknown> = {};
+                  try {
+                    oauthConfig =
+                      typeof mcp.oauth_config === 'string'
+                        ? JSON.parse(mcp.oauth_config)
+                        : (mcp.oauth_config as Record<string, unknown>);
+                  } catch {
+                    return null;
+                  }
+                  return (
+                    <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
+                      <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                        OAuth 2.0 Configuration
+                      </h3>
+                      <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">
+                        Server-managed OAuth settings
+                      </p>
+                      <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4">
                         <div>
-                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Revocation URL</dt>
-                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">{String(oauthConfig['revocation_url'] ?? '')}</dd>
-                        </div>
-                      )}
-                      {Boolean(oauthConfig['extra_params']) && (
-                        <div>
-                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Extra Parameters</dt>
-                          <dd className="text-sm/6 text-zinc-900 dark:text-white">
-                            <pre className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 overflow-x-auto text-xs font-mono">
-                              {JSON.stringify(oauthConfig['extra_params'], null, 2)}
-                            </pre>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Authorization URL
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">
+                            {String(oauthConfig['auth_url'] ?? '')}
                           </dd>
                         </div>
-                      )}
-                    </dl>
-                  </div>
-                );
-              })()}
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Token URL
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">
+                            {String(oauthConfig['token_url'] ?? '')}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Scopes
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">
+                            {String(oauthConfig['scopes'] ?? '')}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Client ID Environment Variable
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">
+                            {String(oauthConfig['client_id_env'] ?? '')}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Client Secret Environment Variable
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">
+                            {String(oauthConfig['client_secret_env'] ?? '')}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                            Access Token Environment Variable
+                          </dt>
+                          <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono">
+                            {String(oauthConfig['access_token_env_var'] ?? '')}
+                          </dd>
+                        </div>
+                        {Boolean(oauthConfig['revocation_url']) && (
+                          <div>
+                            <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                              Revocation URL
+                            </dt>
+                            <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono break-all">
+                              {String(oauthConfig['revocation_url'] ?? '')}
+                            </dd>
+                          </div>
+                        )}
+                        {Boolean(oauthConfig['extra_params']) && (
+                          <div>
+                            <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                              Extra Parameters
+                            </dt>
+                            <dd className="text-sm/6 text-zinc-900 dark:text-white">
+                              <pre className="mt-1 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-3 overflow-x-auto text-xs font-mono">
+                                {JSON.stringify(oauthConfig['extra_params'], null, 2)}
+                              </pre>
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                  );
+                })()}
               {mcp.credential_schema && (
                 <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Credential Schema</h3>
-                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">Required user credentials schema</p>
+                  <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                    Credential Schema
+                  </h3>
+                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mt-1">
+                    Required user credentials schema
+                  </p>
                   <pre className="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 p-4 overflow-x-auto text-sm font-mono text-zinc-900 dark:text-white">
-                    {typeof mcp.credential_schema === 'string' ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2) : JSON.stringify(mcp.credential_schema, null, 2)}
+                    {typeof mcp.credential_schema === 'string'
+                      ? JSON.stringify(JSON.parse(mcp.credential_schema), null, 2)
+                      : JSON.stringify(mcp.credential_schema, null, 2)}
                   </pre>
                 </div>
               )}
@@ -780,16 +948,14 @@ export function McpDetail() {
               <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Runtime Health</h3>
+                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                      Runtime Health
+                    </h3>
                     <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
                       Live connection status for this MCP server
                     </p>
                   </div>
-                  <Button
-                    color="zinc"
-                    onClick={handleRestart}
-                    disabled={restartMcp.isPending}
-                  >
+                  <Button color="zinc" onClick={handleRestart} disabled={restartMcp.isPending}>
                     <ArrowPathIcon data-slot="icon" />
                     {restartMcp.isPending ? 'Restarting...' : 'Restart'}
                   </Button>
@@ -800,39 +966,56 @@ export function McpDetail() {
                 ) : instanceData ? (
                   <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
                     <div>
-                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Status</dt>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                        Status
+                      </dt>
                       <dd className="mt-1 flex items-center gap-2">
-                        <span className={`inline-block size-2.5 rounded-full ${
-                          instanceData.shared.health.status === 'healthy'
-                            ? 'bg-green-500'
-                            : instanceData.shared.health.status === 'degraded'
-                            ? 'bg-amber-500'
-                            : 'bg-red-500'
-                        }`} />
-                        <span className={`text-sm font-medium ${
-                          instanceData.shared.health.status === 'healthy'
-                            ? 'text-green-700 dark:text-green-400'
-                            : instanceData.shared.health.status === 'degraded'
-                            ? 'text-amber-700 dark:text-amber-400'
-                            : 'text-red-700 dark:text-red-400'
-                        }`}>
-                          {instanceData.shared.health.status.charAt(0).toUpperCase() + instanceData.shared.health.status.slice(1)}
+                        <span
+                          className={`inline-block size-2.5 rounded-full ${
+                            instanceData.shared.health.status === 'healthy'
+                              ? 'bg-green-500'
+                              : instanceData.shared.health.status === 'degraded'
+                                ? 'bg-amber-500'
+                                : 'bg-red-500'
+                          }`}
+                        />
+                        <span
+                          className={`text-sm font-medium ${
+                            instanceData.shared.health.status === 'healthy'
+                              ? 'text-green-700 dark:text-green-400'
+                              : instanceData.shared.health.status === 'degraded'
+                                ? 'text-amber-700 dark:text-amber-400'
+                                : 'text-red-700 dark:text-red-400'
+                          }`}
+                        >
+                          {instanceData.shared.health.status.charAt(0).toUpperCase() +
+                            instanceData.shared.health.status.slice(1)}
                         </span>
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Transport</dt>
-                      <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{instanceData.transport}</dd>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                        Transport
+                      </dt>
+                      <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                        {instanceData.transport}
+                      </dd>
                     </div>
                     <div>
-                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Tools Loaded</dt>
+                      <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                        Tools Loaded
+                      </dt>
                       <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
-                        {instanceData.shared.health.tool_count ?? instanceData.shared.detail.toolCount ?? '—'}
+                        {instanceData.shared.health.tool_count ??
+                          instanceData.shared.detail.toolCount ??
+                          '—'}
                       </dd>
                     </div>
                     {instanceData.shared.detail.uptime_ms != null && (
                       <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Uptime</dt>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                          Uptime
+                        </dt>
                         <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
                           {formatUptime(instanceData.shared.detail.uptime_ms)}
                         </dd>
@@ -840,27 +1023,40 @@ export function McpDetail() {
                     )}
                     {instanceData.shared.detail.pid != null && (
                       <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Process ID</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono mt-1">{instanceData.shared.detail.pid}</dd>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                          Process ID
+                        </dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white font-mono mt-1">
+                          {instanceData.shared.detail.pid}
+                        </dd>
                       </div>
                     )}
                     {instanceData.shared.detail.pendingRequests != null && (
                       <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Pending Requests</dt>
-                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">{instanceData.shared.detail.pendingRequests}</dd>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                          Pending Requests
+                        </dt>
+                        <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
+                          {instanceData.shared.detail.pendingRequests}
+                        </dd>
                       </div>
                     )}
                     {instanceData.shared.detail.consecutiveFailures != null && (
                       <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Consecutive Failures</dt>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                          Consecutive Failures
+                        </dt>
                         <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
-                          {instanceData.shared.detail.consecutiveFailures} / {instanceData.shared.detail.maxFailures}
+                          {instanceData.shared.detail.consecutiveFailures} /{' '}
+                          {instanceData.shared.detail.maxFailures}
                         </dd>
                       </div>
                     )}
                     {instanceData.shared.health.last_check && (
                       <div>
-                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">Last Health Check</dt>
+                        <dt className="text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
+                          Last Health Check
+                        </dt>
                         <dd className="text-sm/6 text-zinc-900 dark:text-white mt-1">
                           {new Date(instanceData.shared.health.last_check).toLocaleTimeString()}
                         </dd>
@@ -868,7 +1064,9 @@ export function McpDetail() {
                     )}
                     {instanceData.shared.health.error && (
                       <div className="sm:col-span-2 lg:col-span-3">
-                        <dt className="text-sm/6 font-medium text-red-500 dark:text-red-400">Error</dt>
+                        <dt className="text-sm/6 font-medium text-red-500 dark:text-red-400">
+                          Error
+                        </dt>
                         <dd className="text-sm/6 text-red-700 dark:text-red-400 font-mono mt-1 bg-red-50 dark:bg-red-500/10 p-2 rounded">
                           {instanceData.shared.health.error}
                         </dd>
@@ -886,7 +1084,9 @@ export function McpDetail() {
               <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Recent Errors</h3>
+                    <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                      Recent Errors
+                    </h3>
                     <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
                       Last {logsData?.total_count ?? 0} error and stderr entries
                     </p>
@@ -903,11 +1103,19 @@ export function McpDetail() {
                 {logsData && logsData.entries.length > 0 ? (
                   <div className="rounded-lg bg-zinc-900 text-zinc-100 font-mono text-sm p-4 overflow-auto max-h-64 space-y-0.5">
                     {logsData.entries.map((entry, idx) => (
-                      <div key={idx} className={`${
-                        entry.level === 'error' ? 'text-red-400' :
-                        entry.level === 'warn' ? 'text-amber-400' : 'text-zinc-400'
-                      }`}>
-                        <span className="text-zinc-500">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>{' '}
+                      <div
+                        key={idx}
+                        className={`${
+                          entry.level === 'error'
+                            ? 'text-red-400'
+                            : entry.level === 'warn'
+                              ? 'text-amber-400'
+                              : 'text-zinc-400'
+                        }`}
+                      >
+                        <span className="text-zinc-500">
+                          [{new Date(entry.timestamp).toLocaleTimeString()}]
+                        </span>{' '}
                         {entry.message}
                       </div>
                     ))}
@@ -939,11 +1147,23 @@ export function McpDetail() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3">
-                              <span className={`inline-block size-2 rounded-full ${
-                                instance.connected ? 'bg-green-500' : 'bg-red-500'
-                              }`} />
-                              <span className="text-sm font-mono font-medium text-zinc-900 dark:text-white">{instance.userId}</span>
-                              <Badge color={instance.status === 'ready' ? 'green' : instance.status === 'spawning' ? 'amber' : 'zinc'}>
+                              <span
+                                className={`inline-block size-2 rounded-full ${
+                                  instance.connected ? 'bg-green-500' : 'bg-red-500'
+                                }`}
+                              />
+                              <span className="text-sm font-mono font-medium text-zinc-900 dark:text-white">
+                                {instance.userId}
+                              </span>
+                              <Badge
+                                color={
+                                  instance.status === 'ready'
+                                    ? 'green'
+                                    : instance.status === 'spawning'
+                                      ? 'amber'
+                                      : 'zinc'
+                                }
+                              >
                                 {instance.status}
                               </Badge>
                               {instance.error_count > 0 && (
@@ -952,11 +1172,18 @@ export function McpDetail() {
                             </div>
                             <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                               <span>{instance.toolCount} tools</span>
-                              <span>Spawned {new Date(instance.spawnedAt).toLocaleTimeString()}</span>
+                              <span>
+                                Spawned {new Date(instance.spawnedAt).toLocaleTimeString()}
+                              </span>
                             </div>
                             {instance.last_error && (
-                              <div className="text-sm text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-950/30 p-2 rounded" title={instance.last_error}>
-                                {instance.last_error.length > 120 ? `${instance.last_error.slice(0, 120)}...` : instance.last_error}
+                              <div
+                                className="text-sm text-red-600 dark:text-red-400 font-mono bg-red-50 dark:bg-red-950/30 p-2 rounded"
+                                title={instance.last_error}
+                              >
+                                {instance.last_error.length > 120
+                                  ? `${instance.last_error.slice(0, 120)}...`
+                                  : instance.last_error}
                               </div>
                             )}
                           </div>
@@ -989,18 +1216,14 @@ export function McpDetail() {
               <Label>Display Name</Label>
               <Input
                 value={editFormData.display_name}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, display_name: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, display_name: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Description</Label>
               <Textarea
                 value={editFormData.description}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, description: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
                 rows={3}
               />
             </Field>
@@ -1008,25 +1231,22 @@ export function McpDetail() {
               <Label>Icon URL</Label>
               <Input
                 value={editFormData.icon_url}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, icon_url: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, icon_url: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Configuration (JSON)</Label>
               <Textarea
                 value={editFormData.config}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, config: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, config: e.target.value })}
                 rows={10}
                 className="font-mono"
               />
             </Field>
             {mcp.status === 'published' && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Transport type, isolation mode, and credential settings cannot be changed for published MCPs. Archive and recreate if changes are needed.
+                Transport type, isolation mode, and credential settings cannot be changed for
+                published MCPs. Archive and recreate if changes are needed.
               </p>
             )}
 
@@ -1039,12 +1259,21 @@ export function McpDetail() {
                     name="transport-type"
                     value={editFormData.transport_type}
                     onChange={(value: string) =>
-                      setEditFormData({ ...editFormData, transport_type: value as 'stdio' | 'http' | 'sse' })
+                      setEditFormData({
+                        ...editFormData,
+                        transport_type: value as 'stdio' | 'http' | 'sse',
+                      })
                     }
                   >
-                    <ListboxOption value="stdio"><ListboxLabel>stdio</ListboxLabel></ListboxOption>
-                    <ListboxOption value="http"><ListboxLabel>http</ListboxLabel></ListboxOption>
-                    <ListboxOption value="sse"><ListboxLabel>sse</ListboxLabel></ListboxOption>
+                    <ListboxOption value="stdio">
+                      <ListboxLabel>stdio</ListboxLabel>
+                    </ListboxOption>
+                    <ListboxOption value="http">
+                      <ListboxLabel>http</ListboxLabel>
+                    </ListboxOption>
+                    <ListboxOption value="sse">
+                      <ListboxLabel>sse</ListboxLabel>
+                    </ListboxOption>
                   </Listbox>
                 </Field>
                 <Field>
@@ -1053,11 +1282,18 @@ export function McpDetail() {
                     name="isolation-mode"
                     value={editFormData.isolation_mode}
                     onChange={(value: string) =>
-                      setEditFormData({ ...editFormData, isolation_mode: value as 'shared' | 'per_user' })
+                      setEditFormData({
+                        ...editFormData,
+                        isolation_mode: value as 'shared' | 'per_user',
+                      })
                     }
                   >
-                    <ListboxOption value="shared"><ListboxLabel>shared</ListboxLabel></ListboxOption>
-                    <ListboxOption value="per_user"><ListboxLabel>per_user</ListboxLabel></ListboxOption>
+                    <ListboxOption value="shared">
+                      <ListboxLabel>shared</ListboxLabel>
+                    </ListboxOption>
+                    <ListboxOption value="per_user">
+                      <ListboxLabel>per_user</ListboxLabel>
+                    </ListboxOption>
                   </Listbox>
                 </Field>
 
@@ -1067,12 +1303,21 @@ export function McpDetail() {
                     name="auth-type"
                     value={editFormData.auth_type}
                     onChange={(value: string) =>
-                      setEditFormData({ ...editFormData, auth_type: value as 'none' | 'static' | 'oauth2' })
+                      setEditFormData({
+                        ...editFormData,
+                        auth_type: value as 'none' | 'static' | 'oauth2',
+                      })
                     }
                   >
-                    <ListboxOption value="none"><ListboxLabel>None</ListboxLabel></ListboxOption>
-                    <ListboxOption value="static"><ListboxLabel>Static Credentials</ListboxLabel></ListboxOption>
-                    <ListboxOption value="oauth2"><ListboxLabel>OAuth 2.0</ListboxLabel></ListboxOption>
+                    <ListboxOption value="none">
+                      <ListboxLabel>None</ListboxLabel>
+                    </ListboxOption>
+                    <ListboxOption value="static">
+                      <ListboxLabel>Static Credentials</ListboxLabel>
+                    </ListboxOption>
+                    <ListboxOption value="oauth2">
+                      <ListboxLabel>OAuth 2.0</ListboxLabel>
+                    </ListboxOption>
                   </Listbox>
                 </Field>
 
@@ -1082,7 +1327,7 @@ export function McpDetail() {
                     <Label>Credential Schema (JSON)</Label>
                     <Textarea
                       value={editFormData.credential_schema}
-                      onChange={(e) =>
+                      onChange={e =>
                         setEditFormData({ ...editFormData, credential_schema: e.target.value })
                       }
                       rows={8}
@@ -1099,7 +1344,9 @@ export function McpDetail() {
                       <Label>Authorization URL *</Label>
                       <Input
                         value={editFormData.oauth_auth_url}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_auth_url: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_auth_url: e.target.value })
+                        }
                         placeholder="https://accounts.google.com/o/oauth2/v2/auth"
                       />
                     </Field>
@@ -1107,7 +1354,9 @@ export function McpDetail() {
                       <Label>Token URL *</Label>
                       <Input
                         value={editFormData.oauth_token_url}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_token_url: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_token_url: e.target.value })
+                        }
                         placeholder="https://oauth2.googleapis.com/token"
                       />
                     </Field>
@@ -1115,7 +1364,9 @@ export function McpDetail() {
                       <Label>Scopes *</Label>
                       <Input
                         value={editFormData.oauth_scopes}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_scopes: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_scopes: e.target.value })
+                        }
                         placeholder="openid email profile"
                       />
                     </Field>
@@ -1123,7 +1374,9 @@ export function McpDetail() {
                       <Label>Client ID Env Var *</Label>
                       <Input
                         value={editFormData.oauth_client_id_env}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_client_id_env: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_client_id_env: e.target.value })
+                        }
                         placeholder="GOOGLE_OAUTH_CLIENT_ID"
                       />
                     </Field>
@@ -1131,7 +1384,12 @@ export function McpDetail() {
                       <Label>Client Secret Env Var *</Label>
                       <Input
                         value={editFormData.oauth_client_secret_env}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_client_secret_env: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({
+                            ...editFormData,
+                            oauth_client_secret_env: e.target.value,
+                          })
+                        }
                         placeholder="GOOGLE_OAUTH_CLIENT_SECRET"
                       />
                     </Field>
@@ -1139,7 +1397,12 @@ export function McpDetail() {
                       <Label>Access Token Env Var *</Label>
                       <Input
                         value={editFormData.oauth_access_token_env_var}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_access_token_env_var: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({
+                            ...editFormData,
+                            oauth_access_token_env_var: e.target.value,
+                          })
+                        }
                         placeholder="GOOGLE_ACCESS_TOKEN"
                       />
                     </Field>
@@ -1147,7 +1410,9 @@ export function McpDetail() {
                       <Label>Revocation URL</Label>
                       <Input
                         value={editFormData.oauth_revocation_url}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_revocation_url: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_revocation_url: e.target.value })
+                        }
                         placeholder="https://oauth2.googleapis.com/revoke"
                       />
                     </Field>
@@ -1155,7 +1420,9 @@ export function McpDetail() {
                       <Label>Extra Parameters (JSON)</Label>
                       <Textarea
                         value={editFormData.oauth_extra_params}
-                        onChange={(e) => setEditFormData({ ...editFormData, oauth_extra_params: e.target.value })}
+                        onChange={e =>
+                          setEditFormData({ ...editFormData, oauth_extra_params: e.target.value })
+                        }
                         rows={4}
                         className="font-mono text-sm"
                         placeholder='{"access_type": "offline"}'
@@ -1179,51 +1446,75 @@ export function McpDetail() {
 
       {/* Credential Dialog for Tool Discovery (Static Auth Only) */}
       {mcp?.auth_type !== 'oauth2' && (
-        <Dialog open={credentialDialogOpen} onClose={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
+        <Dialog
+          open={credentialDialogOpen}
+          onClose={() => {
+            setCredentialDialogOpen(false);
+            setCredentialValues({});
+          }}
+        >
           <DialogBody>
             <DialogTitle>Provide Credentials for Discovery</DialogTitle>
             <DialogDescription>
-              This MCP requires credentials to connect. Enter temporary credentials below — they will NOT be stored and are used only for this discovery attempt.
+              This MCP requires credentials to connect. Enter temporary credentials below — they
+              will NOT be stored and are used only for this discovery attempt.
             </DialogDescription>
             <div className="space-y-4 mt-4">
-              {credentialFields.map((field) => (
-              <Field key={field.key}>
-                <Label>
-                  {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
-                </Label>
-                <Input
-                  type={field.sensitive ? 'password' : 'text'}
-                  value={credentialValues[field.key] || ''}
-                  onChange={(e) => setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                  placeholder={field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`}
-                />
-              </Field>
-            ))}
-          </div>
-          <DialogActions>
-            <Button color="zinc" onClick={() => { setCredentialDialogOpen(false); setCredentialValues({}); }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCredentialDiscover}
-              disabled={discoverTools.isPending || credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())}
-            >
-              <MagnifyingGlassIcon data-slot="icon" />
-              {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
-            </Button>
-          </DialogActions>
-        </DialogBody>
-      </Dialog>
+              {credentialFields.map(field => (
+                <Field key={field.key}>
+                  <Label>
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                  </Label>
+                  <Input
+                    type={field.sensitive ? 'password' : 'text'}
+                    value={credentialValues[field.key] || ''}
+                    onChange={e =>
+                      setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    placeholder={
+                      field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+            <DialogActions>
+              <Button
+                color="zinc"
+                onClick={() => {
+                  setCredentialDialogOpen(false);
+                  setCredentialValues({});
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCredentialDiscover}
+                disabled={
+                  discoverTools.isPending ||
+                  credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())
+                }
+              >
+                <MagnifyingGlassIcon data-slot="icon" />
+                {discoverTools.isPending ? 'Discovering...' : 'Discover Tools'}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </Dialog>
       )}
 
       {/* Delete confirmation dialog */}
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Delete MCP?</AlertTitle>
         <AlertDescription>
-          This will permanently delete &ldquo;{mcp?.display_name}&rdquo;. This action cannot be undone.
+          This will permanently delete &ldquo;{mcp?.display_name}&rdquo;. This action cannot be
+          undone.
         </AlertDescription>
         <AlertActions>
-          <Button plain onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button plain onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
           <Button color="red" onClick={handleDelete} disabled={deleteMcp.isPending}>
             {deleteMcp.isPending ? 'Deleting...' : 'Delete'}
           </Button>

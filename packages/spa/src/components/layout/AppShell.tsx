@@ -5,10 +5,7 @@ import { AppNavbar } from './AppNavbar';
 
 export function AppShell() {
   return (
-    <SidebarLayout
-      sidebar={<AppSidebar />}
-      navbar={<AppNavbar />}
-    >
+    <SidebarLayout sidebar={<AppSidebar />} navbar={<AppNavbar />}>
       <Outlet />
     </SidebarLayout>
   );

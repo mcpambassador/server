@@ -14,12 +14,28 @@ import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { Dialog, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
-import { useCredentialStatus, useSetCredentials, useDeleteCredentials } from '@/api/hooks/use-credentials';
+import {
+  useCredentialStatus,
+  useSetCredentials,
+  useDeleteCredentials,
+} from '@/api/hooks/use-credentials';
 import { useOAuthAuthorize, useOAuthStatus, useOAuthDisconnect } from '@/api/hooks/use-oauth';
 import type { CredentialStatus } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -70,7 +86,7 @@ function OAuthConnectionCard({ cred }: { cred: CredentialStatus }) {
                 {cred.mcpName}
               </Link>
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
               {statusLoading ? (
                 <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200 dark:bg-zinc-700" />
@@ -85,7 +101,9 @@ function OAuthConnectionCard({ cred }: { cred: CredentialStatus }) {
                       {oauthStatus?.expires_at && (
                         <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
                           <ClockIcon className="size-4" />
-                          <span>Expires: {new Date(oauthStatus.expires_at).toLocaleDateString()}</span>
+                          <span>
+                            Expires: {new Date(oauthStatus.expires_at).toLocaleDateString()}
+                          </span>
                         </div>
                       )}
                     </>
@@ -123,10 +141,7 @@ function OAuthConnectionCard({ cred }: { cred: CredentialStatus }) {
                 Disconnect
               </Button>
             ) : (
-              <Button
-                onClick={handleConnect}
-                disabled={authorize.isPending || statusLoading}
-              >
+              <Button onClick={handleConnect} disabled={authorize.isPending || statusLoading}>
                 {authorize.isPending ? (
                   'Connecting...'
                 ) : (
@@ -144,7 +159,8 @@ function OAuthConnectionCard({ cred }: { cred: CredentialStatus }) {
       <Alert open={disconnectDialogOpen} onClose={setDisconnectDialogOpen}>
         <AlertTitle>Disconnect OAuth Connection?</AlertTitle>
         <AlertDescription>
-          This will revoke your OAuth connection to {cred.mcpName}. You'll need to reconnect to use this MCP.
+          This will revoke your OAuth connection to {cred.mcpName}. You'll need to reconnect to use
+          this MCP.
         </AlertDescription>
         <AlertActions>
           <Button plain onClick={() => setDisconnectDialogOpen(false)}>
@@ -170,19 +186,21 @@ export function Credentials() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMcp, setSelectedMcp] = useState<CredentialStatus | null>(null);
   const [credentialFields, setCredentialFields] = useState<Record<string, string>>({});
-  const [parsedFields, setParsedFields] = useState<Array<{
-    key: string;
-    label: string;
-    required: boolean;
-    sensitive: boolean;
-  }>>([]);
+  const [parsedFields, setParsedFields] = useState<
+    Array<{
+      key: string;
+      label: string;
+      required: boolean;
+      sensitive: boolean;
+    }>
+  >([]);
 
   // Handle OAuth callback notifications
   useEffect(() => {
     const status = searchParams.get('status');
     const mcpName = searchParams.get('mcp');
     const reason = searchParams.get('reason');
-    
+
     if (status === 'success' && mcpName) {
       toast.success('OAuth Connected', { description: `Successfully connected to ${mcpName}` });
       setSearchParams({}, { replace: true });
@@ -190,11 +208,12 @@ export function Credentials() {
       const messages: Record<string, string> = {
         invalid_request: 'Invalid OAuth request. Please try again.',
         invalid_state: 'OAuth session expired. Please try again.',
-        token_exchange_failed: 'Failed to exchange authorization code. Check provider configuration.',
+        token_exchange_failed:
+          'Failed to exchange authorization code. Check provider configuration.',
         server_error: 'A server error occurred. Please try again later.',
       };
-      toast.error('OAuth Connection Failed', { 
-        description: messages[reason || ''] || `Error: ${reason}` 
+      toast.error('OAuth Connection Failed', {
+        description: messages[reason || ''] || `Error: ${reason}`,
       });
       setSearchParams({}, { replace: true });
     }
@@ -204,9 +223,10 @@ export function Credentials() {
     setSelectedMcp(mcp);
     // Parse credential schema to extract properties
     try {
-      const schema = typeof mcp.credentialSchema === 'string'
-        ? JSON.parse(mcp.credentialSchema)
-        : mcp.credentialSchema;
+      const schema =
+        typeof mcp.credentialSchema === 'string'
+          ? JSON.parse(mcp.credentialSchema)
+          : mcp.credentialSchema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
       const fields = Object.entries(props).map(([key, value]: [string, unknown]) => {
@@ -220,7 +240,7 @@ export function Credentials() {
         };
       });
       setParsedFields(fields);
-      
+
       // Initialize credential fields with empty strings
       const initialFields: Record<string, string> = {};
       fields.forEach(f => {
@@ -247,7 +267,9 @@ export function Credentials() {
       setSelectedMcp(null);
       setCredentialFields({});
     } catch (error) {
-      toast.error('Failed to save credentials', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to save credentials', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -259,17 +281,21 @@ export function Credentials() {
       setDeleteDialogOpen(false);
       setSelectedMcp(null);
     } catch (error) {
-      toast.error('Failed to delete credentials', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to delete credentials', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
   // Split credentials into OAuth and static
   const allCredentials = credentials?.filter(c => c.requiresCredentials) ?? [];
   const oauthCredentials = allCredentials.filter(c => c.authType === 'oauth2');
-  const staticCredentials = allCredentials.filter(c => c.authType !== 'oauth2').map(c => ({
-    ...c,
-    id: c.mcpId,
-  }));
+  const staticCredentials = allCredentials
+    .filter(c => c.authType !== 'oauth2')
+    .map(c => ({
+      ...c,
+      id: c.mcpId,
+    }));
 
   return (
     <div className="space-y-6">
@@ -283,28 +309,31 @@ export function Credentials() {
       {oauthCredentials.length > 0 && (
         <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
           <div className="px-6 py-5 border-b border-zinc-950/5 dark:border-white/10">
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-white">OAuth Connections</h2>
-            <Text className="mt-1">Connect your accounts to MCPs that use OAuth 2.0 authentication</Text>
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-white">
+              OAuth Connections
+            </h2>
+            <Text className="mt-1">
+              Connect your accounts to MCPs that use OAuth 2.0 authentication
+            </Text>
           </div>
 
           <div className="p-6 space-y-4">
-            {isLoading ? (
-              Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2 flex-1">
-                      <div className="h-5 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-                      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+            {isLoading
+              ? Array.from({ length: 2 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="animate-pulse rounded-lg border border-zinc-200 dark:border-zinc-700 p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-2 flex-1">
+                        <div className="h-5 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                      </div>
+                      <div className="h-9 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                     </div>
-                    <div className="h-9 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
                   </div>
-                </div>
-              ))
-            ) : (
-              oauthCredentials.map((cred) => (
-                <OAuthConnectionCard key={cred.mcpId} cred={cred} />
-              ))
-            )}
+                ))
+              : oauthCredentials.map(cred => <OAuthConnectionCard key={cred.mcpId} cred={cred} />)}
           </div>
         </div>
       )}
@@ -313,7 +342,9 @@ export function Credentials() {
       {staticCredentials.length > 0 && (
         <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
           <div className="px-6 py-5 border-b border-zinc-950/5 dark:border-white/10">
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-white">Static Credentials</h2>
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-white">
+              Static Credentials
+            </h2>
             <Text className="mt-1">MCPs that require API keys, tokens, or passwords</Text>
           </div>
 
@@ -329,97 +360,95 @@ export function Credentials() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="animate-pulse h-4 w-4 rounded bg-zinc-200 dark:bg-zinc-700" />
-                          <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                      </TableCell>
-                      <TableCell>
-                        <div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
-                          <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  staticCredentials.map((cred) => (
-                    <TableRow key={cred.mcpId}>
-                      {/* MCP Name */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <KeyIcon className="size-4 text-zinc-500 dark:text-zinc-400" />
-                          <Link
-                            to={`/app/marketplace/${cred.mcpId}`}
-                            className="font-medium text-zinc-900 dark:text-white hover:underline"
-                          >
-                            {cred.mcpName}
-                          </Link>
-                        </div>
-                      </TableCell>
+                {isLoading
+                  ? Array.from({ length: 3 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="animate-pulse h-4 w-4 rounded bg-zinc-200 dark:bg-zinc-700" />
+                            <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="animate-pulse h-6 w-24 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                        </TableCell>
+                        <TableCell>
+                          <div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
+                            <div className="animate-pulse h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-700" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  : staticCredentials.map(cred => (
+                      <TableRow key={cred.mcpId}>
+                        {/* MCP Name */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <KeyIcon className="size-4 text-zinc-500 dark:text-zinc-400" />
+                            <Link
+                              to={`/app/marketplace/${cred.mcpId}`}
+                              className="font-medium text-zinc-900 dark:text-white hover:underline"
+                            >
+                              {cred.mcpName}
+                            </Link>
+                          </div>
+                        </TableCell>
 
-                      {/* Status */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {cred.hasCredentials ? (
-                            <>
-                              <CheckCircleIcon className="size-4 text-green-600 dark:text-green-400" />
-                              <Badge color="green">Configured</Badge>
-                            </>
-                          ) : (
-                            <>
-                              <XCircleIcon className="size-4 text-zinc-400" />
-                              <Badge color="zinc">Not Set</Badge>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
+                        {/* Status */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {cred.hasCredentials ? (
+                              <>
+                                <CheckCircleIcon className="size-4 text-green-600 dark:text-green-400" />
+                                <Badge color="green">Configured</Badge>
+                              </>
+                            ) : (
+                              <>
+                                <XCircleIcon className="size-4 text-zinc-400" />
+                                <Badge color="zinc">Not Set</Badge>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
 
-                      {/* Last Updated */}
-                      <TableCell>
-                        <span className="text-zinc-900 dark:text-white">
-                          {cred.updatedAt ? new Date(cred.updatedAt).toLocaleString() : '—'}
-                        </span>
-                      </TableCell>
+                        {/* Last Updated */}
+                        <TableCell>
+                          <span className="text-zinc-900 dark:text-white">
+                            {cred.updatedAt ? new Date(cred.updatedAt).toLocaleString() : '—'}
+                          </span>
+                        </TableCell>
 
-                      {/* Actions */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            plain
-                            onClick={() => handleEdit(cred)}
-                            aria-label="Edit credentials"
-                          >
-                            <PencilIcon data-slot="icon" />
-                          </Button>
-                          {cred.hasCredentials && (
+                        {/* Actions */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
                             <Button
                               plain
-                              onClick={() => {
-                                setSelectedMcp(cred);
-                                setDeleteDialogOpen(true);
-                              }}
-                              disabled={deleteCredentials.isPending}
-                              aria-label="Delete credentials"
+                              onClick={() => handleEdit(cred)}
+                              aria-label="Edit credentials"
                             >
-                              <TrashIcon data-slot="icon" />
+                              <PencilIcon data-slot="icon" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                            {cred.hasCredentials && (
+                              <Button
+                                plain
+                                onClick={() => {
+                                  setSelectedMcp(cred);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                disabled={deleteCredentials.isPending}
+                                aria-label="Delete credentials"
+                              >
+                                <TrashIcon data-slot="icon" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
               </TableBody>
             </Table>
           </div>
@@ -442,7 +471,7 @@ export function Credentials() {
           Enter the required credentials. They will be stored securely and never displayed.
         </DialogDescription>
         <div className="mt-4 space-y-4">
-          {parsedFields.map((field) => (
+          {parsedFields.map(field => (
             <Field key={field.key}>
               <Label>
                 {field.label}
@@ -451,7 +480,7 @@ export function Credentials() {
               <Input
                 type={field.sensitive ? 'password' : 'text'}
                 value={credentialFields[field.key] ?? ''}
-                onChange={(e) =>
+                onChange={e =>
                   setCredentialFields({
                     ...credentialFields,
                     [field.key]: e.target.value,
@@ -469,10 +498,7 @@ export function Credentials() {
           </Button>
           <Button
             onClick={handleSave}
-            disabled={
-              Object.values(credentialFields).every(v => !v) ||
-              setCredentials.isPending
-            }
+            disabled={Object.values(credentialFields).every(v => !v) || setCredentials.isPending}
           >
             {setCredentials.isPending ? 'Saving...' : 'Save Credentials'}
           </Button>
@@ -483,18 +509,14 @@ export function Credentials() {
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Delete Credentials?</AlertTitle>
         <AlertDescription>
-          This will permanently delete your stored credentials for{' '}
-          {selectedMcp?.mcpName}. You will need to re-enter them to use this MCP.
+          This will permanently delete your stored credentials for {selectedMcp?.mcpName}. You will
+          need to re-enter them to use this MCP.
         </AlertDescription>
         <AlertActions>
           <Button plain onClick={() => setDeleteDialogOpen(false)}>
             Cancel
           </Button>
-          <Button
-            color="red"
-            onClick={handleDelete}
-            disabled={deleteCredentials.isPending}
-          >
+          <Button color="red" onClick={handleDelete} disabled={deleteCredentials.isPending}>
             Delete
           </Button>
         </AlertActions>

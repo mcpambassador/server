@@ -4,6 +4,14 @@ import path from 'path';
 // simple recursive file collector (avoids external glob dependency)
 import { startTestServer, stopTestServer } from '../admin-api/helpers';
 
+const FLAG_GATED_PREFIXES = [
+  '/v1/users/me/agent-grants',
+  '/v1/admin/oauth-clients',
+  '/v1/admin/agent-grants',
+  '/v1/admin/agent-endpoint',
+  '/v1/oauth/consent',
+];
+
 const DUMMY_ID = '00000000-0000-0000-0000-000000000000';
 
 function normalizePathLiteral(raw: string) {
@@ -82,7 +90,7 @@ let userCookieHeader = '';
 beforeAll(async () => {
   handle = await startTestServer();
   // attempt login to obtain a user session cookie for non-admin routes
-  const loginRes = await handle.fastify.inject({
+  const loginRes = await handle.admin.inject({
     method: 'POST',
     url: '/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
@@ -104,6 +112,9 @@ describe('Contract: SPA route existence checker', () => {
     const missing: Array<{ method: string; path: string; status: number; body: any }> = [];
 
     for (const r of spaRoutes) {
+      // ADR-020: registered only when agent_endpoint.enabled (off in this fixture).
+      // Their disabled/enabled behaviour is covered by tests/agent-endpoint/.
+      if (FLAG_GATED_PREFIXES.some(pre => r.path.startsWith(pre))) continue;
       const url = pathToInjectUrl(r.path);
       const opts: any = { method: r.method, url };
 
@@ -118,7 +129,7 @@ describe('Contract: SPA route existence checker', () => {
         if (userCookieHeader) opts.headers = { cookie: userCookieHeader };
       }
 
-      const res = await handle.fastify.inject(opts);
+      const res = await handle.admin.inject(opts);
       let body: any = {};
       try {
         body = JSON.parse(res.body || '{}');

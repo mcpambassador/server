@@ -141,7 +141,7 @@ describe('Subscription Routes', () => {
     });
 
     // Login as user1
-    const loginResponse1 = await server.fastify.inject({
+    const loginResponse1 = await server.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: {
@@ -158,7 +158,7 @@ describe('Subscription Routes', () => {
     }
 
     // Login as user2
-    const loginResponse2 = await server.fastify.inject({
+    const loginResponse2 = await server.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: {
@@ -175,7 +175,7 @@ describe('Subscription Routes', () => {
     }
 
     // Create test client for user1
-    const clientResponse = await server.fastify.inject({
+    const clientResponse = await server.admin.inject({
       method: 'POST',
       url: '/v1/users/me/clients',
       headers: {
@@ -197,7 +197,7 @@ describe('Subscription Routes', () => {
 
   describe('POST /v1/users/me/clients/:clientId/subscriptions', () => {
     it('should subscribe to MCP with group access', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -219,7 +219,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should reject subscription without group access', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -239,7 +239,7 @@ describe('Subscription Routes', () => {
 
     it('should reject duplicate subscription', async () => {
       // Try to subscribe again to the same MCP
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -258,7 +258,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should reject without session', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         payload: {
@@ -272,7 +272,7 @@ describe('Subscription Routes', () => {
 
   describe('GET /v1/users/me/clients/:clientId/subscriptions', () => {
     it('should list subscriptions for client', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -293,7 +293,7 @@ describe('Subscription Routes', () => {
 
     it('should reject for other user client', async () => {
       // User2 tries to list subscriptions for User1 client
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -310,7 +310,7 @@ describe('Subscription Routes', () => {
 
     beforeAll(async () => {
       // Get subscription ID from list
-      const listResponse = await server.fastify.inject({
+      const listResponse = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -323,7 +323,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should get subscription detail', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -344,7 +344,7 @@ describe('Subscription Routes', () => {
 
     beforeAll(async () => {
       // Get subscription ID from list
-      const listResponse = await server.fastify.inject({
+      const listResponse = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -357,7 +357,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should update selected tools', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -374,7 +374,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should pause subscription', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -391,7 +391,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should resume subscription', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -413,7 +413,7 @@ describe('Subscription Routes', () => {
 
     beforeAll(async () => {
       // Get subscription ID from list
-      const listResponse = await server.fastify.inject({
+      const listResponse = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: {
@@ -426,7 +426,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should remove subscription', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -437,7 +437,7 @@ describe('Subscription Routes', () => {
       expect(response.statusCode).toBe(204);
 
       // Verify subscription is hard deleted (should return 404)
-      const getResponse = await server.fastify.inject({
+      const getResponse = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}/subscriptions/${testSubscriptionId}`,
         headers: {
@@ -458,7 +458,7 @@ describe('Subscription Routes', () => {
 
     beforeAll(async () => {
       // Re-subscribe after the DELETE test hard-deleted the previous subscription
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: { cookie: sessionCookie },
@@ -469,7 +469,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should return all subscriptions for the authenticated user', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/subscriptions',
         headers: { cookie: sessionCookie },
@@ -487,7 +487,7 @@ describe('Subscription Routes', () => {
     });
 
     it('should return 401 without a session', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/subscriptions',
       });
@@ -496,7 +496,7 @@ describe('Subscription Routes', () => {
 
     it('should not include subscriptions belonging to other users', async () => {
       // user2 has no subscriptions, so aggregate should be empty
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/subscriptions',
         headers: { cookie: sessionCookie2 },
@@ -514,7 +514,7 @@ describe('Subscription Routes', () => {
   // ==========================================================================
   describe('POST subscribe - OAuth2 MCP does not require pre-existing credentials', () => {
     it('should allow subscribing to an oauth2 MCP without stored credentials', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/users/me/clients/${testClientId}/subscriptions`,
         headers: { cookie: sessionCookie },

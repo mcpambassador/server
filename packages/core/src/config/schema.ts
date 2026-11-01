@@ -23,6 +23,14 @@ const ServerConfigSchema = z.object({
       ca_file: z.string().optional(),
     })
     .optional(),
+  /**
+   * S3: Fastify `trustProxy`. false (default) = ignore X-Forwarded-*; a string / string[] = trust
+   * only these proxy IPs/CIDRs; true = trust every hop (spoofable, avoid). Hop counts are not
+   * supported (Fastify >= 5.12 disables them as spoofable). Applies to BOTH listeners (8443 and 9443).
+   */
+  trust_proxy: z
+    .union([z.boolean(), z.string().min(1), z.array(z.string().min(1)).min(1)])
+    .default(false),
 });
 
 // ===== §6.1 Registration Configuration =====
@@ -138,6 +146,53 @@ const BufferConfigSchema = z.object({
     .default(100 * 1024 * 1024), // F-SEC-M3-006: 100MB default
 });
 
+// ===== ADR-020 Remote Agent Endpoint Configuration =====
+
+const AgentEndpointConfigSchema = z
+  .object({
+    /** Public issuer URL of the built-in AS (default: PUBLIC_URL, else https://serverName:adminPort) */
+    issuer_url: z.string().url().optional(),
+    /** Public base URL of the 8443 listener (default: https://serverName:port); /mcp is appended */
+    resource_base_url: z.string().url().optional(),
+    /** Master switch: when false, /mcp, /oauth/* and /.well-known/oauth-* return 404 */
+    enabled: z.boolean().default(false),
+    /** RFC 7591 dynamic client registration (admin toggle in SPA) */
+    dynamic_client_registration: z.boolean().default(false),
+    /** Max total registered OAuth clients (DCR cap) */
+    max_oauth_clients: z.number().int().min(1).max(10000).default(100),
+    /** Access token lifetime in seconds (15 min default) */
+    access_token_ttl_seconds: z.number().int().min(60).max(3600).default(900),
+    /** Default grant lifetime in seconds (1h) */
+    default_grant_ttl_seconds: z.number().int().min(60).max(86400).default(3600),
+    /** Hard maximum grant lifetime in seconds (24h) */
+    max_grant_ttl_seconds: z.number().int().min(60).max(86400).default(86400),
+    /** Authorization code lifetime in seconds */
+    auth_code_ttl_seconds: z.number().int().min(10).max(600).default(60),
+    /** Issue rotating refresh tokens for grants created via /oauth/authorize */
+    refresh_tokens_enabled: z.boolean().default(true),
+    /** Allowed Origin values for /mcp browser contexts (exact match); empty = no browser origins */
+    allowed_origins: z.array(z.string()).default([]),
+    /** Max concurrent SSE streams per grant */
+    max_streams_per_grant: z.number().int().min(1).max(100).default(4),
+    rate_limits: z
+      .object({
+        /** tools/call per minute per grant */
+        tool_calls_per_minute_per_grant: z.number().int().min(1).default(60),
+        /** tools/call per minute per user (all grants) */
+        tool_calls_per_minute_per_user: z.number().int().min(1).default(600),
+        /** /oauth/token per minute per IP+client */
+        token_per_minute: z.number().int().min(1).default(10),
+        /** /oauth/register per hour per IP */
+        register_per_hour: z.number().int().min(1).default(5),
+        /** /oauth/authorize per minute per user session */
+        authorize_per_minute: z.number().int().min(1).default(30),
+        /** Failed bearer auth on /mcp per minute per IP before 429 */
+        failed_auth_per_minute: z.number().int().min(1).default(20),
+      })
+      .default({}),
+  })
+  .default({});
+
 // ===== Root Configuration Schema =====
 
 export const AmbassadorConfigSchema = z.object({
@@ -152,11 +207,14 @@ export const AmbassadorConfigSchema = z.object({
   buffer: BufferConfigSchema.optional(),
   session: SessionConfigSchema,
   user_pool: UserPoolConfigSchema, // SEC-M17-005: Per-user MCP pool limits
+  agent_endpoint: AgentEndpointConfigSchema, // ADR-020
 });
 
 // ===== Infer TypeScript type from schema =====
 
 export type AmbassadorConfig = z.infer<typeof AmbassadorConfigSchema>;
+export type AgentEndpointConfig = z.infer<typeof AgentEndpointConfigSchema>;
+export { AgentEndpointConfigSchema };
 
 // ===== Credential field patterns (ADR-005 §2.3.1) =====
 

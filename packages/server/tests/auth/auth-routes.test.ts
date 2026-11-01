@@ -12,7 +12,9 @@ import { createUser } from '../../src/auth/user-auth.js';
 
 // Helper to extract cookie from set-cookie header
 function extractCookie(setCookieHeader?: string | string[] | undefined): string | undefined {
-  const sc = Array.isArray(setCookieHeader) ? setCookieHeader[0] : setCookieHeader;
+  // Prefer the non-empty cookie (a regenerated session also emits a clearing Set-Cookie)
+  const list = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  const sc = list.find(c => c && /^[^=]+=[^;]+/.test(c)) ?? list[0];
   if (!sc) return undefined;
   const m = sc.match(/([^=]+)=([^;]+);?/);
   return m ? `${m[1]}=${m[2]}` : undefined;
@@ -48,7 +50,7 @@ describe('Auth Routes', () => {
 
   describe('POST /v1/auth/login', () => {
     it('should login with valid credentials', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -74,7 +76,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject missing credentials', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -88,10 +90,46 @@ describe('Auth Routes', () => {
     });
   });
 
+  describe('session fixation (TD-015)', () => {
+    it('issues a new session id on login and invalidates the previous one', async () => {
+      const login = () =>
+        server.admin.inject({
+          method: 'POST',
+          url: '/v1/auth/login',
+          payload: { username: 'testuser', password: 'test1234' },
+          headers: prior ? { cookie: prior } : {},
+        });
+      let prior: string | undefined;
+      const first = await login();
+      expect(first.statusCode).toBe(200);
+      prior = extractCookie(first.headers['set-cookie']);
+      expect(prior).toBeDefined();
+
+      const second = await login();
+      expect(second.statusCode).toBe(200);
+      const fresh = extractCookie(second.headers['set-cookie']);
+      expect(fresh).toBeDefined();
+      expect(fresh).not.toBe(prior);
+
+      const old = await server.admin.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: prior! },
+      });
+      expect(old.statusCode).toBe(401);
+      const cur = await server.admin.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: fresh! },
+      });
+      expect(cur.statusCode).toBe(200);
+    });
+  });
+
   describe('GET /v1/auth/session', () => {
     it('should return session info when authenticated', async () => {
       // Login first
-      const loginResponse = await server.fastify.inject({
+      const loginResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -105,7 +143,7 @@ describe('Auth Routes', () => {
       expect(cookies).toBeDefined();
 
       // Get session info
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/auth/session',
         headers: {
@@ -122,7 +160,7 @@ describe('Auth Routes', () => {
     });
 
     it('should return 401 when not authenticated', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/auth/session',
       });
@@ -136,7 +174,7 @@ describe('Auth Routes', () => {
   describe('POST /v1/auth/logout', () => {
     it('should logout authenticated user', async () => {
       // Login first
-      const loginResponse = await server.fastify.inject({
+      const loginResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -150,7 +188,7 @@ describe('Auth Routes', () => {
       expect(cookies).toBeDefined();
 
       // Logout
-      const logoutResponse = await server.fastify.inject({
+      const logoutResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/logout',
         headers: {
@@ -163,7 +201,7 @@ describe('Auth Routes', () => {
       expect(body.data.message).toBe('Logged out successfully');
 
       // Session should be invalid now
-      const sessionResponse = await server.fastify.inject({
+      const sessionResponse = await server.admin.inject({
         method: 'GET',
         url: '/v1/auth/session',
         headers: {
@@ -175,7 +213,7 @@ describe('Auth Routes', () => {
     });
 
     it('should handle logout when not authenticated', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/logout',
       });
@@ -187,7 +225,7 @@ describe('Auth Routes', () => {
   // Run error cases and rate limiting last to avoid contaminating other tests
   describe('POST /v1/auth/login - error cases', () => {
     it('should reject invalid username', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -203,7 +241,7 @@ describe('Auth Routes', () => {
     });
 
     it('should reject invalid password', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -220,7 +258,7 @@ describe('Auth Routes', () => {
     it('should rate limit after multiple failures', async () => {
       // Attempt login 5 times with wrong password
       for (let i = 0; i < 5; i++) {
-        await server.fastify.inject({
+        await server.admin.inject({
           method: 'POST',
           url: '/v1/auth/login',
           payload: {
@@ -231,7 +269,7 @@ describe('Auth Routes', () => {
       }
 
       // 6th attempt should be rate limited
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {

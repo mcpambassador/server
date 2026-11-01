@@ -1,12 +1,36 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { UsersIcon, UserPlusIcon, CubeIcon, BoltIcon, ExclamationTriangleIcon, ArrowPathIcon, ServerStackIcon, ChevronUpDownIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/20/solid';
+import {
+  UsersIcon,
+  UserPlusIcon,
+  CubeIcon,
+  BoltIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+  ServerStackIcon,
+  ChevronUpDownIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+} from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Sparkline } from '@/components/shared/Sparkline';
 import {
   useAdminUsers,
@@ -69,15 +93,24 @@ export function Dashboard() {
     },
   ];
 
-  const hasUnhealthyMcps = mcpHealth && mcpHealth.summary.healthy_shared < mcpHealth.summary.total_shared;
+  const hasUnhealthyMcps =
+    mcpHealth && mcpHealth.summary.healthy_shared < mcpHealth.summary.total_shared;
   const hasPendingChanges = catalogStatus?.has_changes ?? false;
   const hasSystemIssues = hasUnhealthyMcps || hasPendingChanges;
 
   // Group user instances by user for display
-  const userInstanceCounts = new Map<string, { username: string; instances: number; tools: number; statuses: string[] }>();
+  const userInstanceCounts = new Map<
+    string,
+    { username: string; instances: number; tools: number; statuses: string[] }
+  >();
   if (userMcps?.instances) {
     userMcps.instances.forEach(inst => {
-      const existing = userInstanceCounts.get(inst.user_id) || { username: inst.username, instances: 0, tools: 0, statuses: [] };
+      const existing = userInstanceCounts.get(inst.user_id) || {
+        username: inst.username,
+        instances: 0,
+        tools: 0,
+        statuses: [],
+      };
       existing.instances += 1;
       existing.tools += inst.tool_count;
       existing.statuses.push(inst.status);
@@ -145,20 +178,37 @@ export function Dashboard() {
 
       {/* System Health Alerts Banner */}
       {hasSystemIssues && (
-        <div className={`rounded-lg ${hasUnhealthyMcps ? 'bg-red-50 dark:bg-red-500/10 ring-1 ring-red-600/20 dark:ring-red-500/20' : 'bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-600/20 dark:ring-amber-500/20'} p-4`}>
+        <div
+          className={`rounded-lg ${hasUnhealthyMcps ? 'bg-red-50 dark:bg-red-500/10 ring-1 ring-red-600/20 dark:ring-red-500/20' : 'bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-600/20 dark:ring-amber-500/20'} p-4`}
+        >
           <div className="flex items-center gap-3">
-            <ExclamationTriangleIcon className={`size-5 ${hasUnhealthyMcps ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+            <ExclamationTriangleIcon
+              className={`size-5 ${hasUnhealthyMcps ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}
+            />
             <div className="flex-1">
-              <p className={`text-sm font-medium ${hasUnhealthyMcps ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
+              <p
+                className={`text-sm font-medium ${hasUnhealthyMcps ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}
+              >
                 {hasUnhealthyMcps && (
                   <span>
-                    {mcpHealth.summary.total_shared - mcpHealth.summary.healthy_shared} unhealthy MCP{mcpHealth.summary.total_shared - mcpHealth.summary.healthy_shared > 1 ? 's' : ''} detected.{' '}
+                    {mcpHealth.summary.total_shared - mcpHealth.summary.healthy_shared} unhealthy
+                    MCP
+                    {mcpHealth.summary.total_shared - mcpHealth.summary.healthy_shared > 1
+                      ? 's'
+                      : ''}{' '}
+                    detected.{' '}
                   </span>
                 )}
                 {hasPendingChanges && catalogStatus && (
                   <span>
                     {(() => {
-                      const total = catalogStatus.shared.to_add.length + catalogStatus.shared.to_update.length + catalogStatus.shared.to_remove.length + catalogStatus.per_user.to_add.length + catalogStatus.per_user.to_update.length + catalogStatus.per_user.to_remove.length;
+                      const total =
+                        catalogStatus.shared.to_add.length +
+                        catalogStatus.shared.to_update.length +
+                        catalogStatus.shared.to_remove.length +
+                        catalogStatus.per_user.to_add.length +
+                        catalogStatus.per_user.to_update.length +
+                        catalogStatus.per_user.to_remove.length;
                       return `${total} pending catalog change${total > 1 ? 's' : ''} require${total === 1 ? 's' : ''} review.`;
                     })()}
                   </span>
@@ -171,10 +221,13 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-zinc-900/5 dark:bg-white/5 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {stats.map(stat => {
           const Icon = stat.icon;
           return (
-            <div key={stat.title} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 bg-zinc-50 dark:bg-white/5 px-4 py-10 sm:px-6 xl:px-8">
+            <div
+              key={stat.title}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 bg-zinc-50 dark:bg-white/5 px-4 py-10 sm:px-6 xl:px-8"
+            >
               <dt className="flex items-center gap-x-2 text-sm/6 font-medium text-zinc-500 dark:text-zinc-400">
                 <Icon className="size-4" />
                 {stat.title}
@@ -187,7 +240,10 @@ export function Dashboard() {
                 )}
               </dd>
               <dd className="w-full flex-none text-sm/6 text-zinc-500 dark:text-zinc-400">
-                <Link to={stat.href} className="hover:text-zinc-900 dark:hover:text-white transition-colors">
+                <Link
+                  to={stat.href}
+                  className="hover:text-zinc-900 dark:hover:text-white transition-colors"
+                >
                   View details →
                 </Link>
               </dd>
@@ -201,7 +257,9 @@ export function Dashboard() {
         <div className="px-4 py-5 sm:p-6">
           <div className="flex items-start justify-between gap-6 flex-wrap">
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Usage (7 days)</h3>
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+                Usage (7 days)
+              </h3>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 Daily tool invocations — last 7 days
               </p>
@@ -228,11 +286,15 @@ export function Dashboard() {
             {/* Per-day breakdown in a compact grid */}
             {!auditStatsLoading && sparklineData.length > 0 && (
               <div className="flex gap-3 flex-wrap">
-                {(auditStats?.dailyCounts ?? []).map((d) => (
+                {(auditStats?.dailyCounts ?? []).map(d => (
                   <div key={d.date} className="text-center min-w-[36px]">
-                    <div className="text-sm font-medium text-zinc-900 dark:text-white">{d.count}</div>
+                    <div className="text-sm font-medium text-zinc-900 dark:text-white">
+                      {d.count}
+                    </div>
                     <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                      {new Date(d.date + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short' })}
+                      {new Date(d.date + 'T12:00:00Z').toLocaleDateString(undefined, {
+                        weekday: 'short',
+                      })}
                     </div>
                   </div>
                 ))}
@@ -259,7 +321,10 @@ export function Dashboard() {
         {auditStatsLoading || mcpsLoading ? (
           <div className="px-4 py-5 sm:p-6 space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div
+                key={i}
+                className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700"
+              />
             ))}
           </div>
         ) : sortedMcpUsage.length > 0 ? (
@@ -324,7 +389,7 @@ export function Dashboard() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedMcpUsage.map((stat) => {
+              {sortedMcpUsage.map(stat => {
                 const mcpEntry = mcpsData?.data.find(m => m.name === stat.mcpName);
                 const isStale =
                   stat.invocations === 0 ||
@@ -351,9 +416,7 @@ export function Dashboard() {
                       {stat.invocations.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-zinc-500 dark:text-zinc-400">
-                      {stat.lastInvocation
-                        ? new Date(stat.lastInvocation).toLocaleString()
-                        : '—'}
+                      {stat.lastInvocation ? new Date(stat.lastInvocation).toLocaleString() : '—'}
                     </TableCell>
                     <TableCell>
                       {isStale ? (
@@ -379,7 +442,9 @@ export function Dashboard() {
       {/* MCP Health Overview */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-base font-semibold text-zinc-900 dark:text-white">MCP Health Overview</h3>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+            MCP Health Overview
+          </h3>
           <div className="mt-2 max-w-xl text-sm text-zinc-500 dark:text-zinc-400">
             <p>Real-time connection status and performance metrics</p>
           </div>
@@ -394,17 +459,30 @@ export function Dashboard() {
             <>
               {/* Shared MCPs Section */}
               <div className="mt-5">
-                <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">Shared MCPs</h4>
+                <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">
+                  Shared MCPs
+                </h4>
                 <div className="space-y-2">
-                  {mcpHealth.shared.map((mcp) => {
+                  {mcpHealth.shared.map(mcp => {
                     const mcpEntry = mcpsData?.data.find(m => m.name === mcp.name);
-                    const uptime = mcp.detail.uptime_ms ? Math.floor(mcp.detail.uptime_ms / 1000 / 60) : null;
-                    const truncatedError = mcp.last_error ? (mcp.last_error.length > 60 ? mcp.last_error.substring(0, 60) + '...' : mcp.last_error) : null;
+                    const uptime = mcp.detail.uptime_ms
+                      ? Math.floor(mcp.detail.uptime_ms / 1000 / 60)
+                      : null;
+                    const truncatedError = mcp.last_error
+                      ? mcp.last_error.length > 60
+                        ? mcp.last_error.substring(0, 60) + '...'
+                        : mcp.last_error
+                      : null;
 
                     return (
-                      <div key={mcp.name} className="flex items-center justify-between py-2 border-b border-zinc-950/5 dark:border-white/10 last:border-0">
+                      <div
+                        key={mcp.name}
+                        className="flex items-center justify-between py-2 border-b border-zinc-950/5 dark:border-white/10 last:border-0"
+                      >
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${mcp.connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                          <span
+                            className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${mcp.connected ? 'bg-green-500' : 'bg-red-500'}`}
+                          />
                           {mcpEntry ? (
                             <Link
                               to={`/app/admin/mcps/${mcpEntry.mcp_id}`}
@@ -413,17 +491,27 @@ export function Dashboard() {
                               {mcp.name}
                             </Link>
                           ) : (
-                            <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">{mcp.name}</span>
+                            <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">
+                              {mcp.name}
+                            </span>
                           )}
-                          <Badge color={mcp.transport === 'stdio' ? 'blue' : 'purple'}>{mcp.transport}</Badge>
-                          <span className="text-sm text-zinc-500 dark:text-zinc-400">{mcp.detail.toolCount ?? 0} tools</span>
+                          <Badge color={mcp.transport === 'stdio' ? 'blue' : 'purple'}>
+                            {mcp.transport}
+                          </Badge>
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                            {mcp.detail.toolCount ?? 0} tools
+                          </span>
                           {uptime !== null && (
-                            <span className="text-sm text-zinc-500 dark:text-zinc-400">{uptime}m uptime</span>
+                            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                              {uptime}m uptime
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {mcp.error_count > 0 && (
-                            <Badge color="red" title={truncatedError ?? undefined}>{mcp.error_count} error{mcp.error_count > 1 ? 's' : ''}</Badge>
+                            <Badge color="red" title={truncatedError ?? undefined}>
+                              {mcp.error_count} error{mcp.error_count > 1 ? 's' : ''}
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -435,13 +523,23 @@ export function Dashboard() {
               {/* Per-User MCPs Section */}
               {userMcps && userMcps.instances.length > 0 && (
                 <div className="mt-6 pt-5 border-t border-zinc-950/5 dark:border-white/10">
-                  <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">Per-User MCPs</h4>
+                  <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">
+                    Per-User MCPs
+                  </h4>
                   <div className="space-y-2">
                     {(() => {
                       // Group user instances by MCP name
-                      const mcpGroups = new Map<string, { instances: number; users: Set<string>; tools: number; errors: number }>();
+                      const mcpGroups = new Map<
+                        string,
+                        { instances: number; users: Set<string>; tools: number; errors: number }
+                      >();
                       userMcps.instances.forEach(inst => {
-                        const group = mcpGroups.get(inst.mcp_name) || { instances: 0, users: new Set<string>(), tools: 0, errors: 0 };
+                        const group = mcpGroups.get(inst.mcp_name) || {
+                          instances: 0,
+                          users: new Set<string>(),
+                          tools: 0,
+                          errors: 0,
+                        };
                         group.instances += 1;
                         group.users.add(inst.user_id);
                         group.tools += inst.tool_count;
@@ -451,7 +549,10 @@ export function Dashboard() {
                       return Array.from(mcpGroups.entries()).map(([mcpName, group]) => {
                         const mcpEntry = mcpsData?.data.find(m => m.name === mcpName);
                         return (
-                          <div key={mcpName} className="flex items-center justify-between py-2 border-b border-zinc-950/5 dark:border-white/10 last:border-0">
+                          <div
+                            key={mcpName}
+                            className="flex items-center justify-between py-2 border-b border-zinc-950/5 dark:border-white/10 last:border-0"
+                          >
                             <div className="flex items-center gap-3">
                               <ServerStackIcon className="size-4 text-zinc-400" />
                               {mcpEntry ? (
@@ -462,17 +563,24 @@ export function Dashboard() {
                                   {mcpName}
                                 </Link>
                               ) : (
-                                <span className="text-sm font-medium text-zinc-900 dark:text-white">{mcpName}</span>
+                                <span className="text-sm font-medium text-zinc-900 dark:text-white">
+                                  {mcpName}
+                                </span>
                               )}
                               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {group.instances} instance{group.instances > 1 ? 's' : ''} across {group.users.size} user{group.users.size > 1 ? 's' : ''}
+                                {group.instances} instance{group.instances > 1 ? 's' : ''} across{' '}
+                                {group.users.size} user{group.users.size > 1 ? 's' : ''}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
                               {group.errors > 0 && (
-                                <Badge color="red">{group.errors} error{group.errors > 1 ? 's' : ''}</Badge>
+                                <Badge color="red">
+                                  {group.errors} error{group.errors > 1 ? 's' : ''}
+                                </Badge>
                               )}
-                              <span className="text-sm text-zinc-500 dark:text-zinc-400">{group.tools} tools</span>
+                              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                                {group.tools} tools
+                              </span>
                             </div>
                           </div>
                         );
@@ -483,7 +591,9 @@ export function Dashboard() {
               )}
             </>
           ) : (
-            <p className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">No MCP health data available</p>
+            <p className="mt-5 text-sm text-zinc-500 dark:text-zinc-400">
+              No MCP health data available
+            </p>
           )}
         </div>
       </div>
@@ -494,8 +604,12 @@ export function Dashboard() {
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Per-User Instance Summary</h3>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Active user MCP instances</p>
+                <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+                  Per-User Instance Summary
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Active user MCP instances
+                </p>
               </div>
               <Link
                 to="/app/admin/user-instances"
@@ -523,7 +637,10 @@ export function Dashboard() {
                     <div className="animate-pulse h-8 w-16 mx-auto rounded bg-zinc-200 dark:bg-zinc-700" />
                   ) : (
                     <span>
-                      {userMcps.summary.active_users} <span className="text-base text-zinc-500">of {userMcps.summary.total_users}</span>
+                      {userMcps.summary.active_users}{' '}
+                      <span className="text-base text-zinc-500">
+                        of {userMcps.summary.total_users}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -535,9 +652,13 @@ export function Dashboard() {
                     <div className="animate-pulse h-8 w-16 mx-auto rounded bg-zinc-200 dark:bg-zinc-700" />
                   ) : (
                     <span>
-                      <span className="text-green-600 dark:text-green-400">{userMcps.summary.healthy_instances}</span>
+                      <span className="text-green-600 dark:text-green-400">
+                        {userMcps.summary.healthy_instances}
+                      </span>
                       {' / '}
-                      <span className="text-red-600 dark:text-red-400">{userMcps.summary.unhealthy_instances}</span>
+                      <span className="text-red-600 dark:text-red-400">
+                        {userMcps.summary.unhealthy_instances}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -548,18 +669,27 @@ export function Dashboard() {
             {/* Top Users Mini Table */}
             {topUsers.length > 0 && (
               <div className="border-t border-zinc-950/5 dark:border-white/10 pt-4">
-                <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">Top Users by Instance Count</h4>
+                <h4 className="text-sm font-medium text-zinc-900 dark:text-white mb-3">
+                  Top Users by Instance Count
+                </h4>
                 <div className="space-y-2">
-                  {topUsers.map((user) => (
+                  {topUsers.map(user => (
                     <div key={user.userId} className="flex items-center justify-between py-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-zinc-900 dark:text-white">{user.username}</span>
+                        <span className="text-sm font-medium text-zinc-900 dark:text-white">
+                          {user.username}
+                        </span>
                         {user.hasError && (
-                          <span className="inline-block h-2 w-2 rounded-full bg-red-500" title="Has errors" />
+                          <span
+                            className="inline-block h-2 w-2 rounded-full bg-red-500"
+                            title="Has errors"
+                          />
                         )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-                        <span>{user.instances} MCP{user.instances > 1 ? 's' : ''}</span>
+                        <span>
+                          {user.instances} MCP{user.instances > 1 ? 's' : ''}
+                        </span>
                         <span>{user.tools} tools</span>
                       </div>
                     </div>
@@ -577,12 +707,19 @@ export function Dashboard() {
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-semibold text-amber-900 dark:text-amber-300">Pending Catalog Changes</h3>
+                <h3 className="text-base font-semibold text-amber-900 dark:text-amber-300">
+                  Pending Catalog Changes
+                </h3>
                 <p className="mt-2 text-sm text-amber-800 dark:text-amber-400">
                   {(() => {
-                    const addCount = catalogStatus.shared.to_add.length + catalogStatus.per_user.to_add.length;
-                    const updateCount = catalogStatus.shared.to_update.length + catalogStatus.per_user.to_update.length;
-                    const removeCount = catalogStatus.shared.to_remove.length + catalogStatus.per_user.to_remove.length;
+                    const addCount =
+                      catalogStatus.shared.to_add.length + catalogStatus.per_user.to_add.length;
+                    const updateCount =
+                      catalogStatus.shared.to_update.length +
+                      catalogStatus.per_user.to_update.length;
+                    const removeCount =
+                      catalogStatus.shared.to_remove.length +
+                      catalogStatus.per_user.to_remove.length;
                     const totalChanges = addCount + updateCount + removeCount;
                     return (
                       <>
@@ -624,7 +761,9 @@ export function Dashboard() {
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-4 py-5 sm:p-6 border-b border-zinc-950/5 dark:border-white/10 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Recent Audit Events</h3>
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+              Recent Audit Events
+            </h3>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Last 5 system events</p>
           </div>
           <Button outline href="/app/admin/audit">
@@ -634,7 +773,10 @@ export function Dashboard() {
         {auditLoading ? (
           <div className="px-4 py-5 sm:p-6 space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div
+                key={i}
+                className="animate-pulse h-10 w-full rounded bg-zinc-200 dark:bg-zinc-700"
+              />
             ))}
           </div>
         ) : auditData && auditData.data.length > 0 ? (
@@ -652,10 +794,15 @@ export function Dashboard() {
               {auditData.data.map(event => (
                 <TableRow key={event.event_id}>
                   <TableCell>
-                    <Badge color={
-                      event.severity === 'error' ? 'red' :
-                      event.severity === 'warn' ? 'amber' : 'zinc'
-                    }>
+                    <Badge
+                      color={
+                        event.severity === 'error'
+                          ? 'red'
+                          : event.severity === 'warn'
+                            ? 'amber'
+                            : 'zinc'
+                      }
+                    >
                       {event.severity}
                     </Badge>
                   </TableCell>
@@ -679,7 +826,9 @@ export function Dashboard() {
       {/* Quick Actions */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-4">Quick Actions</h3>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-4">
+            Quick Actions
+          </h3>
           <div className="flex flex-wrap gap-3">
             <Button outline href="/app/admin/users">
               <UsersIcon data-slot="icon" />
@@ -701,13 +850,17 @@ export function Dashboard() {
       <Dialog open={previewDialogOpen} onClose={setPreviewDialogOpen} size="2xl">
         <DialogBody>
           <DialogTitle>Catalog Changes Preview</DialogTitle>
-          <DialogDescription>Review the changes that will be applied to your catalog</DialogDescription>
+          <DialogDescription>
+            Review the changes that will be applied to your catalog
+          </DialogDescription>
 
           {catalogStatus && (
             <div className="mt-6 space-y-6">
               {/* Shared MCPs Section */}
               <div>
-                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">Shared MCPs</h4>
+                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">
+                  Shared MCPs
+                </h4>
                 <div className="space-y-3 text-sm">
                   {catalogStatus.shared.to_add.length > 0 && (
                     <div>
@@ -715,7 +868,7 @@ export function Dashboard() {
                         Adding {catalogStatus.shared.to_add.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.shared.to_add.map((item) => (
+                        {catalogStatus.shared.to_add.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name} ({item.transport_type})
                           </li>
@@ -730,7 +883,7 @@ export function Dashboard() {
                         Updating {catalogStatus.shared.to_update.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.shared.to_update.map((item) => (
+                        {catalogStatus.shared.to_update.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name}
                             {item.changed_fields.length > 0 && (
@@ -750,7 +903,7 @@ export function Dashboard() {
                         Removing {catalogStatus.shared.to_remove.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.shared.to_remove.map((item) => (
+                        {catalogStatus.shared.to_remove.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name}
                             {item.reason && (
@@ -774,7 +927,9 @@ export function Dashboard() {
 
               {/* Per-User MCPs Section */}
               <div className="border-t border-zinc-950/5 dark:border-white/10 pt-4">
-                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">Per-User MCPs</h4>
+                <h4 className="text-sm font-semibold text-zinc-900 dark:text-white mb-3">
+                  Per-User MCPs
+                </h4>
                 <div className="space-y-3 text-sm">
                   {catalogStatus.per_user.to_add.length > 0 && (
                     <div>
@@ -782,7 +937,7 @@ export function Dashboard() {
                         Adding {catalogStatus.per_user.to_add.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.per_user.to_add.map((item) => (
+                        {catalogStatus.per_user.to_add.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name}
                           </li>
@@ -797,7 +952,7 @@ export function Dashboard() {
                         Updating {catalogStatus.per_user.to_update.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.per_user.to_update.map((item) => (
+                        {catalogStatus.per_user.to_update.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name}
                           </li>
@@ -812,7 +967,7 @@ export function Dashboard() {
                         Removing {catalogStatus.per_user.to_remove.length}
                       </p>
                       <ul className="space-y-1 ml-3">
-                        {catalogStatus.per_user.to_remove.map((item) => (
+                        {catalogStatus.per_user.to_remove.map(item => (
                           <li key={item.name} className="text-zinc-700 dark:text-zinc-300">
                             • {item.name}
                           </li>
@@ -824,7 +979,9 @@ export function Dashboard() {
                   {catalogStatus.per_user.to_add.length === 0 &&
                     catalogStatus.per_user.to_update.length === 0 &&
                     catalogStatus.per_user.to_remove.length === 0 && (
-                      <p className="text-zinc-500 dark:text-zinc-400">No changes to per-user MCPs</p>
+                      <p className="text-zinc-500 dark:text-zinc-400">
+                        No changes to per-user MCPs
+                      </p>
                     )}
                 </div>
               </div>
@@ -832,7 +989,9 @@ export function Dashboard() {
           )}
 
           <DialogActions>
-            <Button plain onClick={() => setPreviewDialogOpen(false)}>Cancel</Button>
+            <Button plain onClick={() => setPreviewDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={() => {
                 setPreviewDialogOpen(false);

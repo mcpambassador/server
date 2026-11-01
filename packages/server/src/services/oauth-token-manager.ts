@@ -19,6 +19,22 @@ export interface OAuthTokenManagerConfig {
 }
 
 /**
+ * L2: a failed downstream token exchange may echo secrets (codes, tokens, client secrets) in its
+ * body. Log ONLY the RFC 6749 `error` / `error_description` fields, truncated — never the raw body.
+ */
+async function safeOAuthErrorDetail(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: unknown; error_description?: unknown };
+    const clip = (v: unknown): string =>
+      typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').slice(0, 200) : '';
+    const parts = [clip(body.error), clip(body.error_description)].filter(Boolean);
+    return parts.length ? parts.join(': ') : '(no error fields)';
+  } catch {
+    return '(unparseable error body)';
+  }
+}
+
+/**
  * OAuthTokenManager implements the OAuth 2.0 token lifecycle per ADR-014.
  * Handles authorization URL construction, code-for-token exchange, token refresh,
  * and token revocation using RFC 6749 / RFC 7636 (PKCE).
@@ -122,9 +138,7 @@ export class OAuthTokenManager {
 
     const authorizationUrl = authUrl.toString();
 
-    logger.info(
-      `[OAuthTokenManager] Generated authorization URL with state=${state.substring(0, 8)}...`
-    );
+    logger.info('[OAuthTokenManager] Generated authorization URL');
 
     // 6. Return
     return { authorizationUrl, state };
@@ -147,9 +161,7 @@ export class OAuthTokenManager {
     state: string,
     code: string
   ): Promise<{ tokenSet: OAuthTokenSet; userId: string; mcpId: string }> {
-    logger.info(
-      `[OAuthTokenManager] Exchanging code for tokens with state=${state.substring(0, 8)}...`
-    );
+    logger.info('[OAuthTokenManager] Exchanging code for tokens');
 
     // 1. consumeOAuthState — atomic get+delete
     const oauthState = await consumeOAuthState(this.db, state);
@@ -192,8 +204,8 @@ export class OAuthTokenManager {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(`[OAuthTokenManager] Token exchange failed: ${response.status} ${errorText}`);
+      const detail = await safeOAuthErrorDetail(response);
+      logger.error(`[OAuthTokenManager] Token exchange failed: ${response.status} ${detail}`);
       throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
     }
 
@@ -256,8 +268,8 @@ export class OAuthTokenManager {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(`[OAuthTokenManager] Token refresh failed: ${response.status} ${errorText}`);
+      const detail = await safeOAuthErrorDetail(response);
+      logger.error(`[OAuthTokenManager] Token refresh failed: ${response.status} ${detail}`);
       throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
     }
 

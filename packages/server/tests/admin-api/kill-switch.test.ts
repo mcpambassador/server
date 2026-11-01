@@ -23,7 +23,7 @@ describe('Kill Switch API', () => {
   it('POST /v1/admin/kill-switch/:target - activate/deactivate happy path', async () => {
     const res = await handle.fastify.inject({
       method: 'POST',
-      url: '/v1/admin/kill-switch/test-tool',
+      url: '/v1/admin/kill-switch/mcp:test-tool',
       headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
       payload: JSON.stringify({ enabled: true }),
     });

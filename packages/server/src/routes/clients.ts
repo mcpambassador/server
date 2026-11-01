@@ -23,10 +23,16 @@ import {
   revokeUserClient,
   updateUserClientName,
 } from '../services/client-service.js';
+import type { AuditProvider } from '@mcpambassador/core';
+import { emitAgentAudit, revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
 import { createClientSchema, updateClientSchema, clientIdParamsSchema } from './schemas.js';
 
 export interface ClientRoutesConfig {
   db: DatabaseClient;
+  /** Audit sink; used to record agent grants revoked by a client delete */
+  audit?: AuditProvider;
+  /** Called with the ids of agent grants revoked by a client delete (aborts in-flight /mcp requests) */
+  onGrantsRevoked?: (grantIds: string[]) => void;
 }
 
 /**
@@ -36,7 +42,7 @@ export async function registerClientRoutes(
   fastify: FastifyInstance,
   config: ClientRoutesConfig
 ): Promise<void> {
-  const { db } = config;
+  const { db, audit, onGrantsRevoked } = config;
 
   // ==========================================================================
   // GET /v1/users/me/clients - List user's clients
@@ -210,6 +216,13 @@ export async function registerClientRoutes(
 
         if (body.status === 'suspended') {
           await suspendUserClient(db, userId, params.clientId, isAdmin);
+          await revokeClientGrantsWithAudit(
+            { db, audit, onGrantsRevoked },
+            params.clientId,
+            userId,
+            request.ip ?? '0.0.0.0',
+            'bound_client_suspended'
+          );
         } else if (body.status === 'active') {
           await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
@@ -256,7 +269,22 @@ export async function registerClientRoutes(
       const params = clientIdParamsSchema.parse(request.params);
 
       try {
-        await revokeUserClient(db, userId, params.clientId, isAdmin);
+        const revoked = await revokeUserClient(db, userId, params.clientId, isAdmin);
+        onGrantsRevoked?.(revoked.map(g => g.grant_id));
+        if (audit) {
+          for (const g of revoked) {
+            await emitAgentAudit({ audit }, 'agent_grant_revoked', {
+              user_id: g.user_id,
+              bound_client_id: params.clientId,
+              source_ip: request.ip,
+              metadata: {
+                agent_grant_id: g.grant_id,
+                revoked_by: userId,
+                reason: 'bound_client_deleted',
+              },
+            });
+          }
+        }
 
         return reply.status(204).send();
       } catch (error: any) {

@@ -11,7 +11,8 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import yaml from 'yaml';
+import yaml, { YAMLError } from 'yaml';
+import { ZodError } from 'zod';
 import {
   AmbassadorConfigSchema,
   buildCredentialPatterns,
@@ -102,11 +103,42 @@ export async function loadConfig(
     if (error instanceof AmbassadorError) {
       throw error;
     }
+    if (error instanceof YAMLError) {
+      // yaml's message embeds a code frame of the source line, which may hold an inline secret.
+      const line = error.linePos?.[0]?.line;
+      throw new AmbassadorError(
+        `Config YAML invalid: ${error.code}${line !== undefined ? ` at line ${line}` : ''}`,
+        'configuration_error'
+      );
+    }
+    if (error instanceof ZodError) {
+      throw new AmbassadorError(
+        `Config validation failed: ${formatZodIssues(error)}`,
+        'configuration_error'
+      );
+    }
     if (error instanceof Error) {
       throw new AmbassadorError(`Failed to load config: ${error.message}`, 'configuration_error');
     }
     throw error;
   }
+}
+
+// Zod issue codes whose messages echo the offending input value; report only the code for these.
+const VALUE_ECHOING_CODES = new Set([
+  'invalid_enum_value',
+  'invalid_literal',
+  'invalid_union_discriminator',
+]);
+
+/** Format zod issues as `path: message` pairs. Never includes config values. */
+function formatZodIssues(error: ZodError): string {
+  return error.issues
+    .map(
+      i =>
+        `${i.path.join('.') || '(root)'}: ${VALUE_ECHOING_CODES.has(i.code) ? i.code : i.message}`
+    )
+    .join('; ');
 }
 
 /**
@@ -171,7 +203,7 @@ async function resolveSecrets(
           // F-SEC-M3-008: Verify it's a valid resolver, not just ${anything}
           const isValidResolver = value.match(/^\$\{(ENV:[A-Z_][A-Z0-9_]*|file:.+)\}$/);
           if (!isValidResolver) {
-            const message = `Credential field '${key}' has unresolved reference: ${value}`;
+            const message = `Credential field '${key}' has an unresolved reference`;
             if (enforcement === 'block') {
               throw new AmbassadorError(message, 'unresolved_credential');
             } else {

@@ -138,9 +138,7 @@ export async function registerOAuthRoutes(
           oauthConfig
         );
 
-        logger.info(
-          `[OAuth Routes] Generated authorization URL with state=${state.substring(0, 8)}...`
-        );
+        logger.info('[OAuth Routes] Generated authorization URL');
 
         return reply.status(200).send(
           wrapSuccess({

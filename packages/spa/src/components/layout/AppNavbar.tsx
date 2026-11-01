@@ -3,11 +3,11 @@ import { UserCircleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react
 import { Navbar, NavbarSection, NavbarSpacer, NavbarItem } from '@/components/catalyst/navbar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar } from '@/components/catalyst/avatar';
-import { 
-  Dropdown, 
-  DropdownButton, 
-  DropdownMenu, 
-  DropdownItem, 
+import {
+  Dropdown,
+  DropdownButton,
+  DropdownMenu,
+  DropdownItem,
   DropdownDivider,
   DropdownLabel,
 } from '@/components/catalyst/dropdown';
@@ -17,7 +17,7 @@ import { authApi } from '@/api/auth';
 export function AppNavbar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
+
   const { data: session } = useQuery({
     queryKey: ['session'],
     queryFn: authApi.getSession,

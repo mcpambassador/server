@@ -14,6 +14,8 @@
  * @see Architecture §16.4 Admin API Design Principles
  */
 
+import { KILL_SWITCH_LIST_ROUTE, type KillSwitchSummary } from '@mcpambassador/contracts';
+import { adminKeyActor } from './middleware.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -51,27 +53,50 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
   // CR-M10-001: Use shared kill switch manager
   // ==========================================================================
   fastify.post('/v1/admin/kill-switch/:target', async (request, reply) => {
-    const { target } = killSwitchParamsSchema.parse(request.params);
-    const body = killSwitchSchema.parse(request.body);
+    const parsedParams = killSwitchParamsSchema.safeParse(request.params);
+    const parsedBody = killSwitchSchema.safeParse(request.body);
+    if (!parsedParams.success || !parsedBody.success) {
+      return reply
+        .status(400)
+        .send(
+          wrapError(
+            ErrorCodes.VALIDATION_ERROR,
+            'Invalid kill switch request: target must be client:<id> or mcp:<name>, body { enabled: boolean }'
+          )
+        );
+    }
+    const { target } = parsedParams.data;
+    const body = parsedBody.data;
 
-    // Store kill switch state using shared manager
-    killSwitchManager.set(target, body.enabled);
+    const actor = adminKeyActor(request) ?? request.session?.userId ?? 'admin-unknown';
 
-    // Emit audit event
-    await audit.emit({
-      event_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      event_type: 'admin_action',
-      severity: 'warn',
-      client_id: undefined,
-      user_id: undefined,
-      source_ip: '127.0.0.1',
-      action: body.enabled ? 'kill_switch_activate' : 'kill_switch_deactivate',
-      metadata: {
-        target,
-        enabled: body.enabled,
-      },
-    });
+    // Persisted + in-memory (TD-022). If persistence fails the switch (when activating) still holds in
+    // this process, but the caller gets a 500 so they know it won't survive a restart.
+    const emitAudit = (persisted: boolean) =>
+      audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        event_type: 'admin_action',
+        severity: 'warn',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: request.ip ?? '127.0.0.1',
+        action: body.enabled ? 'kill_switch_activate' : 'kill_switch_deactivate',
+        metadata: {
+          target,
+          enabled: body.enabled,
+          actor,
+          persisted,
+        },
+      });
+
+    try {
+      await killSwitchManager.set(target, body.enabled, actor);
+    } catch (err) {
+      await emitAudit(false);
+      throw err;
+    }
+    await emitAudit(true);
 
     return reply.send(
       wrapSuccess({
@@ -80,6 +105,14 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         timestamp: new Date().toISOString(),
       })
     );
+  });
+
+  // ==========================================================================
+  // GET /v1/admin/kill-switches — ACTIVE switches only (TD-022), non-paginated
+  // ==========================================================================
+  fastify.get(KILL_SWITCH_LIST_ROUTE, async (_request, reply) => {
+    const data: KillSwitchSummary[] = killSwitchManager.list();
+    return reply.send(wrapSuccess(data));
   });
 
   // ==========================================================================

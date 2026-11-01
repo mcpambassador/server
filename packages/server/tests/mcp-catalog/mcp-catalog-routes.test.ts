@@ -49,7 +49,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('POST /v1/admin/mcps', () => {
     it('should create a draft MCP entry with admin key', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -85,7 +85,7 @@ describe('MCP Catalog Routes', () => {
       const mcpName = 'duplicate-mcp-' + Date.now();
 
       // Create first MCP
-      await server.fastify.inject({
+      await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -100,7 +100,7 @@ describe('MCP Catalog Routes', () => {
       });
 
       // Try to create duplicate
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -120,7 +120,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should reject invalid transport config', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -139,7 +139,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should reject without admin key', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         payload: {
@@ -156,7 +156,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('GET /v1/admin/mcps', () => {
     it('should list all MCP entries', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps',
         headers: {
@@ -172,7 +172,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should filter by status', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps?status=draft',
         headers: {
@@ -186,7 +186,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should filter by isolation mode', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps?isolation_mode=shared',
         headers: {
@@ -200,7 +200,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should support cursor pagination', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps?limit=1',
         headers: {
@@ -218,7 +218,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('GET /v1/admin/mcps/:mcpId', () => {
     it('should get MCP by ID', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: `/v1/admin/mcps/${testMcpId}`,
         headers: {
@@ -232,7 +232,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should return 404 for non-existent MCP', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps/00000000-0000-0000-0000-000000000000',
         headers: {
@@ -246,7 +246,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('PATCH /v1/admin/mcps/:mcpId', () => {
     it('should update MCP metadata', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/admin/mcps/${testMcpId}`,
         headers: {
@@ -265,7 +265,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should reset validation status when config changes', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/admin/mcps/${testMcpId}`,
         headers: {
@@ -286,7 +286,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('POST /v1/admin/mcps/:mcpId/validate', () => {
     it('should validate valid MCP config', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${testMcpId}/validate`,
         headers: {
@@ -302,7 +302,7 @@ describe('MCP Catalog Routes', () => {
 
     it('should detect invalid MCP config', async () => {
       // Create MCP with invalid config
-      const createRes = await server.fastify.inject({
+      const createRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -318,7 +318,7 @@ describe('MCP Catalog Routes', () => {
       const invalidMcpId = JSON.parse(createRes.body).data.mcp_id;
 
       // Validate it
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${invalidMcpId}/validate`,
         headers: {
@@ -336,7 +336,7 @@ describe('MCP Catalog Routes', () => {
   describe('POST /v1/admin/mcps/:mcpId/publish', () => {
     it('should publish validated MCP', async () => {
       // First validate
-      await server.fastify.inject({
+      await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${testMcpId}/validate`,
         headers: {
@@ -345,7 +345,7 @@ describe('MCP Catalog Routes', () => {
       });
 
       // Then publish
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${testMcpId}/publish`,
         headers: {
@@ -362,7 +362,7 @@ describe('MCP Catalog Routes', () => {
 
     it('should reject publishing unvalidated MCP', async () => {
       // Create new MCP
-      const createRes = await server.fastify.inject({
+      const createRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -378,7 +378,7 @@ describe('MCP Catalog Routes', () => {
       const unvalidatedMcpId = JSON.parse(createRes.body).data.mcp_id;
 
       // Try to publish without validation
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${unvalidatedMcpId}/publish`,
         headers: {
@@ -394,7 +394,7 @@ describe('MCP Catalog Routes', () => {
 
   describe('POST /v1/admin/mcps/:mcpId/archive', () => {
     it('should archive MCP', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${testMcpId}/archive`,
         headers: {
@@ -411,7 +411,7 @@ describe('MCP Catalog Routes', () => {
   describe('DELETE /v1/admin/mcps/:mcpId', () => {
     it('should delete draft MCP', async () => {
       // Create draft MCP
-      const createRes = await server.fastify.inject({
+      const createRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -427,7 +427,7 @@ describe('MCP Catalog Routes', () => {
       const deletableMcpId = JSON.parse(createRes.body).data.mcp_id;
 
       // Delete it
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/admin/mcps/${deletableMcpId}`,
         headers: {
@@ -440,7 +440,7 @@ describe('MCP Catalog Routes', () => {
 
     it('should delete archived MCP', async () => {
       // testMcpId is already archived from previous test
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/admin/mcps/${testMcpId}`,
         headers: {
@@ -453,7 +453,7 @@ describe('MCP Catalog Routes', () => {
 
     it('should reject deleting published MCP', async () => {
       // Create and publish an MCP
-      const createRes = await server.fastify.inject({
+      const createRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/mcps',
         headers: {
@@ -469,19 +469,19 @@ describe('MCP Catalog Routes', () => {
       const publishedMcpId = JSON.parse(createRes.body).data.mcp_id;
 
       // Validate and publish
-      await server.fastify.inject({
+      await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${publishedMcpId}/validate`,
         headers: { 'X-Admin-Key': server.adminKey },
       });
-      await server.fastify.inject({
+      await server.admin.inject({
         method: 'POST',
         url: `/v1/admin/mcps/${publishedMcpId}/publish`,
         headers: { 'X-Admin-Key': server.adminKey },
       });
 
       // Try to delete
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/admin/mcps/${publishedMcpId}`,
         headers: {
@@ -498,7 +498,7 @@ describe('MCP Catalog Routes', () => {
   describe('GET /v1/marketplace (user session required)', () => {
     it('should browse marketplace with user session', async () => {
       // Login to get session cookie
-      const loginRes = await server.fastify.inject({
+      const loginRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: { username: 'mcpuser', password: 'pass1234' },
@@ -506,7 +506,7 @@ describe('MCP Catalog Routes', () => {
       const sessionCookie = loginRes.headers['set-cookie'] as string;
 
       // Browse marketplace
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/marketplace',
         headers: {
@@ -525,7 +525,7 @@ describe('MCP Catalog Routes', () => {
     });
 
     it('should reject marketplace access without session', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/marketplace',
       });
@@ -535,14 +535,14 @@ describe('MCP Catalog Routes', () => {
 
     it('should support cursor pagination', async () => {
       // Login
-      const loginRes = await server.fastify.inject({
+      const loginRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: { username: 'mcpuser', password: 'pass1234' },
       });
       const sessionCookie = loginRes.headers['set-cookie'] as string;
 
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/marketplace?limit=1',
         headers: {
@@ -561,7 +561,7 @@ describe('MCP Catalog Routes', () => {
   describe('YAML MCP Import', () => {
     it('should have imported YAML MCPs on first boot', async () => {
       // Check if any MCPs exist with status=published and published_by=system
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps?status=published',
         headers: {

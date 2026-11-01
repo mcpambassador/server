@@ -1,4 +1,5 @@
 import { z, ZodError } from 'zod';
+import { establishAuthenticatedSession } from './establish-session.js';
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import { LoginRateLimiter } from '../admin/session.js';
@@ -223,24 +224,13 @@ export async function registerSetupRoutes(
           }
         }
 
-        // Establish session (auto-login after account creation)
-        // WORKAROUND: @fastify/session@10.9.0 has a bug where both destroy() and regenerate()
-        // nullify the request.session object, making it impossible to set properties afterward.
-        // As a workaround, we manually clear existing session data to prevent data leakage.
-        // LIMITATION: This does not regenerate the session ID, which is less secure than proper
-        // session regeneration. Track upstream fix and switch to regenerate() when available.
-        // See also: packages/server/src/auth/routes.ts (same pattern used in login handler)
-        if (request.session.userId) delete request.session.userId;
-        if (request.session.username) delete request.session.username;
-        if (request.session.isAdmin) delete request.session.isAdmin;
-        if (request.session.displayName) delete request.session.displayName;
-
-        request.session.userId = user.user_id;
-        request.session.username = user.username;
-        request.session.isAdmin = user.is_admin;
-        request.session.displayName = user.display_name;
-
-        await request.session.save();
+        // Establish session (auto-login after account creation); TD-015: new session id
+        await establishAuthenticatedSession(request, {
+          userId: user.user_id,
+          username: user.username,
+          isAdmin: user.is_admin,
+          displayName: user.display_name,
+        });
 
         // Reset rate limiter on success
         rateLimiter.reset(sourceIp);

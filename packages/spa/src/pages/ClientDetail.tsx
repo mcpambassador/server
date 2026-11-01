@@ -1,22 +1,36 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useParams, Link } from 'react-router-dom';
-import {
-  PlusIcon,
-  TrashIcon,
-  Cog6ToothIcon,
-} from '@heroicons/react/20/solid';
+import { PlusIcon, TrashIcon, Cog6ToothIcon } from '@heroicons/react/20/solid';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Label } from '@/components/catalyst/fieldset';
-import { useClient, useClientSubscriptions, useUnsubscribe, useUpdateSubscription } from '@/api/hooks/use-clients';
+import {
+  useClient,
+  useClientSubscriptions,
+  useUnsubscribe,
+  useUpdateSubscription,
+} from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import type { Subscription } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -46,7 +60,9 @@ export function ClientDetail() {
         setUnsubscribeDialogOpen(false);
         setSubscriptionToDelete(null);
       } catch (error) {
-        toast.error('Failed to unsubscribe', { description: (error as Error)?.message ?? String(error) });
+        toast.error('Failed to unsubscribe', {
+          description: (error as Error)?.message ?? String(error),
+        });
       }
     }
   };
@@ -70,7 +86,9 @@ export function ClientDetail() {
         setEditDialogOpen(false);
         setSubscriptionToEdit(null);
       } catch (error) {
-        toast.error('Failed to update tool selection', { description: (error as Error)?.message ?? String(error) });
+        toast.error('Failed to update tool selection', {
+          description: (error as Error)?.message ?? String(error),
+        });
       }
     }
   };
@@ -101,19 +119,19 @@ export function ClientDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <Breadcrumb items={[
-          { label: 'Clients', href: '/app/clients' },
-          { label: client.clientName },
-        ]} />
+        <Breadcrumb
+          items={[{ label: 'Clients', href: '/app/clients' }, { label: client.clientName }]}
+        />
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <Heading>{client.clientName}</Heading>
             <Text className="font-mono text-sm">{client.keyPrefix}</Text>
           </div>
-          <Badge color={
-            client.status === 'active' ? 'green' :
-            client.status === 'suspended' ? 'zinc' : 'red'
-          }>
+          <Badge
+            color={
+              client.status === 'active' ? 'green' : client.status === 'suspended' ? 'zinc' : 'red'
+            }
+          >
             {client.status}
           </Badge>
         </div>
@@ -121,22 +139,30 @@ export function ClientDetail() {
 
       {/* Client Details */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
-        <Heading level={2} className="mb-4">Client Details</Heading>
+        <Heading level={2} className="mb-4">
+          Client Details
+        </Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
-            <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.createdAt).toLocaleString()}</dd>
+            <dd className="mt-1 text-zinc-900 dark:text-white">
+              {new Date(client.createdAt).toLocaleString()}
+            </dd>
           </div>
           {client.expiresAt && (
             <div>
               <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Expires</dt>
-              <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.expiresAt).toLocaleString()}</dd>
+              <dd className="mt-1 text-zinc-900 dark:text-white">
+                {new Date(client.expiresAt).toLocaleString()}
+              </dd>
             </div>
           )}
           {client.lastUsedAt && (
             <div>
               <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Used</dt>
-              <dd className="mt-1 text-zinc-900 dark:text-white">{new Date(client.lastUsedAt).toLocaleString()}</dd>
+              <dd className="mt-1 text-zinc-900 dark:text-white">
+                {new Date(client.lastUsedAt).toLocaleString()}
+              </dd>
             </div>
           )}
         </dl>
@@ -180,11 +206,11 @@ export function ClientDetail() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {subscriptions.map((sub) => {
+                {subscriptions.map(sub => {
                   const mcp = marketplace?.data?.find(m => m.id === sub.mcpId);
                   const totalTools = mcp?.tools?.length ?? 0;
                   const selectedCount = sub.selectedTools?.length ?? totalTools;
-                  
+
                   return (
                     <TableRow key={sub.id}>
                       <TableCell>
@@ -210,7 +236,11 @@ export function ClientDetail() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button plain title="Edit tool selection" onClick={() => handleEditTools(sub)}>
+                          <Button
+                            plain
+                            title="Edit tool selection"
+                            onClick={() => handleEditTools(sub)}
+                          >
                             <Cog6ToothIcon />
                           </Button>
                           <Button
@@ -242,17 +272,16 @@ export function ClientDetail() {
           This will remove access to this MCP for this client. This action cannot be undone.
         </AlertDescription>
         <AlertActions>
-          <Button plain onClick={() => {
-            setUnsubscribeDialogOpen(false);
-            setSubscriptionToDelete(null);
-          }}>
+          <Button
+            plain
+            onClick={() => {
+              setUnsubscribeDialogOpen(false);
+              setSubscriptionToDelete(null);
+            }}
+          >
             Cancel
           </Button>
-          <Button
-            color="red"
-            onClick={handleUnsubscribe}
-            disabled={unsubscribe.isPending}
-          >
+          <Button color="red" onClick={handleUnsubscribe} disabled={unsubscribe.isPending}>
             {unsubscribe.isPending ? 'Unsubscribing...' : 'Unsubscribe'}
           </Button>
         </AlertActions>
@@ -266,10 +295,15 @@ export function ClientDetail() {
         </DialogDescription>
         <DialogBody>
           <div className="flex gap-2 mb-3">
-            <Button plain className="text-xs" onClick={() => {
-              const tools = marketplace?.data?.find(m => m.id === subscriptionToEdit?.mcpId)?.tools ?? [];
-              setSelectedTools(tools.map(t => t.name));
-            }}>
+            <Button
+              plain
+              className="text-xs"
+              onClick={() => {
+                const tools =
+                  marketplace?.data?.find(m => m.id === subscriptionToEdit?.mcpId)?.tools ?? [];
+                setSelectedTools(tools.map(t => t.name));
+              }}
+            >
               Select All
             </Button>
             <Button plain className="text-xs" onClick={() => setSelectedTools([])}>
@@ -279,12 +313,12 @@ export function ClientDetail() {
           <div className="max-h-96 overflow-y-auto space-y-3">
             {marketplace?.data
               ?.find(m => m.id === subscriptionToEdit?.mcpId)
-              ?.tools?.map((tool) => (
+              ?.tools?.map(tool => (
                 <CheckboxField key={tool.name}>
                   <Checkbox
                     name={tool.name}
                     checked={selectedTools.includes(tool.name)}
-                    onChange={(checked) => {
+                    onChange={checked => {
                       if (checked) {
                         setSelectedTools([...selectedTools, tool.name]);
                       } else {
@@ -293,13 +327,9 @@ export function ClientDetail() {
                     }}
                   />
                   <div className="flex-1">
-                    <Label className="font-medium cursor-pointer">
-                      {tool.name}
-                    </Label>
+                    <Label className="font-medium cursor-pointer">{tool.name}</Label>
                     {tool.description && (
-                      <Text className="text-sm text-zinc-500 mt-1">
-                        {tool.description}
-                      </Text>
+                      <Text className="text-sm text-zinc-500 mt-1">{tool.description}</Text>
                     )}
                   </div>
                 </CheckboxField>

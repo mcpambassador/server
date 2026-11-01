@@ -5,7 +5,14 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { GettingStartedChecklist } from '@/components/shared/GettingStartedChecklist';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
 import { useClients, useUserSubscriptions } from '@/api/hooks/use-clients';
 import { useMarketplace } from '@/api/hooks/use-marketplace';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -14,10 +21,7 @@ export function Dashboard() {
   usePageTitle('Dashboard');
   const { data: clients, isLoading: clientsLoading } = useClients();
   const { data: marketplace, isLoading: marketplaceLoading } = useMarketplace();
-  const {
-    data: subscriptions,
-    isError: subscriptionsError,
-  } = useUserSubscriptions();
+  const { data: subscriptions, isError: subscriptionsError } = useUserSubscriptions();
 
   const activeClients = clients?.filter(c => c.status === 'active').length ?? 0;
   const totalMcps = marketplace?.data?.length ?? 0;
@@ -38,7 +42,7 @@ export function Dashboard() {
   const stats = [
     {
       name: 'My Clients',
-      value: clientsLoading ? '...' : clients?.length ?? 0,
+      value: clientsLoading ? '...' : (clients?.length ?? 0),
       subtitle: clientsLoading ? '' : `${activeClients} active`,
     },
     {
@@ -72,7 +76,7 @@ export function Dashboard() {
 
       {/* Stats Grid */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-zinc-900/5 dark:bg-white/5 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((stat) => (
+        {stats.map(stat => (
           <div
             key={stat.name}
             className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 bg-white dark:bg-white/5 px-4 py-10 sm:px-6 xl:px-8"
@@ -98,13 +102,18 @@ export function Dashboard() {
       <div>
         <div className="mb-4">
           <h3 className="text-base font-semibold text-zinc-900 dark:text-white">Recent Clients</h3>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Your most recently created API clients</p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Your most recently created API clients
+          </p>
         </div>
 
         {clientsLoading ? (
           <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6 space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse h-12 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div
+                key={i}
+                className="animate-pulse h-12 w-full rounded bg-zinc-200 dark:bg-zinc-700"
+              />
             ))}
           </div>
         ) : clients && clients.length > 0 ? (
@@ -119,7 +128,7 @@ export function Dashboard() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {clients.slice(0, 5).map((client) => (
+                {clients.slice(0, 5).map(client => (
                   <TableRow key={client.id} href={`/app/clients/${client.id}`}>
                     <TableCell className="font-medium">{client.clientName}</TableCell>
                     <TableCell className="text-zinc-500">{client.keyPrefix}</TableCell>

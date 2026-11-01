@@ -10,7 +10,11 @@
 
 import crypto from 'crypto';
 import argon2 from 'argon2';
-import type { DatabaseClient } from '@mcpambassador/core';
+import {
+  revokeGrantsForBoundClient,
+  type AgentGrantRecord,
+  type DatabaseClient,
+} from '@mcpambassador/core';
 import {
   logger,
   clients,
@@ -268,13 +272,18 @@ export async function revokeUserClient(
   userId: string,
   clientId: string,
   isAdmin: boolean = false
-): Promise<void> {
+): Promise<AgentGrantRecord[]> {
   // Verify ownership (admins can revoke any client)
   await getUserClient(db, userId, clientId, isAdmin);
+  let revokedGrants: AgentGrantRecord[] = [];
 
   // Hard delete: permanently remove client and cascade delete subscriptions
   // CR-M4: Wrap in transaction for atomicity
   await compatTransaction(db, async () => {
+    // ADR-020 revoke-and-retain: revoke agent grants/tokens bound to this client BEFORE the delete
+    // (the FK then nulls agent_grants.bound_client_id; the revoked rows are kept)
+    revokedGrants = await revokeGrantsForBoundClient(db, clientId, userId);
+
     // First delete all subscriptions for this client
     await compatDelete(db, client_mcp_subscriptions).where(
       eq(client_mcp_subscriptions.client_id, clientId)
@@ -292,6 +301,7 @@ export async function revokeUserClient(
   logger.info(
     `[ClientService] User ${userId} deleted client ${clientId} and cascaded subscriptions`
   );
+  return revokedGrants;
 }
 
 /**

@@ -23,6 +23,8 @@ import {
 } from './schemas.js';
 import { clients, compatInsert, compatUpdate } from '@mcpambassador/core';
 import { eq, and, or, desc, asc } from 'drizzle-orm';
+import { revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
+import { adminKeyActor } from './middleware.js';
 import { user_sessions } from '@mcpambassador/core';
 
 /**
@@ -32,6 +34,8 @@ export interface AdminClientRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
   userPool: UserMcpPool | null;
+  /** S5: close live agent /mcp streams for grants revoked by suspend/revoke */
+  onGrantsRevoked?: (grantIds: string[]) => void;
 }
 
 /**
@@ -42,7 +46,7 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
   opts: AdminClientRoutesConfig,
   done
 ) => {
-  const { db, audit, userPool } = opts;
+  const { db, audit, userPool, onGrantsRevoked } = opts;
 
   // ==========================================================================
   // M18.4: POST /v1/admin/clients
@@ -266,6 +270,17 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
     } else {
       // Normal update
       await compatUpdate(db, clients).set(updates).where(eq(clients.client_id, clientId));
+    }
+
+    // S5: suspending / revoking a client revokes (and retains) its agent grants
+    if (statusChanged && (body.status === 'suspended' || body.status === 'revoked')) {
+      await revokeClientGrantsWithAudit(
+        { db, audit, onGrantsRevoked },
+        clientId,
+        adminKeyActor(request) ?? request.session?.userId ?? 'admin-unknown',
+        request.ip ?? '0.0.0.0',
+        body.status === 'revoked' ? 'bound_client_revoked' : 'bound_client_suspended'
+      );
     }
 
     const nowIso = new Date().toISOString();
