@@ -18,6 +18,8 @@ import {
   validateRedirectUris,
   claudeCodeCallbackPort,
   claudeCodeCommand,
+  isConcreteResourceUrl,
+  RESOURCE_URL_PLACEHOLDER,
 } from '@/lib/redirect-uri';
 
 async function copyText(text: string, what: string) {
@@ -35,6 +37,8 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
   const [uriText, setUriText] = useState('');
   const [touched, setTouched] = useState(false);
   const [created, setCreated] = useState<OAuthClientSummary | null>(null);
+  // TODO: prefill from the server's canonical resource URL once the API exposes it.
+  const [resourceUrl, setResourceUrl] = useState(RESOURCE_URL_PLACEHOLDER);
 
   const uris = parseRedirectUris(uriText);
   const uriError = validateRedirectUris(uris);
@@ -49,6 +53,7 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
     setUriText('');
     setTouched(false);
     setCreated(null);
+    setResourceUrl(RESOURCE_URL_PLACEHOLDER);
     create.reset();
     onClose();
   };
@@ -89,8 +94,23 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
                   </Button>
                 </div>
               </div>
+              {ports.length > 0 && (
+                <Field>
+                  <Label>Agent endpoint URL</Label>
+                  <Description>
+                    The address agents use to reach this server&apos;s /mcp endpoint. Replace the
+                    placeholder with your server&apos;s public URL.
+                  </Description>
+                  <Input
+                    name="resource_url"
+                    value={resourceUrl}
+                    onChange={e => setResourceUrl(e.target.value)}
+                  />
+                </Field>
+              )}
               {ports.map(port => {
-                const cmd = claudeCodeCommand(port, window.location.hostname);
+                const cmd = claudeCodeCommand(port, created.client_id, resourceUrl);
+                const ready = isConcreteResourceUrl(resourceUrl);
                 return (
                   <div key={port}>
                     <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
@@ -100,10 +120,15 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
                       <code className="break-all rounded bg-zinc-100 px-2 py-1 text-sm dark:bg-white/10">
                         {cmd}
                       </code>
-                      <Button plain onClick={() => copyText(cmd, 'Command')}>
+                      <Button plain disabled={!ready} onClick={() => copyText(cmd, 'Command')}>
                         Copy command
                       </Button>
                     </div>
+                    {!ready && (
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Enter your https endpoint URL above to enable copying.
+                      </p>
+                    )}
                   </div>
                 );
               })}

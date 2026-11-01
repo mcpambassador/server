@@ -62,6 +62,12 @@ describe('redirect URI validation', () => {
     'data:text/html,x',
     'file:///etc/passwd',
     'myapp://cb',
+    'HTTPS://x',
+    'http://LOCALHOST:1/cb',
+    'http://localhost.evil.com/',
+    'http://127.0.0.1.nip.io/',
+    'https://u@h/',
+    'http://[::1]:5/',
     'not a url',
     '',
     'https://example.com/' + 'a'.repeat(2100),
@@ -73,14 +79,28 @@ describe('redirect URI validation', () => {
         contractCheck(v) && v.length <= 2048,
       ]);
   });
+  it('mirror vectors', () => {
+    const want: Record<string, boolean> = {
+      'HTTPS://x': true,
+      'http://LOCALHOST:1/cb': true,
+      'http://localhost.evil.com/': false,
+      'http://127.0.0.1.nip.io/': false,
+      'https://u@h/': false,
+      'http://[::1]:5/': true,
+      ['https://e.com/' + 'a'.repeat(2100)]: false,
+      'javascript:alert(1)': false,
+    };
+    for (const [v, ok] of Object.entries(want))
+      expect([v.slice(0, 30), isAllowedRedirectUri(v)]).toEqual([v.slice(0, 30), ok]);
+  });
   it('only treats exactly http://localhost:<port>/callback as a Claude Code callback', () => {
     expect(claudeCodeCallbackPort('http://localhost:33418/callback')).toBe('33418');
     expect(claudeCodeCallbackPort('http://localhost:33418/callback2')).toBeNull();
     expect(claudeCodeCallbackPort('http://127.0.0.1:33418/callback')).toBeNull();
     expect(claudeCodeCallbackPort('https://localhost:33418/callback')).toBeNull();
     expect(claudeCodeCallbackPort('http://localhost:99999/callback')).toBeNull();
-    expect(claudeCodeCommand('33418', 'amb.example')).toBe(
-      'claude mcp add --transport http --callback-port 33418 ambassador https://amb.example:8443/mcp'
+    expect(claudeCodeCommand('33418', 'cl-1', 'https://amb.example:8443/mcp')).toBe(
+      'claude mcp add --transport http --client-id cl-1 --callback-port 33418 ambassador https://amb.example:8443/mcp'
     );
   });
 });
@@ -139,7 +159,18 @@ describe('Register client', () => {
     expect(posts).toEqual([
       { client_name: 'Claude Code', redirect_uris: ['http://localhost:33418/callback'] },
     ]);
-    const cmd = `claude mcp add --transport http --callback-port 33418 ambassador https://${window.location.hostname}:8443/mcp`;
+    // Placeholder host: command shown but copy disabled until a real URL is entered
+    expect(
+      within(dlg).getByText(
+        'claude mcp add --transport http --client-id cl-new --callback-port 33418 ambassador https://<host>:8443/mcp'
+      )
+    ).toBeVisible();
+    expect(within(dlg).getByRole('button', { name: 'Copy command' })).toBeDisabled();
+    const urlInput = within(dlg).getByLabelText('Agent endpoint URL');
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://amb.example:8443/mcp');
+    const cmd =
+      'claude mcp add --transport http --client-id cl-new --callback-port 33418 ambassador https://amb.example:8443/mcp';
     expect(within(dlg).getByText(cmd)).toBeVisible();
     await user.click(within(dlg).getByRole('button', { name: 'Copy client ID' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('cl-new'));
