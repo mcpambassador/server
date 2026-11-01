@@ -383,6 +383,13 @@ export function setApprovalVoidObserver(fn: ApprovalVoidObserver | null): void {
   voidObserver = fn;
 }
 
+/** Receives a lifecycle void that FAILED after its triggering change had already committed. */
+export type ApprovalVoidFailureObserver = (scope: VoidScope, reason: string, err: unknown) => void;
+let voidFailureObserver: ApprovalVoidFailureObserver | null = null;
+export function setApprovalVoidFailureObserver(fn: ApprovalVoidFailureObserver | null): void {
+  voidFailureObserver = fn;
+}
+
 /**
  * Void audits raised inside `withDeferredVoidAudits` are held until the callback (normally a DB
  * transaction) resolves, then emitted; if it throws they are dropped, because the void rolled back.
@@ -557,4 +564,26 @@ export async function getApprovalDisplayNames(
     for (const x of g) grantLabels.set(x.id, x.label);
   }
   return { mcpNames, grantLabels };
+}
+
+/**
+ * Best-effort variant for callers whose triggering change has ALREADY committed (not inside the same
+ * transaction): a failing void must not turn the committed change into an error. The failure goes to
+ * the observer (the server audits `approval_void_failed`); the open request still cannot be consumed
+ * because the consume-time principal re-check rejects it.
+ */
+export async function voidApprovalsForLifecycleBestEffort(
+  db: DatabaseClient,
+  scope: VoidScope,
+  reason: string
+): Promise<void> {
+  try {
+    await voidApprovalsForLifecycle(db, scope, reason);
+  } catch (err) {
+    try {
+      voidFailureObserver?.(scope, reason, err);
+    } catch {
+      // the observer must never throw into the caller
+    }
+  }
 }

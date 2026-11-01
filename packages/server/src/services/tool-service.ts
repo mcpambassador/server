@@ -56,7 +56,9 @@ export class KillSwitchError extends Error {
  * in the router, so `/mcp` and `/v1/tools/invoke` get identical output.
  */
 export function stripAmbassadorMeta(value: unknown, depth = 0): unknown {
-  if (depth > 32 || value === null || typeof value !== 'object') return value;
+  if (value === null || typeof value !== 'object') return value;
+  // Fail closed: past the depth bound the subtree is dropped, never forwarded unstripped.
+  if (depth > 32) return null;
   if (Array.isArray(value)) return value.map(v => stripAmbassadorMeta(v, depth + 1));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {

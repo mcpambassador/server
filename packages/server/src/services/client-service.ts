@@ -12,7 +12,7 @@ import crypto from 'crypto';
 import argon2 from 'argon2';
 import {
   revokeGrantsForBoundClient,
-  voidApprovalsForLifecycle,
+  voidApprovalsForLifecycleBestEffort,
   withDeferredVoidAudits,
   type AgentGrantRecord,
   type DatabaseClient,
@@ -227,7 +227,7 @@ export async function suspendUserClient(
 
   await compatUpdate(db, clients).set({ status: 'suspended' }).where(whereClause);
   // ADR-023: open approvals bound to this client die with the suspension (also when no grant is live)
-  await voidApprovalsForLifecycle(db, { boundClientId: clientId }, 'client_suspended');
+  await voidApprovalsForLifecycleBestEffort(db, { boundClientId: clientId }, 'client_suspended');
 
   logger.info(`[ClientService] User ${userId} suspended client ${clientId}`);
 }

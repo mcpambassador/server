@@ -579,8 +579,17 @@ export class AmbassadorServer {
         }
       );
       const approvals = this.approvals;
-      const { setApprovalVoidObserver } = await import('@mcpambassador/core');
+      const { setApprovalVoidObserver, setApprovalVoidFailureObserver } =
+        await import('@mcpambassador/core');
       setApprovalVoidObserver((rows, reason) => approvals.auditVoidedRows(rows, reason));
+      setApprovalVoidFailureObserver((scope, reason, err) => {
+        logger.error({ err, reason }, '[approvals] lifecycle void failed');
+        approvals.emit('approval_void_failed', {
+          scope: Object.keys(scope).join('+'),
+          reason,
+          error: err instanceof Error ? err.name : 'Error',
+        });
+      });
       // ADR-021/023: a pin's approved hash moving (revoke, re-approve of a changed definition) voids the
       // open requests created against the old hash. Runs after the pin change; failures are audited.
       this.toolPins?.setApprovalVoider({
@@ -605,7 +614,20 @@ export class AmbassadorServer {
       });
       // Kill-switch ACTIVATION voids open requests in its scope (client, MCP or a single tool)
       const { getMcpEntryByName } = await import('@mcpambassador/core');
+      // The kill is already active and persisted when this runs: a failing void is audited, never thrown.
       this.killSwitchManager.setActivationHook(async target => {
+        try {
+          await voidForKillSwitch(target);
+        } catch (err) {
+          logger.error({ err, target }, '[approvals] kill-switch void failed');
+          approvals.emit('approval_void_failed', {
+            scope: target.slice(0, target.indexOf(':')),
+            reason: 'kill_switch',
+            error: err instanceof Error ? err.name : 'Error',
+          });
+        }
+      });
+      const voidForKillSwitch = async (target: string): Promise<void> => {
         const i = target.indexOf(':');
         const kind = target.slice(0, i);
         const rest = target.slice(i + 1);
@@ -624,7 +646,7 @@ export class AmbassadorServer {
             );
           }
         }
-      });
+      };
       this.approvalReaper = setInterval(
         () => {
           approvals.reap().catch(err => logger.error({ err }, '[approvals] reaper failed'));

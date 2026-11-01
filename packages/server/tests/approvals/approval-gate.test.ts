@@ -24,6 +24,7 @@ import {
   hashRoutedArguments,
   type GateGrantContext,
 } from '../../src/services/approvals/gate.js';
+import { stripAmbassadorMeta } from '../../src/services/tool-service.js';
 import { suspendUserClient, revokeUserClient } from '../../src/services/client-service.js';
 
 const EXP = '2099-01-01T00:00:00.000Z';
@@ -514,5 +515,61 @@ describe('N2: step-up does not survive logout', () => {
       payload: { decision: 'approve', expected_args_hash: 'a'.repeat(64) },
     });
     expect(dec.statusCode).toBe(428);
+  });
+});
+
+describe('F1: void failures are non-fatal and audited', () => {
+  const breakVoids = (): void => {
+    raw(db).exec(
+      `CREATE TRIGGER IF NOT EXISTS t_fail_void BEFORE UPDATE OF status ON approval_requests WHEN NEW.status='voided' BEGIN SELECT RAISE(ABORT,'injected'); END`
+    );
+  };
+  const fixVoids = (): void => raw(db).exec('DROP TRIGGER IF EXISTS t_fail_void');
+
+  it('kill-switch activation stays active and resolves when the void fails', async () => {
+    const { s, id } = await pending();
+    breakVoids();
+    try {
+      await expect(
+        (server as any).killSwitchManager.set(`client:${s.clientId}`, true, 'admin')
+      ).resolves.toBeUndefined();
+      expect((server as any).killSwitchManager.isActive('client', s.clientId)).toBe(true);
+      expect(statusOf(id)).toBe('pending');
+      const a = audits.find(x => x.action === 'approval_void_failed');
+      expect(a?.meta).toMatchObject({ scope: 'client', reason: 'kill_switch' });
+    } finally {
+      fixVoids();
+      await (server as any).killSwitchManager.set(`client:${s.clientId}`, false, 'admin');
+    }
+  });
+
+  it('suspendUserClient commits and resolves when the void fails; consume still refuses', async () => {
+    const { s, id } = await pending();
+    breakVoids();
+    try {
+      await expect(suspendUserClient(db, userId, s.clientId, false)).resolves.toBeUndefined();
+      expect(
+        raw(db).prepare(`SELECT status FROM clients WHERE client_id=?`).get(s.clientId).status
+      ).toBe('suspended');
+      expect(audits.some(x => x.action === 'approval_void_failed')).toBe(true);
+      expect(statusOf(id)).toBe('pending');
+    } finally {
+      fixVoids();
+    }
+  });
+});
+
+describe('stripAmbassadorMeta depth bound', () => {
+  it('drops a subtree nested past the bound instead of returning it raw', () => {
+    let deep: unknown = { _meta: { 'ambassador/approval': { status: 'approval_denied' } } };
+    for (let i = 0; i < 40; i++) deep = { n: deep };
+    expect(JSON.stringify(stripAmbassadorMeta(deep))).not.toContain('ambassador/');
+  });
+});
+
+describe('buildApprovalUrl scheme', () => {
+  it('rejects plain http for a non-loopback host, allows loopback http', () => {
+    expect(() => buildApprovalUrl('http://amb.example', 'apr_abcdefgh')).toThrow();
+    expect(buildApprovalUrl('http://127.0.0.1:9443', 'apr_abcdefgh')).toContain('/app/approvals/');
   });
 });

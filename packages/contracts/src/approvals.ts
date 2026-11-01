@@ -79,7 +79,12 @@ export const APPROVAL_SPA_PATH_PREFIX = '/app/approvals/';
  */
 export function buildApprovalUrl(uiBaseUrl: string, approvalId: string): string {
   if (!APPROVAL_ID_PATTERN.test(approvalId)) throw new Error('invalid approval id');
-  return new URL(APPROVAL_SPA_PATH_PREFIX + approvalId, uiBaseUrl).href;
+  const url = new URL(APPROVAL_SPA_PATH_PREFIX + approvalId, uiBaseUrl);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error('approval UI base URL must be https (or loopback http)');
+  }
+  return url.href;
 }
 /** `_meta` key on a tool result carrying the pipeline's ApprovalToolResult (also `metadata.approval`). */
 export const APPROVAL_META_KEY = 'ambassador/approval';
