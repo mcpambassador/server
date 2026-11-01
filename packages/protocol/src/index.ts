@@ -4,6 +4,15 @@
  * Type-only package defining the API contract between Ambassador Client and Server.
  * Zero runtime dependencies. Follows semver for API versioning.
  *
+ * SCOPE: this package describes the CLIENT-PORT (8443) wire format only —
+ * /v1/sessions/*, /v1/tools, /v1/tools/invoke. Error replies on 8443 are flat
+ * `{ error: string, message: string }` (see ErrorResponse).
+ * The ADMIN/SPA API (9443) uses the `{ ok, data } | { ok: false, error }` envelope
+ * defined in @mcpambassador/contracts.
+ *
+ * Source of truth is the live server. The client vendors a byte-identical copy of
+ * this file; its CI fails if the copy differs from server main.
+ *
  * @see Architecture §16.3 Protocol Package
  */
 
@@ -31,6 +40,8 @@ export type AuthMethod = 'api_key' | 'jwt' | 'oidc' | 'saml' | 'mtls';
 
 /**
  * Client status enum
+ * @deprecated Retired with the API-key client model (POST /v1/clients/register returns 410).
+ * Not part of the 8443 wire format; retained only for backward compatibility.
  */
 export type ClientStatus = 'active' | 'suspended' | 'revoked';
 
@@ -57,37 +68,54 @@ export type EventType =
 export type Severity = 'info' | 'warn' | 'error' | 'critical';
 
 /**
- * Client registration request (POST /v1/clients/register)
+ * Session registration request (POST /v1/sessions/register)
  *
- * @see Architecture §3.1 Registration
+ * The preshared key (`amb_pk_*`) is issued to a user in the SPA.
  */
 export interface RegistrationRequest {
+  /** User preshared key (amb_pk_...) */
+  preshared_key: string;
   /** Human-readable label (max 128 chars, sanitized to [a-zA-Z0-9 _.-]) */
   friendly_name: string;
   /** Host tool identifier */
   host_tool: HostTool;
-  /** Optional machine fingerprint for device binding (SHA-256 hex) */
-  machine_fingerprint?: string;
-  /** Requested authentication method (server may override) */
-  auth_method?: AuthMethod;
 }
 
 /**
- * Client registration response
+ * Session registration response (HTTP 201)
+ *
+ * `session_token` (amb_st_...) is sent on later requests in the `X-Session-Token` header.
  */
 export interface RegistrationResponse {
-  /** Server-generated client UUID */
-  client_id: string;
-  /** API key for authentication (only returned once, store securely) */
-  api_key?: string;
-  /** JWT token (if auth_method = jwt) */
-  jwt_token?: string;
+  /** Server-generated session UUID */
+  session_id: string;
+  /** Session token (amb_st_...), returned only once */
+  session_token: string;
+  /** Session expiry (ISO 8601) */
+  expires_at: string;
   /** Assigned tool profile ID */
   profile_id: string;
-  /** Assigned tool profile name */
-  profile_name: string;
-  /** Client status */
-  status: ClientStatus;
+  /** Connection UUID for this client instance */
+  connection_id: string;
+}
+
+/**
+ * Heartbeat response (POST /v1/sessions/heartbeat)
+ */
+export interface HeartbeatResponse {
+  status: 'ok';
+  /** Current session status */
+  session_status: string;
+  /** New session expiry (ISO 8601) */
+  expires_at: string;
+}
+
+/**
+ * Disconnect response (DELETE /v1/sessions/connections/:connectionId)
+ */
+export interface DisconnectResponse {
+  status: 'disconnected';
+  connection_id: string;
 }
 
 /**
@@ -207,19 +235,14 @@ export interface AuditEvent {
 }
 
 /**
- * Standard error response envelope
+ * Error response on the client port (8443): flat shape.
  *
- * @see Architecture §4.3 Error Response Policy
+ * `error` is a machine-readable code or HTTP status text (e.g. "rate_limit_exceeded",
+ * "Unauthorized"); `message` is generic, with no internal details.
  */
 export interface ErrorResponse {
-  error: {
-    /** Machine-readable error code */
-    code: string;
-    /** Human-readable error message (generic, no internal details) */
-    message: string;
-    /** Optional additional details */
-    details?: Record<string, unknown>;
-  };
+  error: string;
+  message: string;
 }
 
 /**

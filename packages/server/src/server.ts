@@ -54,7 +54,13 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
-import type { ToolCatalogResponse, ToolDescriptor } from '@mcpambassador/protocol';
+import type {
+  ToolCatalogResponse,
+  ToolDescriptor,
+  HeartbeatResponse,
+  DisconnectResponse,
+  ErrorResponse,
+} from '@mcpambassador/protocol';
 import { BoundedSessionStore } from './admin/session.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
@@ -1096,16 +1102,15 @@ export class AmbassadorServer {
         return reply.status(201).send(result);
       } catch (err) {
         if (err instanceof AmbassadorError) {
-          return reply.status(err.statusCode).send({
-            error: err.code,
-            message: err.message,
-          });
+          const errBody: ErrorResponse = { error: err.code, message: err.message };
+          return reply.status(err.statusCode).send(errBody);
         } else {
           this.fastify!.log.error({ err }, '[Server] Session registration error');
-          return reply.status(500).send({
+          const errBody: ErrorResponse = {
             error: 'registration_failed',
             message: 'Failed to register session',
-          });
+          };
+          return reply.status(500).send(errBody);
         }
       }
     });
@@ -1229,11 +1234,12 @@ export class AmbassadorServer {
           },
         });
 
-        return reply.send({
+        const heartbeatResponse: HeartbeatResponse = {
           status: 'ok',
           session_status: updates.status || sessionRecord.status,
           expires_at: newExpiryIso,
-        });
+        };
+        return reply.send(heartbeatResponse);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({
@@ -1315,10 +1321,11 @@ export class AmbassadorServer {
           },
         });
 
-        return reply.send({
+        const disconnectResponse: DisconnectResponse = {
           status: 'disconnected',
           connection_id: connectionId,
-        });
+        };
+        return reply.send(disconnectResponse);
       } catch (err) {
         if (err instanceof Error && err.message === 'Unauthorized') {
           return reply.status(401).send({
