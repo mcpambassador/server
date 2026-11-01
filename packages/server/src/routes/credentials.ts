@@ -111,7 +111,7 @@ export async function registerCredentialRoutes(
             }
           }
         } catch (err) {
-          logger.error('[Credentials] Failed to parse credential schema:', err);
+          logger.error({ err }, '[Credentials] Failed to parse credential schema:');
           // Continue even if schema parsing fails
         }
       }

@@ -62,7 +62,7 @@ export async function registerMarketplaceRoutes(
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
           tools = Array.isArray(catalogData) ? catalogData : [];
         } catch (err) {
-          logger.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+          logger.warn({ err }, `[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`);
         }
 
         let credentialSchema = undefined;
@@ -74,8 +74,8 @@ export async function registerMarketplaceRoutes(
                 : mcp.credential_schema;
           } catch (err) {
             logger.warn(
-              `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`,
-              err
+              { err },
+              `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`
             );
           }
         }
@@ -120,7 +120,7 @@ export async function registerMarketplaceRoutes(
 
       return reply.send(envelope);
     } catch (err) {
-      logger.error('[Marketplace] Error fetching MCPs:', err);
+      logger.error({ err }, '[Marketplace] Error fetching MCPs:');
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch marketplace MCPs'));
@@ -160,7 +160,7 @@ export async function registerMarketplaceRoutes(
             typeof mcp.tool_catalog === 'string' ? JSON.parse(mcp.tool_catalog) : mcp.tool_catalog;
           tools = Array.isArray(catalogData) ? catalogData : [];
         } catch (err) {
-          logger.warn(`[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`, err);
+          logger.warn({ err }, `[Marketplace] Failed to parse tool_catalog for MCP ${mcp.mcp_id}:`);
         }
 
         let credentialSchema = undefined;
@@ -172,8 +172,8 @@ export async function registerMarketplaceRoutes(
                 : mcp.credential_schema;
           } catch (err) {
             logger.warn(
-              `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`,
-              err
+              { err },
+              `[Marketplace] Failed to parse credential_schema for MCP ${mcp.mcp_id}:`
             );
           }
         }
@@ -193,7 +193,7 @@ export async function registerMarketplaceRoutes(
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[Marketplace] Error fetching MCP details:', err);
+        logger.error({ err }, '[Marketplace] Error fetching MCP details:');
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch MCP details'));

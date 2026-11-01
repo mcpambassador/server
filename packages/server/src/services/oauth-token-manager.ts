@@ -381,7 +381,7 @@ export class OAuthTokenManager {
       }
     } catch (err) {
       // 5. Catch errors and log — never throw
-      logger.error(`[OAuthTokenManager] Error in revokeTokens:`, err);
+      logger.error({ err }, `[OAuthTokenManager] Error in revokeTokens:`);
     }
   }
 

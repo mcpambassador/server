@@ -119,7 +119,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     }
 
     // Log full error server-side
-    logger.error('[admin-api] Error:', error);
+    logger.error({ err: error }, '[admin-api] Error:');
 
     // Return sanitized error to client
     const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;

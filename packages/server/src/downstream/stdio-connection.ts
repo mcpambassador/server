@@ -12,7 +12,7 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
-import { logger } from '@mcpambassador/core';
+import { logger, redactSecretsInString } from '@mcpambassador/core';
 /**
  * SEC-M9-02: Safe environment variable whitelist
  * Only these system environment variables are passed to child processes
@@ -127,7 +127,8 @@ export class StdioMcpConnection extends EventEmitter {
       const redacted = this.redactCredentials(stderr);
 
       // Split by lines and push each line to error buffer
-      const lines = stderr.split('\n').filter(line => line.trim().length > 0);
+      // TD-028: the buffer is exposed via the admin API, so it gets the same redaction as the log
+      const lines = redacted.split('\n').filter(line => line.trim().length > 0);
       for (const line of lines) {
         this.errorBuffer.push(line, 'error');
       }
@@ -136,7 +137,7 @@ export class StdioMcpConnection extends EventEmitter {
       const truncated =
         redacted.length > 500 ? redacted.substring(0, 500) + '... (truncated)' : redacted;
 
-      logger.error(`[MCP:${this.config.name}] stderr:`, truncated);
+      logger.error({ stderr: truncated }, `[MCP:${this.config.name}] stderr`);
     });
 
     // Handle process exit
@@ -152,9 +153,9 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process errors
     childProcess.on('error', (err: Error) => {
-      logger.error(`[MCP:${this.config.name}] Process error:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Process error:`);
       // M33.1: Log error to buffer
-      this.errorBuffer.push(`Process error: ${err.message}`, 'error');
+      this.errorBuffer.push(`Process error: ${redactSecretsInString(err.message)}`, 'error');
       this.isHealthy = false;
       this.emit('error', err);
     });
@@ -190,7 +191,7 @@ export class StdioMcpConnection extends EventEmitter {
         );
       }
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Initialize handshake failed:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Initialize handshake failed:`);
       // Some legacy MCPs may not support initialize — continue anyway
     }
 
@@ -199,7 +200,7 @@ export class StdioMcpConnection extends EventEmitter {
       await this.refreshToolList();
     } catch (err) {
       // If tool list fetch fails, mark unhealthy but don't crash
-      logger.error(`[MCP:${this.config.name}] Failed to fetch initial tool list:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Failed to fetch initial tool list:`);
       this.isHealthy = false;
       return; // Continue without tools — will retry on health check
     }
@@ -246,10 +247,10 @@ export class StdioMcpConnection extends EventEmitter {
         const message = JSON.parse(line);
         this.handleMessage(message);
       } catch (err) {
+        // Metadata only: a raw downstream line can carry tool results or tokens
         logger.error(
-          `[MCP:${this.config.name}] Failed to parse message:`,
-          line.substring(0, 100),
-          err
+          { err, lineLength: line.length },
+          `[MCP:${this.config.name}] Failed to parse message`
         );
       }
     }
@@ -274,7 +275,11 @@ export class StdioMcpConnection extends EventEmitter {
       }
     } else {
       // Notification or unsolicited message
-      logger.info(`[MCP:${this.config.name}] Notification:`, message);
+      // Metadata only: notification params are arbitrary downstream payload
+      logger.info(
+        { method: typeof message.method === 'string' ? message.method : undefined },
+        `[MCP:${this.config.name}] Notification`
+      );
     }
   }
 
@@ -283,7 +288,7 @@ export class StdioMcpConnection extends EventEmitter {
    * F-SEC-M6-004: Prevent credential leakage in logs
    */
   private redactCredentials(text: string): string {
-    return (
+    return redactSecretsInString(
       text
         // API keys (OpenAI, Anthropic, etc.)
         .replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***REDACTED***')
@@ -352,7 +357,7 @@ export class StdioMcpConnection extends EventEmitter {
       logger.info(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
       return this.toolCache;
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Failed to fetch tool list:`);
       throw err;
     }
   }
@@ -379,7 +384,7 @@ export class StdioMcpConnection extends EventEmitter {
 
       return validated;
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Tool invocation failed:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Tool invocation failed:`);
       throw err;
     }
   }

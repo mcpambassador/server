@@ -77,7 +77,7 @@ export async function queryAuditEvents(
     } catch (error) {
       // File might not exist (no events on that day) - this is okay
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.error(`[audit-reader] Error reading ${filePath}:`, error);
+        logger.error({ err: error }, `[audit-reader] Error reading ${filePath}:`);
       }
     }
   }
@@ -147,7 +147,7 @@ async function readAuditFile(filePath: string, filters: AuditQueryFilters): Prom
 
       events.push(event);
     } catch (error) {
-      logger.error(`[audit-reader] Failed to parse line in ${filePath}:`, error);
+      logger.error({ err: error }, `[audit-reader] Failed to parse line in ${filePath}:`);
       // Continue processing other lines
     }
   }

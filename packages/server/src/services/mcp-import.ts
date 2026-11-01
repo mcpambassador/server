@@ -11,6 +11,7 @@ import type { DatabaseClient } from '@mcpambassador/core';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
 import {
   logger,
+  redactSecretsInString,
   createMcpEntry,
   listMcpEntries,
   getGroupByName,
@@ -98,7 +99,10 @@ export async function importYamlMcps(
       // M-3: Run validation on imported entry (don't trust YAML blindly)
       const validationResult = await validateMcpConfig(entry);
       if (!validationResult.valid) {
-        logger.warn(`[MCP Import] Validation failed for ${yamlMcp.name}:`, validationResult.errors);
+        logger.warn(
+          { errors: validationResult.errors.map(redactSecretsInString) },
+          `[MCP Import] Validation failed for ${yamlMcp.name}`
+        );
         // Update entry to draft with failed validation
         await updateMcpEntry(db, entry.mcp_id, {
           status: 'draft',
@@ -120,7 +124,7 @@ export async function importYamlMcps(
       logger.info(`[MCP Import] Imported: ${yamlMcp.name} -> ${entry.mcp_id}`);
       imported++;
     } catch (err) {
-      logger.error(`[MCP Import] Failed to import ${yamlMcp.name}:`, err);
+      logger.error({ err }, `[MCP Import] Failed to import ${yamlMcp.name}:`);
     }
   }
 

@@ -172,7 +172,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
       return reply.send(wrapSuccess(response));
     } catch (err) {
-      logger.error('[admin-user-mcps] Error fetching user MCP instances:', err);
+      logger.error({ err }, '[admin-user-mcps] Error fetching user MCP instances:');
       return reply
         .status(500)
         .send(
@@ -278,7 +278,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-user-mcps] Error fetching user MCP details:', err);
+        logger.error({ err }, '[admin-user-mcps] Error fetching user MCP details:');
         return reply
           .status(500)
           .send(
@@ -335,7 +335,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-user-mcps] Error refreshing user MCPs:', err);
+        logger.error({ err }, '[admin-user-mcps] Error refreshing user MCPs:');
         return reply
           .status(500)
           .send(
@@ -409,7 +409,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-user-mcps] Error restarting user MCP:', err);
+        logger.error({ err }, '[admin-user-mcps] Error restarting user MCP:');
         return reply
           .status(500)
           .send(

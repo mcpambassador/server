@@ -134,7 +134,7 @@ export async function createUser(
     }
   } catch (err) {
     // Log error but don't fail user creation if group assignment fails
-    logger.error('[user-auth] Failed to assign user to all-users group:', err);
+    logger.error({ err }, '[user-auth] Failed to assign user to all-users group:');
   }
 
   return user;

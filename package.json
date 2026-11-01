@@ -22,6 +22,7 @@
     "build": "pnpm -r --workspace-concurrency=1 build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
+    "lint:logger": "node scripts/check-logger-calls.mjs",
     "format": "prettier --write \"packages/**/*.{ts,json,md}\"",
     "format:check": "prettier --check \"packages/**/*.{ts,json,md}\"",
     "typecheck": "pnpm -r typecheck",
