@@ -13,6 +13,7 @@ import {
   containsShellMetacharacters,
   isDangerousArgument,
 } from '../downstream/types.js';
+import { checkCatalogEntry, checkRunnerCommand, isBlockedEnvName } from './runner-guard.js';
 
 /**
  * Validation result
@@ -119,23 +120,42 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
       }
     }
 
-    // Check for dangerous environment variables
-    const BLOCKED_ENV_VARS = [
-      'PATH',
-      'LD_PRELOAD',
-      'LD_LIBRARY_PATH',
-      'NODE_OPTIONS',
-      'NODE_PATH',
-      'DYLD_INSERT_LIBRARIES',
-      'DYLD_LIBRARY_PATH',
-    ];
+    // TD-039: runner-changing options in either form
+    const runnerIssue = checkRunnerCommand(command);
+    if (runnerIssue) errors.push(runnerIssue);
+
+    // Check for dangerous environment variables (case-insensitive, prefix families)
     if (config.env && typeof config.env === 'object') {
       for (const key of Object.keys(config.env as Record<string, unknown>)) {
-        if (BLOCKED_ENV_VARS.includes(key)) {
+        if (isBlockedEnvName(key)) {
           errors.push(`Environment variable '${key}' is blocked for security reasons`);
         }
       }
     }
+  }
+
+  // TD-039: credential_schema env names and the OAuth token env name reach the spawned process
+  {
+    let schemaObj: unknown;
+    let oauthEnv: unknown;
+    try {
+      schemaObj = entry.credential_schema ? JSON.parse(entry.credential_schema) : undefined;
+    } catch {
+      schemaObj = undefined; // reported below as invalid JSON when it matters
+    }
+    try {
+      const o = entry.oauth_config
+        ? (JSON.parse(entry.oauth_config) as Record<string, unknown>)
+        : {};
+      oauthEnv = o['access_token_env_var'];
+    } catch {
+      oauthEnv = undefined;
+    }
+    const issue = checkCatalogEntry({
+      credential_schema: schemaObj,
+      oauth_access_token_env_var: oauthEnv,
+    });
+    if (issue) errors.push(issue);
   }
 
   // Validate env var references in config

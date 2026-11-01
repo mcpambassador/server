@@ -32,6 +32,7 @@ import {
   publishMcpCatalogEntry,
 } from '../services/mcp-catalog-service.js';
 import { validateMcpConfig } from '../services/mcp-validator.js';
+import { checkCatalogEntry } from '../services/runner-guard.js';
 import { discoverTools } from '../services/tool-discovery-engine.js';
 
 /**
@@ -81,6 +82,25 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     }
   };
 
+  // TD-039: runner-changing options and reserved env names are rejected at the door (generic reason).
+  const checkRunnerGuard = (
+    body: {
+      config?: Record<string, unknown>;
+      credential_schema?: Record<string, unknown>;
+      oauth_config?: { access_token_env_var?: string };
+    },
+    reply: FastifyReply
+  ): boolean => {
+    const reason = checkCatalogEntry({
+      config: body.config,
+      credential_schema: body.credential_schema,
+      oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
+    });
+    if (!reason) return true;
+    reply.status(400).send(wrapError(ErrorCodes.VALIDATION_ERROR, reason));
+    return false;
+  };
+
   // TD-027: a client_secret_env must name a store secret permitted for the token_url host.
   const checkOAuthBinding = (
     oauth:
@@ -115,6 +135,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   fastify.post('/v1/admin/mcps', async (request, reply) => {
     const body = createMcpSchema.parse(request.body); // ZodError -> 400 via the admin error handler
     if (!checkOAuthBinding(body.oauth_config, reply)) return reply;
+    if (!checkRunnerGuard(body, reply)) return reply;
     const sourceIp = request.ip || '127.0.0.1';
     const nowIso = new Date().toISOString();
 
@@ -209,6 +230,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     const params = mcpParamsSchema.parse(request.params);
     const body = updateMcpSchema.parse(request.body); // ZodError -> 400 via the admin error handler
     if (!checkOAuthBinding(body.oauth_config, reply)) return reply;
+    if (!checkRunnerGuard(body, reply)) return reply;
     const sourceIp = request.ip || '127.0.0.1';
     const nowIso = new Date().toISOString();
 
