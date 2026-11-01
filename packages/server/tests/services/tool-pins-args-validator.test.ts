@@ -72,4 +72,13 @@ describe('args validator (S1)', () => {
       'pattern_unsupported'
     );
   });
+
+  it('an uncompilable pattern never falls back to native RegExp (backreference + catastrophic input stays fast)', () => {
+    const schema = { type: 'object', properties: { s: { type: 'string', pattern: '^(a+)+\\1$' } } };
+    expect(hasUnsupportedPattern(schema)).toBe(true);
+    const start = Date.now();
+    const r = validateAgainstApprovedSchema('h-nofallback', schema, { s: 'a'.repeat(40) + '!' });
+    expect(Date.now() - start).toBeLessThan(500);
+    expect(r.valid).toBe(true); // keyword dropped, not evaluated natively
+  });
 });

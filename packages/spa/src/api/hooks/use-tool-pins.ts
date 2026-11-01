@@ -1,5 +1,9 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ADMIN_TOOL_PIN_REVOKE_ROUTE, type ToolPinRevokeRequest } from '@mcpambassador/contracts';
+import {
+  ADMIN_TOOL_PIN_REVOKE_ROUTE,
+  type ToolPinRevokeRequest,
+  type ToolPinRevokeResponse,
+} from '@mcpambassador/contracts';
 import { apiClient } from '../client';
 import type {
   ToolPinSummary,
@@ -26,10 +30,15 @@ export function useToolPinSummary(enabled = true) {
   });
 }
 
-export function useToolPins(params: { status?: string; baseline?: 'unreviewed' }) {
+export function useToolPins(params: {
+  status?: string;
+  baseline?: 'unreviewed';
+  serving?: 'true';
+}) {
   const p: Record<string, string> = { limit: '200' };
   if (params.status) p.status = params.status;
   if (params.baseline) p.baseline = params.baseline;
+  if (params.serving) p.serving = params.serving;
   const q = useInfiniteQuery({
     queryKey: [...KEY, 'list', p],
     initialPageParam: undefined as string | undefined,
@@ -94,7 +103,7 @@ export function useRevokePin() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: ({ pinId, ...body }: { pinId: string } & ToolPinRevokeRequest) =>
-      apiClient.post<ToolPinDetail>(
+      apiClient.post<ToolPinRevokeResponse>(
         ADMIN_TOOL_PIN_REVOKE_ROUTE.replace(':pinId', encodeURIComponent(pinId)),
         body
       ),

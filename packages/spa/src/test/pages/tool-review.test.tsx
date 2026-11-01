@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { toast } from 'sonner';
 import { server } from '../mocks/server';
 import { ToolReview } from '../../pages/admin/ToolReview';
 import { PinPolicyCard } from '../../components/admin/PinPolicyCard';
@@ -47,6 +48,7 @@ function setup(opts: {
   detail?: Record<string, unknown>;
   posts?: Array<{ url: string; body: unknown }>;
   postStatus?: number;
+  revokedIds?: string[];
 }) {
   const posts = opts.posts ?? [];
   server.use(
@@ -64,7 +66,7 @@ function setup(opts: {
       const q = new URL(request.url).searchParams;
       opts.listCalls?.push(request.url);
       const rows =
-        q.get('status') === 'approved'
+        q.get('serving') === 'true'
           ? (opts.approved ?? [])
           : q.get('baseline')
             ? (opts.baseline ?? [])
@@ -81,7 +83,10 @@ function setup(opts: {
           { ok: false, error: 'conflict', message: 'stale' },
           { status: opts.postStatus }
         );
-      return HttpResponse.json({ ok: true, data: {} });
+      return HttpResponse.json({
+        ok: true,
+        data: { revoked_pin_ids: opts.revokedIds ?? ['p1'] },
+      });
     })
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -266,11 +271,11 @@ describe('ToolReview revoke (G1)', () => {
     const user = userEvent.setup();
     const listCalls: string[] = [];
     const posts = setup({ approved: [approvedPin()], listCalls });
-    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     expect(
       await screen.findByText(
-        /Agents lose this tool immediately in this scope, and in every per-user scope that relies on it/
+        /Agents lose this version of the tool immediately, everywhere it is approved \(shared and per-user\)/
       )
     ).toBeInTheDocument();
     expect(posts).toHaveLength(0);
@@ -285,14 +290,37 @@ describe('ToolReview revoke (G1)', () => {
     await waitFor(() => expect(listCalls.length).toBeGreaterThan(2));
   });
 
-  it('says only this scope for a user-scoped pin', async () => {
+  it('uses the same everywhere wording for user-scoped and shared pins', async () => {
     const user = userEvent.setup();
     setup({ approved: [approvedPin({ scope_user_id: 'u1' })] });
-    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     const d = await screen.findByRole('dialog');
-    expect(d.textContent).toContain('Agents lose this tool immediately in this scope');
-    expect(d.textContent).not.toContain('per-user scope');
+    expect(d.textContent).toContain('everywhere it is approved (shared and per-user)');
+    expect(d.textContent).not.toContain('in this scope');
+  });
+
+  it('lists a rejected-status pin that still has an approved version, with Revoke', async () => {
+    const user = userEvent.setup();
+    const listCalls: string[] = [];
+    setup({
+      approved: [approvedPin({ status: 'rejected', pending_hash: null })],
+      listCalls,
+    });
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
+    expect(await screen.findByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+    expect(listCalls.some(u => new URL(u).searchParams.get('serving') === 'true')).toBe(true);
+  });
+
+  it('reports how many scopes were revoked', async () => {
+    const user = userEvent.setup();
+    const spy = vi.spyOn(toast, 'success');
+    setup({ approved: [approvedPin()], revokedIds: ['p1', 'p2', 'p3'] });
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('Tool revoked. Revoked in 3 scopes'));
+    spy.mockRestore();
   });
 
   it('names the version being withdrawn: hash prefix, approver, time', async () => {
@@ -300,7 +328,7 @@ describe('ToolReview revoke (G1)', () => {
     setup({
       approved: [approvedPin({ approved_by: 'alice', approved_at: '2026-02-03T04:05:06Z' })],
     });
-    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     const v = await screen.findByTestId('revoke-version');
     expect(v.textContent).toContain(H1.slice(0, 12));
@@ -314,7 +342,7 @@ describe('ToolReview revoke (G1)', () => {
     const user = userEvent.setup();
     const listCalls: string[] = [];
     const posts = setup({ approved: [approvedPin()], listCalls, postStatus: status });
-    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     const before = listCalls.length;
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
@@ -363,7 +391,7 @@ describe('ToolReview revoke (G1)', () => {
       ),
       http.get('/v1/admin/tool-pins', ({ request }) => {
         const q = new URL(request.url).searchParams;
-        if (q.get('status') !== 'approved') return HttpResponse.json(list([]));
+        if (q.get('serving') !== 'true') return HttpResponse.json(list([]));
         seen.push(q.get('cursor'));
         return q.get('cursor')
           ? HttpResponse.json(list([approvedPin({ pin_id: 'p2', tool_name: 'second_tool' })]))
@@ -382,7 +410,7 @@ describe('ToolReview revoke (G1)', () => {
         </MemoryRouter>
       </QueryClientProvider>
     );
-    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Approved versions' }));
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
     expect(await screen.findByText('second_tool')).toBeInTheDocument();
     expect(seen).toEqual([null, 'c1']);

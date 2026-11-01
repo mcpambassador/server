@@ -473,7 +473,7 @@ export function ToolReview() {
   const summary = useToolPinSummary();
   const pending = useToolPins({ status: 'pending_review' });
   const baseline = useToolPins({ baseline: 'unreviewed' });
-  const approved = useToolPins({ status: 'approved' });
+  const approved = useToolPins({ serving: 'true' });
   const list = tab === 'pending' ? pending : tab === 'baseline' ? baseline : approved;
 
   return (
@@ -500,7 +500,7 @@ export function ToolReview() {
           {summary.data ? ` (${summary.data.baseline_unreviewed_count})` : ''}
         </TabButton>
         <TabButton active={tab === 'approved'} onClick={() => setTab('approved')}>
-          Approved
+          Approved versions
         </TabButton>
       </div>
       {list.isLoading ? (
@@ -517,7 +517,7 @@ export function ToolReview() {
               ? 'No tool definitions awaiting review'
               : tab === 'baseline'
                 ? 'No unreviewed baseline'
-                : 'No approved tool definitions'
+                : 'No tool has an approved version'
           }
         />
       )}
@@ -545,11 +545,8 @@ export function ToolReview() {
               </p>
             )}
             <p>
-              Agents lose this tool immediately in this scope
-              {revoking && !revoking.scope_user_id
-                ? ', and in every per-user scope that relies on it'
-                : ''}
-              . It stays hidden until a new definition is approved.
+              Agents lose this version of the tool immediately, everywhere it is approved (shared
+              and per-user). It stays hidden until a new definition is approved.
             </p>
             {revokeError && (
               <p role="alert" className="text-red-600">
@@ -572,12 +569,13 @@ export function ToolReview() {
         onConfirm={async () => {
           if (!revoking?.approved_hash) return;
           try {
-            await revoke.mutateAsync({
+            const res = await revoke.mutateAsync({
               pinId: revoking.pin_id,
               expected_hash: revoking.approved_hash,
               ...(revokeReason.trim() ? { reason: revokeReason.trim() } : {}),
             });
-            toast.success('Tool revoked');
+            const n = res?.revoked_pin_ids?.length ?? 1;
+            toast.success(`Tool revoked. Revoked in ${n} scope${n === 1 ? '' : 's'}`);
             closeRevoke();
           } catch (e) {
             // Stale (409) or gone (404): close so a retry cannot reuse the old hash; lists are refetched.

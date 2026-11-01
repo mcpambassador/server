@@ -23,6 +23,8 @@ export interface ToolPinRecord {
   pending_hash: string | null;
   pending_definition: string | null;
   rejected_hash: string | null;
+  /** JSON array of hashes withdrawn by an admin revoke; never re-raised or auto-approved */
+  revoked_hashes: string | null;
   /** JSON string of ToolPinFlags, or null */
   flags: string | null;
   absent: boolean;
@@ -44,6 +46,7 @@ function toRecord(r: any): ToolPinRecord {
     pending_hash: r.pending_hash ?? null,
     pending_definition: r.pending_definition ?? null,
     rejected_hash: r.rejected_hash ?? null,
+    revoked_hashes: r.revoked_hashes ?? null,
     flags: r.flags ?? null,
     absent: Boolean(r.absent),
     first_seen_at: r.first_seen_at,
@@ -122,6 +125,27 @@ export async function updateToolPin(
   patch: Partial<Omit<ToolPinRecord, 'pin_id' | 'mcp_id' | 'scope_user_id' | 'tool_name'>>
 ): Promise<void> {
   await compatUpdate(db, tool_pins).set(patch).where(eq(tool_pins.pin_id, pinId));
+}
+
+/** Apply several pin patches in ONE transaction (all or none). */
+export async function updateToolPinsAtomic(
+  db: DatabaseClient,
+  updates: Array<{ pinId: string; patch: Parameters<typeof updateToolPin>[2] }>
+): Promise<void> {
+  if (updates.length === 0) return;
+  const d = db as any;
+  if ('execute' in d && typeof d.execute === 'function') {
+    await d.transaction(async (tx: any) => {
+      for (const u of updates)
+        await tx.update(tool_pins).set(u.patch).where(eq(tool_pins.pin_id, u.pinId));
+    });
+  } else {
+    // better-sqlite3 transactions are synchronous
+    d.transaction((tx: any) => {
+      for (const u of updates)
+        tx.update(tool_pins).set(u.patch).where(eq(tool_pins.pin_id, u.pinId)).run();
+    });
+  }
 }
 
 /** Number of pending_review pins for one (mcp, scope): flood-cap input (D4b). */
