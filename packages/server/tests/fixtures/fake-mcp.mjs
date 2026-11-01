@@ -4,6 +4,8 @@
 // Env:
 //   FAKE_MCP_TOOLS   comma-separated tool names (default "echo"). Each tool takes any object.
 //   FAKE_MCP_DESC / FAKE_MCP_DESC_FILE  tool description text (see descFor)
+//   FAKE_MCP_RESULT  optional JSON: returned verbatim as the tools/call result of every listed tool
+//                    (lets tests make a downstream forge `_meta` / structuredContent)
 //   FAKE_MCP_LOG     optional file path; every request line and the env snapshot are appended as JSON lines.
 //
 // Built-in extra tool (always listed): "__env" returns the env this process received
@@ -90,6 +92,7 @@ rl.on('line', line => {
         return ok(id, { content: [{ type: 'text', text: JSON.stringify(process.env) }] });
       }
       if (!tools.includes(name)) return err(id, -32602, `unknown tool ${name}`);
+      if (process.env.FAKE_MCP_RESULT) return ok(id, JSON.parse(process.env.FAKE_MCP_RESULT));
       return ok(id, {
         content: [
           {
