@@ -76,8 +76,8 @@ export function hashCanonical(canonical: string): string {
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS =
+  // eslint-disable-next-line no-control-regex
   /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u00ad\u180e]/g;
 
 /** D5: tool names in audit metadata and logs: control, zero-width and bidi characters stripped, length-capped. */

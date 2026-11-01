@@ -9,6 +9,7 @@ import {
   runMigrations,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { getMcpCatalogEntry } from '../../src/services/mcp-catalog-service.js';
 import { scanToolDefinition } from '../../src/services/tool-pins/flags.js';
 import { sanitizeToolNameForLog } from '../../src/services/tool-pins/canonical.js';
 import { ToolPinService } from '../../src/services/tool-pins/pin-service.js';
@@ -120,6 +121,12 @@ describe('pin service hardening (B2, B4, B5)', () => {
       pins.index({ ...rec, approved_definition: bad, approved_hash: hashCanonical(bad) })
     ).not.toThrow();
     expect(pins.resolveApproved(mcpId, null, 'x')).toBeUndefined();
+  });
+
+  it('the MCP entry served by GET /v1/admin/mcps/:id carries pin_policy and origin', async () => {
+    const e = (await getMcpCatalogEntry(db, mcpId)) as unknown as Record<string, unknown>;
+    expect(e.pin_policy).toBe('review');
+    expect(e.origin).toBe('custom');
   });
 
   it('duplicate_name is a blocking flag: never approvable', async () => {

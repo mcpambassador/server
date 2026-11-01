@@ -107,6 +107,8 @@ export const TOOL_PIN_BLOCKING_FLAG_CODES = [
   'reserved_name',
   'invalid_definition',
   'duplicate_name',
+  /** Oversize definition (> 64 KB canonical): stored as a size marker, never approvable. */
+  'canonical_too_large',
 ] as const;
 export const toolPinFlagCodeSchema = z.enum(TOOL_PIN_FLAG_CODES);
 export type ToolPinFlagCode = z.infer<typeof toolPinFlagCodeSchema>;
