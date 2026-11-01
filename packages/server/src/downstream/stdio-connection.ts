@@ -12,6 +12,7 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
+import { StringDecoder } from 'node:string_decoder';
 import { logger, redactSecretsInString, StreamRedactor } from '@mcpambassador/core';
 /**
  * SEC-M9-02: Safe environment variable whitelist
@@ -88,9 +89,18 @@ export class StdioMcpConnection extends EventEmitter {
       throw new Error(`[${this.config.name}] Empty command array`);
     }
 
+    // Exact config.env values (can be decrypted user credentials) are scrubbed from every output
+    this.secretValues = Object.values(this.config.env ?? {}).filter(
+      (v): v is string => typeof v === 'string'
+    );
+
     // F-SEC-M6-001: Log spawned command for auditability
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    logger.warn(`[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`);
+    logger.warn(
+      redactSecretsInString(
+        `[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`,
+        this.secretValues
+      )
+    );
     if (this.config.env) {
       const envKeys = Object.keys(this.config.env).join(', ');
       logger.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
@@ -106,7 +116,6 @@ export class StdioMcpConnection extends EventEmitter {
     // Add MCP-specific env vars from config
     if (this.config.env) {
       Object.assign(safeEnv, this.config.env);
-      this.secretValues = Object.values(this.config.env).filter(v => typeof v === 'string');
     }
 
     this.process = spawn(cmd, args, {
@@ -138,10 +147,13 @@ export class StdioMcpConnection extends EventEmitter {
       const truncated = joined.length > 500 ? joined.substring(0, 500) + '... (truncated)' : joined;
       logger.error({ stderr: truncated }, `[MCP:${this.config.name}] stderr`);
     };
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      emitStderr(stderrRedactor.push(data.toString()));
+    // StringDecoder: a multibyte character split across chunks must not break exact-value matches
+    const stderrDecoder = new StringDecoder('utf8');
+    childProcess.stderr?.on('data', (data: string | Buffer) => {
+      emitStderr(stderrRedactor.push(typeof data === 'string' ? data : stderrDecoder.write(data)));
     });
     childProcess.stderr?.on('end', () => {
+      emitStderr(stderrRedactor.push(stderrDecoder.end()));
       emitStderr(stderrRedactor.flush());
     });
 
@@ -256,8 +268,9 @@ export class StdioMcpConnection extends EventEmitter {
         this.handleMessage(message);
       } catch (err) {
         // Metadata only: a raw downstream line can carry tool results or tokens
+        // (never the SyntaxError message: it embeds a snippet of the input)
         logger.error(
-          { err, lineLength: line.length },
+          { errName: err instanceof Error ? err.name : typeof err, lineLength: line.length },
           `[MCP:${this.config.name}] Failed to parse message`
         );
       }

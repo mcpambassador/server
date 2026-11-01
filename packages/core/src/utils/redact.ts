@@ -45,6 +45,8 @@ export function redactSecretsInString(text: string, exactValues?: readonly strin
       .replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, 'jwt.***REDACTED***')
       // Userinfo in URLs: scheme://user:pass@host
       .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]*:[^\s/?#@]*@/gi, '$1***:***@')
+      // Userinfo with no password: a long token used as the user (https://<token>@host)
+      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@:]{16,}@/gi, '$1***@')
       // Authorization header/value: whatever the scheme (Basic, Digest, Bearer, ...), to end of line
       .replace(/(authorization["']?\s*[:=]\s*)[^\r\n]*/gi, '$1***REDACTED***')
       // Cookie / Set-Cookie: the whole header value to end of line
@@ -73,39 +75,67 @@ const PEM_MARKER = '***REDACTED PRIVATE KEY***';
  * Stateful, per-connection scrubber for a text stream arriving in arbitrary chunks (MCP stderr).
  * A chunk boundary can split a secret, so output is line-buffered: complete lines are scrubbed
  * and returned, the trailing partial line waits for more data. The buffer is flushed (scrubbed)
- * when it exceeds `maxBuffer` (default 8 KB) and on `flush()` (call at stream end/close).
+ * when it exceeds `maxBuffer`: the line is emitted scrubbed with a " …[line truncated]" suffix and
+ * the rest of that line is dropped up to the next newline (no overlap, nothing unscrubbed kept).
+ * `flush()` scrubs what is left (call at stream end/close).
  * A PEM private key spanning lines is redacted until its END marker.
- * Residual risk: a secret straddling a forced flush at the size cap.
+ * Callers should read the stream as utf8 text (`setEncoding('utf8')`) so multibyte characters are
+ * not split across chunks.
  */
 export class StreamRedactor {
   private buf = '';
   private inPem = false;
+  private discarding = false;
 
   constructor(
     private readonly exactValues: readonly string[] = [],
     private readonly maxBuffer = 8192
   ) {}
 
-  /** Feed a chunk; returns the scrubbed complete lines (no trailing newlines). */
+  /** Feed a chunk; returns the scrubbed lines (no trailing newlines). */
   push(chunk: string): string[] {
-    this.buf += chunk;
-    const parts = this.buf.split('\n');
-    this.buf = parts.pop() ?? '';
-    const out = parts.map(l => this.line(l));
-    if (this.buf.length > this.maxBuffer) out.push(...this.drain());
+    const out: string[] = [];
+    let rest = chunk;
+    while (rest.length > 0) {
+      const nl = rest.indexOf('\n');
+      if (this.discarding) {
+        if (nl < 0) return out;
+        this.discarding = false;
+        rest = rest.slice(nl + 1);
+        continue;
+      }
+      const seg = nl < 0 ? rest : rest.slice(0, nl);
+      if (this.buf.length + seg.length > this.maxBuffer) {
+        out.push(this.truncated(this.buf + seg));
+        this.buf = '';
+        this.discarding = nl < 0;
+      } else if (nl < 0) {
+        this.buf += seg;
+        return out;
+      } else {
+        out.push(this.line(this.buf + seg));
+        this.buf = '';
+      }
+      rest = nl < 0 ? '' : rest.slice(nl + 1);
+    }
     return out;
   }
 
   /** Scrub and return whatever partial line is left (call when the stream ends). */
   flush(): string[] {
-    return this.drain();
-  }
-
-  private drain(): string[] {
+    this.discarding = false;
     if (this.buf.length === 0) return [];
     const l = this.line(this.buf);
     this.buf = '';
     return [l];
+  }
+
+  /** Cut an over-long line at the cap, backing off to a word boundary so no token is half-kept */
+  private truncated(raw: string): string {
+    let cut = raw.slice(0, this.maxBuffer);
+    const back = cut.slice(-128).search(/\s\S*$/);
+    if (back >= 0 && cut.length > 128) cut = cut.slice(0, cut.length - 128 + back);
+    return this.line(cut) + ' …[line truncated]';
   }
 
   private line(raw: string): string {

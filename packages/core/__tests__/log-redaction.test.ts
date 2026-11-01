@@ -280,13 +280,45 @@ describe('log redaction (TD-026)', () => {
       expect(out.join('\n')).not.toContain('canarypem');
     });
 
-    it('flushes a partial line on flush() and on the size cap (scrubbed)', () => {
+    it('flushes a partial line on flush() (scrubbed)', () => {
       const r = new StreamRedactor([], 64);
       expect(r.push('token=canarytail12')).toEqual([]);
       expect(r.flush().join('')).not.toContain('canarytail12');
-      const big = r.push('x'.repeat(100));
-      expect(big.length).toBe(1);
+    });
+
+    it('size cap: emits the scrubbed head with a truncation marker, drops the rest of the line, no overlap', () => {
+      const r = new StreamRedactor([], 64);
+      const out = r.push('a'.repeat(40) + ' ' + 'b'.repeat(40) + 'CANARYTAIL');
+      expect(out).toHaveLength(1);
+      expect(out[0]).toContain('…[line truncated]');
+      expect(out[0]).not.toContain('CANARYTAIL');
+      // continuation of the same line is dropped, next line is kept
+      expect(r.push('more CANARYMORE')).toEqual([]);
+      expect(r.push(' still\nnext line\n')).toEqual(['next line']);
       expect(r.flush()).toEqual([]);
+    });
+
+    it('size cap: a long line that does include its newline is truncated too', () => {
+      const r = new StreamRedactor([], 32);
+      const out = r.push('x'.repeat(100) + '\nok\n');
+      expect(out).toHaveLength(2);
+      expect(out[0]).toContain('…[line truncated]');
+      expect(out[1]).toBe('ok');
+    });
+
+    it('size cap: does not keep half of a token at the cut', () => {
+      const r = new StreamRedactor([], 140);
+      const out = r.push('y'.repeat(100) + ' amb_pk_' + 'Z'.repeat(60));
+      expect(out[0]).not.toContain('amb_pk_');
+    });
+
+    it('userinfo without a password (token as the user) is redacted', () => {
+      const s = redactSecretsInString(
+        'clone https://ghs_canaryuserinfo0123456789@github.com/o/r.git'
+      );
+      expect(s).not.toContain('canaryuserinfo');
+      expect(s).toContain('@github.com');
+      expect(redactSecretsInString('https://short@host/x')).toContain('short@host');
     });
 
     it('strips CR from CRLF lines', () => {
