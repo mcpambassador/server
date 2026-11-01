@@ -62,6 +62,7 @@ export async function createMcpCatalogEntry(
     transport_type: data.transport_type,
     config: JSON.stringify(data.config),
     isolation_mode: data.isolation_mode || 'shared',
+    origin: 'custom',
     requires_user_credentials: data.requires_user_credentials ?? false,
     credential_schema: data.credential_schema ? JSON.stringify(data.credential_schema) : '{}',
     auth_type: data.auth_type || 'none',
@@ -148,9 +149,8 @@ export async function updateMcpCatalogEntry(
     if (hasStructuralChanges) {
       // MCP-001: Generic error message to avoid info leakage
       logger.warn(
-        '[MCP Catalog] Blocked structural update on published MCP:',
-        mcpId,
-        Object.keys(updates)
+        { mcpId, fields: Object.keys(updates) },
+        '[MCP Catalog] Blocked structural update on published MCP'
       );
       throw new Error('PUBLISHED_MCP_STRUCTURAL_CHANGE');
     }

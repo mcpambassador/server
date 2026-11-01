@@ -1,7 +1,11 @@
 import type { SharedMcpManager } from './manager.js';
 import type { UserMcpPool, UserMcpPoolStatus } from './user-mcp-pool.js';
 import type { AggregatedTool, ToolInvocationRequest, ToolInvocationResponse } from './types.js';
-import { logger } from '@mcpambassador/core';
+import { validateToolName } from './types.js';
+import { logger, getMcpPinPolicy } from '@mcpambassador/core';
+import type { PinPolicy } from '@mcpambassador/contracts';
+import type { ToolPinService } from '../services/tool-pins/pin-service.js';
+import { truncateDescriptionForServe } from '../services/tool-pins/flags.js';
 import type { DatabaseClient } from '@mcpambassador/core';
 
 /**
@@ -32,11 +36,140 @@ export interface CombinedMcpStatus {
  * Per ADR-012 §Design/Tool Catalog Composition Strategy
  */
 export class ToolRouter {
+  /** ADR-021: when set, only admin-approved pinned definitions are served (D2/D3). */
+  private pins?: ToolPinService;
+  /** raw tools/list array (by identity) -> policy it was last observed under; avoids hashing per request */
+  private observed = new WeakMap<object, { policy: PinPolicy; done: Promise<void> }>();
+  /** D6 hook: baseline hashes (tool name -> hash) for an MCP's first observation, if any */
+  private baselineFor?: (
+    mcpId: string,
+    scopeUserId: string | null
+  ) => Promise<Map<string, string> | undefined>;
+
   constructor(
     private sharedManager: SharedMcpManager,
     private userPool: UserMcpPool
   ) {
     logger.info('[ToolRouter] Initialized');
+  }
+
+  setPinService(
+    pins: ToolPinService | undefined,
+    baselineFor?: (
+      mcpId: string,
+      scopeUserId: string | null
+    ) => Promise<Map<string, string> | undefined>
+  ): void {
+    this.pins = pins;
+    this.baselineFor = baselineFor;
+  }
+
+  getPinService(): ToolPinService | undefined {
+    return this.pins;
+  }
+
+  /** Drop memoised observations so the next catalog read re-compares (re-discovery, policy change). */
+  invalidatePinObservations(): void {
+    this.observed = new WeakMap();
+  }
+
+  /**
+   * ADR-021: observe a shared MCP's current raw tool list now (after a re-discovery), so changes reach the
+   * review queue without waiting for an agent to list tools. Never throws.
+   */
+  async observeSharedNow(
+    db: DatabaseClient,
+    mcpEntry: { mcp_id: string; name: string }
+  ): Promise<void> {
+    if (!this.pins) return;
+    const raw = this.sharedManager.getRawToolsFor(mcpEntry.name);
+    if (!raw) return;
+    try {
+      const policy: PinPolicy = (await getMcpPinPolicy(db, mcpEntry.mcp_id)) ?? 'review';
+      await this.observeOnce(raw, mcpEntry.mcp_id, null, policy);
+    } catch (err) {
+      logger.error({ err, mcp: mcpEntry.name }, '[ToolRouter] tool pin observation failed');
+    }
+  }
+
+  /** Compare one connection's raw tool list with the pins, once per (array identity, policy). */
+  private async observeOnce(
+    raw: readonly unknown[],
+    mcpId: string,
+    scopeUserId: string | null,
+    policy: PinPolicy
+  ): Promise<void> {
+    const pins = this.pins!;
+    const prev = this.observed.get(raw as object);
+    if (prev && prev.policy === policy) return prev.done;
+    const done = (async () => {
+      const baseline = this.baselineFor ? await this.baselineFor(mcpId, scopeUserId) : undefined;
+      await pins.observe({ mcpId, scopeUserId, liveTools: [...raw], policy, baseline });
+    })();
+    this.observed.set(raw as object, { policy, done });
+    try {
+      await done;
+    } catch (err) {
+      this.observed.delete(raw as object); // retry next time; the tools stay hidden meanwhile
+      throw err;
+    }
+  }
+
+  /**
+   * ADR-021: the tools of one MCP as the agent may see them: only those with an approved pin, built from
+   * the approved canonical definition (never the live one). Fails closed on any error.
+   */
+  private async pinnedToolsFor(
+    db: DatabaseClient,
+    mcpEntry: { mcp_id: string; name: string; isolation_mode: string },
+    userId: string
+  ): Promise<AggregatedTool[]> {
+    const pins = this.pins!;
+    const shared = mcpEntry.isolation_mode === 'shared';
+    const raw = shared
+      ? this.sharedManager.getRawToolsFor(mcpEntry.name)
+      : this.userPool.getRawToolsFor(userId, mcpEntry.name);
+    if (!raw) return [];
+    const scope = shared ? null : userId;
+    try {
+      const policy: PinPolicy = (await getMcpPinPolicy(db, mcpEntry.mcp_id)) ?? 'review';
+      await this.observeOnce(raw, mcpEntry.mcp_id, scope, policy);
+    } catch (err) {
+      logger.error(
+        { err, mcp: mcpEntry.name },
+        '[ToolRouter] tool pin observation failed; failing closed'
+      );
+      return [];
+    }
+    const out: AggregatedTool[] = [];
+    const seen = new Set<string>();
+    // duplicate_name: a name that appears twice in one tools/list hides BOTH entries.
+    const counts = new Map<string, number>();
+    for (const t of raw) {
+      const n = (t as { name?: unknown } | null)?.name;
+      if (typeof n === 'string') counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+    for (const t of raw) {
+      const name = (t as { name?: unknown } | null)?.name;
+      if (typeof name !== 'string' || !validateToolName(name) || seen.has(name)) continue;
+      seen.add(name);
+      if ((counts.get(name) ?? 0) > 1) continue;
+      const approved = pins.resolveApproved(mcpEntry.mcp_id, scope, name);
+      if (!approved) continue;
+      const d = approved.definition;
+      out.push({
+        name,
+        // SEC-M9-05 / ADR-021 D1': agents are served T(approved) = the approved description cut to
+        // 500 code points. The hash and the admin review cover the FULL text; the `truncated_on_serve`
+        // flag marks tools where the two differ. Every serve path must go through this function.
+        description:
+          d.description === undefined ? d.description : truncateDescriptionForServe(d.description),
+        inputSchema: (d.inputSchema as AggregatedTool['inputSchema']) ?? { type: 'object' },
+        source_mcp: mcpEntry.name,
+        pinned_hash: approved.hash,
+      });
+    }
+    return out;
   }
 
   /**
@@ -96,6 +229,21 @@ export class ToolRouter {
 
     // Tool not found in either
     throw new Error(`Tool not found: ${request.tool_name}`);
+  }
+
+  /**
+   * ADR-021 D2: invoke on the exact MCP the catalog resolved (never by bare tool name, which is
+   * ambiguous across MCPs and could land on a different MCP's same-named tool).
+   */
+  async invokeOnSource(
+    userId: string,
+    sourceMcp: string,
+    request: ToolInvocationRequest
+  ): Promise<ToolInvocationResponse> {
+    if (this.sharedManager.getRawToolsFor(sourceMcp) !== undefined) {
+      return this.sharedManager.invokeToolOn(sourceMcp, request);
+    }
+    return this.userPool.invokeToolOn(userId, sourceMcp, request);
   }
 
   /**
@@ -183,8 +331,11 @@ export class ToolRouter {
 
       let mcpTools: AggregatedTool[] = [];
 
-      // Route to correct manager based on isolation_mode
-      if (mcpEntry.isolation_mode === 'shared') {
+      if (this.pins) {
+        // ADR-021 D2/D3: pin filter BEFORE name resolution, from the per-MCP raw list (the global
+        // aggregate dedupes by name across MCPs and could let a pending tool shadow an approved one).
+        mcpTools = await this.pinnedToolsFor(db, mcpEntry, userId);
+      } else if (mcpEntry.isolation_mode === 'shared') {
         // Get tools from SharedMcpManager
         const sharedTools = this.sharedManager.getToolCatalog();
         mcpTools = sharedTools.filter(tool => tool.source_mcp === mcpEntry.name);

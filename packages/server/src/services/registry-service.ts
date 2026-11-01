@@ -321,6 +321,7 @@ export class RegistryService {
         auth_type: registryEntry.auth_type || 'none',
         oauth_config: JSON.stringify(safeOauthConfig ?? {}),
         isolation_mode: registryEntry.isolation_mode || 'shared',
+        origin: 'registry' as const,
         requires_user_credentials: registryEntry.requires_user_credentials ?? false,
         credential_schema: JSON.stringify(registryEntry.credential_schema || {}),
         status: 'draft' as const,
@@ -379,7 +380,7 @@ export class RegistryService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[RegistryService] Failed to install MCP '${name}':`, errorMessage);
+      logger.error({ err: error }, `[RegistryService] Failed to install MCP '${name}'`);
 
       return {
         success: false,

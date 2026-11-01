@@ -147,7 +147,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        logger.error('[OAuth Routes] Error generating authorization URL:', error);
+        logger.error({ err: error }, '[OAuth Routes] Error generating authorization URL:');
 
         // Check if error is due to missing environment variables
         if (error instanceof Error && error.message.includes('environment variable not set')) {
@@ -302,7 +302,7 @@ export async function registerOAuthRoutes(
         `${portalBaseUrl}/connections?status=success&mcp=${encodeURIComponent(mcpName)}`
       );
     } catch (error) {
-      logger.error('[OAuth Routes] Error in OAuth callback:', error);
+      logger.error({ err: error }, '[OAuth Routes] Error in OAuth callback:');
 
       // Determine error code
       let errorCode = 'server_error';
@@ -401,7 +401,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        logger.error('[OAuth Routes] Error checking OAuth status:', error);
+        logger.error({ err: error }, '[OAuth Routes] Error checking OAuth status:');
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to check OAuth status'));
@@ -498,8 +498,8 @@ export async function registerOAuthRoutes(
             } catch (error) {
               // Log error but continue with deletion
               logger.error(
-                '[OAuth Routes] Error revoking tokens (continuing with deletion):',
-                error
+                { err: error },
+                '[OAuth Routes] Error revoking tokens (continuing with deletion):'
               );
             }
           }
@@ -518,7 +518,7 @@ export async function registerOAuthRoutes(
             await userPool.terminateForUser(userId);
             logger.info(`[OAuth Routes] Terminated MCP instances for user=${userId}`);
           } catch (error) {
-            logger.error('[OAuth Routes] Error terminating MCP instances:', error);
+            logger.error({ err: error }, '[OAuth Routes] Error terminating MCP instances:');
           }
         }
 
@@ -529,7 +529,7 @@ export async function registerOAuthRoutes(
           })
         );
       } catch (error) {
-        logger.error('[OAuth Routes] Error disconnecting OAuth:', error);
+        logger.error({ err: error }, '[OAuth Routes] Error disconnecting OAuth:');
         return reply
           .status(500)
           .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to disconnect OAuth'));

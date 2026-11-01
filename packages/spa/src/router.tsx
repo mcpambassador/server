@@ -24,6 +24,7 @@ import { McpWizard } from '@/pages/admin/McpWizard';
 import { UserInstances } from '@/pages/admin/UserInstances';
 import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
+import { ToolReview } from '@/pages/admin/ToolReview';
 import { Settings } from '@/pages/admin/Settings';
 import { Registry } from '@/pages/admin/Registry';
 import { OAuthConsent } from '@/pages/OAuthConsent';
@@ -186,6 +187,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <KillSwitches />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/tool-review',
+        element: (
+          <AdminRoute>
+            <ToolReview />
           </AdminRoute>
         ),
       },

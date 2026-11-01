@@ -62,10 +62,10 @@ describe('migration tracking (TD-032)', () => {
 
   it('existing untracked DB (already at 0003 with data): bootstraps and records 0000..0003 without touching data', async () => {
     const dir = copyMigrations();
-    // Simulate the pre-TD-032 world: every file applied by the old runner, no tracking table, real data.
+    // Simulate the pre-TD-032 world: every file up to 0003 applied by the old runner, no tracking table, real data.
     for (const f of fs
       .readdirSync(dir)
-      .filter(f => f.endsWith('.sql'))
+      .filter(f => f.endsWith('.sql') && f <= MIGRATION_BOOTSTRAP_LAST)
       .sort()) {
       for (const st of fs
         .readFileSync(path.join(dir, f), 'utf-8')
@@ -80,6 +80,7 @@ describe('migration tracking (TD-032)', () => {
 
     await runMigrations(db, { migrationsDir: dir });
     expect(recorded()).toContain(MIGRATION_BOOTSTRAP_LAST);
+    expect(recorded()).toContain('0004_tool_pins.sql'); // files after 0003 are applied normally
     expect(rows("SELECT client_id FROM oauth_clients WHERE client_id='keep-me'")).toHaveLength(1);
   });
 

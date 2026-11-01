@@ -232,6 +232,9 @@ importers:
       argon2:
         specifier: ^0.44.0
         version: 0.44.0
+      canonicalize:
+        specifier: 2.1.0
+        version: 2.1.0
       drizzle-orm:
         specifier: ^0.29.3
         version: 0.29.5(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)
@@ -247,6 +250,9 @@ importers:
       pino-pretty:
         specifier: ^10.3.1
         version: 10.3.1
+      re2:
+        specifier: 1.23.3
+        version: 1.23.3
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -3556,6 +3562,11 @@ packages:
   /caniuse-lite@1.0.30001770:
     resolution: {integrity: sha512-x/2CLQ1jHENRbHg5PSId2sXq1CIO1CISvwWAj027ltMVG2UNgW+w9oH2+HzgEIRFembL8bUlXtfbBHR1fCg2xw==}
     dev: true
+
+  /canonicalize@2.1.0:
+    resolution: {integrity: sha512-F705O3xrsUtgt98j7leetNhTWPe+5S72rlL5O4jA1pKqBVQ/dT1O1D6PFxmSXvc0SUOinWS57DKx0I3CHrXJHQ==}
+    hasBin: true
+    dev: false
 
   /chai@4.5.0:
     resolution: {integrity: sha512-RITGBfijLkBddZvnn8jdqoTypxvqbOLYQkGGxXzeFjVHvudaPw0HNFD9x928/eUwYWd2dPCugVqspGALTZZQKw==}

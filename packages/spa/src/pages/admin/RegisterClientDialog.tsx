@@ -11,7 +11,7 @@ import {
   DialogBody,
   DialogActions,
 } from '@/components/catalyst/dialog';
-import { useCreateOAuthClient } from '@/api/hooks/use-agent';
+import { useCreateOAuthClient, useAgentEndpointInfo } from '@/api/hooks/use-agent';
 import type { OAuthClientSummary } from '@/api/agent-types';
 import {
   parseRedirectUris,
@@ -37,8 +37,11 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
   const [uriText, setUriText] = useState('');
   const [touched, setTouched] = useState(false);
   const [created, setCreated] = useState<OAuthClientSummary | null>(null);
-  // TODO: prefill from the server's canonical resource URL once the API exposes it.
-  const [resourceUrl, setResourceUrl] = useState(RESOURCE_URL_PLACEHOLDER);
+  // Prefilled from the server's canonical resource URL; null `edited` means "not touched yet"
+  const info = useAgentEndpointInfo();
+  const [edited, setEdited] = useState<string | null>(null);
+  const resourceUrl = edited ?? info.data?.resource_url ?? RESOURCE_URL_PLACEHOLDER;
+  const setResourceUrl = setEdited;
 
   const uris = parseRedirectUris(uriText);
   const uriError = validateRedirectUris(uris);
@@ -53,7 +56,7 @@ export function RegisterClientDialog({ open, onClose }: { open: boolean; onClose
     setUriText('');
     setTouched(false);
     setCreated(null);
-    setResourceUrl(RESOURCE_URL_PLACEHOLDER);
+    setEdited(null);
     create.reset();
     onClose();
   };

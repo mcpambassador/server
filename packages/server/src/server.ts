@@ -174,6 +174,10 @@ export class AmbassadorServer {
   };
   private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
+  private toolPins: import('./services/tool-pins/pin-service.js').ToolPinService | null = null;
+  private toolPinRediscovery:
+    | import('./services/tool-pins/rediscovery.js').ToolPinRediscovery
+    | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
   private audit: AuditProvider | null = null;
@@ -379,10 +383,7 @@ export class AmbassadorServer {
         await this.registryService.fetchRegistry();
         logger.info('[Server] Community registry loaded');
       } catch (error) {
-        logger.warn(
-          '[Server] Failed to load community registry on startup:',
-          error instanceof Error ? error.message : String(error)
-        );
+        logger.warn({ err: error }, '[Server] Failed to load community registry on startup:');
         logger.warn('[Server] Registry will be available after manual refresh');
       }
     } else {
@@ -487,11 +488,59 @@ export class AmbassadorServer {
     }
     this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
+
+    // ADR-021: tool definition pinning. Pins load before any catalog is served; hashes-only audit.
+    {
+      const { ToolPinService } = await import('./services/tool-pins/pin-service.js');
+      const pinAudit = this.audit!;
+      const pinAuditFn = (action: string, metadata: Record<string, unknown>): void => {
+        void pinAudit
+          .emit({
+            event_id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            event_type: 'admin_action',
+            severity:
+              action === 'tool_definition_changed' || action === 'tool_pin_flagged'
+                ? 'warn'
+                : 'info',
+            source_ip: '127.0.0.1',
+            action,
+            metadata,
+          })
+          .catch(err => logger.error({ err }, '[tool-pins] audit emit failed'));
+      };
+      const pins = new ToolPinService(this.db!, pinAuditFn);
+      await pins.load();
+      this.toolPins = pins;
+      const { ToolPinBaseline } = await import('./services/tool-pins/baseline.js');
+      const baseline = new ToolPinBaseline(this.db!, pins, pinAuditFn);
+      await baseline.init();
+      this.toolRouter.setPinService(pins, (mcpId, scope) => baseline.baselineFor(mcpId, scope));
+      const { ToolPinRediscovery, rediscoveryHoursFromEnv } =
+        await import('./services/tool-pins/rediscovery.js');
+      this.toolPinRediscovery = new ToolPinRediscovery({
+        db: this.db!,
+        mcpManager: this.mcpManager,
+        userPool: this.userPool,
+        toolRouter: this.toolRouter,
+        intervalHours: rediscoveryHoursFromEnv(),
+      });
+      this.toolPinRediscovery.start();
+    }
     this.catalogReloader = new CatalogReloader(
       this.db as DatabaseClient,
       this.mcpManager,
       this.userPool
     );
+    const rediscovery = this.toolPinRediscovery;
+    if (rediscovery) {
+      // A catalog apply is an explicit reload: re-fetch tool lists and record pins for new/changed tools now.
+      this.catalogReloader.onApplied = () => rediscovery.observeAllShared({ refresh: true });
+      // Boot: pins (and the one-shot baseline) are recorded without waiting for the first agent listing.
+      void rediscovery
+        .observeAllShared()
+        .catch(err => logger.warn({ err }, '[tool-pins] boot observation failed'));
+    }
     logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
@@ -708,6 +757,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1045,8 +1096,8 @@ export class AmbassadorServer {
                 logger.info(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
               } catch (refreshErr) {
                 logger.error(
-                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`,
-                  refreshErr
+                  { err: refreshErr },
+                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`
                 );
 
                 // Check if token was revoked (401/invalid_grant)
@@ -1114,14 +1165,14 @@ export class AmbassadorServer {
             }
           }
         } catch (err) {
-          logger.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
+          logger.error({ err }, `[Server] Failed to process credential for MCP ${cred.mcp_id}:`);
           // Continue processing other credentials
         }
       }
 
       return credMap;
     } catch (err) {
-      logger.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
+      logger.error({ err }, `[Server] Failed to load user credentials for user ${userId}:`);
       return new Map();
     }
   }
@@ -1488,7 +1539,7 @@ export class AmbassadorServer {
             message: 'Session state inconsistent',
           });
         } else {
-          logger.error('[/v1/tools] Error:', err);
+          logger.error({ err }, '[/v1/tools] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Failed to retrieve tool catalog',
@@ -1596,7 +1647,7 @@ export class AmbassadorServer {
             message: 'Session missing client binding',
           });
         } else {
-          logger.error('[/v1/tools/invoke] Error:', err);
+          logger.error({ err }, '[/v1/tools/invoke] Error:');
           // F-SEC-M5-009: Generic error message (don't expose internals)
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1624,6 +1675,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1647,7 +1700,7 @@ export class AmbassadorServer {
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
-          logger.error('[/v1/admin/health] Error:', err);
+          logger.error({ err }, '[/v1/admin/health] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Health check failed',
@@ -1717,6 +1770,11 @@ export class AmbassadorServer {
     return this.agentEndpointDeps;
   }
 
+  /** ADR-021 pin service (null before start) */
+  getToolPins(): import('./services/tool-pins/pin-service.js').ToolPinService | null {
+    return this.toolPins;
+  }
+
   async start(): Promise<void> {
     if (!this.fastify) {
       throw new Error('Server not initialized - call initialize() first');
@@ -1742,7 +1800,7 @@ export class AmbassadorServer {
         );
       }
     } catch (err) {
-      logger.error('[Server] Failed to start:', err);
+      logger.error({ err }, '[Server] Failed to start:');
       throw err;
     }
   }
@@ -2003,6 +2061,8 @@ DELETE THIS FILE after recording the value.
       logger.info('[Server] Shutting down audit provider...');
       await this.audit.shutdown?.();
     }
+
+    this.toolPinRediscovery?.stop();
 
     // M17.3: Shutdown per-user MCP pool first
     logger.info('[Server] Shutting down per-user MCP pool...');

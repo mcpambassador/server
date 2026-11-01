@@ -382,7 +382,7 @@ export class Pipeline {
     try {
       await this.audit.emit(event);
     } catch (error) {
-      logger.error('[pipeline] Audit emit failed:', error);
+      logger.error({ err: error }, '[pipeline] Audit emit failed:');
 
       if (this.config.audit_on_failure === 'block') {
         // Fail closed — block the request

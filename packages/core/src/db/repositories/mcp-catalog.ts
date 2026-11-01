@@ -50,6 +50,7 @@ export async function createMcpEntry(
     transport_type: data.transport_type,
     config: data.config || '{}',
     isolation_mode: data.isolation_mode || 'shared',
+    origin: data.origin || 'unknown',
     requires_user_credentials: data.requires_user_credentials ?? false,
     credential_schema: data.credential_schema || '{}',
     auth_type: data.auth_type || 'none',
