@@ -16,8 +16,6 @@ import {
   listSubscriptionsForClient,
   updateSubscription as updateSubscriptionRepo,
   removeSubscription as removeSubscriptionRepo,
-  listUserGroups,
-  listMcpsForGroup,
   getMcpEntryById,
   getCredential,
   mcp_catalog,
@@ -26,6 +24,7 @@ import {
   compatSelect,
 } from '@mcpambassador/core';
 import { getUserClient } from './client-service.js';
+import { userHasMcpAccess } from './mcp-access.js';
 import { eq, inArray } from 'drizzle-orm';
 
 export interface SubscriptionWithMcp {
@@ -70,17 +69,7 @@ export async function subscribeClientToMcp(
   }
 
   // Verify user has group access to this MCP
-  const userGroups = await listUserGroups(db, data.userId);
-  const groupIds = userGroups.map(g => g.group_id);
-
-  let hasAccess = false;
-  for (const groupId of groupIds) {
-    const mcpAccesses = await listMcpsForGroup(db, groupId);
-    if (mcpAccesses.some(access => access.mcp_id === data.mcpId)) {
-      hasAccess = true;
-      break;
-    }
-  }
+  const hasAccess = await userHasMcpAccess(db, data.userId, data.mcpId);
 
   if (!hasAccess) {
     throw new Error('User does not have access to this MCP');

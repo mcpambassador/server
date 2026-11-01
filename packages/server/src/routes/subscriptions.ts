@@ -8,6 +8,7 @@
  * @see Architecture §4.2 Client Subscription Management
  */
 
+import { grantedMcpIdsForUser } from '../services/mcp-access.js';
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import { logger, getMcpEntryById, publicErrorMessage } from '@mcpambassador/core';
@@ -59,6 +60,9 @@ export async function registerSubscriptionRoutes(
           clientId: params.clientId,
         });
 
+        // ADR-025 M4: `access` tells the SPA a subscription is no longer served (grant revoked)
+        const granted = await grantedMcpIdsForUser(db, userId);
+
         // Transform snake_case to camelCase for SPA
         const transformedSubscriptions = subscriptions.map(sub => ({
           id: sub.subscription_id,
@@ -67,6 +71,7 @@ export async function registerSubscriptionRoutes(
           mcpName: sub.mcp_name,
           selectedTools: sub.selected_tools,
           status: sub.status,
+          access: granted.has(sub.mcp_id) ? 'granted' : 'revoked',
           createdAt: sub.subscribed_at,
           updatedAt: sub.updated_at,
         }));
@@ -96,6 +101,7 @@ export async function registerSubscriptionRoutes(
       const userId = request.session.userId!;
 
       const subscriptions = await listUserSubscriptions(db, userId);
+      const granted = await grantedMcpIdsForUser(db, userId);
 
       // Transform to camelCase for SPA
       const transformed = subscriptions.map(sub => ({
@@ -105,6 +111,7 @@ export async function registerSubscriptionRoutes(
         mcpName: sub.mcp_name,
         selectedTools: sub.selected_tools,
         status: sub.status,
+        access: granted.has(sub.mcp_id) ? 'granted' : 'revoked',
         createdAt: sub.subscribed_at,
         updatedAt: sub.updated_at,
       }));

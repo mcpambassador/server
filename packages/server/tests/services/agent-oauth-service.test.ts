@@ -1,6 +1,7 @@
 /**
  * ADR-020 P4: built-in authorization server service tests (real SQLite).
  */
+import { grantExistingUser } from '../helpers/grants.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -92,6 +93,7 @@ beforeEach(async () => {
   db = await initializeDatabase({ type: 'sqlite', sqliteFilePath: path.join(dir, 'a.db') });
   await runMigrations(db);
   seed();
+  await grantExistingUser(db, 'u1', ['m1', 'm2']);
   events = [];
   const cfg = resolveAgentEndpointConfig(
     AgentEndpointConfigSchema.parse({ enabled: true, dynamic_client_registration: true }),

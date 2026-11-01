@@ -12,6 +12,7 @@ import {
   setMcpPinPolicy,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { seedUserGrants } from '../helpers/grants.js';
 import { ToolRouter } from '../../src/downstream/tool-router.js';
 import { ToolPinService } from '../../src/services/tool-pins/pin-service.js';
 import { buildInvocationRouter, type ToolServiceDeps } from '../../src/services/tool-service.js';
@@ -84,6 +85,7 @@ describe('pinned catalog + routing (ADR-021 D2/D3)', () => {
       { mcp_id: mcpB, status: 'active' },
       { mcp_id: mcpA, status: 'active' },
     ];
+    await seedUserGrants(db, 'u1', [mcpA, mcpB]);
   });
   afterEach(async () => {
     await closeDatabase(db);
