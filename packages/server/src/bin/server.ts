@@ -210,6 +210,19 @@ async function main() {
   // Determine config file path: CLI arg > env var > auto-discover
   const configPath = args.config || process.env.AMBASSADOR_CONFIG_PATH || findConfigFile(dataDir);
 
+  // TD-027: capture secrets the server needs BEFORE loadConfig scrubs them from process.env, so
+  // they live only in private objects and never in the environment (child processes, ${VAR}
+  // expansion, catalog-defined env var names cannot reach them).
+  const registryConfig = loadRegistryConfig(configPath);
+  const oauthClientSecrets: Record<string, { value: string; allowedTokenHosts: string[] }> = {};
+  const githubSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
+  if (githubSecret) {
+    oauthClientSecrets.GITHUB_OAUTH_CLIENT_SECRET = {
+      value: githubSecret,
+      allowedTokenHosts: ['github.com'],
+    };
+  }
+
   if (configPath) {
     try {
       logger.info(`[Server] Loading configuration from ${configPath}...`);
@@ -263,7 +276,6 @@ async function main() {
 
   // Load registry config (supports both YAML and env vars)
   // Registry config is separate from AmbassadorConfig schema, loaded manually from YAML or env vars
-  const registryConfig = loadRegistryConfig(configPath);
   logger.info(
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
@@ -286,6 +298,7 @@ async function main() {
     publicUrl: process.env.PUBLIC_URL, // OAuth callback base URL for reverse proxy deployments
     registryConfig, // Community registry configuration
     ambassadorConfig, // Pass full config to server for runtime use
+    oauthClientSecrets, // TD-027
   });
 
   // Handle shutdown signals

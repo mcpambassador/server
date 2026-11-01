@@ -67,25 +67,24 @@ export class HttpMcpConnection extends EventEmitter {
   private resolveUrl(): string {
     let url = this.config.url!;
 
-    // Replace ${ENV_VAR} patterns with config.env first (per-user credentials),
-    // then fall back to process.env (system-wide)
+    // Replace ${ENV_VAR} patterns from config.env ONLY (per-user credential injection).
+    // TD-027: no process.env fallback. A catalog-supplied URL must never be able to read server
+    // secrets (e.g. ${REGISTRY_TOKEN}) from the server's own environment.
+    const unresolved: string[] = [];
     const envVarPattern = /\$\{([A-Z0-9_]+)\}/g;
     url = url.replace(envVarPattern, (match, varName) => {
-      // M26.4: Check config.env first (per-user credential injection)
-      // Use key presence check (not truthiness) so empty-string values don't fall through to process.env
       if (this.config.env && Object.prototype.hasOwnProperty.call(this.config.env, varName)) {
         return this.config.env[varName] ?? '';
       }
-      // Fall back to process.env (system-wide env vars)
-      const value = process.env[varName];
-      if (!value) {
-        logger.warn(
-          `[MCP:${this.config.name}] Environment variable ${varName} not found in config.env or process.env, using placeholder`
-        );
-        return match;
-      }
-      return value;
+      unresolved.push(varName);
+      return match;
     });
+    if (unresolved.length > 0) {
+      // Fail closed: never send a request with a literal placeholder, never fall back to process.env.
+      throw new Error(
+        `[${this.config.name}] requires per-user credential ${unresolved.join(', ')}; cannot validate without it`
+      );
+    }
 
     return url;
   }

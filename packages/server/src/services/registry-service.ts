@@ -7,6 +7,8 @@
  * @see mcpambassador_docs/community-registry-spec.md
  */
 
+import { SecretStore, OAuthConfigError } from './secret-store.js';
+import { oauthConfigSchema } from '../admin/mcp-schemas.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
@@ -76,7 +78,10 @@ export class RegistryService {
   private cachedRegistry: RegistryData | null = null;
   private lastFetchedAt: Date | null = null;
 
-  constructor(config: RegistryConfig, db: DatabaseClient) {
+  private secretStore: SecretStore;
+
+  constructor(config: RegistryConfig, db: DatabaseClient, secretStore?: SecretStore) {
+    this.secretStore = secretStore ?? new SecretStore();
     this.config = config;
     this.db = db;
   }
@@ -260,6 +265,36 @@ export class RegistryService {
         success: false,
         message: `MCP '${name}' not found in registry`,
       };
+    }
+
+    // TD-027: registry-supplied oauth_config gets the same schema and secret-binding checks as admin saves
+    if (registryEntry.auth_type === 'oauth2' || registryEntry.oauth_config) {
+      try {
+        // partial: registry entries may omit fields (e.g. Supabase has no client_id/secret), but any
+        // field present must satisfy the admin rules (https URLs, *_CLIENT_ID).
+        const parsed = oauthConfigSchema.partial().safeParse(registryEntry.oauth_config ?? {});
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0];
+          throw new OAuthConfigError(
+            `${issue?.path.join('.') || 'oauth_config'}: ${issue?.message ?? 'invalid'}`
+          );
+        }
+        const oc = parsed.data;
+        if (oc.client_secret_env && oc.token_url) {
+          this.secretStore.assertOAuthConfig({
+            client_secret_env: oc.client_secret_env,
+            client_id_env: oc.client_id_env,
+            token_url: oc.token_url,
+            auth_url: oc.auth_url,
+            revocation_url: oc.revocation_url,
+          });
+        }
+      } catch (e) {
+        return {
+          success: false,
+          message: `MCP '${name}' has an invalid oauth_config: ${e instanceof Error ? e.message : 'rejected'}`,
+        };
+      }
     }
 
     // Check if already installed

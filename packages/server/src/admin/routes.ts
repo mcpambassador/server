@@ -28,11 +28,25 @@ import { registerAdminAuditRoutes } from './audit-routes.js';
 import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
+import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
 import { registerAdminRegistryRoutes } from './registry-routes.js';
 import type { RegistryService } from '../services/registry-service.js';
+
+interface ZodIssueLike {
+  code: string;
+  path: Array<string | number>;
+  message: string;
+}
+
+/** Zod enum/literal messages echo the received value; replace those. */
+function safeIssueMessage(i: ZodIssueLike): string {
+  return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
+    ? 'Invalid value'
+    : i.message;
+}
 
 /**
  * Admin routes plugin configuration
@@ -47,6 +61,7 @@ export interface AdminRoutesConfig {
   onGrantsRevoked?: (grantIds: string[]) => void;
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
+  secretStore?: SecretStore;
 }
 
 /**
@@ -66,6 +81,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     userPool,
     rotateHmacSecret,
     registryService,
+    secretStore,
   } = opts;
 
   // ==========================================================================
@@ -89,6 +105,19 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   // SEC-M8-02: Global error handler for admin routes
   // ==========================================================================
   fastify.setErrorHandler(async (error, _request, reply) => {
+    // Schema validation failures are the client's fault: 400 with paths and messages only
+    // (never received values).
+    if (error instanceof Error && error.name === 'ZodError') {
+      const issues = (error as unknown as { issues?: ZodIssueLike[] }).issues ?? [];
+      return reply.status(400).send(
+        wrapError(
+          ErrorCodes.VALIDATION_ERROR,
+          'Invalid request',
+          issues.map(i => ({ path: i.path.join('.'), message: safeIssueMessage(i) }))
+        )
+      );
+    }
+
     // Log full error server-side
     logger.error('[admin-api] Error:', error);
 
@@ -185,7 +214,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminGroupRoutes, { db, audit });
 
   // MCP catalog management (7 endpoints)
-  fastify.register(registerAdminMcpRoutes, { db, audit });
+  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
 
   // Community registry (4 endpoints)
   if (registryService) {

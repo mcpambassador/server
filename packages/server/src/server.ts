@@ -81,6 +81,7 @@ import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
+import { SecretStore } from './services/secret-store.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
 import type { RegistryService } from './services/registry-service.js';
 
@@ -140,6 +141,8 @@ export interface ServerConfig {
   };
   /** Full Ambassador configuration from YAML file (TD-014) */
   ambassadorConfig?: AmbassadorConfig;
+  /** TD-027: OAuth client secrets captured before the env scrub, bound to allowed token hosts */
+  oauthClientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
 }
 
 export class AmbassadorServer {
@@ -150,7 +153,7 @@ export class AmbassadorServer {
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
   private config: Omit<
     Required<ServerConfig>,
-    'publicUrl' | 'registryConfig' | 'ambassadorConfig'
+    'publicUrl' | 'registryConfig' | 'ambassadorConfig' | 'oauthClientSecrets'
   > & {
     adminPort: number;
     adminUiEnabled: boolean;
@@ -164,7 +167,9 @@ export class AmbassadorServer {
       token?: string;
     };
     ambassadorConfig?: AmbassadorConfig;
+    oauthClientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
   };
+  private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
@@ -202,8 +207,10 @@ export class AmbassadorServer {
         token: undefined,
       },
       ambassadorConfig: config.ambassadorConfig,
+      oauthClientSecrets: config.oauthClientSecrets,
     };
 
+    this.secretStore = new SecretStore(config.oauthClientSecrets);
     this.mcpManager = new SharedMcpManager();
     this.killSwitchManager = new KillSwitchManager(); // CR-M10-001: Initialize shared manager
     // CR-M17-001: UserMcpPool and ToolRouter are now initialized in initialize() where MCP configs are available
@@ -350,13 +357,18 @@ export class AmbassadorServer {
       db: this.db,
       vault: this.credentialVault,
       callbackBaseUrl,
+      secretStore: this.secretStore,
     });
     logger.info('[Server] OAuth token manager initialized');
 
     // Initialize community registry service
     logger.info('[Server] Initializing community registry...');
     const { RegistryService } = await import('./services/registry-service.js');
-    this.registryService = new RegistryService(this.config.registryConfig, this.db);
+    this.registryService = new RegistryService(
+      this.config.registryConfig,
+      this.db,
+      this.secretStore
+    );
 
     // Fetch registry on startup (non-blocking, errors are logged)
     if (this.config.registryConfig.enabled) {
@@ -686,6 +698,7 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      secretStore: this.secretStore, // TD-027
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1596,6 +1609,7 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      secretStore: this.secretStore, // TD-027
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },

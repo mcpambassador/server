@@ -11,11 +11,14 @@ import {
   type OAuthTokenSet,
 } from '@mcpambassador/core';
 import type { CredentialVault } from './credential-vault.js';
+import { SecretStore, OAuthConfigError } from './secret-store.js';
 
 export interface OAuthTokenManagerConfig {
   db: DatabaseClient;
   vault: CredentialVault;
   callbackBaseUrl: string; // e.g. "https://mcpambassador.example.com:9443"
+  /** TD-027: server-held client secrets (host-bound). Never read from process.env. */
+  secretStore?: SecretStore;
 }
 
 /**
@@ -44,11 +47,13 @@ export class OAuthTokenManager {
   // @ts-expect-error - vault available for future use; credential storage handled by routes
   private _vault: CredentialVault;
   private callbackBaseUrl: string;
+  private secretStore: SecretStore;
 
   constructor(config: OAuthTokenManagerConfig) {
     this.db = config.db;
     this._vault = config.vault;
     this.callbackBaseUrl = config.callbackBaseUrl;
+    this.secretStore = config.secretStore ?? new SecretStore();
   }
 
   /**
@@ -183,7 +188,10 @@ export class OAuthTokenManager {
 
     // 4 & 5. Resolve client_id and client_secret
     const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-    const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
+    const clientSecret = this.resolveClientSecret(
+      oauthConfig.client_secret_env,
+      oauthConfig.token_url
+    );
 
     // 6. POST to token_url
     const params = new URLSearchParams();
@@ -249,7 +257,10 @@ export class OAuthTokenManager {
 
     // 1. Resolve client_id and client_secret
     const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-    const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
+    const clientSecret = this.resolveClientSecret(
+      oauthConfig.client_secret_env,
+      oauthConfig.token_url
+    );
 
     // 2. POST to token_url
     const params = new URLSearchParams();
@@ -321,7 +332,6 @@ export class OAuthTokenManager {
     try {
       // 2. Resolve client_id/secret
       const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-      const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
 
       // 4. Try refresh_token first, then access_token
       const tokensToRevoke: Array<{ token: string; hint: string }> = [];
@@ -334,6 +344,11 @@ export class OAuthTokenManager {
 
       for (const { token, hint } of tokensToRevoke) {
         try {
+          // B3: bind the secret to the URL actually being fetched (revocation_url), not token_url
+          const clientSecret = this.resolveClientSecret(
+            oauthConfig.client_secret_env,
+            oauthConfig.revocation_url
+          );
           // 3. POST to revocation_url
           const params = new URLSearchParams();
           params.set('token', token);
@@ -358,7 +373,10 @@ export class OAuthTokenManager {
           }
         } catch (err) {
           // 5. Catch errors and log — never throw
-          logger.error(`[OAuthTokenManager] Error revoking ${hint}:`, err);
+          logger.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            `[OAuthTokenManager] Error revoking ${hint}`
+          );
         }
       }
     } catch (err) {
@@ -378,15 +396,24 @@ export class OAuthTokenManager {
   }
 
   /**
-   * Resolve an environment variable by name.
+   * Resolve a (non-secret) client id from the environment.
    *
    * @throws Error if the environment variable is not set
    */
   private resolveEnvVar(envVarName: string): string {
+    // S2: only *_CLIENT_ID names; other env vars (e.g. DATABASE_URL) are never readable here
+    if (!/_CLIENT_ID$/.test(envVarName)) {
+      throw new OAuthConfigError('client_id_env must end with _CLIENT_ID');
+    }
     const value = process.env[envVarName];
     if (!value) {
       throw new Error(`OAuth environment variable not set: ${envVarName}`);
     }
     return value;
+  }
+
+  /** TD-027: secret comes only from the SecretStore; host is re-checked before use. */
+  private resolveClientSecret(envVarName: string, tokenUrl: string): string {
+    return this.secretStore.resolve(envVarName, tokenUrl);
   }
 }

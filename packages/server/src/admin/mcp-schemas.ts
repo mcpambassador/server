@@ -34,6 +34,31 @@ const envVarName = z
     'Must be a valid environment variable name (e.g., GOOGLE_OAUTH_CLIENT_ID)'
   );
 
+/** TD-027 S2: client ids are read from the environment, so only *_CLIENT_ID names are allowed. */
+const clientIdEnvName = envVarName.regex(/_CLIENT_ID$/, 'client_id_env must end with _CLIENT_ID');
+
+/** OAuth config shape shared by admin create/update and registry install (TD-027). */
+export const oauthConfigSchema = z.object({
+  auth_url: z
+    .string()
+    .url()
+    .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+  token_url: z
+    .string()
+    .url()
+    .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
+  scopes: z.string().min(1),
+  client_id_env: clientIdEnvName,
+  client_secret_env: envVarName,
+  revocation_url: z
+    .string()
+    .url()
+    .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' })
+    .optional(),
+  extra_params: z.record(z.string()).optional(),
+  access_token_env_var: envVarName,
+});
+
 /**
  * Create MCP catalog entry schema
  */
@@ -52,28 +77,7 @@ export const createMcpSchema = z.object({
   requires_user_credentials: z.boolean().optional(),
   credential_schema: z.record(z.unknown()).optional(),
   auth_type: z.enum(['none', 'static', 'oauth2']).optional().default('none'),
-  oauth_config: z
-    .object({
-      auth_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
-      token_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
-      scopes: z.string().min(1),
-      client_id_env: envVarName,
-      client_secret_env: envVarName,
-      revocation_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' })
-        .optional(),
-      extra_params: z.record(z.string()).optional(),
-      access_token_env_var: envVarName,
-    })
-    .optional(),
+  oauth_config: oauthConfigSchema.optional(),
 });
 
 /**
@@ -89,28 +93,7 @@ export const updateMcpSchema = z.object({
   requires_user_credentials: z.boolean().optional(),
   credential_schema: z.record(z.unknown()).optional(),
   auth_type: z.enum(['none', 'static', 'oauth2']).optional(),
-  oauth_config: z
-    .object({
-      auth_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
-      token_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' }),
-      scopes: z.string().min(1),
-      client_id_env: envVarName,
-      client_secret_env: envVarName,
-      revocation_url: z
-        .string()
-        .url()
-        .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' })
-        .optional(),
-      extra_params: z.record(z.string()).optional(),
-      access_token_env_var: envVarName,
-    })
-    .optional(),
+  oauth_config: oauthConfigSchema.optional(),
 });
 
 /**
