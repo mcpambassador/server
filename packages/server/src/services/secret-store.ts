@@ -3,6 +3,36 @@
  * scrub. A secret is bound to the token_url hosts it may be sent to. Never reads process.env.
  */
 
+/**
+ * The only server-held OAuth client secrets this server knows how to bind, and the token hosts
+ * each may be sent to. bin/server.ts captures env values ONLY for these names, and the registry
+ * importer treats any other client_secret_env as INVALID (no presence oracle for other names).
+ */
+export const SUPPORTED_OAUTH_CLIENT_SECRETS: Readonly<
+  Record<string, { allowedTokenHosts: readonly string[] }>
+> = Object.freeze({
+  GITHUB_OAUTH_CLIENT_SECRET: { allowedTokenHosts: ['github.com'] },
+});
+
+/**
+ * Static check, independent of whether the secret is configured: `name` is a supported secret and
+ * every given URL is https on a host it may be sent to.
+ */
+export function isSupportedSecretBinding(name: string, urls: Array<string | undefined>): boolean {
+  if (!Object.prototype.hasOwnProperty.call(SUPPORTED_OAUTH_CLIENT_SECRETS, name)) return false;
+  const hosts = SUPPORTED_OAUTH_CLIENT_SECRETS[name]!.allowedTokenHosts;
+  for (const url of urls) {
+    if (url === undefined) continue;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:' || !hosts.includes(u.hostname.toLowerCase())) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 export class OAuthConfigError extends Error {
   constructor(message: string) {
     super(message);

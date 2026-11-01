@@ -64,7 +64,7 @@ function cleanForLog(v: unknown, max: number): string {
  * @see mcpambassador_docs/community-registry-spec.md
  */
 
-import { SecretStore, OAuthConfigError } from './secret-store.js';
+import { SecretStore, OAuthConfigError, isSupportedSecretBinding } from './secret-store.js';
 import { createMcpSchema, oauthConfigSchema } from '../admin/mcp-schemas.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
@@ -285,9 +285,13 @@ export class RegistryService {
     }
     const oc = r.data.oauth_config;
     if (oc?.client_secret_env && oc.token_url) {
-      // UNAVAILABLE (TD-035): the entry is well-formed (https URLs and *_CLIENT_ID were enforced by
-      // the schema above) and only the server-side secret is not configured. A secret that exists
-      // but is not bound to this token_url host stays INVALID.
+      // Static rules first, independent of what is configured, so there is no presence oracle:
+      // a name outside SUPPORTED_OAUTH_CLIENT_SECRETS (REGISTRY_TOKEN, anything server-internal) or
+      // a token/revocation URL that is not https on an allowed host is INVALID, never listed.
+      if (!isSupportedSecretBinding(oc.client_secret_env, [oc.token_url, oc.revocation_url])) {
+        return { status: 'invalid', reason: 'oauth_config: secret binding rejected' };
+      }
+      // UNAVAILABLE (TD-035): a supported, correctly bound secret that is simply not configured.
       if (!this.secretStore.has(oc.client_secret_env)) {
         return { status: 'unavailable', reason: REGISTRY_UNAVAILABLE_REASON };
       }

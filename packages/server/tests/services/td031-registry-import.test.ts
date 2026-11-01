@@ -83,16 +83,10 @@ describe('registry import validation (TD-031)', () => {
     return s;
   }
 
-  it('keeps conforming entries (and not-yet-installable ones) and drops the rest', async () => {
+  it('keeps conforming entries and drops the rest (a reserved secret name is dropped)', async () => {
     const s = await loaded();
     const names = (await s.getEntries()).map(e => e.name).sort();
-    expect(names).toEqual([
-      'bad-secret',
-      'good-oauth',
-      'good-partial-oauth',
-      'good-plain',
-      'supabase-shape',
-    ]);
+    expect(names).toEqual(['good-oauth', 'good-partial-oauth', 'good-plain', 'supabase-shape']);
   });
 
   it('records skipped entries with name and reason only', async () => {
@@ -104,6 +98,7 @@ describe('registry import validation (TD-031)', () => {
       'bad-config',
       'bad-host',
       'bad-http-oauth',
+      'bad-secret',
       'bad-transport',
     ]);
     for (const x of skipped) {

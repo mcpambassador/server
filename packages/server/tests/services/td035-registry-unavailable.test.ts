@@ -34,6 +34,9 @@ const doc = JSON.stringify({
     entry('github-like', gh()),
     entry('wrong-host', gh({ token_url: 'https://evil.example/token' })),
     entry('http-url', gh({ token_url: 'http://github.com/login/oauth/access_token' })),
+    entry('reserved-secret', gh({ client_secret_env: 'REGISTRY_TOKEN' })),
+    entry('unknown-secret', gh({ client_secret_env: 'SOME_OTHER_CLIENT_SECRET' })),
+    entry('bad-revocation', gh({ revocation_url: 'https://evil.example/revoke' })),
   ],
 });
 
@@ -67,14 +70,24 @@ describe('registry unavailable vs invalid (TD-035)', () => {
     expect(byName['github-like']?.unavailable_reason).toBe(REGISTRY_UNAVAILABLE_REASON);
     expect(REGISTRY_UNAVAILABLE_REASON).not.toMatch(/[A-Z]{3,}_|github\.com/);
     // wrong host / http URL are still INVALID, not unavailable
-    expect(byName['http-url']).toBeUndefined();
-    expect(s.getSkippedEntries().map(x => x.name)).toContain('http-url');
+    for (const bad of [
+      'http-url',
+      'wrong-host',
+      'reserved-secret',
+      'unknown-secret',
+      'bad-revocation',
+    ]) {
+      expect(byName[bad]).toBeUndefined();
+      expect(s.getSkippedEntries().map(x => x.name)).toContain(bad);
+    }
+    // no presence oracle: skip reasons never name the secret
+    expect(JSON.stringify(s.getSkippedEntries())).not.toMatch(/REGISTRY_TOKEN|OTHER_CLIENT/);
     expect(
       s
         .getUnavailableEntries()
         .map(x => x.name)
         .sort()
-    ).toEqual(['github-like', 'wrong-host']);
+    ).toEqual(['github-like']);
     expect(JSON.stringify(s.getUnavailableEntries())).not.toContain('GITHUB_OAUTH');
     expect((await s.getEntry('github-like'))?.installable).toBe(false);
   });
@@ -99,5 +112,15 @@ describe('registry unavailable vs invalid (TD-035)', () => {
     expect(byName['wrong-host']).toBeUndefined();
     expect(s.getSkippedEntries().map(x => x.name)).toContain('wrong-host');
     expect(s.getUnavailableEntries()).toEqual([]);
+  });
+
+  it('a reserved name stays invalid even when the store holds it (no promotion to installable)', async () => {
+    const s = await load(
+      new SecretStore({ REGISTRY_TOKEN: { value: 'x', allowedTokenHosts: ['github.com'] } })
+    );
+    const names = (await s.getEntries()).map(e => e.name);
+    expect(names).not.toContain('reserved-secret');
+    expect(s.getSkippedEntries().map(x => x.name)).toContain('reserved-secret');
+    expect((await s.installEntry('reserved-secret')).success).toBe(false);
   });
 });
