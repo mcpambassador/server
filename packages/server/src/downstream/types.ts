@@ -288,10 +288,24 @@ export interface ConnectionHealth {
 const MAX_BLOCK_STRING = 10 * 1024 * 1024; // 10MB per text/data/blob
 const MAX_BLOCK_JSON = MAX_BLOCK_STRING + 256 * 1024; // whole block incl. annotations/_meta
 
+// TD-041 S2: a URI a client may render or follow. No control/whitespace characters and no
+// script-capable schemes (javascript:, vbscript:, data:).
+const safeUri = z
+  .string()
+  .max(8192)
+  .refine(
+    u =>
+      ![...u].some(
+        ch => ch.charCodeAt(0) <= 0x20 || (ch.charCodeAt(0) >= 0x7f && ch.charCodeAt(0) <= 0x9f)
+      ),
+    'uri contains control or whitespace characters'
+  )
+  .refine(u => !/^(javascript|vbscript|data):/i.test(u), 'uri scheme not permitted');
+
 const metaRecord = z.record(z.string(), z.unknown());
 
 const embeddedResourceSchema = z.object({
-  uri: z.string().max(8192),
+  uri: safeUri,
   mimeType: z.string().max(256).optional(),
   text: z.string().max(MAX_BLOCK_STRING).optional(),
   blob: z.string().max(MAX_BLOCK_STRING).optional(),
@@ -305,7 +319,7 @@ const contentBlockSchema = z
     text: z.string().max(MAX_BLOCK_STRING).optional(),
     data: z.string().max(MAX_BLOCK_STRING).optional(),
     mimeType: z.string().max(256).optional(),
-    uri: z.string().max(8192).optional(),
+    uri: safeUri.optional(),
     name: z.string().max(1024).optional(),
     title: z.string().max(1024).optional(),
     description: z.string().max(8192).optional(),
