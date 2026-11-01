@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- drizzle-orm 0.29.5 → 0.45.4 and drizzle-kit 0.20 → 0.31 (TD-019, clears GHSA-gpj5-g38j-94v9, SQL-identifier injection). Hand-written SQL migrations and the schema are unchanged; `db:generate`/`db:push` use the new `drizzle-kit generate`/`push` commands and `drizzle.config.ts` now sets `dialect: 'sqlite'`. A test pins that `db.session.client` (the raw driver handle used by health check, migrations and close) still resolves for SQLite and Postgres.
 - Tool descriptions are no longer cut to 500 UTF-16 units when a downstream MCP is discovered; the full text is stored and the 500 code-point cut (never splitting a surrogate pair) happens only when a definition is served. Admin MCP views therefore show full descriptions.
 - The `/mcp` insufficient-scope pre-check resolves a tool against the full catalog (same-named tools of different MCPs kept apart) and looks through one level of `ambassador__call_tool`.
 
