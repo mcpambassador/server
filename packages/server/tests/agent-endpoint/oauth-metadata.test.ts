@@ -127,7 +127,7 @@ describe('agent endpoint enabled: metadata', () => {
     }
   );
 
-  itImpl('RFC 8414 AS metadata advertises only PKCE S256, code grant, public clients', async () => {
+  it('RFC 8414 AS metadata advertises only PKCE S256, code grant, public clients', async () => {
     const res = await s.admin.inject({ method: 'GET', url: OAUTH_AS_METADATA_ROUTE });
     expect(res.statusCode).toBe(200);
     const m = JSON.parse(res.body);
@@ -141,7 +141,7 @@ describe('agent endpoint enabled: metadata', () => {
     expect(m.token_endpoint_auth_methods_supported).toEqual(['none']);
   });
 
-  itImpl('AS metadata omits registration_endpoint while DCR is off', async () => {
+  it('AS metadata omits registration_endpoint while DCR is off', async () => {
     const res = await s.admin.inject({ method: 'GET', url: OAUTH_AS_METADATA_ROUTE });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).registration_endpoint).toBeUndefined();
@@ -167,7 +167,7 @@ describe('agent endpoint enabled with DCR on: metadata', () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl('AS metadata advertises registration_endpoint', async () => {
+  it('AS metadata advertises registration_endpoint', async () => {
     const res = await s.admin.inject({ method: 'GET', url: OAUTH_AS_METADATA_ROUTE });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).registration_endpoint).toBe(

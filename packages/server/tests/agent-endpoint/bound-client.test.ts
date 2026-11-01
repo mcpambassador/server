@@ -2,7 +2,7 @@
  * ADR-020 §5a bound-client model: a grant binds to ONE of the user's active Ambassador clients.
  * Effective permissions = client subscriptions ∩ profile ∩ token scope ∩ allowlist, per call.
  */
-import { describe, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { AGENT_MCP_ROUTE, AGENT_GRANTS_ROUTE } from '@mcpambassador/contracts';
 import {
   startAgentTestServer,
@@ -140,18 +140,18 @@ describe('consent: bound_client_id', () => {
 });
 
 describe('one-shot grant: bound_client_id', () => {
-  itImpl('missing bound_client_id → 400', async () => {
+  it('missing bound_client_id → 400', async () => {
     expect((await createGrant(alice, {})).statusCode).toBe(400);
   });
 
-  itImpl("another user's client → 400/403", async () => {
+  it("another user's client → 400/403", async () => {
     const theirs = await createAmbClient(bob, 'bobs2');
     expect([400, 403]).toContain(
       (await createGrant(alice, { bound_client_id: theirs })).statusCode
     );
   });
 
-  itImpl('suspended client → 400/403', async () => {
+  it('suspended client → 400/403', async () => {
     const c = await createAmbClient(alice, 'susp-grant');
     await alice.request({
       method: 'PATCH',
@@ -161,7 +161,7 @@ describe('one-shot grant: bound_client_id', () => {
     expect([400, 403]).toContain((await createGrant(alice, { bound_client_id: c })).statusCode);
   });
 
-  itImpl('summary reports bound_client_id / bound_client_name', async () => {
+  it('summary reports bound_client_id / bound_client_name', async () => {
     const c = await createAmbClient(alice, 'named');
     const res = await createGrant(alice, { bound_client_id: c, label: 'named-grant' });
     expect(res.statusCode).toBe(201);
