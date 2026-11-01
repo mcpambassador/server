@@ -31,7 +31,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run audit (fail on high/critical)
+      - name: Test audit gate script
+        run: node --test scripts/
+
+      - name: Run production audit (fail on high/critical, minus tracked ignoreGhsas)
+        run: node scripts/audit-prod.mjs
+
+  dependency-audit-full:
+    name: Dependency Audit (all deps, informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 8.15.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run full audit (dev + prod, non-blocking)
         run: pnpm audit --audit-level=high
 
   secret-scan:

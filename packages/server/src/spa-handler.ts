@@ -82,16 +82,16 @@ export async function registerSpaHandler(
     prefix: '/app/',
     decorateReply: false, // Avoid conflict with admin server's static
     wildcard: false, // Only serve actual files; fallback handled below
-    setHeaders: (res, filepath) => {
+    setHeaders: (reply, filepath) => {
       // Cache static assets but not index.html
       if (filepath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache');
+        reply.header('Cache-Control', 'no-cache');
       } else if (filepath.includes('/assets/')) {
         // Content-hashed assets are immutable (SPA-002 fix)
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        reply.header('Cache-Control', 'public, max-age=31536000, immutable');
       } else {
         // Other static assets: 30 days
-        res.setHeader('Cache-Control', 'public, max-age=2592000');
+        reply.header('Cache-Control', 'public, max-age=2592000');
       }
     },
   });

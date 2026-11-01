@@ -115,13 +115,12 @@ export interface ServerConfig {
   /**
    * Fastify trustProxy for BOTH listeners (config key server.trust_proxy, env MCP_AMBASSADOR_TRUST_PROXY)
    * - false (default): ignore X-Forwarded-For, use the direct connection IP
-   * - number: trust that many proxy hops
    * - string | string[]: trust only these proxy IPs/CIDRs
    * - true: trust every hop (spoofable)
    *
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
-  trustProxy?: boolean | number | string | string[];
+  trustProxy?: boolean | string | string[];
   /** Admin UI port (defaults to 9443, 0 for ephemeral) */
   adminPort?: number;
   /** Enable admin UI (defaults to true) */
@@ -850,7 +849,7 @@ export class AmbassadorServer {
   /**
    * Source IP of the request. Fastify resolves X-Forwarded-For itself according to the
    * `trustProxy` option (S3), so this is just request.ip: with trust_proxy=false (default) a
-   * spoofed header is ignored; with a hop count / CIDR list only trusted proxies are believed.
+   * spoofed header is ignored; with a CIDR list only trusted proxies are believed.
    */
   private getSourceIp(request: FastifyRequest): string {
     return request.ip ?? '0.0.0.0';

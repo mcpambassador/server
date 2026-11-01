@@ -10,7 +10,12 @@ function collectFiles(dir, out) {
   }
 }
 const files = [];
-try { collectFiles(spaRoot, files); } catch (e) { console.error('spaRoot not found', spaRoot); process.exit(1); }
+try {
+  collectFiles(spaRoot, files);
+} catch (e) {
+  console.error('spaRoot not found', spaRoot);
+  process.exit(1);
+}
 const re = /apiClient\.(get|post|put|patch|delete)(?:<[^>]+>)?\s*\(\s*([`\"'][^`\"']*[`\"'])/g;
 const routes = new Set();
 for (const f of files) {

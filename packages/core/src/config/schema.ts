@@ -24,17 +24,12 @@ const ServerConfigSchema = z.object({
     })
     .optional(),
   /**
-   * S3: Fastify `trustProxy`. false (default) = ignore X-Forwarded-*; a number = trust that many
-   * proxy hops; a string / string[] = trust only these proxy IPs/CIDRs; true = trust every hop
-   * (spoofable, avoid). Applies to BOTH listeners (8443 and 9443).
+   * S3: Fastify `trustProxy`. false (default) = ignore X-Forwarded-*; a string / string[] = trust
+   * only these proxy IPs/CIDRs; true = trust every hop (spoofable, avoid). Hop counts are not
+   * supported (Fastify >= 5.12 disables them as spoofable). Applies to BOTH listeners (8443 and 9443).
    */
   trust_proxy: z
-    .union([
-      z.boolean(),
-      z.number().int().min(1).max(10),
-      z.string().min(1),
-      z.array(z.string().min(1)).min(1),
-    ])
+    .union([z.boolean(), z.string().min(1), z.array(z.string().min(1)).min(1)])
     .default(false),
 });
 
