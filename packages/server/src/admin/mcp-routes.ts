@@ -11,7 +11,7 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback, FastifyReply } from 'fastify';
 import { SecretStore, OAuthConfigError } from '../services/secret-store.js';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import { CatalogReloadConflictError, type CatalogReloader } from '../services/catalog-reloader.js';
 import { updateValidationStatus, updateToolCatalog } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
@@ -153,7 +153,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       return reply.status(201).send({ ok: true, data: entry });
     } catch (err) {
       if (err instanceof Error && err.message.includes('already exists')) {
-        return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+        return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
       }
       throw err;
     }
@@ -197,7 +197,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       return reply.send({ ok: true, data: entry });
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
-        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
       }
       throw err;
     }
@@ -238,7 +238,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         // MCP-001: Generic message for structural change attempts
         if (err.message === 'PUBLISHED_MCP_STRUCTURAL_CHANGE') {
@@ -252,7 +252,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
             );
         }
         if (err.message.includes('Cannot modify')) {
-          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -289,10 +289,10 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('Cannot delete')) {
-          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+          return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -340,7 +340,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         return reply.send({ ok: true, data: result });
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         throw err;
       }
@@ -379,7 +379,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
             .send(
               wrapError(
                 ErrorCodes.BAD_REQUEST,
-                `Failed to parse credential_schema: ${err instanceof Error ? err.message : String(err)}`
+                `Failed to parse credential_schema: ${publicErrorMessage(err)}`
               )
             );
         }
@@ -434,7 +434,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       return reply.send({ ok: true, data: result });
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
-        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
       }
       throw err;
     }
@@ -476,10 +476,12 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
       } catch (err) {
         if (err instanceof Error) {
           if (err.message.includes('not found')) {
-            return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+            return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
           }
           if (err.message.includes('Cannot publish')) {
-            return reply.status(422).send(wrapError(ErrorCodes.BAD_REQUEST, err.message));
+            return reply
+              .status(422)
+              .send(wrapError(ErrorCodes.BAD_REQUEST, publicErrorMessage(err)));
           }
         }
         throw err;
@@ -522,7 +524,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         return reply.send({ ok: true, data: entry });
       } catch (err) {
         if (err instanceof Error && err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         throw err;
       }
