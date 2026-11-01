@@ -81,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import { SecretStore } from './services/secret-store.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -150,6 +151,7 @@ export class AmbassadorServer {
   private fastify: FastifyInstance | null = null;
   private adminServer: FastifyInstance | null = null;
   private mcpManager: SharedMcpManager;
+  private catalogReloader!: CatalogReloader; // one instance for both listeners (shared reload mutex)
   private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
   private config: Omit<
@@ -528,6 +530,11 @@ export class AmbassadorServer {
       });
       this.toolPinRediscovery.start();
     }
+    this.catalogReloader = new CatalogReloader(
+      this.db as DatabaseClient,
+      this.mcpManager,
+      this.userPool
+    );
     logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
@@ -739,6 +746,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
@@ -1656,6 +1664,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service

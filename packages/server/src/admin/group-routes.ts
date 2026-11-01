@@ -302,7 +302,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
           return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
         }
         if (err.message.includes('Cannot remove')) {
-          return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, err.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
         }
       }
       throw err;
