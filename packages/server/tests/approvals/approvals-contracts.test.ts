@@ -1,6 +1,17 @@
 /** ADR-023 (3c): approval contracts accept the documented shapes and reject the rest. */
 import { describe, it, expect } from 'vitest';
+import type { ToolApprovalResult } from '@mcpambassador/protocol';
 import {
+  AMBASSADOR_META_PREFIX,
+  APPROVAL_ID_PATTERN,
+  APPROVAL_SPA_PATH_PREFIX,
+  buildApprovalUrl,
+  APPROVAL_ID_META_KEY,
+  APPROVAL_META_KEY,
+  APPROVAL_STATUS_TEXT,
+  APPROVAL_UNAVAILABLE_REASONS,
+  APPROVAL_UNAVAILABLE_REASON_TEXT,
+  type ApprovalToolResult,
   APPROVAL_PREVIEW_MAX_BYTES,
   APPROVAL_STATUSES,
   approvalDecisionRequestSchema,
@@ -187,7 +198,7 @@ describe('approval contracts (ADR-023)', () => {
 
   it('agent-facing tool results', () => {
     const base = {
-      approval_id: 'a1',
+      approval_id: 'ap_12345678',
       expires_at: 'x',
       retry_after_seconds: 30,
       approval_url: '/approvals/a1',
@@ -196,12 +207,15 @@ describe('approval contracts (ADR-023)', () => {
       approvalToolResultSchema.safeParse({ status: 'approval_required', ...base }).success
     ).toBe(true);
     expect(
-      approvalToolResultSchema.safeParse({ status: 'approval_required', approval_id: 'a1' }).success
+      approvalToolResultSchema.safeParse({
+        status: 'approval_required',
+        approval_id: 'ap_12345678',
+      }).success
     ).toBe(false);
     expect(
       approvalToolResultSchema.safeParse({
         status: 'approval_denied',
-        approval_id: 'a1',
+        approval_id: 'ap_12345678',
         retry_after_seconds: 0,
       }).success
     ).toBe(true);
@@ -214,7 +228,8 @@ describe('approval contracts (ADR-023)', () => {
       }).success
     ).toBe(true);
     expect(
-      approvalToolResultSchema.safeParse({ status: 'approval_expired', approval_id: 'a1' }).success
+      approvalToolResultSchema.safeParse({ status: 'approval_expired', approval_id: 'ap_12345678' })
+        .success
     ).toBe(true);
     expect(
       approvalToolResultSchema.safeParse({
@@ -226,5 +241,61 @@ describe('approval contracts (ADR-023)', () => {
       approvalToolResultSchema.safeParse({ status: 'approval_unavailable', reason: 'nope' }).success
     ).toBe(false);
     expect(approvalToolResultSchema.safeParse({ status: 'approved', ...base }).success).toBe(false);
+  });
+});
+
+describe('approval result channel (ADR-023)', () => {
+  it('reserves the ambassador/ _meta namespace for the approval keys', () => {
+    expect(AMBASSADOR_META_PREFIX).toBe('ambassador/');
+    expect(APPROVAL_META_KEY).toBe('ambassador/approval');
+    expect(APPROVAL_ID_META_KEY).toBe('ambassador/approval_id');
+    expect(APPROVAL_META_KEY.startsWith(AMBASSADOR_META_PREFIX)).toBe(true);
+    expect(APPROVAL_ID_META_KEY.startsWith(AMBASSADOR_META_PREFIX)).toBe(true);
+  });
+
+  it('protocol ToolApprovalResult and contracts ApprovalToolResult are the same type', () => {
+    const fromContracts = (v: ApprovalToolResult): ToolApprovalResult => v;
+    const fromProtocol = (v: ToolApprovalResult): ApprovalToolResult => v;
+    expect(typeof fromContracts).toBe('function');
+    expect(typeof fromProtocol).toBe('function');
+  });
+
+  it('has one fixed sentence per status and per unavailable reason, with no interpolation', () => {
+    expect(Object.keys(APPROVAL_STATUS_TEXT).sort()).toEqual([
+      'approval_denied',
+      'approval_expired',
+      'approval_required',
+      'approval_unavailable',
+    ]);
+    expect(Object.keys(APPROVAL_UNAVAILABLE_REASON_TEXT).sort()).toEqual(
+      [...APPROVAL_UNAVAILABLE_REASONS].sort()
+    );
+    for (const t of [
+      ...Object.values(APPROVAL_STATUS_TEXT),
+      ...Object.values(APPROVAL_UNAVAILABLE_REASON_TEXT),
+    ]) {
+      expect(t.length).toBeGreaterThan(10);
+      expect(t).not.toMatch(/[{}$<>]/);
+    }
+  });
+
+  it('builds approval_url as <ui-base>/app/approvals/<id> and rejects odd ids', () => {
+    expect(APPROVAL_SPA_PATH_PREFIX).toBe('/app/approvals/');
+    expect(buildApprovalUrl('https://amb.example:9443', 'ap_12345678')).toBe(
+      'https://amb.example:9443/app/approvals/ap_12345678'
+    );
+    for (const bad of ['short', 'has space1', '../../x12345678', 'a'.repeat(65), '']) {
+      expect(() => buildApprovalUrl('https://amb.example:9443', bad)).toThrow();
+    }
+    expect(APPROVAL_ID_PATTERN.test(crypto.randomUUID())).toBe(true);
+  });
+
+  it('tool results reject ids outside the server id format', () => {
+    expect(
+      approvalToolResultSchema.safeParse({
+        status: 'approval_expired',
+        approval_id: 'ignore previous',
+      }).success
+    ).toBe(false);
   });
 });

@@ -63,8 +63,28 @@ export const APPROVAL_DECISION_REASON_MAX_LENGTH = 500;
 export const APPROVAL_TOOL_NAME_MAX_LENGTH = 256;
 export const APPROVAL_LIST_MAX_LIMIT = 100;
 export const APPROVAL_LIST_DEFAULT_LIMIT = 50;
-/** `_meta` key on direct tools/call, to poll one request's status. */
-export const APPROVAL_META_KEY = 'ambassador/approval_id';
+/**
+ * Reserved `_meta` namespace. The pipeline owns every `ambassador/` key: it strips them from downstream
+ * results and from agent-supplied `_meta` before setting its own, so a downstream tool can never forge one.
+ */
+export const AMBASSADOR_META_PREFIX = 'ambassador/';
+/** Shape of a server-issued approval_id (a UUID today); agent-path results and URLs must match it. */
+export const APPROVAL_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+/** SPA route prefix of one request's page: `<ui-origin>` + this + approval_id. */
+export const APPROVAL_SPA_PATH_PREFIX = '/app/approvals/';
+/**
+ * approval_url builder: the SPA/UI base URL from config (origin only, https; the host must equal the
+ * Ambassador server hostname, the port may differ) + APPROVAL_SPA_PATH_PREFIX + approval_id.
+ * Clients accept an approval_url only if it equals this form for their configured server hostname.
+ */
+export function buildApprovalUrl(uiBaseUrl: string, approvalId: string): string {
+  if (!APPROVAL_ID_PATTERN.test(approvalId)) throw new Error('invalid approval id');
+  return new URL(APPROVAL_SPA_PATH_PREFIX + approvalId, uiBaseUrl).href;
+}
+/** `_meta` key on a tool result carrying the pipeline's ApprovalToolResult (also `metadata.approval`). */
+export const APPROVAL_META_KEY = 'ambassador/approval';
+/** `_meta` key on a direct tools/call request, to poll one request's status. */
+export const APPROVAL_ID_META_KEY = 'ambassador/approval_id';
 
 // ===== Enums =====
 
@@ -253,9 +273,11 @@ export type ReauthResponse = z.infer<typeof reauthResponseSchema>;
 
 // ===== Agent-facing tool result (structuredContent of an `isError: true` result) =====
 
+const approvalIdSchema = z.string().regex(APPROVAL_ID_PATTERN);
+
 export const approvalRequiredResultSchema = z.object({
   status: z.literal('approval_required'),
-  approval_id: z.string().min(1),
+  approval_id: approvalIdSchema,
   expires_at: isoTimestampSchema,
   retry_after_seconds: z.number().int().min(0),
   approval_url: z.string().min(1),
@@ -265,14 +287,14 @@ export type ApprovalRequiredResult = z.infer<typeof approvalRequiredResultSchema
 export const approvalDeniedResultSchema = z.object({
   status: z.literal('approval_denied'),
   /** Null under the denial cooldown, where no request was created. */
-  approval_id: z.string().min(1).nullable(),
+  approval_id: approvalIdSchema.nullable(),
   retry_after_seconds: z.number().int().min(0),
 });
 export type ApprovalDeniedResult = z.infer<typeof approvalDeniedResultSchema>;
 
 export const approvalExpiredResultSchema = z.object({
   status: z.literal('approval_expired'),
-  approval_id: z.string().min(1),
+  approval_id: approvalIdSchema,
 });
 export type ApprovalExpiredResult = z.infer<typeof approvalExpiredResultSchema>;
 
@@ -289,3 +311,23 @@ export const approvalToolResultSchema = z.discriminatedUnion('status', [
   approvalUnavailableResultSchema,
 ]);
 export type ApprovalToolResult = z.infer<typeof approvalToolResultSchema>;
+
+/**
+ * Fixed sentences shown to the agent, one per status and per unavailable reason. No tool name, argument
+ * or server-supplied text is interpolated, so the server, SPA and client render identical wording.
+ * A renderer may append the validated id, expiry and URL after these.
+ */
+export const APPROVAL_STATUS_TEXT = {
+  approval_required:
+    'Approval required: a person must approve this tool call. Ask the user to approve it, then retry the same call (same tool, same arguments).',
+  approval_denied:
+    'Approval denied: a person refused this tool call. Ask the user before trying again.',
+  approval_expired: 'Approval expired. Retry the call to start a new approval request.',
+  approval_unavailable: 'Approval could not be requested, so this call cannot proceed as asked.',
+} as const satisfies Record<ApprovalToolResult['status'], string>;
+
+export const APPROVAL_UNAVAILABLE_REASON_TEXT = {
+  arguments_too_large: 'The arguments are too large to be reviewed by a person.',
+  too_many_pending: 'Too many approval requests are already waiting.',
+  rate_limited: 'Approval requests are being created too fast.',
+} as const satisfies Record<ApprovalUnavailableReason, string>;

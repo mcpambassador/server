@@ -162,16 +162,61 @@ interface SerializedErr {
   cause?: SerializedErr;
 }
 
+/**
+ * drizzle-orm >=0.44 wraps driver errors in DrizzleQueryError, whose message is
+ * "Failed query: <SQL>\nparams: <every bound value>" (hashes, blobs, emails, tokens). The driver's
+ * original error is in `.cause`.
+ */
+export function isDbQueryError(err: unknown): boolean {
+  if (err === null || typeof err !== 'object') return false;
+  const e = err as { name?: unknown; message?: unknown; query?: unknown; params?: unknown };
+  return (
+    e.name === 'DrizzleQueryError' ||
+    (typeof e.message === 'string' && e.message.startsWith('Failed query:')) ||
+    (typeof e.query === 'string' && 'params' in e)
+  );
+}
+
+/**
+ * Message safe to hand to agents, HTTP clients and persistent audit metadata: a generic string for
+ * database errors (their message embeds bound parameter values), `err.message` otherwise.
+ */
+export function publicErrorMessage(err: unknown): string {
+  if (isDbQueryError(err)) return 'Database error';
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** SQL text of a DB query error without params (message is "Failed query: <SQL>\nparams: ..."). */
+function queryErrorSql(err: { message?: unknown; query?: unknown }): string {
+  if (typeof err.query === 'string') return redactSecretsInString(err.query);
+  const msg = typeof err.message === 'string' ? err.message : '';
+  return redactSecretsInString(msg.replace(/^Failed query:\s*/, '').split(/\nparams:/)[0] ?? '');
+}
+
 function serializeOne(err: unknown, depth: number): SerializedErr {
   if (err === null || typeof err !== 'object') {
     return { type: typeof err, message: redactSecretsInString(String(err)) };
   }
   const e = err as Error & { code?: unknown; cause?: unknown };
+  const dbErr = isDbQueryError(err);
   const out: SerializedErr = {
     type: e.name || e.constructor?.name || 'Error',
-    message: redactSecretsInString(typeof e.message === 'string' ? e.message : String(e)),
+    // DB query errors: SQL only, bound params are dropped
+    message: dbErr
+      ? `Failed query: ${queryErrorSql(e as { message?: unknown; query?: unknown })}`
+      : redactSecretsInString(typeof e.message === 'string' ? e.message : String(e)),
   };
-  if (typeof e.stack === 'string') out.stack = redactSecretsInString(e.stack);
+  // the stack's first line repeats the message (with params), so drop it for DB errors
+  if (typeof e.stack === 'string') {
+    out.stack = redactSecretsInString(
+      dbErr
+        ? e.stack
+            .split('\n')
+            .filter(l => /^\s+at /.test(l))
+            .join('\n')
+        : e.stack
+    );
+  }
   if (typeof e.code === 'string' || typeof e.code === 'number') out.code = e.code;
   if (e.cause !== undefined && depth < MAX_CAUSE_DEPTH) {
     out.cause = serializeOne(e.cause, depth + 1);

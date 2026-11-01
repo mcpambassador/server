@@ -504,6 +504,10 @@ export interface RegistryMcp {
   verified: boolean;
   installed: boolean;
   installed_mcp_id?: string;
+  /** TD-035: absent on older servers (treated as installable) */
+  installable?: boolean;
+  /** Generic reason when installable is false */
+  unavailable_reason?: string;
 }
 
 export interface RegistryListResponse {
