@@ -265,6 +265,7 @@ function toGrantSummary(
     bound_client_name: g.bound_client_id ? (boundNames.get(g.bound_client_id) ?? null) : null,
     scopes: g.scopes,
     tool_allowlist: g.tool_allowlist,
+    disclosure_mode: 'full', // placeholder until 3b server PR (ADR-022 P4)
     resource: g.resource,
     created_at: g.created_at,
     expires_at: g.expires_at,
