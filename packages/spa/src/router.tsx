@@ -25,6 +25,7 @@ import { UserInstances } from '@/pages/admin/UserInstances';
 import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
 import { ToolReview } from '@/pages/admin/ToolReview';
+import { Approvals } from '@/pages/Approvals';
 import { Settings } from '@/pages/admin/Settings';
 import { Registry } from '@/pages/admin/Registry';
 import { OAuthConsent } from '@/pages/OAuthConsent';
@@ -190,6 +191,8 @@ export const router = createBrowserRouter([
           </AdminRoute>
         ),
       },
+      { path: 'approvals', element: <Approvals /> },
+      { path: 'approvals/:approvalId', element: <Approvals /> },
       {
         path: 'admin/tool-review',
         element: (

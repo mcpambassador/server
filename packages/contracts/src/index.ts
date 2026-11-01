@@ -32,3 +32,6 @@ export * from './tool-pins.js';
 
 // ADR-023 human approval gates
 export * from './approvals.js';
+
+// ADR-025 per-tool group policy
+export * from './group-tool-policy.js';

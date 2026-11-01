@@ -148,6 +148,8 @@ export type {
   NewMcpCatalogEntry,
   McpGroupAccess,
   NewMcpGroupAccess,
+  McpGroupAccessTool,
+  NewMcpGroupAccessTool,
   ClientMcpSubscription,
   NewClientMcpSubscription,
   UserMcpCredential,
@@ -165,4 +167,5 @@ export type {
 export * from './repositories/agent-oauth.js';
 export * from './repositories/kill-switches.js';
 export * from './repositories/tool-pins.js';
+export * from './repositories/group-tool-policy.js';
 export * from './repositories/approvals.js';
