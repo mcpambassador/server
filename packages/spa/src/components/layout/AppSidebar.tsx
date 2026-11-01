@@ -1,5 +1,6 @@
 import { useAgentEndpointInfo } from '@/api/hooks/use-agent';
 import { useToolPinSummary } from '@/api/hooks/use-tool-pins';
+import { useApprovalSummary } from '@/api/hooks/use-approvals';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeIcon,
@@ -62,6 +63,7 @@ const userNavItems: NavItem[] = [
   { title: 'Subscriptions', href: '/app/subscriptions', icon: QueueListIcon },
   { title: 'Credentials', href: '/app/credentials', icon: KeyIcon },
   { title: 'Agent Access', href: '/app/agent-access', icon: ShieldCheckIcon },
+  { title: 'Approvals', href: '/app/approvals', icon: ShieldCheckIcon },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -92,6 +94,9 @@ export function AppSidebar() {
 
   const { data: pinSummary } = useToolPinSummary(session?.user.isAdmin === true);
   const pinBadge = (pinSummary?.pending_count ?? 0) + (pinSummary?.baseline_unreviewed_count ?? 0);
+
+  const { data: approvalSummary } = useApprovalSummary(session?.user.isAdmin === true, !!session);
+  const approvalBadge = approvalSummary?.pending_count ?? 0;
 
   const handleLogout = async () => {
     try {
@@ -140,6 +145,14 @@ export function AppSidebar() {
                 <SidebarItem key={item.href} href={item.href} current={active}>
                   <Icon />
                   <SidebarLabel>{item.title}</SidebarLabel>
+                  {item.href === '/app/approvals' && approvalBadge > 0 && (
+                    <span
+                      data-testid="approvals-badge"
+                      className="ml-auto rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white"
+                    >
+                      {approvalBadge}
+                    </span>
+                  )}
                 </SidebarItem>
               );
             })}

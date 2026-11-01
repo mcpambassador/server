@@ -207,6 +207,9 @@ describe('service level', () => {
       raw(db).exec(`DROP TABLE tool_policies`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN default_requires_approval`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN default_approver`);
+      // ...and 0007 (ADR-025): same reason.
+      raw(db).exec(`DROP TABLE mcp_group_access_tools`);
+      raw(db).exec(`ALTER TABLE mcp_group_access DROP COLUMN tool_mode`);
       raw(db).exec(`DROP TABLE schema_migrations`);
     } catch (err) {
       // Only an SQLite without DROP COLUMN support may skip; any other failure
