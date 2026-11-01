@@ -80,12 +80,14 @@ function oauthFail(reply: FastifyReply, err: unknown): FastifyReply {
       error_description: err.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '),
     });
   }
+  // td036-allow: logger-only, never returned to a client
   logger.error(`[AgentOAuth] unexpected error: ${String(err)}`);
   return reply.status(500).send({ error: 'server_error' });
 }
 
 function apiFail(reply: FastifyReply, err: unknown): FastifyReply {
   if (err instanceof AgentApiError) {
+    // td036-allow: AgentApiError text is app-authored
     return reply.status(err.status).send(wrapError(err.code, err.message));
   }
   if (err instanceof ZodError) {
@@ -98,6 +100,7 @@ function apiFail(reply: FastifyReply, err: unknown): FastifyReply {
         )
       );
   }
+  // td036-allow: logger-only, never returned to a client
   logger.error(`[AgentOAuth] unexpected error: ${String(err)}`);
   return reply.status(500).send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Internal error'));
 }
@@ -414,6 +417,7 @@ export async function registerAgentOAuthRoutes(
   // ---- Periodic sweep of expired codes/requests/tokens/grants ----
   const timer = setInterval(() => {
     sweepExpiredAgentRecords(deps.db, new Date()).catch(err =>
+      // td036-allow: logger-only, never returned to a client
       logger.error(`[AgentOAuth] sweep failed: ${String(err)}`)
     );
   }, SWEEP_INTERVAL_MS);

@@ -480,9 +480,9 @@ describe('consume', () => {
   });
   it('a NULL bound client (stored or caller) is a mismatch, never a pass', async () => {
     const id = await create({ boundClientId: null });
-    await decide(id);
-    expect((await svc.consume(base)).kind).toBe('rejected');
-    expect(row(id).status).toBe('voided');
+    // B2c: a request with no live bound client cannot even be approved
+    expect((await decide(id)).kind).toBe('conflict');
+    expect(row(id).status).toBe('pending');
     const id2 = await create({ argsHash: HASH(2) });
     await decide(id2, { expectedArgsHash: HASH(2) });
     expect(

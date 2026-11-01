@@ -45,6 +45,7 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
   try {
     config = JSON.parse(entry.config);
   } catch (err) {
+    // td036-allow: JSON.parse SyntaxError text, never a DB error
     errors.push(`Invalid config JSON: ${err instanceof Error ? err.message : 'parse error'}`);
     return {
       valid: false,
@@ -173,6 +174,7 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
         credentialSchema = JSON.parse(entry.credential_schema);
       } catch (err) {
         errors.push(
+          // td036-allow: JSON.parse SyntaxError text, never a DB error
           `Invalid credential_schema JSON: ${err instanceof Error ? err.message : 'parse error'}`
         );
       }
@@ -202,6 +204,7 @@ export async function validateMcpConfig(entry: McpCatalogEntry): Promise<Validat
     }
   } catch (err) {
     warnings.push(
+      // td036-allow: JSON.parse SyntaxError text, never a DB error
       `Invalid tool_catalog JSON: ${err instanceof Error ? err.message : 'parse error'}`
     );
   }

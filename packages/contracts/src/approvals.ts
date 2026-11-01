@@ -117,8 +117,10 @@ export const APPROVAL_VOID_REASONS = [
   'definition_changed',
   'kill_switch',
   'client_suspended',
+  'client_mismatch',
   'user_disabled',
   'policy_removed',
+  'mcp_deleted',
 ] as const;
 export const approvalVoidReasonSchema = z.enum(APPROVAL_VOID_REASONS);
 export type ApprovalVoidReason = z.infer<typeof approvalVoidReasonSchema>;

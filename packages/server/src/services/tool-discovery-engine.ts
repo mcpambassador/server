@@ -11,7 +11,7 @@
  * @see Architecture §7.3: Downstream MCP Management
  */
 
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { HttpMcpConnection } from '../downstream/http-connection.js';
@@ -301,8 +301,7 @@ export async function discoverTools(
             );
 
             // Check if token was revoked (401/invalid_grant)
-            const errorMessage =
-              refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+            const errorMessage = publicErrorMessage(refreshErr);
             const isRevoked =
               errorMessage.includes('401') || errorMessage.includes('invalid_grant');
 
@@ -385,7 +384,7 @@ export async function discoverTools(
               tools_discovered: [],
               tool_count: 0,
               error_code: 'internal_error',
-              message: `Failed to parse credential_schema: ${err instanceof Error ? err.message : String(err)}`,
+              message: `Failed to parse credential_schema: ${publicErrorMessage(err)}`,
               discovered_at: new Date().toISOString(),
               duration_ms: Date.now() - startTime,
               warnings,
@@ -465,7 +464,7 @@ export async function discoverTools(
         tools_discovered: [],
         tool_count: 0,
         error_code: 'internal_error',
-        message: `Failed to parse config JSON: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Failed to parse config JSON: ${publicErrorMessage(err)}`,
         discovered_at: new Date().toISOString(),
         duration_ms: Date.now() - startTime,
         warnings,
@@ -558,7 +557,7 @@ export async function discoverTools(
       };
     } catch (err) {
       // Classify error
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorMessage = publicErrorMessage(err);
       let errorCode: DiscoveryErrorCode;
       let userMessage: string;
 

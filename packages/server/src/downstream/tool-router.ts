@@ -38,6 +38,8 @@ export interface CombinedMcpStatus {
 export class ToolRouter {
   /** ADR-021: when set, only admin-approved pinned definitions are served (D2/D3). */
   private pins?: ToolPinService;
+  /** ADR-025 M1: applied BEFORE the first-wins dedupe so a killed tool never hides a same-named one on another MCP */
+  private killSwitch?: { isActive(type: string, target: string): boolean };
   /** raw tools/list array (by identity) -> policy it was last observed under; avoids hashing per request */
   private observed = new WeakMap<object, { policy: PinPolicy; done: Promise<void> }>();
   /** D6 hook: baseline hashes (tool name -> hash) for an MCP's first observation, if any */
@@ -51,6 +53,10 @@ export class ToolRouter {
     private userPool: UserMcpPool
   ) {
     logger.info('[ToolRouter] Initialized');
+  }
+
+  setKillSwitch(ks: { isActive(type: string, target: string): boolean }): void {
+    this.killSwitch = ks;
   }
 
   setPinService(
@@ -353,6 +359,15 @@ export class ToolRouter {
         // Get tools from UserMcpPool
         const userTools = this.userPool.getToolCatalog(userId);
         mcpTools = userTools.filter(tool => tool.source_mcp === mcpEntry.name);
+      }
+
+      // Stamp the catalog id (never trust the name for policy keys; ADR-025 M1)
+      mcpTools = mcpTools.map(tool => ({ ...tool, mcp_id: mcpEntry.mcp_id }));
+
+      // ADR-025 M1: drop killed (mcp_id, tool) pairs before name resolution
+      if (this.killSwitch) {
+        const ks = this.killSwitch;
+        mcpTools = mcpTools.filter(tool => !ks.isActive('tool', `${mcpEntry.mcp_id}:${tool.name}`));
       }
 
       // Apply tool selection filter if specified

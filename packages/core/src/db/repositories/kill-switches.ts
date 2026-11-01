@@ -11,7 +11,7 @@ import { compatInsert, compatSelect, compatDelete } from '../compat.js';
 
 export interface KillSwitchRecord {
   target: string;
-  type: 'client' | 'mcp';
+  type: 'client' | 'mcp' | 'tool';
   activated_at: string;
   activated_by: string;
 }
