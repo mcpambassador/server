@@ -12,9 +12,11 @@ import type {
   CreateGrantResponse,
   OAuthClientSummary,
   AgentEndpointSettings,
+  UserAgentEndpointInfo,
 } from '@mcpambassador/contracts';
 
 export type {
+  UserAgentEndpointInfo,
   ConsentDetails,
   ConsentClientOption,
   ConsentDecision,
@@ -77,15 +79,4 @@ export function formatDuration(seconds: number): string {
   if (seconds % 3600 === 0) return `${seconds / 3600} hour${seconds === 3600 ? '' : 's'}`;
   if (seconds % 60 === 0) return `${seconds / 60} minute${seconds === 60 ? '' : 's'}`;
   return `${seconds} seconds`;
-}
-
-/**
- * GET /v1/users/me/agent-endpoint (readable by any signed-in user, also when disabled).
- * Local shape until it lands in @mcpambassador/contracts.
- */
-export interface UserAgentEndpointInfo {
-  enabled: boolean;
-  default_grant_ttl_seconds: number;
-  max_grant_ttl_seconds: number;
-  refresh_tokens_enabled: boolean;
 }

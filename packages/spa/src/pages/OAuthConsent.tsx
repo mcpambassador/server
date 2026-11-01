@@ -111,7 +111,7 @@ export function OAuthConsent() {
   } else if (error || !details) {
     body = <Text role="alert">{errorMessage(error)}</Text>;
   } else {
-    const redirectHost = (details as { redirect_uri_host?: string }).redirect_uri_host;
+    const redirectHost = details.redirect_uri_host;
     const noClients = clients.length === 0;
     const noSubs = availableSubs.length === 0;
     body = (

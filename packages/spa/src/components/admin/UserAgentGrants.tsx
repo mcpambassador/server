@@ -48,7 +48,7 @@ export function UserAgentGrants({ userId }: { userId: string }) {
                 <div className="min-w-0">
                   <div className="font-medium">{g.label}</div>
                   <Text className="text-xs">
-                    {g.client_name ?? 'One-shot'} · client {g.bound_client_name} ·{' '}
+                    {g.client_name ?? 'One-shot'} · client {g.bound_client_name ?? 'removed'} ·{' '}
                     {g.scopes.join(', ')} · expires {new Date(g.expires_at).toLocaleString()}
                   </Text>
                 </div>

@@ -394,7 +394,9 @@ export function AgentAccess() {
                   <TableCell>
                     {g.client_name ?? <span className="text-zinc-500">One-shot</span>}
                   </TableCell>
-                  <TableCell>{g.bound_client_name}</TableCell>
+                  <TableCell>
+                    {g.bound_client_name ?? <span className="text-zinc-500">Removed</span>}
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {g.scopes.map(s => (
