@@ -103,9 +103,9 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
       ...(await summaryOf(r)),
       approved_definition: parseJson(r.approved_definition),
       pending_definition: parseJson(r.pending_definition),
-      previously_revoked_at: r.pending_hash
-        ? (getPins()?.revokedAt(r.mcp_id, r.tool_name, r.pending_hash) ?? null)
-        : null,
+      previously_revoked: r.pending_hash
+        ? (getPins()?.isRevoked(r.mcp_id, r.tool_name, r.pending_hash) ?? false)
+        : false,
     };
   }
 
@@ -182,7 +182,7 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
             wrapError(
               ErrorCodes.CONFLICT,
               'This exact definition was revoked earlier; approve it again with force',
-              [{ code: 'previously_revoked', revoked_at: r.revokedAt ?? null }]
+              [{ code: 'previously_revoked' }]
             )
           );
       case 'not_baseline':

@@ -115,7 +115,7 @@ describe('pin-text helpers', () => {
 });
 
 describe('previously revoked definition (TD-034)', () => {
-  it('warns with the date and sends force when approving anyway', async () => {
+  it('warns and sends force when approving anyway', async () => {
     const user = userEvent.setup();
     const posts = setup({
       pending: [pin()],
@@ -123,12 +123,13 @@ describe('previously revoked definition (TD-034)', () => {
         ...pin(),
         approved_definition: null,
         pending_definition: { name: 'create_issue', description: 'new' },
-        previously_revoked_at: '2026-10-01T10:00:00.000Z',
+        previously_revoked: true,
       },
     });
     await user.click(await screen.findByRole('button', { name: 'Review' }));
     const warn = await screen.findByTestId('previously-revoked');
-    expect(warn.textContent).toContain('2026-10-01T10:00:00.000Z');
+    expect(warn.textContent).toContain('previously revoked');
+    expect(warn.textContent).not.toMatch(/revoked on/);
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Approve anyway' }));
     await waitFor(() => expect(posts).toHaveLength(1));
@@ -143,7 +144,7 @@ describe('previously revoked definition (TD-034)', () => {
         ...pin(),
         approved_definition: null,
         pending_definition: { name: 'create_issue', description: 'new' },
-        previously_revoked_at: null,
+        previously_revoked: false,
       },
     });
     await user.click(await screen.findByRole('button', { name: 'Review' }));

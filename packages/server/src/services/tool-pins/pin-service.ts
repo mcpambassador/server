@@ -286,10 +286,8 @@ export class ToolPinService {
     if (hashCanonical(pin.pending_definition) !== pin.pending_hash)
       return { ok: false, code: 'corrupt' };
     // TD-034: a hash an admin already withdrew is not re-approved by accident.
-    const revokedAt = this.revokedAt(pin.mcp_id, pin.tool_name, pin.pending_hash);
-    if (revokedAt !== null && !o.force) {
-      return { ok: false, code: 'previously_revoked', revokedAt };
-    }
+    const wasRevoked = this.isRevoked(pin.mcp_id, pin.tool_name, pin.pending_hash);
+    if (wasRevoked && !o.force) return { ok: false, code: 'previously_revoked' };
 
     if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
       // S3: never overwrite a different pending item on the all-users pin; refuse before changing anything.
@@ -359,7 +357,7 @@ export class ToolPinService {
       baseline_written: baselineWritten,
       actor: o.actor,
       reason_given: Boolean(o.reason),
-      ...(revokedAt !== null ? { forced_previously_revoked: true, revoked_at: revokedAt } : {}),
+      ...(wasRevoked ? { forced_previously_revoked: true } : {}),
     });
     return { ok: true, pin: this.getById(pin.pin_id)! };
   }
@@ -518,20 +516,14 @@ export class ToolPinService {
     return { ok: true, pin: this.getById(pin.pin_id)!, revokedPinIds: pinIds };
   }
 
-  /**
-   * TD-034: when `hash` was revoked for this (mcp, tool) in ANY scope, else null. Revocation stores no
-   * timestamp of its own, so this is the earliest `updated_at` among the pins that list the hash.
-   * Every later change only moves `updated_at` forward, so it is the closest upper bound on the revoke time.
-   */
-  revokedAt(mcpId: string, toolName: string, hash: string): string | null {
-    let at: string | null = null;
+  /** TD-034: true when `hash` was revoked for this (mcp, tool) in ANY scope. */
+  isRevoked(mcpId: string, toolName: string, hash: string): boolean {
     for (const l of this.pins.values()) {
       const r = l.rec;
       if (r.mcp_id !== mcpId || r.tool_name !== toolName) continue;
-      if (!parseRevoked(r.revoked_hashes).includes(hash)) continue;
-      if (at === null || r.updated_at < at) at = r.updated_at;
+      if (parseRevoked(r.revoked_hashes).includes(hash)) return true;
     }
-    return at;
+    return false;
   }
 
   /** (c) True if this exact definition was rejected or revoked for the same (mcp, tool) in ANY scope. */
@@ -923,8 +915,6 @@ export type DecisionResult =
         | 'baseline_conflict'
         | 'previously_revoked';
       flags?: string[];
-      /** previously_revoked: when the revocation was recorded (no later than). */
-      revokedAt?: string;
     };
 
 /** Hashes withdrawn by revoke (JSON array column). */

@@ -106,7 +106,7 @@ describe('approve of a previously revoked hash (TD-034)', () => {
     });
     const rec = pins.getPin(mcpId, null, 'other')!;
     const d = await app.inject({ method: 'GET', url: `/v1/admin/tool-pins/${rec.pin_id}` });
-    expect(d.json().data.previously_revoked_at).toBeNull();
+    expect(d.json().data.previously_revoked).toBe(false);
     const r = await post(`/v1/admin/tool-pins/${rec.pin_id}/approve`, {
       expected_hash: rec.pending_hash,
     });
@@ -115,9 +115,10 @@ describe('approve of a previously revoked hash (TD-034)', () => {
     expect(a.metadata).not.toHaveProperty('forced_previously_revoked');
   });
 
-  it('the detail carries previously_revoked_at for a revoked pending hash', async () => {
+  it('the detail carries previously_revoked: true for a revoked pending hash', async () => {
     const rec = await revokedPending();
     const d = await app.inject({ method: 'GET', url: `/v1/admin/tool-pins/${rec.pin_id}` });
-    expect(typeof d.json().data.previously_revoked_at).toBe('string');
+    expect(d.json().data.previously_revoked).toBe(true);
+    expect(d.json().data).not.toHaveProperty('previously_revoked_at');
   });
 });

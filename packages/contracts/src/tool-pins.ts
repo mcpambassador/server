@@ -180,11 +180,10 @@ export const toolPinDetailSchema = toolPinSummarySchema.extend({
   approved_definition: toolDefinitionSchema.nullable(),
   pending_definition: toolDefinitionSchema.nullable(),
   /**
-   * TD-034: set when the pending definition's exact hash was revoked earlier for this (mcp, tool) in any
-   * scope. Only the last-recorded time is kept, so this is the earliest time the revocation can be
-   * dated to, "no later than" the real revoke time. null otherwise.
+   * TD-034: true when the pending definition's exact hash was revoked earlier for this (mcp, tool) in any
+   * scope. Revocation keeps no timestamp, so none is exposed.
    */
-  previously_revoked_at: z.string().nullable().optional(),
+  previously_revoked: z.boolean().optional(),
 });
 export type ToolPinDetail = z.infer<typeof toolPinDetailSchema>;
 

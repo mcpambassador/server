@@ -236,7 +236,7 @@ function ReviewDialog({
 
   const pendingHash = detail?.pending_hash ?? pin.pending_hash;
   const approvedHash = detail?.approved_hash ?? pin.approved_hash;
-  const revokedAt = detail?.previously_revoked_at ?? null;
+  const previouslyRevoked = detail?.previously_revoked === true;
   const shown = mode === 'baseline' ? detail?.approved_definition : detail?.pending_definition;
   const description = shown?.description;
 
@@ -310,10 +310,10 @@ function ReviewDialog({
         {blocked && (
           <Text className="text-red-600">This definition is never approvable. Reject it only.</Text>
         )}
-        {mode === 'pending' && revokedAt && (
+        {mode === 'pending' && previouslyRevoked && (
           <Text data-testid="previously-revoked" className="font-medium text-red-600">
-            This exact definition was revoked on {visibleText(revokedAt)}. Approving it again puts
-            back a version an admin already withdrew.
+            This exact definition was previously revoked. Approving it again puts back a version an
+            admin already withdrew.
           </Text>
         )}
       </DialogBody>
@@ -360,13 +360,13 @@ function ReviewDialog({
                       expected_hash: pendingHash!,
                       apply_to: allUsers ? 'all_users' : 'this_scope',
                       reason: reason || undefined,
-                      ...(revokedAt ? { force: true } : {}),
+                      ...(previouslyRevoked ? { force: true } : {}),
                     }),
                   'Definition approved'
                 )
               }
             >
-              {revokedAt ? 'Approve anyway' : 'Approve'}
+              {previouslyRevoked ? 'Approve anyway' : 'Approve'}
             </Button>
           </>
         ) : (
