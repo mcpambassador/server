@@ -63,8 +63,15 @@ export const APPROVAL_DECISION_REASON_MAX_LENGTH = 500;
 export const APPROVAL_TOOL_NAME_MAX_LENGTH = 256;
 export const APPROVAL_LIST_MAX_LIMIT = 100;
 export const APPROVAL_LIST_DEFAULT_LIMIT = 50;
-/** `_meta` key on direct tools/call, to poll one request's status. */
-export const APPROVAL_META_KEY = 'ambassador/approval_id';
+/**
+ * Reserved `_meta` namespace. The pipeline owns every `ambassador/` key: it strips them from downstream
+ * results and from agent-supplied `_meta` before setting its own, so a downstream tool can never forge one.
+ */
+export const AMBASSADOR_META_PREFIX = 'ambassador/';
+/** `_meta` key on a tool result carrying the pipeline's ApprovalToolResult (also `metadata.approval`). */
+export const APPROVAL_META_KEY = 'ambassador/approval';
+/** `_meta` key on a direct tools/call request, to poll one request's status. */
+export const APPROVAL_ID_META_KEY = 'ambassador/approval_id';
 
 // ===== Enums =====
 
@@ -289,3 +296,23 @@ export const approvalToolResultSchema = z.discriminatedUnion('status', [
   approvalUnavailableResultSchema,
 ]);
 export type ApprovalToolResult = z.infer<typeof approvalToolResultSchema>;
+
+/**
+ * Fixed sentences shown to the agent, one per status and per unavailable reason. No tool name, argument
+ * or server-supplied text is interpolated, so the server, SPA and client render identical wording.
+ * A renderer may append the validated id, expiry and URL after these.
+ */
+export const APPROVAL_STATUS_TEXT = {
+  approval_required:
+    'Approval required: a person must approve this tool call. Ask the user to approve it, then retry the same call (same tool, same arguments).',
+  approval_denied:
+    'Approval denied: a person refused this tool call. Ask the user before trying again.',
+  approval_expired: 'Approval expired. Retry the call to start a new approval request.',
+  approval_unavailable: 'Approval could not be requested, so this call cannot proceed as asked.',
+} as const satisfies Record<ApprovalToolResult['status'], string>;
+
+export const APPROVAL_UNAVAILABLE_REASON_TEXT = {
+  arguments_too_large: 'The arguments are too large to be reviewed by a person.',
+  too_many_pending: 'Too many approval requests are already waiting.',
+  rate_limited: 'Approval requests are being created too fast.',
+} as const satisfies Record<ApprovalUnavailableReason, string>;
