@@ -34,8 +34,10 @@ function expectNotServed(res: {
   headers: Record<string, unknown>;
   body: string;
 }): void {
-  expect(res.statusCode).not.toBe(501);
-  expect(res.statusCode).not.toBe(401);
+  expect(res.statusCode).toBe(404);
+  expect(String(res.headers['content-type'] ?? '')).toMatch(/json/);
+  expect(String(res.headers['content-type'] ?? '')).not.toMatch(/html/);
+  expect(res.body).not.toMatch(/<html|<!doctype/i);
   expect(res.body).not.toContain('not_implemented');
   expect(res.body).not.toContain('jsonrpc');
   expect(res.body).not.toContain('access_token');
@@ -59,6 +61,9 @@ describe('agent endpoint disabled (default)', () => {
     ['POST', AGENT_MCP_ROUTE],
     ['GET', AGENT_MCP_ROUTE],
     ['DELETE', AGENT_MCP_ROUTE],
+    ['GET', OAUTH_AS_METADATA_ROUTE],
+    ['GET', OAUTH_AUTHORIZE_ROUTE],
+    ['POST', OAUTH_TOKEN_ROUTE],
   ] as const)('8443 %s %s is not served', async (method, url) => {
     const res = await s.api.inject({ method, url });
     expectNotServed(res);
@@ -66,7 +71,12 @@ describe('agent endpoint disabled (default)', () => {
 
   it.each([
     ['GET', OAUTH_AS_METADATA_ROUTE],
+    ['POST', OAUTH_AS_METADATA_ROUTE],
     ['GET', OAUTH_AUTHORIZE_ROUTE],
+    ['GET', OAUTH_TOKEN_ROUTE],
+    ['GET', AGENT_MCP_ROUTE],
+    ['POST', AGENT_MCP_ROUTE],
+    ['GET', OAUTH_PROTECTED_RESOURCE_ROUTE],
     ['POST', OAUTH_TOKEN_ROUTE],
     ['POST', OAUTH_REGISTER_ROUTE],
     ['POST', OAUTH_REVOKE_ROUTE],
