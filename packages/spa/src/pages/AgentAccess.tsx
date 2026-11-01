@@ -41,9 +41,12 @@ import {
   parseToolAllowlist,
   ttlOptions,
   formatDuration,
+  disclosureModeLabel,
   type AgentGrantSummary,
   type CreateGrantResponse,
+  type DisclosureMode,
 } from '@/api/agent-types';
+import { DisclosureModeField } from '@/components/agent/DisclosureModeField';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 // Fallbacks (server defaults) while /v1/users/me/agent-endpoint is loading or unavailable.
@@ -76,6 +79,7 @@ function CreateGrantDialog({
   const [label, setLabel] = useState('');
   const [scopes, setScopes] = useState<Set<string>>(new Set());
   const [toolsText, setToolsText] = useState('');
+  const [disclosureMode, setDisclosureMode] = useState<DisclosureMode>('full');
   const [ttlChoice, setTtlChoice] = useState<number | null>(null);
   const ttl = Math.min(ttlChoice ?? defaultTtl, maxTtl);
   const [result, setResult] = useState<CreateGrantResponse | null>(null);
@@ -91,6 +95,7 @@ function CreateGrantDialog({
     setClientId(null);
     setScopes(new Set());
     setToolsText('');
+    setDisclosureMode('full');
     setTtlChoice(null);
     setResult(null);
     setError(null);
@@ -116,6 +121,7 @@ function CreateGrantDialog({
         scopes: Array.from(scopes),
         tool_allowlist: parseToolAllowlist(toolsText),
         ttl_seconds: ttl,
+        disclosure_mode: disclosureMode,
       });
       setResult(res);
     } catch (err) {
@@ -254,6 +260,7 @@ function CreateGrantDialog({
                     onChange={e => setToolsText(e.target.value)}
                   />
                 </Field>
+                <DisclosureModeField value={disclosureMode} onChange={setDisclosureMode} />
                 <Field>
                   <Label>Expires after</Label>
                   <Select
@@ -404,6 +411,9 @@ export function AgentAccess() {
                         <Badge key={s}>{s}</Badge>
                       ))}
                     </div>
+                    <Text className="mt-1 text-xs">
+                      Tool list: {disclosureModeLabel(g.disclosure_mode)}
+                    </Text>
                     {g.tool_allowlist && (
                       <Text className="mt-1 text-xs">
                         {g.tool_allowlist.length} tool(s) allowed
