@@ -39,7 +39,12 @@ let userId: string;
 let audits: Array<{ action: string; meta: Record<string, unknown> }> = [];
 let seq = 0;
 
-const TOOL = { name: 'create_issue', source_mcp: 'github', pinned_hash: null as string | null };
+const TOOL = {
+  name: 'create_issue',
+  source_mcp: 'github',
+  mcp_id: 'm1',
+  pinned_hash: null as string | null,
+};
 
 function seed(): { grantId: string; clientId: string } {
   const n = ++seq;
@@ -169,9 +174,11 @@ describe('gate decisions', () => {
     expect(rows("tool_name='list_issues'")).toHaveLength(0);
   });
 
-  it('unknown mcp (no catalog row) proceeds', async () => {
-    const out = await gate(ctxOf(seed()), {}, { ...TOOL, source_mcp: 'nope' });
-    expect(out).toEqual({ proceed: true });
+  it('a tool without the stamped mcp_id fails closed (throws, no row)', async () => {
+    const before = rows().length;
+    const { mcp_id: _omit, ...unstamped } = TOOL;
+    await expect(gate(ctxOf(seed()), {}, unstamped as never)).rejects.toThrow(/mcp_id/);
+    expect(rows()).toHaveLength(before);
   });
 
   it('creates, then returns the same open request, then consumes once after approval', async () => {

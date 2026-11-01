@@ -13,12 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import {
-  getAgentGrant,
-  getMcpEntryByName,
-  redactSecretsInString,
-  type DatabaseClient,
-} from '@mcpambassador/core';
+import { getAgentGrant, redactSecretsInString, type DatabaseClient } from '@mcpambassador/core';
 import {
   APPROVAL_ID_PATTERN,
   APPROVAL_PREVIEW_MAX_BYTES,
@@ -102,15 +97,17 @@ export async function runApprovalGate(
   input: {
     /** NULL = a connection with no grant (stdio client session). */
     ctx: GateGrantContext | null;
-    tool: { name: string; source_mcp: string; pinned_hash?: string | null };
+    tool: { name: string; source_mcp: string; mcp_id?: string; pinned_hash?: string | null };
     /** The exact arguments object that will be routed, after every transform. */
     args: Record<string, unknown>;
   }
 ): Promise<GateOutcome> {
   const { approvals } = deps;
-  const mcp = await getMcpEntryByName(deps.db, input.tool.source_mcp);
-  // Policies are keyed by catalog mcp_id; an MCP without a catalog row has none.
-  if (!mcp) return { proceed: true };
+  // Policies are keyed by catalog mcp_id, which the router stamps on every routable tool. A tool
+  // without the stamp cannot be policy-checked, so the call is refused rather than assumed ungated.
+  const mcpId = input.tool.mcp_id;
+  if (!mcpId) throw new Error('approval gate: tool has no catalog mcp_id');
+  const mcp = { mcp_id: mcpId };
 
   const policy = await approvals.evaluate(mcp.mcp_id, input.tool.name);
   if (!policy.requires_approval) return { proceed: true };

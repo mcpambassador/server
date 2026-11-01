@@ -36,7 +36,7 @@ export interface ToolServiceDeps {
   toolRouter: ToolRouter;
   mcpManager: SharedMcpManager;
   userPool: UserMcpPool;
-  /** Admin kill switches (keys `mcp:<name>` / `client:<id>`); enforced on every invocation path */
+  /** Admin kill switches (keys `mcp:<name>` / `client:<id>` / `tool:<mcp_id>:<tool>`); enforced on every invocation path */
   killSwitch?: { isActive(type: string, target: string): boolean };
   /** ADR-023 approval gate. Absent only where approvals are not initialised (some unit tests). */
   approvals?: { service: ApprovalService; uiBaseUrl: string };
@@ -75,16 +75,18 @@ export function stripAmbassadorMeta(value: unknown, depth = 0): unknown {
   return out;
 }
 
-/** KS-1/KS-2: a client or MCP is killed */
+/** KS-1/KS-2: a client, an MCP, or (ADR-025 M1) the single tool is killed. The tool key uses the catalog's mcp_id. */
 function isKilled(
   deps: ToolServiceDeps,
   clientId: string,
-  tool?: { source_mcp?: string }
+  tool?: { name?: string; source_mcp?: string; mcp_id?: string }
 ): boolean {
   const ks = deps.killSwitch;
   if (!ks) return false;
   if (ks.isActive('client', clientId)) return true;
-  return !!tool?.source_mcp && ks.isActive('mcp', tool.source_mcp);
+  if (!tool) return false;
+  if (tool.source_mcp && ks.isActive('mcp', tool.source_mcp)) return true;
+  return !!tool.mcp_id && !!tool.name && ks.isActive('tool', `${tool.mcp_id}:${tool.name}`);
 }
 
 /** Thrown when an authenticated session has no matching DB record (DB inconsistency). */

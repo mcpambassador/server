@@ -338,9 +338,12 @@ export async function runToolCall(
       : [{ type: 'text' as const, text: JSON.stringify(result ?? null) }];
     return { content, ...(response.metadata?.is_error === true ? { isError: true } : {}) };
   } catch (e) {
+    // td036-allow: KillSwitchError text is a fixed app-authored string
     if (e instanceof KillSwitchError) return text(e.message, true);
     if (e instanceof AuthorizationError) return text('Tool not permitted', true);
+    // td036-allow: ValidationError text is app-authored (pipeline argument validation)
     if (e instanceof ValidationError) return text(e.message, true);
+    // td036-allow: logger-only, never returned to a client
     logger.error(`[agent-mcp] tools/call failed: ${String(e)}`);
     return text('Tool invocation failed', true);
   }

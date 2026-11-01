@@ -186,6 +186,7 @@ export class Pipeline {
           request_summary: { tool_name: request.tool_name },
         });
 
+        // td036-allow: authn provider error text is app-authored
         throw new AuthenticationError(authResult.error?.message || 'Authentication failed');
       }
 

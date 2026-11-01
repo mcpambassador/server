@@ -5,7 +5,7 @@
  * synchronous lookups on the hot path and persisted to the `kill_switches` table (TD-022): loaded at
  * startup, written on every change, so a restart never silently clears an active switch.
  *
- * Key format: `type:target` (e.g. "client:cli_123", "mcp:github"). Active = present.
+ * Key format: `type:target` (e.g. "client:cli_123", "mcp:github", "tool:<mcp_id>:<tool_name>"). Active = present.
  *
  * @see CR-M10-001, TD-022
  */
@@ -16,10 +16,11 @@ import {
   deleteKillSwitch,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { parseKillSwitchTarget } from '@mcpambassador/contracts';
 
 export interface ActiveKillSwitch {
   target: string;
-  type: 'client' | 'mcp';
+  type: 'client' | 'mcp' | 'tool';
   activated_at: string;
   activated_by: string;
 }
@@ -45,7 +46,7 @@ export class KillSwitchManager {
   }
 
   /**
-   * Activate / deactivate `target` ("client:<id>" | "mcp:<name>"). Fails closed: an activation takes
+   * Activate / deactivate `target` ("client:<id>" | "mcp:<name>" | "tool:<mcp_id>:<tool_name>"). Fails closed: an activation takes
    * effect in memory first, then is persisted; if persistence throws the switch stays active for this
    * process and the caller learns it will not survive a restart.
    */
@@ -55,7 +56,7 @@ export class KillSwitchManager {
       // an earlier failed persist. The original activation record is kept in both places.
       const rec: ActiveKillSwitch = this.state.get(target) ?? {
         target,
-        type: target.startsWith('client:') ? 'client' : 'mcp',
+        type: parseKillSwitchTarget(target)?.type ?? 'mcp',
         activated_at: new Date().toISOString(),
         activated_by: actor,
       };
