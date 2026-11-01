@@ -58,14 +58,6 @@ export async function createFakeMcp(
   });
   if (res.statusCode !== 201) throw new Error(`createFakeMcp: ${res.statusCode} ${res.body}`);
   const mcpId = JSON.parse(res.body).data.mcp_id as string;
-  for (const step of ['validate', 'publish']) {
-    const r = await s.admin.inject({
-      method: 'POST',
-      url: `/v1/admin/mcps/${mcpId}/${step}`,
-      headers: adminHeaders(s),
-    });
-    if (r.statusCode !== 200) throw new Error(`fake mcp ${step}: ${r.statusCode} ${r.body}`);
-  }
   // ADR-021: admin-created MCPs default to pin_policy=review (fail closed). These harness tests
   // exercise routing, not pinning, so opt the fake MCP into auto-approval of first-seen tools.
   const pol = await s.admin.inject({
@@ -75,6 +67,14 @@ export async function createFakeMcp(
     payload: { pin_policy: 'auto' },
   });
   if (pol.statusCode !== 200) throw new Error(`fake mcp pin-policy: ${pol.statusCode} ${pol.body}`);
+  for (const step of ['validate', 'publish']) {
+    const r = await s.admin.inject({
+      method: 'POST',
+      url: `/v1/admin/mcps/${mcpId}/${step}`,
+      headers: adminHeaders(s),
+    });
+    if (r.statusCode !== 200) throw new Error(`fake mcp ${step}: ${r.statusCode} ${r.body}`);
+  }
   return { mcpId, name: o.name, tools };
 }
 

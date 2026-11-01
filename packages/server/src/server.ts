@@ -535,6 +535,15 @@ export class AmbassadorServer {
       this.mcpManager,
       this.userPool
     );
+    const rediscovery = this.toolPinRediscovery;
+    if (rediscovery) {
+      // A catalog apply is an explicit reload: re-fetch tool lists and record pins for new/changed tools now.
+      this.catalogReloader.onApplied = () => rediscovery.observeAllShared({ refresh: true });
+      // Boot: pins (and the one-shot baseline) are recorded without waiting for the first agent listing.
+      void rediscovery
+        .observeAllShared()
+        .catch(err => logger.warn({ err }, '[tool-pins] boot observation failed'));
+    }
     logger.info('[Server] Per-user MCP pool initialized');
 
     // Initialize session lifecycle manager (M15)
