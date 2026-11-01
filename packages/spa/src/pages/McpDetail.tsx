@@ -404,7 +404,15 @@ export function McpDetail() {
                       Tools will be discovered after you connect your OAuth account on the
                       Credentials page.
                     </Text>
-                  ) : null}
+                  ) : (
+                    <Text
+                      data-testid="no-permitted-tools"
+                      className="text-sm text-zinc-500 dark:text-zinc-400"
+                    >
+                      No tools are available to you for this MCP. Your groups&apos; tool policies
+                      may exclude all of them; ask an administrator.
+                    </Text>
+                  )}
                 </Field>
               </div>
 

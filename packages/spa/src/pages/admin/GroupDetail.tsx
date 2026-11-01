@@ -6,6 +6,7 @@ import {
   PlusIcon,
   UserGroupIcon,
   CubeIcon,
+  AdjustmentsHorizontalIcon,
 } from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
@@ -30,6 +31,8 @@ import {
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
+import { Badge } from '@/components/catalyst/badge';
+import { GroupToolPolicyDialog } from '@/components/admin/GroupToolPolicyDialog';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { EmptyState } from '@/components/shared/EmptyState';
 import {
@@ -68,6 +71,7 @@ export function GroupDetail() {
   const [selectedMcpId, setSelectedMcpId] = useState('');
   const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
   const [mcpToRemove, setMcpToRemove] = useState<McpCatalogEntry | null>(null);
+  const [policyMcp, setPolicyMcp] = useState<McpCatalogEntry | null>(null);
 
   const handleAddMember = async () => {
     if (!selectedUserId) return;
@@ -300,6 +304,7 @@ export function GroupDetail() {
                         <TableHeader>Name</TableHeader>
                         <TableHeader>Transport</TableHeader>
                         <TableHeader>Isolation</TableHeader>
+                        <TableHeader>Tools</TableHeader>
                         <TableHeader>Actions</TableHeader>
                       </TableRow>
                     </TableHead>
@@ -320,7 +325,21 @@ export function GroupDetail() {
                           <TableCell className="text-zinc-500 dark:text-zinc-400">
                             {mcp.isolation_mode}
                           </TableCell>
+                          <TableCell data-testid={`tools-${mcp.mcp_id}`}>
+                            <ToolModeBadge
+                              mode={mcp.tool_mode ?? 'all'}
+                              count={mcp.tools?.length ?? 0}
+                            />
+                          </TableCell>
                           <TableCell>
+                            <Button
+                              plain
+                              title="Edit tool policy"
+                              data-testid={`edit-policy-${mcp.mcp_id}`}
+                              onClick={() => setPolicyMcp(mcp)}
+                            >
+                              <AdjustmentsHorizontalIcon />
+                            </Button>
                             <Button
                               plain
                               title="Remove MCP"
@@ -342,6 +361,18 @@ export function GroupDetail() {
           </TabsContent>
         </TabsPanels>
       </Tabs>
+
+      {policyMcp && (
+        <GroupToolPolicyDialog
+          key={policyMcp.mcp_id}
+          groupId={groupId!}
+          mcpId={policyMcp.mcp_id}
+          mcpName={policyMcp.display_name}
+          initialMode={policyMcp.tool_mode ?? 'all'}
+          initialTools={policyMcp.tools ?? []}
+          onClose={() => setPolicyMcp(null)}
+        />
+      )}
 
       {/* Add Member Dialog */}
       <Dialog open={addMemberDialogOpen} onClose={setAddMemberDialogOpen}>
@@ -443,5 +474,14 @@ export function GroupDetail() {
         </AlertActions>
       </Alert>
     </div>
+  );
+}
+
+function ToolModeBadge({ mode, count }: { mode: 'all' | 'allow' | 'deny'; count: number }) {
+  if (mode === 'all') return <Badge color="zinc">all tools</Badge>;
+  return mode === 'allow' ? (
+    <Badge color="green">only {count}</Badge>
+  ) : (
+    <Badge color="amber">all except {count}</Badge>
   );
 }

@@ -206,6 +206,9 @@ export interface McpCatalogEntry {
     inputSchema?: Record<string, unknown>;
   }>;
   tool_count?: number;
+  /** ADR-025: present on a group's MCP grants (GET /groups/:g/mcps); `tools` is [] for 'all' */
+  tool_mode?: 'all' | 'allow' | 'deny';
+  tools?: string[];
   /** ADR-021; absent until the server exposes it on GET /v1/admin/mcps/:id (treated as 'review') */
   pin_policy?: 'review' | 'auto';
   /** Where the MCP came from; pin_policy 'auto' is only allowed for 'custom' */
