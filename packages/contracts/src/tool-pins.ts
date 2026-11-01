@@ -1,7 +1,7 @@
 /**
  * ADR-021 Tool Definition Pinning — admin API contracts (9443, `{ ok, data }` envelope).
  *
- * GET  /v1/admin/tool-pins?status=&mcp_id=&scope=shared|user&scope_user_id=&baseline=&cursor=&limit=
+ * GET  /v1/admin/tool-pins?status=&mcp_id=&scope=shared|user&scope_user_id=&baseline=&serving=true&cursor=&limit=
  *        → paginated ToolPinSummary[]
  * GET  /v1/admin/tool-pins/:pinId           → ToolPinDetail (both definitions, for the diff view)
  * GET  /v1/admin/tool-pins/summary          → ToolPinQueueSummary (SPA badge)
@@ -198,6 +198,8 @@ export const toolPinListQuerySchema = z.object({
   scope: z.enum(['shared', 'user']).optional(),
   scope_user_id: z.string().optional(),
   baseline: z.enum(['unreviewed']).optional(),
+  /** `true` = pins that are being served (approved_hash set), whatever their status. */
+  serving: z.enum(['true']).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });

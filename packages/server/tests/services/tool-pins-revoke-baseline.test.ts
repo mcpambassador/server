@@ -429,6 +429,31 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
       await app.close();
     });
 
+    it('GET ?serving=true returns pins with approved_hash in any status; status=approved does not', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A2')],
+        policy: 'review',
+      });
+      const q = pins.getPin(id, null, 'a')!;
+      await pins.reject(pin.pin_id, { expectedHash: q.pending_hash!, actor: 'x' });
+      expect(pins.getPin(id, null, 'a')).toMatchObject({ status: 'rejected' });
+      const serving = await app.inject({ method: 'GET', url: '/v1/admin/tool-pins?serving=true' });
+      expect(serving.statusCode).toBe(200);
+      expect(serving.json().data.map((p: { tool_name: string }) => p.tool_name)).toEqual(['a']);
+      const approved = await app.inject({
+        method: 'GET',
+        url: '/v1/admin/tool-pins?status=approved',
+      });
+      expect(approved.json().data).toHaveLength(0);
+      await pins.revoke(pin.pin_id, { expectedHash: pin.approved_hash!, actor: 'x' });
+      const after = await app.inject({ method: 'GET', url: '/v1/admin/tool-pins?serving=true' });
+      expect(after.json().data).toHaveLength(0);
+    });
+
     it('POST /revoke: 200 on match, 409 on stale/not approved, 404 unknown', async () => {
       const id = await mk('m');
       const pin = await approvedShared(id);
