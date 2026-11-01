@@ -28,6 +28,14 @@ export function evaluate({ stdout, exitCode, ignored, tracked = TRACKED, now = n
   const vulns = j.metadata?.vulnerabilities;
   if (!isObj(vulns)) return unusable('missing metadata.vulnerabilities');
 
+  for (const [id, t] of Object.entries(tracked)) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(t?.reviewBy ?? '') ||
+      isNaN(new Date(`${t.reviewBy}T00:00:00Z`))
+    )
+      return unusable(`malformed reviewBy for ${id}: ${t?.reviewBy}`);
+  }
+
   const advisories = Object.values(j.advisories);
   if (exitCode !== 0 && advisories.length === 0)
     return unusable(`pnpm exited ${exitCode} with no advisories`);

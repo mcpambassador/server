@@ -61,3 +61,17 @@ test('ignored but untracked id blocks', () =>
   ));
 test('clean passes', () =>
   assert.equal(evaluate({ ...base, stdout: out({}), exitCode: 0 }).code, 0));
+
+test('malformed reviewBy fails closed', () => {
+  for (const reviewBy of ['2026-13-45', '31/12/2026', undefined, '']) {
+    const tracked = { [TD]: { td: 'TD-019', pkg: 'drizzle-orm', reviewBy } };
+    const r = evaluate({
+      stdout: out({ 1: adv(TD, 'high') }, { high: 1 }),
+      exitCode: 1,
+      ignored: new Set([TD]),
+      tracked,
+      now: base.now,
+    });
+    assert.equal(r.code, 2, String(reviewBy));
+  }
+});
