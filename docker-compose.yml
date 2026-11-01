@@ -16,7 +16,7 @@
 #   - Create these directories on the host before first run
 #
 # Security Notes:
-#   - Server runs as non-root user (mcpambassador:1000)
+#   - Server runs as non-root user (mcpambassador:1000); MCP children run as uid 1001 (TD-052)
 #   - Read-only root filesystem (except /data volume)
 #   - Self-signed TLS certificates auto-generated on first boot
 #   - Use volume encryption for sensitive data at rest
@@ -101,13 +101,25 @@ services:
     # Security options
     security_opt:
       - no-new-privileges:true
+
+    # TD-052: start as root only for docker/entrypoint.sh, which execs the server as uid 1000 and keeps
+    # just CAP_SETUID/SETGID/KILL so MCP children can be run as uid 1001 (unable to read /data).
+    user: "0:0"
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - KILL
+      - CHOWN
+      - SETPCAP # entrypoint only: shrinks the bounding set before dropping root
     
     # Read-only root filesystem (except bind-mounted volumes)
     read_only: true
     
     # Health check
     healthcheck:
-      test: ["CMD", "node", "-e", "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      test: ["CMD", "setpriv", "--reuid=1000", "--regid=1000", "--clear-groups", "node", "-e", "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 3s
       start_period: 10s

@@ -35,21 +35,46 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify non-root user
+      - name: Verify server drops to uid 1000 with minimal capabilities
         run: |
           IMAGE="mcpambassador-server:pr-${{ github.event.pull_request.number }}"
           docker build -t $IMAGE .
-          USER_ID=$(docker run --rm $IMAGE id -u)
-          if [ "$USER_ID" = "0" ]; then
-            echo "ERROR: Container runs as root (UID 0). This is not allowed."
-            exit 1
+          # Start the way docker-compose.yml does. The image starts as root only for docker/entrypoint.sh.
+          mkdir -p "$RUNNER_TEMP/amb-data" "$RUNNER_TEMP/amb-cache"
+          sudo chown 1000:1000 "$RUNNER_TEMP/amb-data" "$RUNNER_TEMP/amb-cache"
+          docker run -d --name amb-verify --cap-drop ALL \
+            --cap-add SETUID --cap-add SETGID --cap-add KILL --cap-add CHOWN --cap-add SETPCAP \
+            --security-opt no-new-privileges --read-only \
+            -v "$RUNNER_TEMP/amb-data:/data" -v "$RUNNER_TEMP/amb-cache:/tmp" \
+            -e MCP_AMBASSADOR_DATA_DIR=/data -e NODE_ENV=production "$IMAGE"
+          for i in $(seq 1 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' amb-verify)" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' amb-verify)" = true ] || break
+            sleep 2
+          done
+          docker logs amb-verify 2>&1 | tail -20
+          STATUS=$(docker exec -u 1000 amb-verify cat /proc/1/status)
+          UID_LINE=$(echo "$STATUS" | awk '/^Uid:/{print $2" "$3" "$4" "$5}')
+          CAPEFF=$(echo "$STATUS" | awk '/^CapEff:/{print $2}')
+          echo "PID 1: Uid=[$UID_LINE] CapEff=$CAPEFF"
+          if [ "$UID_LINE" != "1000 1000 1000 1000" ]; then
+            echo "ERROR: PID 1 is not uid 1000 (root or wrong uid)."; docker rm -f amb-verify; exit 1
           fi
-          echo "Container runs as UID $USER_ID — OK"
+          if [ "$CAPEFF" != "00000000000000e0" ]; then
+            echo "ERROR: PID 1 CapEff is $CAPEFF, expected 00000000000000e0 (SETUID/SETGID/KILL)."; docker rm -f amb-verify; exit 1
+          fi
+          ROOT_PROCS=$(docker exec -u 1000 amb-verify sh -c 'for d in /proc/[0-9]*; do awk "/^Uid:/{if (\$2==0) print FILENAME}" $d/status; done' | wc -l)
+          if [ "$ROOT_PROCS" != "0" ]; then
+            echo "ERROR: $ROOT_PROCS uid-0 process(es) still running."; docker rm -f amb-verify; exit 1
+          fi
+          [ "$(docker inspect -f '{{.State.Health.Status}}' amb-verify)" = healthy ] || { echo "ERROR: not healthy"; docker rm -f amb-verify; exit 1; }
+          docker rm -f amb-verify
+          echo "Server runs as UID 1000 with CapEff e0, no uid-0 process — OK"
 
       - name: Verify uv/uvx and python3 are present and runnable (read-only rootfs, non-root)
         run: |
           IMAGE="mcpambassador-server:pr-${{ github.event.pull_request.number }}"
-          docker run --rm --read-only --tmpfs /tmp:exec "$IMAGE" sh -c '
+          docker run --rm --read-only --tmpfs /tmp:exec,uid=1000,gid=1000 "$IMAGE" sh -c '
             set -e
             uvx --version
             uv --version
