@@ -297,6 +297,9 @@ export interface DownstreamStatus {
   }>;
 }
 
+/** One ACTIVE kill switch from GET /v1/admin/kill-switches (a target is active iff listed). */
+export type { KillSwitchSummary } from '@mcpambassador/contracts';
+
 export interface KillSwitchResponse {
   target: string;
   enabled: boolean;

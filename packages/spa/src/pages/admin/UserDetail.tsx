@@ -9,11 +9,18 @@ import { Divider } from '@/components/catalyst/divider';
 import { useAdminUser, useAdminUserGroups, useAuditEvents } from '@/api/hooks/use-admin';
 import { useUpdateUser, useResetPassword } from '@/api/hooks/use-admin';
 import { toast } from 'sonner';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Input } from '@/components/catalyst/input';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { UserAgentGrants } from '@/components/admin/UserAgentGrants';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 
 export function UserDetail() {
@@ -21,7 +28,11 @@ export function UserDetail() {
   const { data: user, isLoading: userLoading } = useAdminUser(userId!);
   usePageTitle(user ? `Admin - ${user.username}` : 'Admin - User Details');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState<{ display_name: string; email: string; is_admin: boolean }>({
+  const [editFormData, setEditFormData] = useState<{
+    display_name: string;
+    email: string;
+    is_admin: boolean;
+  }>({
     display_name: '',
     email: '',
     is_admin: false,
@@ -65,10 +76,7 @@ export function UserDetail() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <Breadcrumb
-        items={[
-          { label: 'Users', href: '/app/admin/users' },
-          { label: user.username },
-        ]}
+        items={[{ label: 'Users', href: '/app/admin/users' }, { label: user.username }]}
       />
 
       {/* Header */}
@@ -85,9 +93,7 @@ export function UserDetail() {
                 Admin
               </Badge>
             )}
-            <Badge color={user.status === 'active' ? 'green' : 'zinc'}>
-              {user.status}
-            </Badge>
+            <Badge color={user.status === 'active' ? 'green' : 'zinc'}>{user.status}</Badge>
           </div>
         </div>
       </div>
@@ -115,7 +121,9 @@ export function UserDetail() {
             </div>
             <div>
               <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Display Name</dt>
-              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{user.display_name || '—'}</dd>
+              <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
+                {user.display_name || '—'}
+              </dd>
             </div>
             <div>
               <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
@@ -204,16 +212,21 @@ export function UserDetail() {
           {auditLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-16 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
+                <div
+                  key={i}
+                  className="animate-pulse h-16 w-full rounded bg-zinc-200 dark:bg-zinc-700"
+                />
               ))}
             </div>
           ) : auditData && auditData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
-              {auditData.data.map((event) => (
+              {auditData.data.map(event => (
                 <div key={event.event_id} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <Text className="font-medium text-zinc-900 dark:text-white">{event.action}</Text>
+                      <Text className="font-medium text-zinc-900 dark:text-white">
+                        {event.action}
+                      </Text>
                       <Text className="text-sm text-zinc-500 dark:text-zinc-400">
                         {event.event_type} • {event.source_ip}
                       </Text>
@@ -224,8 +237,8 @@ export function UserDetail() {
                           event.severity === 'error'
                             ? 'red'
                             : event.severity === 'warn'
-                            ? 'amber'
-                            : 'zinc'
+                              ? 'amber'
+                              : 'zinc'
                         }
                       >
                         {event.severity}
@@ -244,6 +257,8 @@ export function UserDetail() {
         </div>
       </div>
 
+      <UserAgentGrants userId={user.user_id} />
+
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
         <DialogBody>
@@ -254,36 +269,46 @@ export function UserDetail() {
               <Label>Display Name</Label>
               <Input
                 value={editFormData.display_name}
-                onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
+                onChange={e => setEditFormData({ ...editFormData, display_name: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Email</Label>
-              <Input value={editFormData.email} onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })} />
+              <Input
+                value={editFormData.email}
+                onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+              />
             </Field>
             <CheckboxField>
               <Checkbox
                 name="is_admin"
                 checked={editFormData.is_admin}
-                onChange={(checked) => setEditFormData({ ...editFormData, is_admin: checked })}
+                onChange={checked => setEditFormData({ ...editFormData, is_admin: checked })}
               />
               <Label>Administrator</Label>
             </CheckboxField>
           </div>
           <DialogActions>
-            <Button plain onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button plain onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button
               onClick={async () => {
                 try {
-                  await updateUser.mutateAsync({ userId: user.user_id, data: {
-                    display_name: editFormData.display_name || undefined,
-                    email: editFormData.email || undefined,
-                    is_admin: editFormData.is_admin,
-                  } });
+                  await updateUser.mutateAsync({
+                    userId: user.user_id,
+                    data: {
+                      display_name: editFormData.display_name || undefined,
+                      email: editFormData.email || undefined,
+                      is_admin: editFormData.is_admin,
+                    },
+                  });
                   toast.success('User updated');
                   setEditDialogOpen(false);
                 } catch (error) {
-                  toast.error('Failed to update user', { description: (error as Error)?.message ?? String(error) });
+                  toast.error('Failed to update user', {
+                    description: (error as Error)?.message ?? String(error),
+                  });
                 }
               }}
               disabled={updateUser.isPending}
@@ -298,15 +323,29 @@ export function UserDetail() {
       <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
         <DialogBody>
           <DialogTitle>Reset Password</DialogTitle>
-          <DialogDescription>Set a new password for {user.username}. They will need to use this password to log in.</DialogDescription>
+          <DialogDescription>
+            Set a new password for {user.username}. They will need to use this password to log in.
+          </DialogDescription>
           <div className="space-y-4 mt-4">
             <Field>
               <Label>New Password</Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+              />
             </Field>
           </div>
           <DialogActions>
-            <Button plain onClick={() => { setResetDialogOpen(false); setNewPassword(''); }}>Cancel</Button>
+            <Button
+              plain
+              onClick={() => {
+                setResetDialogOpen(false);
+                setNewPassword('');
+              }}
+            >
+              Cancel
+            </Button>
             <Button
               color="amber"
               onClick={async () => {
@@ -316,7 +355,9 @@ export function UserDetail() {
                   setResetDialogOpen(false);
                   setNewPassword('');
                 } catch (error) {
-                  toast.error('Failed to reset password', { description: (error as Error)?.message ?? String(error) });
+                  toast.error('Failed to reset password', {
+                    description: (error as Error)?.message ?? String(error),
+                  });
                 }
               }}
               disabled={resetPassword.isPending || !newPassword}

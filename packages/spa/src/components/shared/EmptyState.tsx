@@ -21,9 +21,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
           {icon}
         </div>
       )}
-      <Text className="text-center font-medium text-zinc-900 dark:text-white">
-        {title}
-      </Text>
+      <Text className="text-center font-medium text-zinc-900 dark:text-white">{title}</Text>
       {description && (
         <Text className="mt-1 text-center text-sm text-zinc-500 dark:text-zinc-400">
           {description}

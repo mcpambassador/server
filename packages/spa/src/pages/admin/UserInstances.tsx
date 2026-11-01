@@ -15,7 +15,14 @@ import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
 import { Input } from '@/components/catalyst/input';
 import { useUserMcpInstances, useRestartUserMcp } from '@/api/hooks/use-admin';
 import type { UserMcpInstance } from '@/api/types';
@@ -58,8 +65,8 @@ export function UserInstances() {
     let result = instances;
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter(i =>
-        i.username.toLowerCase().includes(q) || i.mcp_name.toLowerCase().includes(q)
+      result = result.filter(
+        i => i.username.toLowerCase().includes(q) || i.mcp_name.toLowerCase().includes(q)
       );
     }
     if (statusFilter === 'healthy') {
@@ -82,9 +89,8 @@ export function UserInstances() {
     }
   };
 
-  const isHealthy = (inst: UserMcpInstance) =>
-    inst.status === 'connected';
-  
+  const isHealthy = (inst: UserMcpInstance) => inst.status === 'connected';
+
   const rowKey = (inst: UserMcpInstance) => `${inst.user_id}-${inst.mcp_name}`;
 
   const toggleRow = (key: string) => {
@@ -100,7 +106,10 @@ export function UserInstances() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1, 2, 3].map(i => (
-            <div key={i} className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6 animate-pulse">
+            <div
+              key={i}
+              className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6 animate-pulse"
+            >
               <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-1/2 mb-2" />
               <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-1/3" />
             </div>
@@ -127,7 +136,9 @@ export function UserInstances() {
               <ServerStackIcon className="h-6 w-6 text-blue-500" />
             </div>
             <div>
-              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Total Active Instances</Text>
+              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Total Active Instances
+              </Text>
               <div className="text-2xl font-semibold text-zinc-900 dark:text-white">
                 {summary?.total_instances ?? 0}
               </div>
@@ -142,7 +153,9 @@ export function UserInstances() {
               <UsersIcon className="h-6 w-6 text-green-500" />
             </div>
             <div>
-              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Active Users</Text>
+              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Active Users
+              </Text>
               <div className="text-2xl font-semibold text-zinc-900 dark:text-white">
                 {summary?.active_users ?? 0}
               </div>
@@ -157,7 +170,9 @@ export function UserInstances() {
               <WrenchScrewdriverIcon className="h-6 w-6 text-purple-500" />
             </div>
             <div>
-              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Total Tools Served</Text>
+              <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                Total Tools Served
+              </Text>
               <div className="text-2xl font-semibold text-zinc-900 dark:text-white">
                 {summary?.total_tools_served ?? 0}
               </div>
@@ -173,10 +188,12 @@ export function UserInstances() {
             <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <div className="text-sm font-medium text-red-900 dark:text-red-200">
-                {summary.unhealthy_instances} unhealthy instance{summary.unhealthy_instances !== 1 ? 's' : ''} detected
+                {summary.unhealthy_instances} unhealthy instance
+                {summary.unhealthy_instances !== 1 ? 's' : ''} detected
               </div>
               <div className="mt-1 text-sm text-red-700 dark:text-red-300">
-                Some user MCP instances are experiencing errors or connectivity issues. Review the table below for details.
+                Some user MCP instances are experiencing errors or connectivity issues. Review the
+                table below for details.
               </div>
             </div>
           </div>
@@ -188,7 +205,10 @@ export function UserInstances() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search Input */}
           <div>
-            <label htmlFor="search" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+            <label
+              htmlFor="search"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+            >
               Search
             </label>
             <Input
@@ -196,7 +216,7 @@ export function UserInstances() {
               type="text"
               placeholder="Search by username or MCP name..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
             />
           </div>
 
@@ -290,9 +310,7 @@ export function UserInstances() {
                           <span className="font-mono text-sm">{inst.mcp_name}</span>
                         </TableCell>
                         <TableCell>
-                          <Badge color={healthy ? 'green' : 'red'}>
-                            {inst.status}
-                          </Badge>
+                          <Badge color={healthy ? 'green' : 'red'}>{inst.status}</Badge>
                         </TableCell>
                         <TableCell className="text-right">{inst.tool_count}</TableCell>
                         <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -323,10 +341,7 @@ export function UserInstances() {
                               <ArrowPathIcon className="h-4 w-4" />
                               Restart
                             </Button>
-                            <Button
-                              color="zinc"
-                              onClick={() => toggleRow(key)}
-                            >
+                            <Button color="zinc" onClick={() => toggleRow(key)}>
                               {isExpanded ? (
                                 <ChevronUpIcon className="h-4 w-4" />
                               ) : (
@@ -348,12 +363,20 @@ export function UserInstances() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                   <div>
-                                    <span className="text-zinc-500 dark:text-zinc-400">User ID:</span>{' '}
-                                    <span className="font-mono text-zinc-900 dark:text-zinc-100">{inst.user_id}</span>
+                                    <span className="text-zinc-500 dark:text-zinc-400">
+                                      User ID:
+                                    </span>{' '}
+                                    <span className="font-mono text-zinc-900 dark:text-zinc-100">
+                                      {inst.user_id}
+                                    </span>
                                   </div>
                                   <div>
-                                    <span className="text-zinc-500 dark:text-zinc-400">Error Count:</span>{' '}
-                                    <span className="font-mono text-zinc-900 dark:text-zinc-100">{inst.error_count}</span>
+                                    <span className="text-zinc-500 dark:text-zinc-400">
+                                      Error Count:
+                                    </span>{' '}
+                                    <span className="font-mono text-zinc-900 dark:text-zinc-100">
+                                      {inst.error_count}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -372,7 +395,8 @@ export function UserInstances() {
                               )}
 
                               <div className="text-xs text-zinc-500 dark:text-zinc-400 italic">
-                                Note: Full error history and detailed logs are available on the individual MCP detail pages.
+                                Note: Full error history and detailed logs are available on the
+                                individual MCP detail pages.
                               </div>
                             </div>
                           </TableCell>

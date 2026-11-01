@@ -5,7 +5,13 @@ import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
-import { useCreateMcp, useUpdateMcp, useValidateMcp, useDiscoverTools, usePublishMcp } from '@/api/hooks/use-admin';
+import {
+  useCreateMcp,
+  useUpdateMcp,
+  useValidateMcp,
+  useDiscoverTools,
+  usePublishMcp,
+} from '@/api/hooks/use-admin';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import type { ValidationResult, DiscoveryResult, RegistryMcp } from '@/api/types';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
@@ -77,14 +83,13 @@ export function McpWizard() {
     oauth_extra_params: '',
   });
 
-  const patchFormData = (patch: Partial<FormData>) =>
-    setFormData((prev) => ({ ...prev, ...patch }));
+  const patchFormData = (patch: Partial<FormData>) => setFormData(prev => ({ ...prev, ...patch }));
 
   const handleRegistrySelect = (entry: RegistryMcp) => {
     const mapped = mapRegistryEntryToFormData(entry, {
       oauth_access_token_env_var: formData.oauth_access_token_env_var,
     });
-    setFormData((prev) => ({ ...prev, ...mapped }));
+    setFormData(prev => ({ ...prev, ...mapped }));
     setImportedFromRegistry(entry.display_name);
     toast.success('Registry Import', {
       description: `Pre-filled wizard from "${entry.display_name}". Review and edit as needed.`,
@@ -130,7 +135,9 @@ export function McpWizard() {
           if (
             !Array.isArray(args) ||
             args.length === 0 ||
-            (args as unknown[]).some((a: unknown) => typeof a !== 'string' || (a as string).trim() === '')
+            (args as unknown[]).some(
+              (a: unknown) => typeof a !== 'string' || (a as string).trim() === ''
+            )
           ) {
             configErrors.config =
               (configErrors.config ? configErrors.config + '. ' : '') +
@@ -177,23 +184,32 @@ export function McpWizard() {
               credentialSchemaObj = JSON.parse(formData.credential_schema);
             } catch {
               setErrors({ credential_schema: 'Invalid JSON in credential schema field' });
-              toast.error('Invalid JSON', { description: 'Invalid JSON in credential schema field' });
+              toast.error('Invalid JSON', {
+                description: 'Invalid JSON in credential schema field',
+              });
               return;
             }
           }
         } else if (authType === 'oauth2') {
           requiresUserCredentials = true;
           const oauthErrors: Record<string, string> = {};
-          if (!formData.oauth_auth_url.trim()) oauthErrors.oauth_auth_url = 'Authorization URL is required';
-          if (!formData.oauth_token_url.trim()) oauthErrors.oauth_token_url = 'Token URL is required';
+          if (!formData.oauth_auth_url.trim())
+            oauthErrors.oauth_auth_url = 'Authorization URL is required';
+          if (!formData.oauth_token_url.trim())
+            oauthErrors.oauth_token_url = 'Token URL is required';
           if (!formData.oauth_scopes.trim()) oauthErrors.oauth_scopes = 'Scopes are required';
-          if (!formData.oauth_client_id_env.trim()) oauthErrors.oauth_client_id_env = 'Client ID env var is required';
-          if (!formData.oauth_client_secret_env.trim()) oauthErrors.oauth_client_secret_env = 'Client secret env var is required';
-          if (!formData.oauth_access_token_env_var.trim()) oauthErrors.oauth_access_token_env_var = 'Access token env var is required';
+          if (!formData.oauth_client_id_env.trim())
+            oauthErrors.oauth_client_id_env = 'Client ID env var is required';
+          if (!formData.oauth_client_secret_env.trim())
+            oauthErrors.oauth_client_secret_env = 'Client secret env var is required';
+          if (!formData.oauth_access_token_env_var.trim())
+            oauthErrors.oauth_access_token_env_var = 'Access token env var is required';
 
           if (Object.keys(oauthErrors).length > 0) {
             setErrors(oauthErrors);
-            toast.error('OAuth Configuration', { description: 'Please fill all required OAuth fields' });
+            toast.error('OAuth Configuration', {
+              description: 'Please fill all required OAuth fields',
+            });
             return;
           }
 
@@ -270,7 +286,7 @@ export function McpWizard() {
       }
     }
 
-    setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+    setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
   };
 
   const handleBack = () => {
@@ -278,7 +294,7 @@ export function McpWizard() {
       setValidationResult(null);
       setDiscoveryResult(null);
     }
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
+    setCurrentStep(prev => Math.max(prev - 1, 0));
   };
 
   const handleValidate = async () => {
@@ -288,7 +304,9 @@ export function McpWizard() {
       setValidationResult(result);
       setDiscoveryResult(null);
     } catch (error) {
-      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Validate MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -300,12 +318,16 @@ export function McpWizard() {
       if (result.status === 'success') {
         toast.success('Tool Discovery', { description: `Discovered ${result.tool_count} tools` });
       } else if (result.status === 'skipped') {
-        toast.info('Tool Discovery', { description: result.message || 'Discovery skipped for credential-gated MCP' });
+        toast.info('Tool Discovery', {
+          description: result.message || 'Discovery skipped for credential-gated MCP',
+        });
       } else {
         toast.error('Tool Discovery', { description: result.message || 'Discovery failed' });
       }
     } catch (error) {
-      toast.error('Discover Tools failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Discover Tools failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -315,7 +337,9 @@ export function McpWizard() {
       await publishMcp.mutateAsync(createdMcpId);
       navigate(`/app/admin/mcps/${createdMcpId}`);
     } catch (error) {
-      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Publish MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -325,12 +349,7 @@ export function McpWizard() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <Breadcrumb
-        items={[
-          { label: 'MCPs', href: '/app/admin/mcps' },
-          { label: 'Create New' },
-        ]}
-      />
+      <Breadcrumb items={[{ label: 'MCPs', href: '/app/admin/mcps' }, { label: 'Create New' }]} />
 
       <div>
         <Heading>Create New MCP</Heading>
@@ -397,11 +416,7 @@ export function McpWizard() {
             />
           )}
           {currentStep === 1 && (
-            <ConfigurationStep
-              formData={formData}
-              errors={errors}
-              onChange={patchFormData}
-            />
+            <ConfigurationStep formData={formData} errors={errors} onChange={patchFormData} />
           )}
           {currentStep === 2 && (
             <ValidateStep

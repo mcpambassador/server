@@ -84,16 +84,15 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
   const { data: registryData, isLoading, isError } = useRegistry();
 
   const filteredMcps =
-    registryData?.mcps?.filter((mcp) => {
+    registryData?.mcps?.filter(mcp => {
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         mcp.name.toLowerCase().includes(q) ||
         mcp.display_name.toLowerCase().includes(q) ||
         mcp.description.toLowerCase().includes(q) ||
-        mcp.tags.some((tag) => tag.toLowerCase().includes(q));
+        mcp.tags.some(tag => tag.toLowerCase().includes(q));
 
-      const matchesCategory =
-        selectedCategory === 'all' || mcp.category === selectedCategory;
+      const matchesCategory = selectedCategory === 'all' || mcp.category === selectedCategory;
 
       return matchesSearch && matchesCategory;
     }) ?? [];
@@ -131,7 +130,7 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
           <Input
             placeholder="Search by name, description, or tag..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             className="pl-9"
             aria-label="Search registry MCPs"
           />
@@ -139,7 +138,7 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
 
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Filter by category">
-          {CATEGORIES.map((cat) => (
+          {CATEGORIES.map(cat => (
             <Badge
               key={cat}
               color={selectedCategory === cat ? 'blue' : 'zinc'}
@@ -147,7 +146,7 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
               role="button"
               tabIndex={0}
               onClick={() => setSelectedCategory(cat)}
-              onKeyDown={(e) => {
+              onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   setSelectedCategory(cat);
@@ -192,7 +191,7 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
 
           {!isLoading && !isError && filteredMcps.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
-              {filteredMcps.map((mcp) => (
+              {filteredMcps.map(mcp => (
                 <button
                   key={mcp.name}
                   type="button"
@@ -203,11 +202,7 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
                   {/* Card header */}
                   <div className="flex items-start gap-3">
                     {mcp.icon_url ? (
-                      <img
-                        src={mcp.icon_url}
-                        alt=""
-                        className="size-8 rounded shrink-0"
-                      />
+                      <img src={mcp.icon_url} alt="" className="size-8 rounded shrink-0" />
                     ) : (
                       <CubeIcon className="size-8 text-zinc-400 dark:text-zinc-500 shrink-0" />
                     )}

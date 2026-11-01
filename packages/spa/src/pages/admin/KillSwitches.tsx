@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { PowerIcon, ExclamationTriangleIcon, ServerIcon, CubeIcon } from '@heroicons/react/20/solid';
+import {
+  PowerIcon,
+  ExclamationTriangleIcon,
+  ServerIcon,
+  CubeIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
-import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
+import {
+  useAdminClients,
+  useAdminMcps,
+  useKillSwitch,
+  useKillSwitches,
+} from '@/api/hooks/use-admin';
 import type { AdminClient } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -15,15 +25,30 @@ export function KillSwitches() {
   usePageTitle('Admin - Kill Switches');
   const { data: clientsData, isLoading: clientsLoading } = useAdminClients();
   const { data: mcpsData, isLoading: mcpsLoading } = useAdminMcps();
+  const {
+    data: switchesData,
+    isLoading: switchesLoading,
+    isError: switchesError,
+  } = useKillSwitches();
   const killSwitch = useKillSwitch();
 
+  // Kill-switch state comes ONLY from the server's active list; client/MCP status is unrelated.
+  const activeByTarget = new Map((switchesData ?? []).map(s => [s.target, s]));
+  const activeKeys = { has: (t: string) => activeByTarget.has(t) };
+  const killedInfo = (t: string) => {
+    const s = activeByTarget.get(t);
+    return s ? `Activated ${new Date(s.activated_at).toLocaleString()} by ${s.activated_by}` : '';
+  };
+  const switchStateKnown = !switchesLoading && !switchesError;
+
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  // enabled === true means "activate the kill switch" (block); false means "restore access".
   const [selectedTarget, setSelectedTarget] = useState<{ target: string; enabled: boolean } | null>(
     null
   );
 
-  const handleToggle = (target: string, currentlyEnabled: boolean) => {
-    setSelectedTarget({ target, enabled: !currentlyEnabled });
+  const handleToggle = (target: string, currentlyKilled: boolean) => {
+    setSelectedTarget({ target, enabled: !currentlyKilled });
     setConfirmDialogOpen(true);
   };
 
@@ -37,7 +62,9 @@ export function KillSwitches() {
       setConfirmDialogOpen(false);
       setSelectedTarget(null);
     } catch (error) {
-      toast.error('Kill switch failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Kill switch failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -49,6 +76,15 @@ export function KillSwitches() {
         <Text>Emergency controls to disable clients or MCPs</Text>
       </div>
 
+      {switchesError && (
+        <div
+          role="alert"
+          className="rounded-lg bg-amber-50 dark:bg-amber-950/50 p-4 text-sm/6 text-amber-800 dark:text-amber-200 ring-1 ring-amber-200 dark:ring-amber-800"
+        >
+          Could not load kill-switch state, so controls are disabled. Reload to retry.
+        </div>
+      )}
+
       {/* Warning Banner */}
       <div className="rounded-lg bg-red-50 dark:bg-red-950/50 p-4 ring-1 ring-red-200 dark:ring-red-800">
         <div className="flex items-center gap-2">
@@ -57,22 +93,58 @@ export function KillSwitches() {
         </div>
         <p className="mt-1 text-sm/6 text-red-700 dark:text-red-300">
           Kill switches immediately disable access. Use with caution. Disabled entities will not be
-          able to make requests until re-enabled.
+          able to make requests until restored.
         </p>
       </div>
 
+      {/* Every active switch, including ones whose client/MCP is deleted, archived or off-page */}
+      {switchStateKnown && (switchesData ?? []).length > 0 && (
+        <div
+          data-testid="active-kill-switches"
+          className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10"
+        >
+          <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+            Active kill switches
+          </h3>
+          <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+            All switches currently in effect
+          </p>
+          <div className="mt-4 divide-y divide-zinc-950/5 dark:divide-white/10">
+            {(switchesData ?? []).map(s => (
+              <div key={s.target} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm/6 font-mono font-medium text-zinc-900 dark:text-white">
+                    {s.target}
+                  </p>
+                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                    {s.type} · {killedInfo(s.target)}
+                  </p>
+                </div>
+                <Button
+                  color="green"
+                  aria-label={`Restore ${s.target}`}
+                  onClick={() => handleToggle(s.target, true)}
+                >
+                  <PowerIcon data-slot="icon" />
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Client Kill Switches */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Client Kill Switches</h3>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          Client Kill Switches
+        </h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable individual API clients</p>
         <div className="mt-4">
           {clientsLoading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-3 animate-pulse"
-                >
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center justify-between py-3 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -87,10 +159,7 @@ export function KillSwitches() {
           ) : clientsData && clientsData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
               {clientsData.data.map((client: AdminClient) => (
-                <div
-                  key={client.client_id}
-                  className="flex items-center justify-between py-3"
-                >
+                <div key={client.client_id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
                       {client.client_name}
@@ -103,17 +172,26 @@ export function KillSwitches() {
                     <Badge color={client.status === 'active' ? 'green' : 'zinc'}>
                       {client.status}
                     </Badge>
+                    {activeKeys.has(`client:${client.client_id}`) && (
+                      <>
+                        <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
+                          {killedInfo(`client:${client.client_id}`)}
+                        </span>
+                        <Badge color="red">Kill switch active</Badge>
+                      </>
+                    )}
                     <Button
-                      color={client.status === 'active' ? 'red' : 'green'}
+                      color={activeKeys.has(`client:${client.client_id}`) ? 'green' : 'red'}
+                      disabled={!switchStateKnown}
                       onClick={() =>
                         handleToggle(
                           `client:${client.client_id}`,
-                          client.status === 'active'
+                          activeKeys.has(`client:${client.client_id}`)
                         )
                       }
                     >
                       <PowerIcon data-slot="icon" />
-                      {client.status === 'active' ? 'Disable' : 'Enable'}
+                      {activeKeys.has(`client:${client.client_id}`) ? 'Restore' : 'Kill'}
                     </Button>
                   </div>
                 </div>
@@ -131,16 +209,17 @@ export function KillSwitches() {
 
       {/* MCP Kill Switches */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Kill Switches</h3>
-        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable MCP servers system-wide</p>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          MCP Kill Switches
+        </h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+          Disable MCP servers system-wide
+        </p>
         <div className="mt-4">
           {mcpsLoading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-3 animate-pulse"
-                >
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center justify-between py-3 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -154,11 +233,15 @@ export function KillSwitches() {
             </div>
           ) : mcpsData && mcpsData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
-              {mcpsData.data.map((mcp) => (
+              {mcpsData.data.map(mcp => (
                 <div key={mcp.mcp_id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">{mcp.display_name}</p>
-                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">{mcp.name}</p>
+                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+                      {mcp.display_name}
+                    </p>
+                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">
+                      {mcp.name}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge
@@ -172,15 +255,23 @@ export function KillSwitches() {
                     >
                       {mcp.status}
                     </Badge>
+                    {activeKeys.has(`mcp:${mcp.name}`) && (
+                      <>
+                        <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
+                          {killedInfo(`mcp:${mcp.name}`)}
+                        </span>
+                        <Badge color="red">Kill switch active</Badge>
+                      </>
+                    )}
                     <Button
-                      color={mcp.status === 'published' ? 'red' : 'green'}
+                      color={activeKeys.has(`mcp:${mcp.name}`) ? 'green' : 'red'}
                       onClick={() =>
-                        handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')
+                        handleToggle(`mcp:${mcp.name}`, activeKeys.has(`mcp:${mcp.name}`))
                       }
-                      disabled={mcp.status === 'archived'}
+                      disabled={!switchStateKnown}
                     >
                       <PowerIcon data-slot="icon" />
-                      {mcp.status === 'published' ? 'Disable' : 'Enable'}
+                      {activeKeys.has(`mcp:${mcp.name}`) ? 'Restore' : 'Kill'}
                     </Button>
                   </div>
                 </div>
@@ -199,12 +290,13 @@ export function KillSwitches() {
       {/* Confirmation Dialog */}
       <Alert open={confirmDialogOpen} onClose={setConfirmDialogOpen}>
         <AlertTitle>
-          {selectedTarget?.enabled ? 'Disable' : 'Enable'} {selectedTarget?.target}?
+          {selectedTarget?.enabled ? 'Activate kill switch for' : 'Restore access for'}{' '}
+          {selectedTarget?.target}?
         </AlertTitle>
         <AlertDescription>
           {selectedTarget?.enabled
             ? 'This will immediately block all requests from this entity. Active connections may be terminated.'
-            : 'This will re-enable access for this entity.'}
+            : 'This will deactivate the kill switch and restore access for this entity.'}
         </AlertDescription>
         <AlertActions>
           <Button
@@ -217,7 +309,7 @@ export function KillSwitches() {
             Cancel
           </Button>
           <Button color={selectedTarget?.enabled ? 'red' : 'green'} onClick={handleConfirm}>
-            {selectedTarget?.enabled ? 'Disable' : 'Enable'}
+            {selectedTarget?.enabled ? 'Activate kill switch' : 'Restore access'}
           </Button>
         </AlertActions>
       </Alert>

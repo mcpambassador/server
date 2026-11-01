@@ -280,6 +280,9 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.2.4)
+      '@mcpambassador/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.90.21(react@19.2.4)
