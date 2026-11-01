@@ -44,7 +44,7 @@ interface ZodIssueLike {
 }
 
 /** Zod enum/literal messages echo the received value; replace those. */
-function safeIssueMessage(i: ZodIssueLike): string {
+export function safeIssueMessage(i: ZodIssueLike): string {
   return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
     ? 'Invalid value'
     : i.message;

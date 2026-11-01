@@ -132,7 +132,7 @@ const VALUE_ECHOING_CODES = new Set([
 ]);
 
 /** Format zod issues as `path: message` pairs. Never includes config values. */
-function formatZodIssues(error: ZodError): string {
+export function formatZodIssues(error: ZodError): string {
   return error.issues
     .map(
       i =>
