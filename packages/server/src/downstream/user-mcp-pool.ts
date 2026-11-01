@@ -99,11 +99,14 @@ export class UserMcpPool {
    *
    * @param userId User UUID
    * @param credentials Optional map of MCP name → credentials to inject
+   * @param allowedMcpIds TD-040: catalog ids the user is granted AND subscribed to; every other
+   *   configured MCP (and any config without an mcp_id) is skipped, never spawned
    * @throws ServiceUnavailableError if per-user or system-wide limit exceeded
    */
   async spawnForUser(
     userId: string,
-    credentials?: Map<string, import('./types.js').UserMcpCredentials>
+    credentials: Map<string, import('./types.js').UserMcpCredentials> | undefined,
+    allowedMcpIds: ReadonlySet<string>
   ): Promise<void> {
     // Idempotent: if already spawned, return immediately
     const existingInstances = this.userInstances.get(userId);
@@ -160,7 +163,11 @@ export class UserMcpPool {
       this.userInstances.set(userId, instanceSet);
 
       // Spawn connections for each MCP config (parallel, matching SharedMcpManager pattern)
-      const startPromises = this.config.mcpConfigs.map(async config => {
+      const spawnable = this.config.mcpConfigs.filter(c => c.mcp_id && allowedMcpIds.has(c.mcp_id));
+      logger.info(
+        `[UserMcpPool] Spawning ${spawnable.length}/${this.config.mcpConfigs.length} per-user MCPs (granted and subscribed) for user ${userId}`
+      );
+      const startPromises = spawnable.map(async config => {
         try {
           // F-SEC-M6-001: Validate config before spawning
           validateMcpConfig(config);

@@ -81,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { spawnableMcpIdsForUser } from './services/mcp-access.js';
 import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import { SecretStore } from './services/secret-store.js';
@@ -447,6 +448,7 @@ export class AmbassadorServer {
       const config = JSON.parse(entry.config) as Record<string, unknown>;
       const mcpConfig: DownstreamMcpConfig = {
         name: entry.name,
+        mcp_id: entry.mcp_id,
         transport: entry.transport_type as 'stdio' | 'http' | 'sse',
       };
 
@@ -1376,7 +1378,11 @@ export class AmbassadorServer {
           try {
             // M26: Load user credentials and inject into per-user MCPs
             const userCredentials = await this.loadUserCredentialsForMcps(sessionRecord.user_id);
-            await this.userPool.spawnForUser(sessionRecord.user_id, userCredentials);
+            await this.userPool.spawnForUser(
+              sessionRecord.user_id,
+              userCredentials,
+              await spawnableMcpIdsForUser(this.db!, sessionRecord.user_id)
+            );
           } catch (err) {
             // Log but don't fail registration — user just won't have per-user MCPs
             this.fastify!.log.error(
@@ -1478,7 +1484,11 @@ export class AmbassadorServer {
             try {
               // M26: Load user credentials and inject into per-user MCPs
               const userCredentials = await this.loadUserCredentialsForMcps(userId);
-              await this.userPool.spawnForUser(userId, userCredentials);
+              await this.userPool.spawnForUser(
+                userId,
+                userCredentials,
+                await spawnableMcpIdsForUser(this.db!, userId)
+              );
             } catch (err) {
               this.fastify!.log.error(
                 { err, userId },
@@ -1873,7 +1883,11 @@ export class AmbassadorServer {
         ensureUserMcps: async (userId: string) => {
           if (this.userPool.hasActiveInstances(userId)) return;
           const creds = await this.loadUserCredentialsForMcps(userId);
-          await this.userPool.spawnForUser(userId, creds);
+          await this.userPool.spawnForUser(
+            userId,
+            creds,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          );
         },
       });
     }

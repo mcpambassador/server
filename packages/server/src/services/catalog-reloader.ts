@@ -87,6 +87,7 @@ function catalogEntryToConfig(entry: McpCatalogEntry): DownstreamMcpConfig {
 
   const mcpConfig: DownstreamMcpConfig = {
     name: entry.name,
+    mcp_id: entry.mcp_id,
     transport: entry.transport_type,
   };
 

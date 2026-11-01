@@ -8,6 +8,8 @@
 
 import { and, eq } from 'drizzle-orm';
 import {
+  client_mcp_subscriptions,
+  clients,
   compatSelect,
   groups,
   mcp_group_access,
@@ -37,4 +39,23 @@ export async function userHasMcpAccess(
   mcpId: string
 ): Promise<boolean> {
   return (await grantedMcpIdsForUser(db, userId)).has(mcpId);
+}
+
+/**
+ * mcp_ids the per-user pool may spawn for this user (TD-040): granted through an active group AND
+ * actively subscribed by at least one of the user's clients. Read-only; never mutates a subscription.
+ */
+export async function spawnableMcpIdsForUser(
+  db: DatabaseClient,
+  userId: string
+): Promise<Set<string>> {
+  const granted = await grantedMcpIdsForUser(db, userId);
+  if (granted.size === 0) return new Set();
+  const rows = (await compatSelect(db, { mcp_id: client_mcp_subscriptions.mcp_id })
+    .from(client_mcp_subscriptions)
+    .innerJoin(clients, eq(clients.client_id, client_mcp_subscriptions.client_id))
+    .where(and(eq(clients.user_id, userId), eq(client_mcp_subscriptions.status, 'active')))) as {
+    mcp_id: string;
+  }[];
+  return new Set(rows.map(r => r.mcp_id).filter(id => granted.has(id)));
 }
