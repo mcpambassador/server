@@ -34,6 +34,7 @@ import {
   revoke,
   tokenRequest,
   fullFlow,
+  boundClientId,
 } from './oauth-flow-helpers.js';
 
 afterEach(() => {
@@ -109,7 +110,7 @@ describe('authorize + consent (pending request model)', () => {
     const d = JSON.parse(res.body).data;
     expect(d.client_name).toBe('verifier-agent');
     expect(d.client_verified).toBe(true);
-    expect(Array.isArray(d.available_subscriptions)).toBe(true);
+    expect(Array.isArray(d.clients)).toBe(true);
     expect(d.max_ttl_seconds).toBeGreaterThanOrEqual(d.default_ttl_seconds);
   });
 
@@ -126,6 +127,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(res.statusCode).toBe(403);
     const post = await decide(bob, requestId, {
       decision: 'approve',
+      bound_client_id: await boundClientId(bob),
       scopes: ['mcp:*'],
       ttl_seconds: 3600,
     });
@@ -146,6 +148,7 @@ describe('authorize + consent (pending request model)', () => {
     await approveAndGetCode(alice, requestId);
     const again = await decide(alice, requestId, {
       decision: 'approve',
+      bound_client_id: await boundClientId(alice),
       scopes: ['mcp:*'],
       ttl_seconds: 3600,
     });
@@ -161,6 +164,7 @@ describe('authorize + consent (pending request model)', () => {
     });
     const res = await decide(alice, requestId, {
       decision: 'approve',
+      bound_client_id: await boundClientId(alice),
       scopes: ['mcp:something-else'],
       ttl_seconds: 3600,
     });
@@ -175,6 +179,7 @@ describe('authorize + consent (pending request model)', () => {
     });
     const res = await decide(alice, requestId, {
       decision: 'approve',
+      bound_client_id: await boundClientId(alice),
       scopes: ['mcp:*'],
       ttl_seconds: 3600,
       client_id: 'attacker',
@@ -577,7 +582,12 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     const res = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
-      payload: { label: 'ci', scopes: ['mcp:*'], ttl_seconds: 3600 },
+      payload: {
+        bound_client_id: await boundClientId(alice),
+        label: 'ci',
+        scopes: ['mcp:*'],
+        ttl_seconds: 3600,
+      },
     });
     expect(res.statusCode).toBe(201);
     const d = JSON.parse(res.body).data;
@@ -591,14 +601,14 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
       headers: alice.headers(false),
-      payload: { label: 'ci', scopes: ['mcp:*'] },
+      payload: { bound_client_id: await boundClientId(alice), label: 'ci', scopes: ['mcp:*'] },
     });
     expect(noCsrf.statusCode).toBe(403);
     const noSession = await s.admin.inject({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
       headers: { 'X-Admin-Key': s.adminKey },
-      payload: { label: 'ci', scopes: ['mcp:*'] },
+      payload: { bound_client_id: await boundClientId(alice), label: 'ci', scopes: ['mcp:*'] },
     });
     expect([401, 403]).toContain(noSession.statusCode);
   });
@@ -607,7 +617,12 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     const res = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
-      payload: { label: 'long', scopes: ['mcp:*'], ttl_seconds: 30 * 86400 },
+      payload: {
+        bound_client_id: await boundClientId(alice),
+        label: 'long',
+        scopes: ['mcp:*'],
+        ttl_seconds: 30 * 86400,
+      },
     });
     if (res.statusCode === 201) {
       const exp = Date.parse(JSON.parse(res.body).data.expires_at);
@@ -622,7 +637,7 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     const created = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
-      payload: { label: 'mine', scopes: ['mcp:*'] },
+      payload: { bound_client_id: await boundClientId(alice), label: 'mine', scopes: ['mcp:*'] },
     });
     const gid = JSON.parse(created.body).data.grant_id as string;
     const bobList = JSON.parse(

@@ -36,4 +36,14 @@ describe('agent-endpoint test helpers (session + CSRF)', () => {
     const ok = await sess.request({ method: 'POST', url: '/v1/auth/logout' });
     expect(ok.statusCode).toBeLessThan(300);
   });
+
+  it('createAmbClient creates an active user client usable as bound_client_id', async () => {
+    const { createAmbClient } = await import('./oauth-flow-helpers.js');
+    const sess = await loginSession(s, await createUser(s, 'carol'));
+    const id = await createAmbClient(sess, 'c1');
+    const list = JSON.parse(
+      (await sess.request({ method: 'GET', url: '/v1/users/me/clients' })).body
+    );
+    expect(JSON.stringify(list)).toContain(id);
+  });
 });
