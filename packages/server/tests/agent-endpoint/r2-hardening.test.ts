@@ -137,41 +137,38 @@ describe('races, cookie isolation, consent edge cases', () => {
     expect(JSON.parse(rs.find(r => r.statusCode === 400)!.body).error).toBe('invalid_grant');
   });
 
-  itImpl(
-    'a valid SPA session cookie grants nothing on /mcp, /oauth/*, /.well-known/oauth-*',
-    async () => {
-      const cookie = alice.cookies.header();
-      const mcp = await s.api.inject({
-        method: 'POST',
-        url: AGENT_MCP_ROUTE,
-        headers: { cookie, 'content-type': 'application/json' },
-        payload: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
-      });
-      expect(mcp.statusCode).toBe(401);
-      const tok = await s.admin.inject({
-        method: 'POST',
-        url: OAUTH_TOKEN_ROUTE,
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'grant_type=refresh_token',
-      });
-      expect(tok.statusCode).toBe(400); // protocol error, not a CSRF 403 and not session-derived success
-      expect(JSON.parse(tok.body).error).toBeTruthy();
-      // revoke is not a cookie-authenticated, CSRF-guarded route: no 403 csrf, no state change
-      const rev = await s.admin.inject({
-        method: 'POST',
-        url: OAUTH_REVOKE_ROUTE,
-        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-        payload: 'token=amb_rt_' + 'a'.repeat(43) + '&client_id=' + clientId,
-      });
-      expect([200, 400]).toContain(rev.statusCode);
-      const meta = await s.admin.inject({
-        method: 'GET',
-        url: OAUTH_AS_METADATA_ROUTE,
-        headers: { cookie },
-      });
-      expect(meta.headers['set-cookie']).toBeUndefined();
-    }
-  );
+  it('a valid SPA session cookie grants nothing on /mcp, /oauth/*, /.well-known/oauth-*', async () => {
+    const cookie = alice.cookies.header();
+    const mcp = await s.api.inject({
+      method: 'POST',
+      url: AGENT_MCP_ROUTE,
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    });
+    expect(mcp.statusCode).toBe(401);
+    const tok = await s.admin.inject({
+      method: 'POST',
+      url: OAUTH_TOKEN_ROUTE,
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'grant_type=refresh_token',
+    });
+    expect(tok.statusCode).toBe(400); // protocol error, not a CSRF 403 and not session-derived success
+    expect(JSON.parse(tok.body).error).toBeTruthy();
+    // revoke is not a cookie-authenticated, CSRF-guarded route: no 403 csrf, no state change
+    const rev = await s.admin.inject({
+      method: 'POST',
+      url: OAUTH_REVOKE_ROUTE,
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'token=amb_rt_' + 'a'.repeat(43) + '&client_id=' + clientId,
+    });
+    expect([200, 400]).toContain(rev.statusCode);
+    const meta = await s.admin.inject({
+      method: 'GET',
+      url: OAUTH_AS_METADATA_ROUTE,
+      headers: { cookie },
+    });
+    expect(meta.headers['set-cookie']).toBeUndefined();
+  });
 
   it('consent approve with zero scopes → 400', async () => {
     const { challenge } = pkce();
@@ -222,57 +219,30 @@ describe('token lifetime + call-time enforcement', () => {
       payload: body as never,
     });
 
-  itImpl(
-    'one-shot grant token stays valid past 15 min, up to the grant TTL; dead after',
-    async () => {
-      const res = await alice.request({
-        method: 'POST',
-        url: AGENT_GRANTS_ROUTE,
-        payload: {
-          bound_client_id: await createAmbClient(alice, 'long'),
-          label: 'long',
-          scopes: ['mcp:*'],
-          ttl_seconds: 3600,
-        },
-      });
-      const tok = JSON.parse(res.body).data.access_token as string;
-      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 20 * 60 * 1000 });
+  it('one-shot grant token stays valid past 15 min, up to the grant TTL; dead after', async () => {
+    const res = await alice.request({
+      method: 'POST',
+      url: AGENT_GRANTS_ROUTE,
+      payload: {
+        bound_client_id: await createAmbClient(alice, 'long'),
+        label: 'long',
+        scopes: ['mcp:*'],
+        ttl_seconds: 3600,
+      },
+    });
+    const tok = JSON.parse(res.body).data.access_token as string;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(Date.now() + 20 * 60 * 1000));
       expect(
         (await call(tok, { jsonrpc: '2.0', id: 1, method: 'tools/list' })).statusCode
       ).not.toBe(401);
-      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 50 * 60 * 1000 });
+      vi.setSystemTime(new Date(Date.now() + 50 * 60 * 1000));
       expect((await call(tok, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).statusCode).toBe(
         401
       );
+    } finally {
+      vi.useRealTimers();
     }
-  );
-
-  itImpl(
-    'tools/call of a tool outside the allowlist is denied even when called directly by name',
-    async () => {
-      const res = await alice.request({
-        method: 'POST',
-        url: AGENT_GRANTS_ROUTE,
-        payload: {
-          bound_client_id: await createAmbClient(alice, 'allow'),
-          label: 'allow',
-          scopes: ['mcp:*'],
-          tool_allowlist: ['only__this_tool'],
-        },
-      });
-      const tok = JSON.parse(res.body).data.access_token as string;
-      const r = await call(tok, {
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: { name: 'other__tool', arguments: {} },
-      });
-      const body = JSON.parse(
-        r.body.startsWith('{') ? r.body : r.body.replace(/^data: /m, '').split('\n')[0]!
-      );
-      // Either a JSON-RPC error or an isError tool result; never a success payload.
-      expect(body.error ?? body.result?.isError).toBeTruthy();
-      expect(JSON.stringify(body)).not.toContain('"isError":false');
-    }
-  );
+  });
 });

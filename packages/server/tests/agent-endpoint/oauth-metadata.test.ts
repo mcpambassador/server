@@ -113,7 +113,7 @@ describe('agent endpoint enabled: metadata', () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl.each([OAUTH_PROTECTED_RESOURCE_ROUTE, OAUTH_PROTECTED_RESOURCE_MCP_ROUTE])(
+  it.each([OAUTH_PROTECTED_RESOURCE_ROUTE, OAUTH_PROTECTED_RESOURCE_MCP_ROUTE])(
     'RFC 9728 protected-resource metadata at %s',
     async url => {
       const res = await s.api.inject({ method: 'GET', url });
@@ -147,7 +147,7 @@ describe('agent endpoint enabled: metadata', () => {
     expect(JSON.parse(res.body).registration_endpoint).toBeUndefined();
   });
 
-  itImpl('metadata URLs ignore a spoofed Host / X-Forwarded-Host header', async () => {
+  it('metadata URLs ignore a spoofed Host / X-Forwarded-Host header', async () => {
     const headers = { host: 'evil.example', 'x-forwarded-host': 'evil.example' };
     const pr = await s.api.inject({ method: 'GET', url: OAUTH_PROTECTED_RESOURCE_ROUTE, headers });
     const as = await s.admin.inject({ method: 'GET', url: OAUTH_AS_METADATA_ROUTE, headers });

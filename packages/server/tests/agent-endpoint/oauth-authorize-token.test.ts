@@ -1,7 +1,7 @@
 /**
  * ADR-020 phase 2: authorization-code + PKCE flow, pending-request consent, token endpoint,
  * refresh rotation / reuse detection, revoke, DCR toggle, one-shot grants.
- * All `itImpl` until P4/P5 replace the 501 stubs (see helpers.ts).
+ * Real tests against the live P4/P5 implementation.
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import {
@@ -564,7 +564,7 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl('issues access token only (no refresh), bound to the canonical resource', async () => {
+  it('issues access token only (no refresh), bound to the canonical resource', async () => {
     const res = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,

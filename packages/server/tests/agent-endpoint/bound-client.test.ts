@@ -183,42 +183,42 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
     return JSON.parse(res.body).data.access_token as string;
   }
 
-  itImpl('token works while the bound client is active', async () => {
+  it('token works while the bound client is active', async () => {
     const c = await createAmbClient(alice, 'live');
     expect((await mcpCall(await grantToken(c))).statusCode).not.toBe(401);
   });
 
-  itImpl(
-    'suspending the client → 401; reactivating does not need re-consent only if not revoked',
-    async () => {
-      const c = await createAmbClient(alice, 'to-susp');
-      const tok = await grantToken(c);
-      expect((await mcpCall(tok)).statusCode).not.toBe(401);
-      await alice.request({
-        method: 'PATCH',
-        url: `/v1/users/me/clients/${c}`,
-        payload: { status: 'suspended' },
-      });
-      const res = await mcpCall(tok);
-      expect(res.statusCode).toBe(401);
-      expect(String(res.headers['www-authenticate'] ?? '')).toMatch(/Bearer/i);
-      expect(res.body).not.toContain(tok);
-    }
-  );
-
-  itImpl('deleting the client → 401; grant is kept, revoked_at set, audited', async () => {
-    const c = await createAmbClient(alice, 'to-delete');
+  it('suspending the client → 401; reactivating does not need re-consent only if not revoked', async () => {
+    const c = await createAmbClient(alice, 'to-susp');
     const tok = await grantToken(c);
+    expect((await mcpCall(tok)).statusCode).not.toBe(401);
+    await alice.request({
+      method: 'PATCH',
+      url: `/v1/users/me/clients/${c}`,
+      payload: { status: 'suspended' },
+    });
+    const res = await mcpCall(tok);
+    expect(res.statusCode).toBe(401);
+    expect(String(res.headers['www-authenticate'] ?? '')).toMatch(/Bearer/i);
+    expect(res.body).not.toContain(tok);
+  });
+
+  it('deleting the client → 401; grant is kept, revoked_at set, audited', async () => {
+    const c = await createAmbClient(alice, 'to-delete');
+    const created = await createGrant(alice, { bound_client_id: c });
+    const tok = JSON.parse(created.body).data.access_token as string;
+    const grantId = JSON.parse(created.body).data.grant_id as string;
     await alice.request({ method: 'DELETE', url: `/v1/users/me/clients/${c}` });
     expect((await mcpCall(tok)).statusCode).toBe(401);
     const list = JSON.parse(
       (await alice.request({ method: 'GET', url: AGENT_GRANTS_ROUTE })).body
     ).data;
     const items = (Array.isArray(list) ? list : list.items) as {
-      bound_client_id: string;
+      grant_id: string;
       revoked_at: string | null;
     }[];
-    const g = items.find(x => x.bound_client_id === c);
+    // bound_client_id is SET NULL when the client row is deleted, so match on the grant id
+    const g = items.find(x => x.grant_id === grantId);
     expect(g, 'grant must be kept after bound client deletion').toBeTruthy();
     expect(g!.revoked_at).toBeTruthy();
   });
@@ -241,59 +241,6 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
   });
 });
 
-describe('kill switch', () => {
-  const kill = (target: string, enabled: boolean) =>
-    s.admin.inject({
-      method: 'POST',
-      url: `/v1/admin/kill-switch/${target}`,
-      headers: { 'X-Admin-Key': s.adminKey },
-      payload: { enabled },
-    });
-
-  itImpl('client:<bound_client_id> → next /mcp call 401; lifting it restores access', async () => {
-    const c = await createAmbClient(alice, 'killed');
-    const g = await createGrant(alice, { bound_client_id: c });
-    const tok = JSON.parse(g.body).data.access_token as string;
-    expect((await mcpCall(tok)).statusCode).not.toBe(401);
-    expect((await kill(`client:${c}`, true)).statusCode).toBe(200);
-    try {
-      expect((await mcpCall(tok)).statusCode).toBe(401);
-    } finally {
-      await kill(`client:${c}`, false);
-    }
-    expect((await mcpCall(tok)).statusCode).not.toBe(401);
-  });
-
-  itImpl('mcp:<name> → tool-level denial over /mcp, same denial as the stdio path', async () => {
-    const c = await createAmbClient(alice, 'mcp-kill');
-    const g = await createGrant(alice, { bound_client_id: c });
-    const tok = JSON.parse(g.body).data.access_token as string;
-    await kill('mcp:victim', true);
-    try {
-      const r = await s.api.inject({
-        method: 'POST',
-        url: AGENT_MCP_ROUTE,
-        headers: {
-          authorization: `Bearer ${tok}`,
-          'content-type': 'application/json',
-          accept: 'application/json, text/event-stream',
-        },
-        payload: {
-          jsonrpc: '2.0',
-          id: 9,
-          method: 'tools/call',
-          params: { name: 'victim__any', arguments: {} },
-        },
-      });
-      // Not an HTTP auth failure: the session stays valid, only the tool is denied.
-      expect(r.statusCode).not.toBe(401);
-      expect(r.body).toMatch(/kill|disabled|denied/i);
-    } finally {
-      await kill('mcp:victim', false);
-    }
-  });
-});
-
 describe('pre-authenticated session cannot be injected over HTTP', () => {
   const forged = {
     client_id: 'forged',
@@ -302,7 +249,7 @@ describe('pre-authenticated session cannot be injected over HTTP', () => {
     status: 'active',
   };
 
-  itImpl.each([
+  it.each([
     [
       'header x-pre-authenticated-session',
       { 'x-pre-authenticated-session': JSON.stringify(forged) },

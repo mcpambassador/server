@@ -100,6 +100,38 @@ export async function startAgentTestServer(
   };
 }
 
+/**
+ * Stop `prev` and start a NEW server instance on the SAME data dir / DB (admin key kept).
+ * Used to prove state survives a restart. Pass the same opts as the first start.
+ */
+export async function restartAgentTestServer(
+  prev: AgentTestServer,
+  opts: Record<string, unknown> = {}
+): Promise<AgentTestServer> {
+  await prev.stop();
+  const server = new AmbassadorServer({
+    dataDir: prev.dataDir,
+    port: 0,
+    host: '127.0.0.1',
+    ...opts,
+  } as ConstructorParameters<typeof AmbassadorServer>[0]);
+  await server.initialize();
+  return {
+    api: server.getServer(),
+    admin: server.getAdminServer(),
+    adminKey: prev.adminKey,
+    dataDir: prev.dataDir,
+    db: (server as unknown as { db: DatabaseClient }).db,
+    stop: async () => {
+      try {
+        await server.stop();
+      } catch {
+        /* ignore */
+      }
+    },
+  };
+}
+
 export async function stopAgentTestServer(s: AgentTestServer | null | undefined): Promise<void> {
   if (!s) return;
   await s.stop();
