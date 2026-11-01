@@ -31,6 +31,7 @@ import {
   refresh,
   revoke,
   pkce,
+  boundClientId,
 } from './oauth-flow-helpers.js';
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -147,7 +148,11 @@ describe('audit lifecycle events + no token leakage', () => {
     const created = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
-      payload: { label: 'audit-me', scopes: ['mcp:*'] },
+      payload: {
+        bound_client_id: await boundClientId(alice),
+        label: 'audit-me',
+        scopes: ['mcp:*'],
+      },
     });
     const d = JSON.parse(created.body).data;
     secrets.push(d.access_token);
