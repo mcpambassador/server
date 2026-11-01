@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import { tool_pins, mcp_catalog } from '../../schema/index.js';
 import { compatInsert, compatSelect, compatUpdate } from '../compat.js';
@@ -53,7 +53,7 @@ function toRecord(r: any): ToolPinRecord {
   };
 }
 
-const scopeCond = (scopeUserId: string | null): any =>
+const scopeCond = (scopeUserId: string | null): SQL =>
   scopeUserId === null ? isNull(tool_pins.scope_user_id) : eq(tool_pins.scope_user_id, scopeUserId);
 
 /** All pins (startup load for the in-memory map). */
