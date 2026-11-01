@@ -5,7 +5,13 @@
  * `logger.error({ err }, 'msg')` instead. Fails on any `<logger>.<level>(<string literal>, ...)`
  * with 2+ arguments and no printf specifier in the literal.
  *
- * Usage: node scripts/check-logger-calls.mjs [dir ...]   (default: packages/core/src packages/server/src)
+ * Usage: node scripts/check-logger-calls.mjs [dir ...]   (default: core, server, authn-ephemeral,
+ * authz-local, audit-file `src`)
+ *
+ * Limitation: this is a syntactic check on call shape only. It does NOT catch an error stringified
+ * into the message, such as logger.error(`failed: ${String(e)}`) or `${e.message}`. That text skips
+ * the pino err serializer (only the global string redaction in the message is missing), so prefer
+ * logger.error({ err }, 'failed') there too. Calls whose receiver is not named logger/log are not seen.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -13,7 +19,14 @@ import ts from 'typescript';
 
 const LEVELS = new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal']);
 const roots = process.argv.slice(2);
-if (roots.length === 0) roots.push('packages/core/src', 'packages/server/src');
+if (roots.length === 0)
+  roots.push(
+    'packages/core/src',
+    'packages/server/src',
+    'packages/authn-ephemeral/src',
+    'packages/authz-local/src',
+    'packages/audit-file/src'
+  );
 
 const violations = [];
 
