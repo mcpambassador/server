@@ -21,9 +21,9 @@ vi.mock('child_process', async orig => {
   };
 });
 
-import { StdioMcpConnection } from '../../src/downstream/stdio-connection.js';
+import { StdioMcpConnection, buildChildEnv } from '../../src/downstream/stdio-connection.js';
 
-const KEYS = ['UV_PYTHON_DOWNLOADS', 'UV_PYTHON', 'UV_CACHE_DIR', 'UV_TOOL_DIR'];
+const KEYS = ['UV_PYTHON_DOWNLOADS', 'UV_PYTHON', 'UV_CACHE_DIR', 'NPM_CONFIG_CACHE'];
 const saved: Record<string, string | undefined> = {};
 
 afterEach(() => {
@@ -48,12 +48,12 @@ describe('StdioMcpConnection server-controlled uv env', () => {
     process.env['UV_PYTHON_DOWNLOADS'] = 'never';
     process.env['UV_PYTHON'] = '/usr/bin/python3';
     process.env['UV_CACHE_DIR'] = '/tmp/.uv-cache';
-    process.env['UV_TOOL_DIR'] = '/tmp/.uv-tools';
+    process.env['NPM_CONFIG_CACHE'] = '/tmp/.npm-cache';
     const env = await spawnEnv({ MCP_ONLY: 'yes' });
     expect(env['UV_PYTHON_DOWNLOADS']).toBe('never');
     expect(env['UV_PYTHON']).toBe('/usr/bin/python3');
     expect(env['UV_CACHE_DIR']).toBe('/tmp/.uv-cache');
-    expect(env['UV_TOOL_DIR']).toBe('/tmp/.uv-tools');
+    expect(env['NPM_CONFIG_CACHE']).toBe('/tmp/.npm-cache');
     expect(env['MCP_ONLY']).toBe('yes');
   });
 
@@ -66,13 +66,30 @@ describe('StdioMcpConnection server-controlled uv env', () => {
     for (const k of KEYS) expect(k in env).toBe(false);
   });
 
-  it('config.env cannot set UV_* (the connection refuses to be created)', () => {
-    expect(
-      () =>
-        new StdioMcpConnection(
-          makeMcpConfig({ transport: 'stdio', env: { UV_PYTHON_DOWNLOADS: 'automatic' } })
-        )
-    ).toThrow(/blocked for security reasons/);
+  it('config.env (and so injected credentials) cannot set or override them', () => {
+    for (const k of ['UV_PYTHON_DOWNLOADS', 'NPM_CONFIG_CACHE', 'uv_python']) {
+      expect(
+        () => new StdioMcpConnection(makeMcpConfig({ transport: 'stdio', env: { [k]: 'x' } }))
+      ).toThrow(/blocked for security reasons/);
+    }
     expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('buildChildEnv applies server-controlled values last, even if a caller bypasses validation', () => {
+    const env = buildChildEnv(
+      { UV_PYTHON_DOWNLOADS: 'automatic', NPM_CONFIG_CACHE: '/evil', K: 'v' },
+      {
+        PATH: '/bin',
+        UV_PYTHON_DOWNLOADS: 'never',
+        NPM_CONFIG_CACHE: '/tmp/.npm-cache',
+        SECRET: 'no',
+      }
+    );
+    expect(env).toEqual({
+      PATH: '/bin',
+      K: 'v',
+      UV_PYTHON_DOWNLOADS: 'never',
+      NPM_CONFIG_CACHE: '/tmp/.npm-cache',
+    });
   });
 });

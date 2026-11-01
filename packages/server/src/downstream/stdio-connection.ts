@@ -30,8 +30,28 @@ export const SERVER_CONTROLLED_ENV_VARS = [
   'UV_PYTHON_DOWNLOADS',
   'UV_PYTHON',
   'UV_CACHE_DIR',
-  'UV_TOOL_DIR',
+  'NPM_CONFIG_CACHE',
 ];
+
+/**
+ * Build the environment of a spawned stdio MCP: whitelisted system vars, then the MCP's config.env
+ * (which already includes any injected user credentials), then the server-controlled settings, which
+ * nothing above can override. Exported so the image can be checked through the real spawn path.
+ */
+export function buildChildEnv(
+  configEnv: Record<string, string> | undefined,
+  source: NodeJS.ProcessEnv = process.env
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of SAFE_ENV_VARS) {
+    if (source[key]) env[key] = source[key]!;
+  }
+  if (configEnv) Object.assign(env, configEnv);
+  for (const key of SERVER_CONTROLLED_ENV_VARS) {
+    if (source[key]) env[key] = source[key]!;
+  }
+  return env;
+}
 
 /**
  * Stdio-based MCP connection
@@ -144,22 +164,8 @@ export class StdioMcpConnection extends EventEmitter {
       logger.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
     }
 
-    // SEC-M9-02: Build safe environment - whitelist + config overrides
-    const safeEnv: Record<string, string> = {};
-    for (const key of SAFE_ENV_VARS) {
-      if (process.env[key]) {
-        safeEnv[key] = process.env[key]!;
-      }
-    }
-    // Add MCP-specific env vars from config
-    if (this.config.env) {
-      Object.assign(safeEnv, this.config.env);
-    }
-    for (const key of SERVER_CONTROLLED_ENV_VARS) {
-      if (process.env[key]) {
-        safeEnv[key] = process.env[key]!;
-      }
-    }
+    // SEC-M9-02: safe environment - whitelist + config.env + server-controlled settings
+    const safeEnv = buildChildEnv(this.config.env);
 
     this.process = spawn(cmd, args, {
       cwd: this.config.cwd || process.cwd(),

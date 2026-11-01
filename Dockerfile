@@ -16,7 +16,8 @@
 # STAGE 1: BUILD
 # -----------------------------------------------------------------------------
 # F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-FROM node:20-slim AS builder
+# Base image pinned by digest (index of node:20-slim, `docker buildx imagetools inspect node:20-slim`, 2026-11-01)
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
 
 # Install build tools for native modules (better-sqlite3, argon2)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
@@ -59,7 +60,7 @@ RUN pnpm build
 # STAGE 2: RUNTIME
 # -----------------------------------------------------------------------------
 # F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-FROM node:20-slim
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
 # Install openssl for TLS certificate generation, and the distro python3 so uvx-launched (PyPI)
 # MCP servers run on a fixed interpreter instead of downloading a managed Python at runtime.
@@ -143,14 +144,15 @@ ENV NODE_ENV=production \
 ENV NPM_CONFIG_CACHE=/tmp/.npm-cache \
     HOME=/tmp
 
-# uv: use the system python3 only (never download one) and keep the package cache and tool
-# environments under /tmp, the writable path the runtime user owns on a read-only rootfs.
+# uv: use the system python3 only (never download one) and keep the package cache under /tmp, the
+# writable path the runtime user owns on a read-only rootfs. uvx uses ephemeral envs inside the cache,
+# so UV_TOOL_DIR (only for `uv tool install`) is not set. These are forwarded to spawned MCPs by
+# stdio-connection (SERVER_CONTROLLED_ENV_VARS), together with NPM_CONFIG_CACHE.
 # docker-compose bind-mounts ./cache onto /tmp, so the cache survives container recreates
 # (same as the npm cache); /data is deliberately NOT used because it holds the database and secrets.
 ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON=/usr/bin/python3 \
-    UV_CACHE_DIR=/tmp/.uv-cache \
-    UV_TOOL_DIR=/tmp/.uv-tools
+    UV_CACHE_DIR=/tmp/.uv-cache
 
 # Switch to non-root user
 USER mcpambassador

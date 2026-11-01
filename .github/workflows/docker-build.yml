@@ -56,5 +56,12 @@ jobs:
             python3 --version
             test "$UV_PYTHON_DOWNLOADS" = never
             uv python find | grep -qx /usr/bin/python3
-            mkdir -p "$UV_CACHE_DIR" "$UV_TOOL_DIR" && touch "$UV_CACHE_DIR/.w" "$UV_TOOL_DIR/.w"
+            mkdir -p "$UV_CACHE_DIR" && touch "$UV_CACHE_DIR/.w"
+            # Real spawn path: the env the server gives a spawned MCP must carry the uv/npm settings
+            node --input-type=module -e "
+              const { buildChildEnv } = await import(\"/app/packages/server/dist/downstream/stdio-connection.js\");
+              const e = buildChildEnv({});
+              const want = { UV_PYTHON_DOWNLOADS: \"never\", UV_PYTHON: \"/usr/bin/python3\", UV_CACHE_DIR: \"/tmp/.uv-cache\", NPM_CONFIG_CACHE: \"/tmp/.npm-cache\" };
+              for (const [k, v] of Object.entries(want)) if (e[k] !== v) { console.error(k + \" missing/wrong in spawn env\"); process.exit(1); }
+            "
           '
