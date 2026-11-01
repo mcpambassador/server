@@ -72,13 +72,14 @@ jobs:
           FAIL=0
 
           # Check for eval
-          if grep -rn --include="*.ts" -E '\beval\s*\(' packages/; then
+          # (source only, comment lines ignored; tests legitimately assert that eval is rejected)
+          if grep -rn --include="*.ts" -E '\beval\s*\(' packages/*/src | grep -vE '^[^:]+:[0-9]+:\s*(//|/?\*)'; then
             echo "ERROR: eval() usage found"
             FAIL=1
           fi
 
           # Check for exec with template literals (shell injection risk)
-          if grep -rn --include="*.ts" -E 'exec\s*\(`' packages/; then
+          if grep -rn --include="*.ts" -E 'exec\s*\(`' packages/*/src | grep -vE '^[^:]+:[0-9]+:\s*(//|/?\*)'; then
             echo "ERROR: exec() with template literal found — shell injection risk"
             FAIL=1
           fi

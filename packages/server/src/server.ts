@@ -70,6 +70,7 @@ import {
 } from './services/agent-endpoint/index.js';
 import type {
   ToolCatalogResponse,
+  ToolDescriptor,
   HeartbeatResponse,
   DisconnectResponse,
   ErrorResponse,
