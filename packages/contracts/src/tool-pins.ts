@@ -110,6 +110,14 @@ export const TOOL_PIN_BLOCKING_FLAG_CODES = [
   /** Oversize definition (> 64 KB canonical): stored as a size marker, never approvable. */
   'canonical_too_large',
 ] as const;
+/**
+ * Flags that only describe a definition (length), not a risk. The D6 baseline treats a tool carrying ONLY these
+ * as "clean". Explicit allow-list: any code not listed here (including future ones) disqualifies a baseline approval.
+ */
+export const TOOL_PIN_INFORMATIONAL_FLAG_CODES = [
+  'long_description',
+  'truncated_on_serve',
+] as const;
 export const toolPinFlagCodeSchema = z.enum(TOOL_PIN_FLAG_CODES);
 export type ToolPinFlagCode = z.infer<typeof toolPinFlagCodeSchema>;
 

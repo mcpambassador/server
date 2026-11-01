@@ -12,6 +12,7 @@ import {
   TOOL_PIN_AUTO_HOLD_REJECTIONS,
   TOOL_PIN_AUTO_HOLD_WINDOW_HOURS,
   TOOL_PIN_BLOCKING_FLAG_CODES,
+  TOOL_PIN_INFORMATIONAL_FLAG_CODES,
   SYSTEM_MIGRATION_ACTOR,
   TOOL_PIN_FLAG_RULES_VERSION,
   TOOL_PIN_MAX_PENDING_PER_SCOPE,
@@ -473,7 +474,13 @@ export class ToolPinService {
       if (args.baseline !== undefined) {
         // D6: baseline MCPs are not governed by pin_policy on first observation. Equal to the
         // publish-time snapshot and clean => approved by the migration; anything else => pending.
-        const clean = !blocking && !assessed.tooLarge && assessed.flags.codes.length === 0;
+        // Clean = no flag other than the explicit informational (length-only) ones.
+        const clean =
+          !blocking &&
+          !assessed.tooLarge &&
+          assessed.flags.codes.every(c =>
+            (TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c)
+          );
         if (clean && args.baseline.get(name) === snapshotProjectionHash(raw)) {
           approve = true;
           approvedBy = SYSTEM_MIGRATION_ACTOR;
