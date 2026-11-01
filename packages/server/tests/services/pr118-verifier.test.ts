@@ -200,7 +200,10 @@ describe('service level', () => {
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN pin_policy`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN origin`);
       raw(db).exec(`DROP TABLE schema_migrations`);
-    } catch {
+    } catch (err) {
+      // Only an SQLite without DROP COLUMN support may skip; any other failure
+      // (e.g. a missing table/column to drop) must fail loudly.
+      if (!/near "DROP": syntax error/i.test(String((err as Error).message))) throw err;
       return; // SQLite too old for DROP COLUMN: nothing to simulate
     }
     expect(
