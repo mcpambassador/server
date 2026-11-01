@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- drizzle-orm 0.29.5 → 0.45.4 and drizzle-kit 0.20 → 0.31 (TD-019, clears GHSA-gpj5-g38j-94v9, SQL-identifier injection). Hand-written SQL migrations and the schema are unchanged; `db:generate`/`db:push` use the new `drizzle-kit generate`/`push` commands and `drizzle.config.ts` now sets `dialect: 'sqlite'`. A test pins that `db.session.client` (the raw driver handle used by health check, migrations and close) still resolves for SQLite and Postgres.
 - Dev tooling: vitest 1.x → 3.2.7 (TD-016) with `pnpm.overrides` `vite >=6.4.4 <7` and `tinypool >=2.1.2`, clearing the tinypool criticals and the vite highs. Test config only (`deps.external` → `server.deps.external`); no runtime change. Two moderate vitest/@vitest/mocker advisories (GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8) remain: the fix is vitest 4.1.12, which needs Node 22+ (CI is Node 20).
 - Tool descriptions are no longer cut to 500 UTF-16 units when a downstream MCP is discovered; the full text is stored and the 500 code-point cut (never splitting a surrogate pair) happens only when a definition is served. Admin MCP views therefore show full descriptions.
 - The `/mcp` insufficient-scope pre-check resolves a tool against the full catalog (same-named tools of different MCPs kept apart) and looks through one level of `ambassador__call_tool`.

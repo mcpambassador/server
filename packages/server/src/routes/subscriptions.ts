@@ -10,7 +10,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, getMcpEntryById } from '@mcpambassador/core';
+import { logger, getMcpEntryById, publicErrorMessage } from '@mcpambassador/core';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import {
@@ -164,16 +164,18 @@ export async function registerSubscriptionRoutes(
         });
       } catch (error: any) {
         if (error.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, error.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(error)));
         }
         if (
           error.message.includes('access denied') ||
           error.message.includes('does not have access')
         ) {
-          return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, error.message));
+          return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, publicErrorMessage(error)));
         }
         if (error.message.includes('already subscribed') || error.message.includes('requires')) {
-          return reply.status(400).send(wrapError(ErrorCodes.BAD_REQUEST, error.message));
+          return reply
+            .status(400)
+            .send(wrapError(ErrorCodes.BAD_REQUEST, publicErrorMessage(error)));
         }
         throw error;
       }

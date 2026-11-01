@@ -27,8 +27,8 @@
     "format:check": "prettier --check \"packages/**/*.{ts,json,md}\"",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean && rm -rf node_modules",
-    "db:generate": "cd packages/core && drizzle-kit generate:sqlite",
-    "db:push": "cd packages/core && drizzle-kit push:sqlite",
+    "db:generate": "cd packages/core && drizzle-kit generate",
+    "db:push": "cd packages/core && drizzle-kit push",
     "db:studio": "cd packages/core && drizzle-kit studio"
   },
   "devDependencies": {
@@ -64,8 +64,7 @@
     },
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-mrhx-c7xc-m3w5",
-        "GHSA-gpj5-g38j-94v9"
+        "GHSA-mrhx-c7xc-m3w5"
       ]
     }
   }

@@ -10,7 +10,12 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
-import { logger, client_mcp_subscriptions, compatSelect } from '@mcpambassador/core';
+import {
+  logger,
+  client_mcp_subscriptions,
+  compatSelect,
+  publicErrorMessage,
+} from '@mcpambassador/core';
 import { eq } from 'drizzle-orm';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
@@ -148,7 +153,9 @@ export async function registerClientRoutes(
         }
 
         if (error.message.includes('not found')) {
-          return reply.status(400).send(wrapError(ErrorCodes.BAD_REQUEST, error.message));
+          return reply
+            .status(400)
+            .send(wrapError(ErrorCodes.BAD_REQUEST, publicErrorMessage(error)));
         }
         throw error;
       }
@@ -248,7 +255,7 @@ export async function registerClientRoutes(
           return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'Client not found'));
         }
         if (error.message.includes('Invalid state transition')) {
-          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, error.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(error)));
         }
         throw error;
       }
