@@ -53,6 +53,8 @@ export function computeConfigFingerprint(
  */
 export class SharedMcpManager {
   private connections = new Map<string, StdioMcpConnection | HttpMcpConnection>();
+  /** ADR-021: set by the server; called when a downstream sends notifications/tools/list_changed. */
+  onToolsListChanged?: (mcpName: string) => void;
   private toolToMcpMap = new Map<string, string>(); // tool_name -> mcp_name
   private aggregatedTools: AggregatedTool[] = [];
   private configFingerprints = new Map<string, string>(); // ADR-013: mcp_name → sha256 of config
@@ -78,6 +80,7 @@ export class SharedMcpManager {
           this.connections.set(config.name, connection);
 
           // Register connection event handlers
+          connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
           connection.on('disconnect', () => {
             logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
@@ -93,6 +96,7 @@ export class SharedMcpManager {
           this.connections.set(config.name, connection);
 
           // Register connection event handlers
+          connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
           connection.on('disconnect', () => {
             logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
             this.aggregateTools(); // Refresh tool catalog
@@ -296,6 +300,26 @@ export class SharedMcpManager {
   }
 
   /**
+   * ADR-021: the connection's raw cached `tools/list` array for one MCP (untrusted downstream data).
+   * Identity is stable until the connection re-discovers. undefined when the MCP is unknown or down.
+   */
+  getRawToolsFor(mcpName: string): readonly unknown[] | undefined {
+    const conn = this.connections.get(mcpName);
+    return conn && conn.isConnected() ? conn.getTools() : undefined;
+  }
+
+  /** ADR-021: invoke on a specific MCP, bypassing the name map (which dedupes across MCPs). */
+  async invokeToolOn(
+    mcpName: string,
+    request: ToolInvocationRequest
+  ): Promise<ToolInvocationResponse> {
+    const connection = this.connections.get(mcpName);
+    if (!connection) throw new Error(`MCP connection not found: ${mcpName}`);
+    if (!connection.isConnected()) throw new Error(`MCP not connected: ${mcpName}`);
+    return await connection.invokeTool(request);
+  }
+
+  /**
    * Health check all connections
    */
   async healthCheckAll(): Promise<ConnectionHealth[]> {
@@ -407,6 +431,7 @@ export class SharedMcpManager {
     this.connections.set(config.name, connection);
 
     // Register event handlers (same as initialize())
+    connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
     connection.on('disconnect', () => {
       logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
       // eslint-disable-next-line @typescript-eslint/no-floating-promises

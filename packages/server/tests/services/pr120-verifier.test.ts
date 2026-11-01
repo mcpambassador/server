@@ -27,6 +27,10 @@ describe('server boot with tracked migrations', () => {
     await s.stop();
     const db = open(s.dataDir);
     db.exec('DROP TABLE schema_migrations'); // make it look like the videl DB
+    // ...which predates 0004 (ADR-021): bootstrap covers only <= 0003, later files apply normally.
+    db.exec('DROP TABLE tool_pins');
+    db.exec('ALTER TABLE mcp_catalog DROP COLUMN pin_policy');
+    db.exec('ALTER TABLE mcp_catalog DROP COLUMN origin');
     db.close();
 
     s = await restartAgentTestServer(s, opts);

@@ -79,6 +79,7 @@ export async function importYamlMcps(
         transport_type: yamlMcp.transport,
         config: JSON.stringify(config),
         isolation_mode: 'shared',
+        origin: 'import',
         requires_user_credentials: false,
         credential_schema: '{}',
         tool_catalog: '[]',

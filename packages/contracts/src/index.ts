@@ -25,3 +25,6 @@ export * from './agent-endpoint.js';
 
 // Admin kill switches (TD-022)
 export * from './kill-switch.js';
+
+// ADR-021 tool definition pinning
+export * from './tool-pins.js';

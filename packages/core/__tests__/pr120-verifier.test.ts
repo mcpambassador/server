@@ -49,7 +49,8 @@ function peek<T = Record<string, unknown>>(sql: string): T[] {
 function legacyApply(dir = realDir): void {
   // The pre-TD-032 runner: every file, statement by statement, tolerant of duplicate columns, no table.
   const sqlite = new Database(dbFile);
-  for (const f of sqlFiles(dir)) {
+  // Only files up to 0003: the legacy runner predates 0004 (ADR-021), which runMigrations applies normally.
+  for (const f of sqlFiles(dir).filter(f => f <= '0003_agent_grant_kind.sql')) {
     for (const st of split(fs.readFileSync(path.join(dir, f), 'utf-8'))) {
       try {
         sqlite.exec(st);

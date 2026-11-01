@@ -454,6 +454,41 @@ export class UserMcpPool {
     return instanceSet.aggregatedTools.find(tool => tool.name === toolName);
   }
 
+  /** ADR-021: re-run tools/list on every ready per-user connection (periodic re-discovery). */
+  async refreshAllTools(): Promise<void> {
+    const jobs: Promise<unknown>[] = [];
+    for (const set of this.userInstances.values()) {
+      if (set.status !== 'ready') continue;
+      for (const conn of set.connections.values()) {
+        if (conn.isConnected()) jobs.push(conn.refreshToolList().catch(() => undefined));
+      }
+    }
+    await Promise.allSettled(jobs);
+  }
+
+  /** ADR-021: raw cached `tools/list` array of one of the user's MCP instances (undefined if not ready). */
+  getRawToolsFor(userId: string, mcpName: string): readonly unknown[] | undefined {
+    const set = this.userInstances.get(userId);
+    if (!set || set.status !== 'ready') return undefined;
+    const conn = set.connections.get(mcpName);
+    return conn && conn.isConnected() ? conn.getTools() : undefined;
+  }
+
+  /** ADR-021: invoke on a specific MCP of this user, bypassing the (deduping) name map. */
+  async invokeToolOn(
+    userId: string,
+    mcpName: string,
+    request: ToolInvocationRequest
+  ): Promise<ToolInvocationResponse> {
+    const set = this.userInstances.get(userId);
+    if (!set || set.status !== 'ready')
+      throw new Error(`User ${userId} has no active MCP instances`);
+    const connection = set.connections.get(mcpName);
+    if (!connection) throw new Error(`MCP connection not found: ${mcpName}`);
+    if (!connection.isConnected()) throw new Error(`MCP not connected: ${mcpName}`);
+    return await connection.invokeTool(request);
+  }
+
   /**
    * Route a tool invocation to the correct per-user MCP instance
    *

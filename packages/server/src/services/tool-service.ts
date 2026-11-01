@@ -16,7 +16,9 @@ import {
   type Pipeline,
   type PipelineToolInvocationRequest,
   type SessionContext,
+  ValidationError,
 } from '@mcpambassador/core';
+import { validateAgainstApprovedSchema } from './tool-pins/args-validator.js';
 import type { ToolDescriptor, ToolInvocationResponse } from '@mcpambassador/protocol';
 import type { SharedMcpManager, ToolRouter, UserMcpPool } from '../downstream/index.js';
 
@@ -160,16 +162,31 @@ export function buildInvocationRouter(
       throw err;
     }
 
-    const sharedTool = deps.mcpManager.getToolDescriptor(toolName);
-    const userTool = deps.userPool.getToolDescriptor(userId, toolName);
-
     let mcpResponse;
-    if (sharedTool?.source_mcp === allowedTool.source_mcp) {
-      mcpResponse = await deps.mcpManager.invokeTool(mcpRequest);
-    } else if (userTool?.source_mcp === allowedTool.source_mcp) {
-      mcpResponse = await deps.userPool.invokeTool(userId, mcpRequest);
+    if (allowedTool.pinned_hash) {
+      // ADR-021 D2/D3: route to the exact approved (mcp, scope) source and validate the arguments
+      // against the APPROVED inputSchema, not whatever the downstream currently advertises.
+      const check = validateAgainstApprovedSchema(
+        allowedTool.pinned_hash,
+        allowedTool.inputSchema,
+        args
+      );
+      if (!check.valid) throw new ValidationError(check.error);
+      mcpResponse = await deps.toolRouter.invokeOnSource(
+        userId,
+        allowedTool.source_mcp,
+        mcpRequest
+      );
     } else {
-      throw new AuthorizationError('Tool source does not match client subscription');
+      const sharedTool = deps.mcpManager.getToolDescriptor(toolName);
+      const userTool = deps.userPool.getToolDescriptor(userId, toolName);
+      if (sharedTool?.source_mcp === allowedTool.source_mcp) {
+        mcpResponse = await deps.mcpManager.invokeTool(mcpRequest);
+      } else if (userTool?.source_mcp === allowedTool.source_mcp) {
+        mcpResponse = await deps.userPool.invokeTool(userId, mcpRequest);
+      } else {
+        throw new AuthorizationError('Tool source does not match client subscription');
+      }
     }
 
     return {
