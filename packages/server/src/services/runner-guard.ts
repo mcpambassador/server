@@ -371,6 +371,11 @@ const ENV_EXACT = [
 /** Exceptions to the prefixes: not a redirect, and widely set by operators. */
 const ENV_ALLOWED = ['node_env'];
 
+/**
+ * SECURITY (TD-052): this blocklist is load-bearing. Child MCPs are launched through `setpriv`, which runs
+ * with the server's ambient CAP_SETUID/SETGID/KILL and the child's env, so loader/runtime redirects
+ * (LD_*, GCONV_PATH, ...) must never reach it from config.env.
+ */
 /** True when `name` may not be set through a catalog config, a credential field or an OAuth binding. */
 export function isBlockedEnvName(name: string): boolean {
   const n = name.trim().toLowerCase();

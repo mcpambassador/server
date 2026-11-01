@@ -64,8 +64,9 @@ export function buildChildEnv(
     env['NPM_CONFIG_CACHE'] = `${isolation.home}/.npm-cache`;
     env['UV_CACHE_DIR'] = `${isolation.home}/.uv-cache`;
     env['XDG_CACHE_HOME'] = `${isolation.home}/.cache`;
-    // /tmp is not writable by the child uid; tempfile/os.tmpdir() must land in its own home
-    env['TMPDIR'] = isolation.home;
+    // /tmp is not writable by the child uid; tempfile/os.tmpdir() must land in a private (0700) dir in
+    // its own home, created by the child wrapper after the uid switch
+    env['TMPDIR'] = `${isolation.home}/tmp`;
   }
   return env;
 }

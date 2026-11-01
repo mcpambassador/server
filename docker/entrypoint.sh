@@ -23,6 +23,8 @@ fi
 case "$SERVER_UID$SERVER_GID" in *[!0-9]*|'') die "server uid/gid must be numeric" ;; esac
 [ "$SERVER_UID" != "0" ] && [ "$SERVER_GID" != "0" ] || die "server uid/gid must not be 0"
 
+umask 077 # anything the server creates after boot (caches, temp dirs) is private to the server uid
+
 as_server() {
   setpriv --reuid="$SERVER_UID" --regid="$SERVER_GID" --clear-groups "$@"
 }
@@ -60,9 +62,10 @@ done
 as_server mkdir -p -m 0700 "$CHILD_HOME"
 if [ -L "$CHILD_HOME" ] || [ ! -d "$CHILD_HOME" ]; then die "$CHILD_HOME is not a plain directory"; fi
 chown -h "$CHILD_UID:$CHILD_GID" "$CHILD_HOME"
-[ "$(stat -c %u:%g "$CHILD_HOME")" = "$CHILD_UID:$CHILD_GID" ] || die "could not hand $CHILD_HOME to the child uid"
+[ "$(stat -c %u:%g:%a "$CHILD_HOME")" = "$CHILD_UID:$CHILD_GID:700" ] || die "$CHILD_HOME must be owned by the child uid with mode 0700"
 [ "$(stat -c %u "/data")" = "$SERVER_UID" ] || die "/data is not owned by the server uid $SERVER_UID"
 
+# Anything the server creates after boot (caches, temp dirs) is private to the server uid.
 # Drop root for good: exec as the server uid; only these three caps survive (ambient) and nothing else
 # stays in the bounding set.
 exec setpriv --reuid="$SERVER_UID" --regid="$SERVER_GID" --clear-groups \

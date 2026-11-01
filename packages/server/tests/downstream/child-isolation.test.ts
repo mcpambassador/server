@@ -21,7 +21,7 @@ vi.mock('child_process', async orig => {
   };
 });
 
-import { mkdtempSync, symlinkSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, symlinkSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -115,13 +115,19 @@ describe('checkIsolationAvailable', () => {
   });
   it('rejects a symlinked or missing child home (lstat, never followed)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'iso-'));
-    mkdirSync(join(dir, 'real'));
+    mkdirSync(join(dir, 'real'), { mode: 0o700 });
     symlinkSync(join(dir, 'real'), join(dir, 'link'));
     const uid = process.getuid!();
     const base = { capEff: CAPS_OK, setprivOk: true };
     expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'real') }, base)).toBeNull();
     expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'link') }, base)).toMatch(
       /not a symlink/
+    );
+    // group/world-accessible home is rejected too
+    mkdirSync(join(dir, 'open'), { mode: 0o755 });
+    chmodSync(join(dir, 'open'), 0o755);
+    expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'open') }, base)).toMatch(
+      /child home/
     );
     expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'nope') }, base)).toMatch(
       /child home/
@@ -151,7 +157,7 @@ describe('spawn wrapping', () => {
       '--',
       '/bin/sh',
       '-c',
-      'cd "$0" && exec "$@"',
+      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd "$0" && exec "$@"',
       '/tmp/mcp-home',
       'npx',
       '-y',
@@ -179,7 +185,7 @@ describe('spawn wrapping', () => {
     expect(env['HOME']).toBe('/tmp/mcp-home');
     expect(env['NPM_CONFIG_CACHE']).toBe('/tmp/mcp-home/.npm-cache');
     expect(env['UV_CACHE_DIR']).toBe('/tmp/mcp-home/.uv-cache');
-    expect(env['TMPDIR']).toBe('/tmp/mcp-home');
+    expect(env['TMPDIR']).toBe('/tmp/mcp-home/tmp');
     expect(env['K']).toBe('v');
     expect(env['MCP_AMBASSADOR_DATA_DIR']).toBeUndefined();
     expect(env['GITHUB_OAUTH_CLIENT_SECRET']).toBeUndefined();

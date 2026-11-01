@@ -114,7 +114,9 @@ export function checkIsolationAvailable(
       try {
         // lstat: a symlink (e.g. planted by an earlier child) must never pass
         const st = lstatSync(iso.home);
-        return st.isDirectory() && !st.isSymbolicLink() && st.uid === iso.uid;
+        return (
+          st.isDirectory() && !st.isSymbolicLink() && st.uid === iso.uid && (st.mode & 0o077) === 0
+        );
       } catch {
         return false;
       }
@@ -162,7 +164,7 @@ export function wrapCommandForIsolation(
       '--',
       '/bin/sh',
       '-c',
-      'cd "$0" && exec "$@"',
+      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd "$0" && exec "$@"',
       cwd,
       cmd,
       ...args,
