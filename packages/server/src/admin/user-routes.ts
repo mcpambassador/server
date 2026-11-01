@@ -23,6 +23,7 @@ import { eq, and, or, desc, asc } from 'drizzle-orm';
 import { validatePassword, hashPassword } from '../auth/password-policy.js';
 import { createUserSchema, updateUserSchema, resetPasswordSchema } from '../auth/schemas.js';
 import { assignDefaultGroup } from '../auth/user-auth.js';
+import { adminKeyActor } from './middleware.js';
 import { updateUserParamsSchema, listUsersQuerySchema } from './schemas.js';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
@@ -97,7 +98,11 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
     });
 
     // Same default as every other creation path: new users join "all-users" (else subscribe is 403).
-    await assignDefaultGroup(db, userId, 'admin');
+    await assignDefaultGroup(
+      db,
+      userId,
+      adminKeyActor(request) ?? request.session?.userId ?? 'admin-unknown'
+    );
 
     // Emit audit event
     await audit.emit({

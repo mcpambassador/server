@@ -91,7 +91,7 @@ export async function assignDefaultGroup(
       });
     }
   } catch (err) {
-    logger.error('[user-auth] Failed to assign user to all-users group:', err);
+    logger.error({ err }, '[user-auth] Failed to assign user to all-users group');
   }
 }
 

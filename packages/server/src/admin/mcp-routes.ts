@@ -62,11 +62,21 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   const applyCatalogBestEffort = async (trigger: string): Promise<void> => {
     if (!catalogReloader) return;
     try {
-      await catalogReloader.applyChanges();
+      const result = await catalogReloader.applyChanges();
+      if (result.summary.failed > 0) {
+        logger.warn(
+          {
+            trigger,
+            failed: result.summary.failed,
+            errors: result.shared.errors.map(e => ({ name: e.name, action: e.action })),
+          },
+          '[AdminMcpRoutes] Catalog auto-apply partially failed; failed changes stay pending'
+        );
+      }
     } catch (err) {
-      logger.warn(`[AdminMcpRoutes] Catalog auto-apply after ${trigger} failed; change is pending`);
+      logger.warn({ trigger }, '[AdminMcpRoutes] Catalog auto-apply failed; change is pending');
       if (!(err instanceof CatalogReloadConflictError)) {
-        logger.error('[AdminMcpRoutes] Catalog auto-apply error:', err);
+        logger.error({ err }, '[AdminMcpRoutes] Catalog auto-apply error');
       }
     }
   };

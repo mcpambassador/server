@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `POST /v1/admin/users` now adds the new user to `all-users` like every other creation path (without it the user got 403 on subscribe).
-- Publishing or archiving an MCP now hot-applies the catalog, so a published shared MCP serves tools without a manual `POST /v1/admin/catalog/apply` or a restart. Failures stay pending and the SPA banner still offers Apply.
+- Publishing or archiving an MCP now hot-applies the catalog, so a published shared MCP serves tools without a manual `POST /v1/admin/catalog/apply` or a restart. Failures stay pending and the SPA banner still offers Apply. Behaviour change: publish now goes live immediately; the review pause returns with ADR-021 tool-definition pinning. One `CatalogReloader` now serves both listeners, so concurrent applies conflict (409) instead of running in parallel.
 - Removing a user from their only group (`all-users`) returns 409 CONFLICT instead of 403 FORBIDDEN.
 
 ### Security
