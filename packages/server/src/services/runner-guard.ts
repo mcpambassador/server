@@ -55,6 +55,20 @@ const STRICT_ALLOWED: Partial<
     long: ['quiet', 'offline', 'no-cache', 'isolated', 'no-progress', 'no-config'],
     short: ['q'],
   },
+  // pip (optparse) accepts unambiguous abbreviations (`--extra-index=`), so a denylist cannot work.
+  pip: {
+    long: [
+      'quiet',
+      'verbose',
+      'no-input',
+      'upgrade',
+      'no-deps',
+      'no-cache-dir',
+      'user',
+      'disable-pip-version-check',
+    ],
+    short: ['q', 'v', 'U'],
+  },
 };
 
 /** Subcommand words skipped (not treated as the package) while scanning, per family. */
@@ -87,7 +101,9 @@ const RULES: Record<Family, Rules> = {
       'import',
       'loader',
       'experimental-loader',
-      'env-file',
+      'env-file*',
+      'openssl-config',
+      'experimental-config-file',
       'run',
       'inspect*',
     ],
@@ -134,7 +150,8 @@ const RULES: Record<Family, Rules> = {
       'print',
       'import-map',
       'cert',
-      'env-file',
+      'env-file*',
+      'preload',
       'lock',
       'reload',
       'location',

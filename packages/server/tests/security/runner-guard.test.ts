@@ -334,6 +334,15 @@ describe('TD-039 round 2: default-deny and subcommand scanning', () => {
     ['uv', 'pip', 'install', '-i', 'https://e', 'x'],
     ['npm', 'exec', '--registry=https://e', 'x'],
     ['pnpm', 'dlx', '--registry=https://e', 'x'],
+    ['python3', '-m', 'pip', 'install', '--extra-index=https://evil', 'x'],
+    ['python3', '-m', 'pip', 'install', '--index-u=https://evil', 'x'],
+    ['python3', '-m', 'pip', 'install', '--find=https://evil', 'x'],
+    ['python3', '-m', 'pip', 'install', '--proxy=http://e', 'x'],
+    ['pip', 'install', '-r', 'req.txt'],
+    ['node', '--env-file-if-exists=.env', 's.js'],
+    ['node', '--openssl-config=/tmp/o', 's.js'],
+    ['node', '--experimental-config-file=/tmp/c', 's.js'],
+    ['deno', 'run', '--preload=./e.js', 'x.ts'],
   ];
   for (const cmd of reject) {
     it(`rejects ${cmd.join(' ')}`, () => {
@@ -353,6 +362,7 @@ describe('TD-039 round 2: default-deny and subcommand scanning', () => {
     ['python3', '-m', 'my_server', '-c', 'cfg'],
     ['deno', 'run', '-A', 'x.ts'],
     ['bunx', 'pkg'],
+    ['python3', '-m', 'pip', 'install', '-q', '--upgrade', 'pkg'],
   ];
   for (const cmd of accept) {
     it(`accepts ${cmd.join(' ')}`, () => {
