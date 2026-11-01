@@ -64,32 +64,29 @@ describe('preserved server secrets: egress paths', () => {
     seen.length = 0;
   });
 
-  const everything = (s: Seen) => `${s.url}\n${JSON.stringify(s.headers)}\n${s.body}`;
-
-  it('http-url ${REGISTRY_TOKEN} does not expand from process.env', async () => {
+  it('http-url ${REGISTRY_TOKEN} is not expanded from process.env and fails closed (no request)', async () => {
     process.env['REGISTRY_TOKEN'] = REG_CANARY;
     const conn = new HttpMcpConnection({
       name: 'egress-reg',
       transport: 'http',
       url: `http://127.0.0.1:${port}/mcp?t=\${REGISTRY_TOKEN}`,
     } as never);
-    await conn.start().catch(() => undefined);
+    await expect(conn.start()).rejects.toThrow();
     await conn.stop();
-    expect(seen.length).toBeGreaterThan(0);
-    for (const s of seen) expect(everything(s)).not.toContain(REG_CANARY);
+    // fail closed: unresolved \${NAME} => no request at all, and never expanded from process.env
+    expect(seen).toHaveLength(0);
   });
 
-  it('http-url ${GITHUB_OAUTH_CLIENT_SECRET} does not expand from process.env', async () => {
+  it('http-url ${GITHUB_OAUTH_CLIENT_SECRET} is not expanded from process.env and fails closed (no request)', async () => {
     process.env['GITHUB_OAUTH_CLIENT_SECRET'] = GH_CANARY;
     const conn = new HttpMcpConnection({
       name: 'egress-gh',
       transport: 'http',
       url: `http://127.0.0.1:${port}/mcp?s=\${GITHUB_OAUTH_CLIENT_SECRET}`,
     } as never);
-    await conn.start().catch(() => undefined);
+    await expect(conn.start()).rejects.toThrow();
     await conn.stop();
-    expect(seen.length).toBeGreaterThan(0);
-    for (const s of seen) expect(everything(s)).not.toContain(GH_CANARY);
+    expect(seen).toHaveLength(0);
   });
 
   it('positive control: explicit config.env var still expands in the url', async () => {

@@ -1,7 +1,8 @@
 /**
- * TD-027: the server keeps REGISTRY_TOKEN / GITHUB_OAUTH_CLIENT_SECRET in process.env after
- * config load (preserve_env_vars), so spawned stdio MCPs must NOT inherit them. Uses the real
- * fake-mcp fixture's __env tool over /mcp for both spawn paths (shared and per_user).
+ * TD-027 (defense in depth): production keeps REGISTRY_TOKEN / GITHUB_OAUTH_CLIENT_SECRET out of
+ * process.env (captured before the scrub). Even if a server process did hold them, spawned stdio MCPs
+ * must NOT inherit them (SAFE_ENV_VARS whitelist). Uses the fake-mcp fixture's __env tool over /mcp
+ * for both spawn paths (shared and per_user).
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AGENT_GRANTS_ROUTE } from '@mcpambassador/contracts';
@@ -57,7 +58,7 @@ async function childEnv(token: string): Promise<Record<string, string>> {
 }
 
 beforeAll(async () => {
-  // The server process holds these (as after loadConfig with preserve_env_vars) before any spawn.
+  // The server process holds these (simulating a server that still holds them in process.env) before any spawn.
   for (const [k, v] of Object.entries(CANARIES)) {
     prev[k] = process.env[k];
     process.env[k] = v;
@@ -99,8 +100,8 @@ afterAll(async () => {
   }
 });
 
-describe('TD-027: preserved server env vars never reach spawned stdio MCPs', () => {
-  it('the server process still holds the preserved vars (premise)', () => {
+describe('TD-027: server secrets in process.env never reach spawned stdio MCPs', () => {
+  it('the server process holds the canary vars (premise)', () => {
     for (const [k, v] of Object.entries(CANARIES)) expect(process.env[k]).toBe(v);
   });
 
