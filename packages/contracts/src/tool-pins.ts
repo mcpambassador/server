@@ -102,6 +102,8 @@ export const TOOL_PIN_FLAG_CODES = [
   'duplicate_name',
   /** Description is over TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS; agents see only the prefix (SEC-M9-05). */
   'truncated_on_serve',
+  /** inputSchema has a pattern/patternProperties RE2 cannot compile: that keyword is not enforced (rest of the schema is). Disqualifies the baseline. */
+  'pattern_unsupported',
 ] as const;
 
 /** Flags that make a pin permanently non-approvable: approve (any apply_to) and confirm-baseline return 409. */

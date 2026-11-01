@@ -90,7 +90,7 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
       pending_hash: r.pending_hash,
       flags: parseFlags(r.flags),
       absent: r.absent,
-      baseline_unreviewed: r.approved_by === SYSTEM_MIGRATION_ACTOR,
+      baseline_unreviewed: r.approved_by === SYSTEM_MIGRATION_ACTOR && r.approved_hash !== null,
       first_seen_at: r.first_seen_at,
       approved_at: r.approved_at,
       approved_by: r.approved_by,
@@ -206,7 +206,11 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
             : true
       )
       .filter(r => (q.scope_user_id ? r.scope_user_id === q.scope_user_id : true))
-      .filter(r => (q.baseline === 'unreviewed' ? r.approved_by === SYSTEM_MIGRATION_ACTOR : true))
+      .filter(r =>
+        q.baseline === 'unreviewed'
+          ? r.approved_by === SYSTEM_MIGRATION_ACTOR && r.approved_hash !== null
+          : true
+      )
       // pending first, then newest activity
       .sort((a, b) =>
         a.status === b.status

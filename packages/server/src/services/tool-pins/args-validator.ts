@@ -7,6 +7,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import RE2 from 're2';
 import { logger } from '@mcpambassador/core';
+import { stripUnsupportedPatterns } from './schema-patterns.js';
 
 /** Defence in depth next to RE2 (S1): bounds on what reaches schema validation. */
 export const MAX_ARG_STRING_CHARS = 262_144;
@@ -40,8 +41,7 @@ export function checkArgumentBounds(args: unknown): string | null {
       if (v.length > MAX_ARG_STRING_CHARS) return 'Invalid arguments: string value too long';
     } else if (v !== null && typeof v === 'object') {
       if (depth >= MAX_ARG_DEPTH) return 'Invalid arguments: nesting too deep';
-      for (const child of Array.isArray(v) ? v : Object.values(v as object))
-        stack.push([child, depth + 1]);
+      for (const child of Array.isArray(v) ? v : Object.values(v)) stack.push([child, depth + 1]);
     }
   }
   return null;
@@ -59,7 +59,7 @@ export function validateAgainstApprovedSchema(
   let fn = cache.get(hash);
   if (fn === undefined) {
     try {
-      fn = ajv.compile(schema);
+      fn = ajv.compile(stripUnsupportedPatterns(schema));
     } catch (err) {
       logger.warn(
         { err: String(err), hash: hash.slice(0, 8) },

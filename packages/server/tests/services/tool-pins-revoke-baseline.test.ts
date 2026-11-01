@@ -192,6 +192,44 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
     });
   });
 
+  describe('revokes and the auto-hold', () => {
+    it('5 revokes do not auto-hold the MCP; 5 rejections of pending items do', async () => {
+      const id = await mk('m');
+      for (let i = 0; i < 5; i++) {
+        const pin = await approvedShared(id, t(`r${i}`, 'A'));
+        await pins.revoke(pin.pin_id, { expectedHash: pin.approved_hash!, actor: 'x' });
+      }
+      expect(pins.isMcpAutoHeld(id)).toBe(false);
+      const id2 = await mk('m2');
+      for (let i = 0; i < 5; i++) {
+        await pins.observe({
+          mcpId: id2,
+          scopeUserId: null,
+          liveTools: [t(`p${i}`, 'A')],
+          policy: 'review',
+        });
+        const p = pins.getPin(id2, null, `p${i}`)!;
+        await pins.reject(p.pin_id, { expectedHash: p.pending_hash!, actor: 'x' });
+      }
+      expect(pins.isMcpAutoHeld(id2)).toBe(true);
+    });
+
+    it('a pending item raised after a revoke and then rejected counts as a rejection', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      await pins.revoke(pin.pin_id, { expectedHash: pin.approved_hash!, actor: 'x' });
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A2')],
+        policy: 'review',
+      });
+      const p = pins.getPin(id, null, 'a')!;
+      await pins.reject(p.pin_id, { expectedHash: p.pending_hash!, actor: 'x' });
+      expect(pins.recentRejections(id)).toBe(1);
+    });
+  });
+
   describe('G2 frozen baseline', () => {
     it('a user who appears after arming takes the normal review path; one present at arming is baselined', async () => {
       const id = await mk('m', [t('a', 'A')]);

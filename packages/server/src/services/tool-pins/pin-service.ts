@@ -197,6 +197,7 @@ export class ToolPinService {
         r.mcp_id === mcpId &&
         r.rejected_hash &&
         r.status === 'rejected' &&
+        !isRevoked(r) &&
         Date.parse(r.updated_at) >= cutoff
       )
         n++;
@@ -346,6 +347,8 @@ export class ToolPinService {
       rejected_hash: pin.pending_hash,
       pending_hash: null,
       pending_definition: null,
+      // a rejection of a pin with no approved version is not a revoke: clear the revoke marker
+      ...(pin.approved_hash ? {} : { approved_at: null, approved_by: null }),
       updated_at: ts,
     };
     await updateToolPin(this.db, pin.pin_id, patch);
@@ -387,8 +390,7 @@ export class ToolPinService {
       status: 'rejected',
       approved_hash: null,
       approved_definition: null,
-      approved_at: null,
-      approved_by: null,
+      // approved_at/approved_by are kept as the revoke marker (status rejected, no approved_hash, approved_at set)
       pending_hash: null,
       pending_definition: null,
       rejected_hash: pin.approved_hash,
@@ -455,7 +457,7 @@ export class ToolPinService {
     const heldMcps = new Set<string>();
     for (const l of this.pins.values()) {
       if (l.rec.status === 'pending_review') pending++;
-      if (l.rec.approved_by === SYSTEM_MIGRATION_ACTOR) baseline++;
+      if (l.rec.approved_by === SYSTEM_MIGRATION_ACTOR && l.rec.approved_hash) baseline++;
       heldMcps.add(l.rec.mcp_id);
     }
     const held = this.heldScopes();
@@ -792,6 +794,11 @@ export type DecisionResult =
         | 'baseline_conflict';
       flags?: string[];
     };
+
+/** A revoked pin: rejected, no approved version, approved_at kept as the marker (reject() clears it). */
+function isRevoked(r: ToolPinRecord): boolean {
+  return r.status === 'rejected' && !r.approved_hash && r.approved_at !== null;
+}
 
 function parseFlags(raw: string | null): ToolPinFlags {
   if (!raw) return { rules_version: TOOL_PIN_FLAG_RULES_VERSION, codes: [] };

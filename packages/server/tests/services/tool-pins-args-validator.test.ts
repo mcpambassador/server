@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { TOOL_PIN_INFORMATIONAL_FLAG_CODES } from '@mcpambassador/contracts';
+import { scanToolDefinition } from '../../src/services/tool-pins/flags.js';
+import { hasUnsupportedPattern } from '../../src/services/tool-pins/schema-patterns.js';
 import {
   MAX_ARG_DEPTH,
   MAX_ARG_STRING_CHARS,
@@ -44,5 +47,29 @@ describe('args validator (S1)', () => {
       validateAgainstApprovedSchema('h-b', schema, { a: Array.from({ length: 60_000 }, () => 1) })
         .valid
     ).toBe(false);
+  });
+
+  it('an RE2-unsupported pattern is dropped, the rest of the schema is still enforced, and it is flagged', () => {
+    const schema = {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string', maxLength: 5, pattern: '^(?!bad)\\w+$' },
+        n: { type: 'integer' },
+      },
+    };
+    const v = (a: unknown) => validateAgainstApprovedSchema('h-unsup', schema, a).valid;
+    expect(v({ name: 'ok' })).toBe(true);
+    expect(v({ name: 'toolongname' })).toBe(false); // maxLength still enforced
+    expect(v({})).toBe(false); // required still enforced
+    expect(v({ name: 'ok', n: 'x' })).toBe(false); // type still enforced
+    expect(hasUnsupportedPattern(schema)).toBe(true);
+    expect(hasUnsupportedPattern({ type: 'string', pattern: '^[a-z]+$' })).toBe(false);
+    expect(hasUnsupportedPattern({ patternProperties: { '(?<=a)b': {} } })).toBe(true);
+    const flags = scanToolDefinition({ name: 't', inputSchema: schema } as never);
+    expect(flags.codes).toContain('pattern_unsupported');
+    expect(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).not.toContain(
+      'pattern_unsupported'
+    );
   });
 });
