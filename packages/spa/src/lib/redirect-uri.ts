@@ -51,6 +51,19 @@ export function claudeCodeCallbackPort(uri: string): string | null {
   return m && Number(m[1]) >= 1 && Number(m[1]) <= 65535 ? m[1]! : null;
 }
 
-export function claudeCodeCommand(port: string, host: string): string {
-  return `claude mcp add --transport http --callback-port ${port} ambassador https://${host}:8443/mcp`;
+export const RESOURCE_URL_PLACEHOLDER = 'https://<host>:8443/mcp';
+
+/** True once the admin has replaced the placeholder with a real URL. */
+export function isConcreteResourceUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === 'https:' && !url.includes('<') && !url.includes('>');
+  } catch {
+    return false;
+  }
+}
+
+/** `--client-id` is required: without it Claude Code attempts dynamic registration. */
+export function claudeCodeCommand(port: string, clientId: string, resourceUrl: string): string {
+  return `claude mcp add --transport http --client-id ${clientId} --callback-port ${port} ambassador ${resourceUrl.trim()}`;
 }
