@@ -471,6 +471,42 @@ describe('a killed tool never creates an approval', () => {
     expect(J(st).metadata?.approval).toBeUndefined();
     expect(rows('tool_name=?', 'killme')).toHaveLength(before);
   });
+
+  it('tool-level kill switch (tool:<mcp_id>:<name>): no new row, open requests voided, sibling tool unaffected', async () => {
+    const open = gatedOf(await callMcp(tokOther, 'gtool3', { n: 1 }));
+    expect(open.status).toBe('approval_required');
+    const before = rows('tool_name=?', 'gtool3').length;
+    const target = `/v1/admin/kill-switch/tool:${gm.mcpId}:gtool3`;
+    const k = await s.admin.inject({
+      method: 'POST',
+      url: target,
+      headers: adm(),
+      payload: { enabled: true },
+    });
+    expect(k.statusCode).toBe(200);
+    try {
+      const r = await callMcp(tokOther, 'gtool3', { n: 2 });
+      expect(gatedOf(r)).toBeUndefined();
+      expect(r.json.result.isError).toBe(true);
+      expect(rows('tool_name=?', 'gtool3')).toHaveLength(before); // no new row
+      const o = rows('approval_id=?', open.approval_id)[0];
+      expect(o.status).toBe('voided');
+      expect(o.void_reason).toBe('kill_switch');
+      const st = await stdioInvoke(s, stdioTok, 'gtool3', {});
+      expect(J(st).metadata?.approval).toBeUndefined();
+      expect(rows('tool_name=?', 'gtool3')).toHaveLength(before);
+      expect(downstream('gm', 'gtool3')).toBe(0);
+      // a sibling gated tool on the same MCP still gates normally
+      expect(gatedOf(await callMcp(tokOther, 'gtool2', { n: 3 })).status).toBe('approval_required');
+    } finally {
+      await s.admin.inject({
+        method: 'POST',
+        url: target,
+        headers: adm(),
+        payload: { enabled: false },
+      });
+    }
+  });
 });
 
 describe('arguments canary', () => {
