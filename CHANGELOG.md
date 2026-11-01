@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dev tooling: vitest 1.x → 3.2.7 (TD-016) with `pnpm.overrides` `vite >=6.4.4 <7` and `tinypool >=2.1.2`, clearing the tinypool criticals and the vite highs. Test config only (`deps.external` → `server.deps.external`); no runtime change. Two moderate vitest/@vitest/mocker advisories (GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8) remain: the fix is vitest 4.1.12, which needs Node 22+ (CI is Node 20).
 - Tool descriptions are no longer cut to 500 UTF-16 units when a downstream MCP is discovered; the full text is stored and the 500 code-point cut (never splitting a surrogate pair) happens only when a definition is served. Admin MCP views therefore show full descriptions.
 - The `/mcp` insufficient-scope pre-check resolves a tool against the full catalog (same-named tools of different MCPs kept apart) and looks through one level of `ambassador__call_tool`.
+- Community-registry entries are reduced to the fields the server reads (name, display, transport, config, auth, isolation, credentials, tags, category, URLs, version, maintainer, verified) when the registry is cached. Any other key (including the ADR-024 sync provenance fields such as `source`, `official_name`, `package_integrity`, `flags`) is dropped: never persisted into the catalog and no longer echoed by the admin registry API. Install behaviour is unchanged.
 
 ### Fixed
 

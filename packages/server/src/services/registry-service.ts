@@ -9,6 +9,80 @@ const registryEntrySchema = createMcpSchema.extend({
 });
 
 /**
+ * ADR-024: the only keys of a registry entry this server reads, lists or installs. Anything else
+ * (sync provenance such as `source`, `official_name`, `package_integrity`, `flags`, or any other
+ * unknown key) is dropped when the registry is cached, so it is never persisted into the catalog or
+ * echoed by the admin API. Copied key by key into a fresh object (no spread, no `__proto__`).
+ */
+const REGISTRY_ENTRY_KEYS = [
+  'name',
+  'display_name',
+  'description',
+  'icon_url',
+  'transport_type',
+  'config',
+  'auth_type',
+  'oauth_config',
+  'isolation_mode',
+  'requires_user_credentials',
+  'credential_schema',
+  'tags',
+  'category',
+  'repository_url',
+  'documentation_url',
+  'version',
+  'maintainer',
+  'verified',
+  'deprecated',
+  'deprecation_note',
+] as const satisfies readonly (keyof RegistryMcpEntry)[];
+
+// Reverse check: every key of RegistryMcpEntry must be in the allowlist (a new field that is not
+// listed would be silently dropped). Compiles to `never` extras only when the lists agree.
+type _MissingRegistryKeys = Exclude<keyof RegistryMcpEntry, (typeof REGISTRY_ENTRY_KEYS)[number]>;
+const _registryKeysExhaustive: [_MissingRegistryKeys] extends [never] ? true : never = true;
+void _registryKeysExhaustive;
+
+const DEPRECATION_NOTE_MAX = 500;
+
+/** Control, bidi-override/isolate, zero-width and BOM code points. */
+function isHiddenChar(c: number): boolean {
+  return (
+    c <= 0x1f ||
+    (c >= 0x7f && c <= 0x9f) ||
+    (c >= 0x200b && c <= 0x200f) ||
+    (c >= 0x202a && c <= 0x202e) ||
+    (c >= 0x2060 && c <= 0x2064) ||
+    (c >= 0x2066 && c <= 0x2069) ||
+    c === 0xfeff
+  );
+}
+
+/** Admin-facing free text: replace hidden characters with a space, collapse whitespace, trim, cap length. */
+function sanitizeNote(v: string): string {
+  let out = '';
+  for (const ch of v) out += isHiddenChar(ch.codePointAt(0) ?? 0) ? ' ' : ch;
+  return out.replace(/\s+/g, ' ').trim().slice(0, DEPRECATION_NOTE_MAX);
+}
+
+export function pickRegistryEntry(entry: RegistryMcpEntry): RegistryMcpEntry {
+  const out: Record<string, unknown> = {};
+  for (const key of REGISTRY_ENTRY_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(entry, key)) continue;
+    const v = (entry as never)[key];
+    if (key === 'deprecated') {
+      if (typeof v === 'boolean') out[key] = v;
+    } else if (key === 'deprecation_note') {
+      if (typeof v === 'string') {
+        const note = sanitizeNote(v);
+        if (note) out[key] = note;
+      }
+    } else out[key] = v;
+  }
+  return out as unknown as RegistryMcpEntry;
+}
+
+/**
  * Registry-import only: an empty or whitespace `scopes` means "none declared" (e.g. Supabase ships
  * `scopes: ''`). Drop it so the partial oauth parse accepts it; createMcpSchema itself is unchanged.
  */
@@ -108,6 +182,9 @@ export interface RegistryMcpEntry {
   version?: string;
   maintainer?: string;
   verified?: boolean;
+  /** Safety signal: the upstream package is deprecated. Shown to admins. */
+  deprecated?: boolean;
+  deprecation_note?: string;
 }
 
 export interface RegistryData {
@@ -208,10 +285,10 @@ export class RegistryService {
       for (const entry of parsed.mcps) {
         const check = this.checkEntry(entry);
         if (check.status === 'ok') {
-          valid.push(entry);
+          valid.push(pickRegistryEntry(entry));
         } else if (check.status === 'unavailable') {
           // Valid entry, but only the server-side secret is missing: list it, install disabled
-          valid.push(entry);
+          valid.push(pickRegistryEntry(entry));
           unavailable.set(entry.name, check.reason);
           logger.info(
             `[RegistryService] Registry entry '${cleanForLog(entry.name, 100)}' not installable on this server: ${check.reason}`
