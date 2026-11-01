@@ -53,15 +53,19 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
 
   // TD-027: a client_secret_env must name a store secret permitted for the token_url host.
   const checkOAuthBinding = (
-    oauth: { client_secret_env: string; token_url: string; revocation_url?: string } | undefined,
+    oauth:
+      | {
+          client_secret_env: string;
+          token_url: string;
+          auth_url?: string;
+          revocation_url?: string;
+        }
+      | undefined,
     reply: FastifyReply
   ): boolean => {
     if (!oauth) return true;
     try {
-      const store = secretStore ?? new SecretStore();
-      store.assertBinding(oauth.client_secret_env, oauth.token_url);
-      // B3: the secret is also sent to revocation_url, so it must be on the allowlist too
-      if (oauth.revocation_url) store.assertBinding(oauth.client_secret_env, oauth.revocation_url);
+      (secretStore ?? new SecretStore()).assertOAuthConfig(oauth);
       return true;
     } catch (e) {
       reply
@@ -80,14 +84,8 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   // POST /v1/admin/mcps - Create MCP catalog entry
   // ==========================================================================
   fastify.post('/v1/admin/mcps', async (request, reply) => {
-    const parsedBody = createMcpSchema.safeParse(request.body);
-    if (!parsedBody.success) {
-      return reply
-        .status(400)
-        .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request', parsedBody.error.issues));
-    }
-    const body = parsedBody.data;
-    if (!checkOAuthBinding(body.oauth_config, reply)) return;
+    const body = createMcpSchema.parse(request.body); // ZodError -> 400 via the admin error handler
+    if (!checkOAuthBinding(body.oauth_config, reply)) return reply;
     const sourceIp = request.ip || '127.0.0.1';
     const nowIso = new Date().toISOString();
 
@@ -180,14 +178,8 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   // ==========================================================================
   fastify.patch<{ Params: { mcpId: string } }>('/v1/admin/mcps/:mcpId', async (request, reply) => {
     const params = mcpParamsSchema.parse(request.params);
-    const parsedBody = updateMcpSchema.safeParse(request.body);
-    if (!parsedBody.success) {
-      return reply
-        .status(400)
-        .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request', parsedBody.error.issues));
-    }
-    const body = parsedBody.data;
-    if (!checkOAuthBinding(body.oauth_config, reply)) return;
+    const body = updateMcpSchema.parse(request.body); // ZodError -> 400 via the admin error handler
+    if (!checkOAuthBinding(body.oauth_config, reply)) return reply;
     const sourceIp = request.ip || '127.0.0.1';
     const nowIso = new Date().toISOString();
 

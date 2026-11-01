@@ -1,14 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import Fastify from 'fastify';
-import { registerAdminMcpRoutes } from '../../src/admin/mcp-routes.js';
-import { SecretStore } from '../../src/services/secret-store.js';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { startTestServer, stopTestServer } from './helpers';
 
-// TD-027: binding is checked at create/update time, before any DB access.
-const store = new SecretStore({
-  GITHUB_OAUTH_CLIENT_SECRET: { value: 'v', allowedTokenHosts: ['github.com'] },
+// TD-027: through the REAL admin routes (real error handler), not a bare Fastify.
+let handle: Awaited<ReturnType<typeof startTestServer>>;
+beforeAll(async () => {
+  handle = await startTestServer();
+});
+afterAll(async () => {
+  await stopTestServer(handle);
 });
 
-const body = (over: Record<string, string>) => ({
+const body = (over: Record<string, unknown>) => ({
   name: 'gh',
   display_name: 'GH',
   transport_type: 'http',
@@ -25,44 +27,48 @@ const body = (over: Record<string, string>) => ({
   },
 });
 
-async function app() {
-  const f = Fastify();
-  await f.register(registerAdminMcpRoutes, {
-    db: {} as never,
-    audit: {} as never,
-    secretStore: store,
+const send = (method: 'POST' | 'PATCH', url: string, payload: unknown) =>
+  handle.fastify.inject({
+    method,
+    url,
+    headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
+    payload: JSON.stringify(payload),
   });
-  return f;
-}
 
-describe('admin MCP oauth_config secret binding (TD-027)', () => {
+describe('admin MCP oauth_config validation (TD-027)', () => {
   it.each([
-    ['create http token_url (S1)', 'POST', '/v1/admin/mcps', { token_url: 'http://github.com/t' }],
-    [
-      'create foreign revocation_url (B3)',
-      'POST',
-      '/v1/admin/mcps',
-      { revocation_url: 'https://evil.example/r' },
-    ],
-    ['create wrong host', 'POST', '/v1/admin/mcps', { token_url: 'https://evil.example/t' }],
-    ['create REGISTRY_TOKEN', 'POST', '/v1/admin/mcps', { client_secret_env: 'REGISTRY_TOKEN' }],
-    [
-      'create client_id_env DATABASE_URL',
-      'POST',
-      '/v1/admin/mcps',
-      { client_id_env: 'DATABASE_URL' },
-    ],
-    [
-      'update wrong host',
-      'PATCH',
-      '/v1/admin/mcps/11111111-1111-4111-8111-111111111111',
-      { token_url: 'https://evil.example/t' },
-    ],
-  ])('%s -> 400 VALIDATION_ERROR', async (_n, method, url, over) => {
-    const f = await app();
-    const res = await f.inject({ method: method as 'POST', url, payload: body(over) });
+    ['wrong host', { token_url: 'https://evil.example/t' }],
+    ['REGISTRY_TOKEN as secret', { client_secret_env: 'REGISTRY_TOKEN' }],
+    ['http token_url (S1)', { token_url: 'http://github.com/t' }],
+    ['foreign revocation_url (B3)', { revocation_url: 'https://evil.example/r' }],
+    ['client_id_env DATABASE_URL (S2)', { client_id_env: 'DATABASE_URL' }],
+  ])('POST %s -> 400 VALIDATION_ERROR', async (_n, over) => {
+    const res = await send('POST', '/v1/admin/mcps', body(over));
     expect(res.statusCode).toBe(400);
-    expect(JSON.stringify(res.json())).toContain('VALIDATION_ERROR');
-    await f.close();
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('PATCH wrong host / http / bad client id -> 400', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    for (const over of [
+      { token_url: 'https://evil.example/t' },
+      { token_url: 'http://github.com/t' },
+      { client_id_env: 'DATABASE_URL' },
+    ]) {
+      const res = await send('PATCH', `/v1/admin/mcps/${id}`, body(over));
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('schema errors report paths and messages, not received values', async () => {
+    const res = await send('POST', '/v1/admin/mcps', body({ client_id_env: 'DATABASE_URL' }));
+    const text = JSON.stringify(res.json());
+    expect(text).toContain('oauth_config.client_id_env');
+    expect(text).not.toContain('postgres');
+  });
+
+  it('other admin routes now return 400 (not 500) for invalid bodies', async () => {
+    const res = await send('POST', '/v1/admin/mcps', { name: 5 });
+    expect(res.statusCode).toBe(400);
   });
 });

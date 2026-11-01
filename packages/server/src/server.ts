@@ -364,7 +364,11 @@ export class AmbassadorServer {
     // Initialize community registry service
     logger.info('[Server] Initializing community registry...');
     const { RegistryService } = await import('./services/registry-service.js');
-    this.registryService = new RegistryService(this.config.registryConfig, this.db);
+    this.registryService = new RegistryService(
+      this.config.registryConfig,
+      this.db,
+      this.secretStore
+    );
 
     // Fetch registry on startup (non-blocking, errors are logged)
     if (this.config.registryConfig.enabled) {
