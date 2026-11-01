@@ -34,6 +34,11 @@ describe('server boot with tracked migrations', () => {
     // ...and 0005 (ADR-022)
     db.exec('ALTER TABLE agent_grants DROP COLUMN disclosure_mode');
     db.exec('ALTER TABLE oauth_auth_codes DROP COLUMN disclosure_mode');
+    // ...and 0006 (ADR-023)
+    db.exec('DROP TABLE approval_requests');
+    db.exec('DROP TABLE tool_policies');
+    db.exec('ALTER TABLE mcp_catalog DROP COLUMN default_requires_approval');
+    db.exec('ALTER TABLE mcp_catalog DROP COLUMN default_approver');
     db.close();
 
     s = await restartAgentTestServer(s, opts);
