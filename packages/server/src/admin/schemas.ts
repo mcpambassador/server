@@ -8,6 +8,7 @@
  * @see Architecture §16.4 Admin API Design Principles
  */
 
+import { KILL_SWITCH_TARGET_PATTERN } from '@mcpambassador/contracts';
 import { z } from 'zod';
 
 // ==========================================================================
@@ -58,8 +59,9 @@ export const killSwitchSchema = z
   })
   .strict();
 
+// KS-3: only `client:<id>` / `mcp:<name>` are meaningful targets; anything else would be a silent no-op
 export const killSwitchParamsSchema = z.object({
-  target: z.string().min(1),
+  target: z.string().regex(KILL_SWITCH_TARGET_PATTERN, 'target must be client:<id> or mcp:<name>'),
 });
 
 // ==========================================================================

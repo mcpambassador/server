@@ -799,6 +799,17 @@ export const server_settings = sqliteTable('server_settings', {
 });
 
 /**
+ * Active admin kill switches (TD-022). Row present = active; deactivation deletes the row.
+ * target is `client:<id>` or `mcp:<name>`. Loaded into memory at startup, written on every toggle.
+ */
+export const kill_switches = sqliteTable('kill_switches', {
+  target: text('target').primaryKey().notNull(),
+  type: text('type').notNull(),
+  activated_at: text('activated_at').notNull(),
+  activated_by: text('activated_by').notNull(),
+});
+
+/**
  * Drizzle relations (for ORM query joins)
  */
 export const usersRelations = relations(users, ({ many }) => ({

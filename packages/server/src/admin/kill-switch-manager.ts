@@ -1,76 +1,72 @@
 /**
  * Kill Switch Manager
  *
- * Shared kill switch state manager used by both REST API routes and htmx UI routes.
- * Prevents state duplication and ensures consistency across admin endpoints.
+ * Shared kill switch state used by the REST API and enforcement paths. State is held in memory for
+ * synchronous lookups on the hot path and persisted to the `kill_switches` table (TD-022): loaded at
+ * startup, written on every change, so a restart never silently clears an active switch.
  *
- * Phase 2/3 will persist to database for cross-instance coordination.
+ * Key format: `type:target` (e.g. "client:cli_123", "mcp:github"). Active = present.
  *
- * @see CR-M10-001 Kill switch state duplication remediation
- * @see M8.8 Admin API Kill Switch Implementation
+ * @see CR-M10-001, TD-022
  */
 
-/**
- * Manages kill switch state for clients and downstream MCPs
- *
- * Key format: `type:target` (e.g., "client:cli_123", "mcp:github")
- * Active switches are stored in Map; inactive switches are absent.
- */
+import {
+  listKillSwitches,
+  upsertKillSwitch,
+  deleteKillSwitch,
+  type DatabaseClient,
+} from '@mcpambassador/core';
+
+export interface ActiveKillSwitch {
+  target: string;
+  type: 'client' | 'mcp';
+  activated_at: string;
+  activated_by: string;
+}
+
 export class KillSwitchManager {
-  private state = new Map<string, boolean>();
+  private state = new Map<string, ActiveKillSwitch>();
 
-  /**
-   * Toggle kill switch state (used by htmx UI)
-   *
-   * @param type - Kill switch type (client, mcp, etc.)
-   * @param target - Target identifier
-   * @returns New state (true = enabled, false = disabled)
-   */
-  toggle(type: string, target: string): boolean {
-    const key = `${type}:${target}`;
-    const current = this.state.get(key) || false;
-    const newState = !current;
+  constructor(private readonly db?: DatabaseClient) {}
 
-    if (newState) {
-      this.state.set(key, true);
-    } else {
-      this.state.delete(key);
-    }
-
-    return newState;
+  /** Replace in-memory state with the persisted switches (call once at startup, after migrations). */
+  async load(): Promise<number> {
+    if (!this.db) return 0;
+    const rows = await listKillSwitches(this.db);
+    this.state = new Map(rows.map(r => [r.target, r]));
+    return rows.length;
   }
 
   /**
-   * Set kill switch state explicitly (used by REST API)
-   *
-   * @param target - Target identifier (key without type prefix)
-   * @param enabled - Whether kill switch is enabled
+   * Activate / deactivate `target` ("client:<id>" | "mcp:<name>"). Fails closed: an activation takes
+   * effect in memory first, then is persisted; if persistence throws the switch stays active for this
+   * process and the caller learns it will not survive a restart.
    */
-  set(target: string, enabled: boolean): void {
+  async set(target: string, enabled: boolean, actor: string): Promise<void> {
     if (enabled) {
-      this.state.set(target, true);
+      if (!this.state.has(target)) {
+        const rec: ActiveKillSwitch = {
+          target,
+          type: target.startsWith('client:') ? 'client' : 'mcp',
+          activated_at: new Date().toISOString(),
+          activated_by: actor,
+        };
+        this.state.set(target, rec);
+        if (this.db) await upsertKillSwitch(this.db, rec);
+      }
     } else {
+      // Persist the removal first so a failed delete doesn't report a switch as cleared.
+      if (this.db) await deleteKillSwitch(this.db, target);
       this.state.delete(target);
     }
   }
 
-  /**
-   * Check if kill switch is active
-   *
-   * @param type - Kill switch type
-   * @param target - Target identifier
-   * @returns True if kill switch is enabled
-   */
   isActive(type: string, target: string): boolean {
-    return this.state.get(`${type}:${target}`) || false;
+    return this.state.has(`${type}:${target}`);
   }
 
-  /**
-   * Get all active kill switches
-   *
-   * @returns Array of kill switch entries
-   */
-  getAll(): Array<{ key: string; active: boolean }> {
-    return [...this.state.entries()].map(([key, active]) => ({ key, active }));
+  /** Active switches, oldest first */
+  list(): ActiveKillSwitch[] {
+    return [...this.state.values()].sort((a, b) => a.activated_at.localeCompare(b.activated_at));
   }
 }

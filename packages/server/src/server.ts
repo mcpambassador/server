@@ -283,6 +283,13 @@ export class AmbassadorServer {
     logger.info('[Server] Running database migrations...');
     await runMigrations(this.db as DatabaseClient);
 
+    // TD-022: kill switches survive restarts — load persisted state before any listener starts
+    this.killSwitchManager = new KillSwitchManager(this.db as DatabaseClient);
+    const activeKillSwitches = await this.killSwitchManager.load();
+    if (activeKillSwitches > 0) {
+      logger.warn(`[Server] ${activeKillSwitches} kill switch(es) active (restored from database)`);
+    }
+
     // Seed default profiles if needed
     logger.info('[Server] Seeding database...');
     await seedDatabaseIfNeeded(this.db as DatabaseClient, {

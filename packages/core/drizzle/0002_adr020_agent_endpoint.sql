@@ -93,3 +93,10 @@ CREATE TABLE IF NOT EXISTS `server_settings` (
 	`updated_at` text NOT NULL,
 	`updated_by` text
 );
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `kill_switches` (
+	`target` text PRIMARY KEY NOT NULL,
+	`type` text NOT NULL,
+	`activated_at` text NOT NULL,
+	`activated_by` text NOT NULL
+);

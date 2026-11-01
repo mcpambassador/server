@@ -160,3 +160,4 @@ export type {
 
 // ADR-020 agent OAuth repositories (stubs until P3)
 export * from './repositories/agent-oauth.js';
+export * from './repositories/kill-switches.js';
