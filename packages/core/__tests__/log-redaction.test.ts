@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Writable } from 'node:stream';
-import { createLogger, redactSecretsInString, serializeErr, REDACT_PATHS } from '../src/index.js';
+import {
+  createLogger,
+  redactSecretsInString,
+  StreamRedactor,
+  serializeErr,
+  REDACT_PATHS,
+} from '../src/index.js';
 
 // Canary values: if any of these appear in log output, redaction failed.
 const CANARIES = {
@@ -235,6 +241,56 @@ describe('log redaction (TD-026)', () => {
         'supersecretvalue99',
       ]);
       expect(s).not.toContain('value99');
+    });
+  });
+
+  describe('StreamRedactor (stateful stderr)', () => {
+    const feed = (chunks: string[], vals: string[] = []) => {
+      const r = new StreamRedactor(vals);
+      return [...chunks.flatMap(c => r.push(c)), ...r.flush()];
+    };
+
+    it('joins a pattern secret split across 2 chunks', () => {
+      const out = feed(['auth failed amb_pk_canarysplit01', '23456789abcd for user\nnext\n']);
+      expect(out.join('\n')).not.toContain('canarysplit');
+      expect(out).toContain('next');
+    });
+
+    it('joins an exact-value secret split across 2 chunks', () => {
+      const out = feed(['boom plainvault', 'secret99 done\n'], ['plainvaultsecret99']);
+      expect(out.join('\n')).not.toContain('plainvault');
+      expect(out.join('\n')).not.toContain('secret99');
+    });
+
+    it('redacts a PEM block spread over 3 chunks, then resumes normal output', () => {
+      const out = feed([
+        'before\n-----BEGIN RSA PRIVATE KEY-----\nMIIEcanarypemA',
+        'AAA\ncanarypemBBBB\n',
+        '-----END RSA PRIVATE KEY-----\nafter ok\n',
+      ]);
+      const all = out.join('\n');
+      expect(all).not.toContain('canarypem');
+      expect(all).not.toContain('BEGIN');
+      expect(out).toContain('before');
+      expect(out).toContain('after ok');
+    });
+
+    it('PEM with no END marker stays redacted until the stream ends', () => {
+      const out = feed(['-----BEGIN PRIVATE KEY-----\n', 'canarypemX\n', 'canarypemY']);
+      expect(out.join('\n')).not.toContain('canarypem');
+    });
+
+    it('flushes a partial line on flush() and on the size cap (scrubbed)', () => {
+      const r = new StreamRedactor([], 64);
+      expect(r.push('token=canarytail12')).toEqual([]);
+      expect(r.flush().join('')).not.toContain('canarytail12');
+      const big = r.push('x'.repeat(100));
+      expect(big.length).toBe(1);
+      expect(r.flush()).toEqual([]);
+    });
+
+    it('strips CR from CRLF lines', () => {
+      expect(feed(['a\r\nb\r\n'])).toEqual(['a', 'b']);
     });
   });
 });

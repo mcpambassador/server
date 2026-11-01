@@ -12,7 +12,7 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
-import { logger, redactSecretsInString } from '@mcpambassador/core';
+import { logger, redactSecretsInString, StreamRedactor } from '@mcpambassador/core';
 /**
  * SEC-M9-02: Safe environment variable whitelist
  * Only these system environment variables are passed to child processes
@@ -125,22 +125,24 @@ export class StdioMcpConnection extends EventEmitter {
     // Handle stderr (debug logs)
     // F-SEC-M6-004: Redact potential credentials in stderr
     // M33.1: Capture stderr in error buffer
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      const stderr = data.toString();
-      const redacted = redactSecretsInString(stderr, this.secretValues);
-
-      // Split by lines and push each line to error buffer
+    // Line-buffered so a secret split across chunks is joined before it is scrubbed
+    const stderrRedactor = new StreamRedactor(this.secretValues);
+    const emitStderr = (lines: string[]): void => {
       // TD-028: the buffer is exposed via the admin API, so it gets the same redaction as the log
-      const lines = redacted.split('\n').filter(line => line.trim().length > 0);
-      for (const line of lines) {
-        this.errorBuffer.push(line, 'error');
-      }
+      const kept = lines.filter(line => line.trim().length > 0);
+      if (kept.length === 0) return;
+      for (const line of kept) this.errorBuffer.push(line, 'error');
 
       // Truncate to 500 chars per chunk for console logging
-      const truncated =
-        redacted.length > 500 ? redacted.substring(0, 500) + '... (truncated)' : redacted;
-
+      const joined = kept.join('\n');
+      const truncated = joined.length > 500 ? joined.substring(0, 500) + '... (truncated)' : joined;
       logger.error({ stderr: truncated }, `[MCP:${this.config.name}] stderr`);
+    };
+    childProcess.stderr?.on('data', (data: Buffer) => {
+      emitStderr(stderrRedactor.push(data.toString()));
+    });
+    childProcess.stderr?.on('end', () => {
+      emitStderr(stderrRedactor.flush());
     });
 
     // Handle process exit

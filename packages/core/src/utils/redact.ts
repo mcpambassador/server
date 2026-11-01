@@ -65,6 +65,63 @@ export function redactSecretsInString(text: string, exactValues?: readonly strin
   );
 }
 
+const PEM_BEGIN_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----/;
+const PEM_END_RE = /-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----/;
+const PEM_MARKER = '***REDACTED PRIVATE KEY***';
+
+/**
+ * Stateful, per-connection scrubber for a text stream arriving in arbitrary chunks (MCP stderr).
+ * A chunk boundary can split a secret, so output is line-buffered: complete lines are scrubbed
+ * and returned, the trailing partial line waits for more data. The buffer is flushed (scrubbed)
+ * when it exceeds `maxBuffer` (default 8 KB) and on `flush()` (call at stream end/close).
+ * A PEM private key spanning lines is redacted until its END marker.
+ * Residual risk: a secret straddling a forced flush at the size cap.
+ */
+export class StreamRedactor {
+  private buf = '';
+  private inPem = false;
+
+  constructor(
+    private readonly exactValues: readonly string[] = [],
+    private readonly maxBuffer = 8192
+  ) {}
+
+  /** Feed a chunk; returns the scrubbed complete lines (no trailing newlines). */
+  push(chunk: string): string[] {
+    this.buf += chunk;
+    const parts = this.buf.split('\n');
+    this.buf = parts.pop() ?? '';
+    const out = parts.map(l => this.line(l));
+    if (this.buf.length > this.maxBuffer) out.push(...this.drain());
+    return out;
+  }
+
+  /** Scrub and return whatever partial line is left (call when the stream ends). */
+  flush(): string[] {
+    return this.drain();
+  }
+
+  private drain(): string[] {
+    if (this.buf.length === 0) return [];
+    const l = this.line(this.buf);
+    this.buf = '';
+    return [l];
+  }
+
+  private line(raw: string): string {
+    const l = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    if (this.inPem) {
+      if (PEM_END_RE.test(l)) this.inPem = false;
+      return PEM_MARKER;
+    }
+    if (PEM_BEGIN_RE.test(l) && !PEM_END_RE.test(l)) {
+      this.inPem = true;
+      return PEM_MARKER;
+    }
+    return redactSecretsInString(l, this.exactValues);
+  }
+}
+
 const MAX_CAUSE_DEPTH = 3;
 
 interface SerializedErr {
