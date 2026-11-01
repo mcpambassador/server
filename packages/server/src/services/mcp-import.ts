@@ -100,7 +100,7 @@ export async function importYamlMcps(
       const validationResult = await validateMcpConfig(entry);
       if (!validationResult.valid) {
         logger.warn(
-          { errors: validationResult.errors.map(redactSecretsInString) },
+          { errors: validationResult.errors.map(e => redactSecretsInString(e)) },
           `[MCP Import] Validation failed for ${yamlMcp.name}`
         );
         // Update entry to draft with failed validation

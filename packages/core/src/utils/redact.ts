@@ -8,12 +8,34 @@
 
 const REDACTED = '[REDACTED]';
 
-/** Credential-shaped substrings in free text. Order matters: specific prefixes before generic. */
-export function redactSecretsInString(text: string): string {
+const MIN_EXACT_LEN = 8;
+
+/**
+ * Credential-shaped substrings in free text. Order matters: exact values and specific prefixes
+ * before generic rules.
+ *
+ * `exactValues` are known secrets (for example a stdio MCP's config.env values, which can be a
+ * user's decrypted vault credentials). Values shorter than 8 chars are ignored to avoid mangling
+ * ordinary text. They are replaced before any pattern runs, so they are caught even when they do
+ * not look like a credential.
+ */
+export function redactSecretsInString(text: string, exactValues?: readonly string[]): string {
+  let out = text;
+  if (exactValues && exactValues.length > 0) {
+    const vals = [...new Set(exactValues)]
+      .filter(v => v.length >= MIN_EXACT_LEN)
+      .sort((x, y) => y.length - x.length);
+    for (const v of vals) out = out.split(v).join(REDACTED);
+  }
   return (
-    text
-      // Ambassador credentials
-      .replace(/amb_(?:pk|ak|st|rt)_[A-Za-z0-9_-]+/g, 'amb_***REDACTED***')
+    out
+      // PEM private key blocks (to the END line, or to the end of text if truncated)
+      .replace(
+        /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|$)/g,
+        '***REDACTED PRIVATE KEY***'
+      )
+      // Ambassador credentials (amb_pk_, amb_ak_, amb_st_, amb_rt_, amb_at_, amb_ac_, ...)
+      .replace(/amb_[a-z]{2}_[A-Za-z0-9_-]{16,}/g, 'amb_***REDACTED***')
       // Third-party API keys / tokens
       .replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***REDACTED***')
       .replace(/sk_[a-z]+_[a-zA-Z0-9]{20,}/g, 'sk_***REDACTED***')
@@ -21,16 +43,23 @@ export function redactSecretsInString(text: string): string {
       .replace(/github_pat_[a-zA-Z0-9_]{82}/g, 'github_pat_***REDACTED***')
       // JWT-shaped strings
       .replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, 'jwt.***REDACTED***')
-      // Bearer tokens
+      // Userinfo in URLs: scheme://user:pass@host
+      .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#@]*:[^\s/?#@]*@/gi, '$1***:***@')
+      // Authorization header/value: whatever the scheme (Basic, Digest, Bearer, ...), to end of line
+      .replace(/(authorization["']?\s*[:=]\s*)[^\r\n]*/gi, '$1***REDACTED***')
+      // Cookie / Set-Cookie: the whole header value to end of line
+      .replace(/((?:set-)?cookie["']?\s*[:=]\s*)[^\r\n]*/gi, '$1***REDACTED***')
+      // Bearer / Basic tokens outside a header
       .replace(/Bearer\s+[a-zA-Z0-9_\-.~+/]+=*/gi, 'Bearer ***REDACTED***')
+      .replace(/\bBasic\s+[A-Za-z0-9+/]{8,}=*/g, 'Basic ***REDACTED***')
       // Credential-bearing URL query params (OAuth code/state, tokens, keys)
       .replace(
-        /([?&](?:code|state|token|access_token|refresh_token|id_token|code_verifier|client_secret|api_key|apikey|key|secret|password)=)[^&\s"'#]+/gi,
+        /([?&](?:code|state|token|access_token|refresh_token|id_token|code_verifier|client_secret|api_key|apikey|key|secret|password|sessionid|session_id|_csrf|csrf)=)[^&\s"'#]+/gi,
         '$1***REDACTED***'
       )
       // Generic key=value / "key": "value" pairs
       .replace(
-        /(token|password|passwd|secret|apikey|api_key|authorization|cookie)(["']?)[\s]*[:=][\s]*["']?[^\s"',}&]+/gi,
+        /(token|password|passwd|secret|apikey|api_key|sessionid|session_id|_csrf|csrf)(["']?)[\s]*[:=][\s]*["']?[^\s"',}&]+/gi,
         '$1$2=***REDACTED***'
       )
   );

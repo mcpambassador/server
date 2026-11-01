@@ -55,6 +55,8 @@ export class StdioMcpConnection extends EventEmitter {
   private startedAt: number | null = null;
   // M33.1: Error/stderr ring buffer
   private errorBuffer = new ErrorRingBuffer(50);
+  /** config.env values (can be decrypted user credentials): scrubbed by exact value from stderr/errors */
+  private secretValues: string[] = [];
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -104,6 +106,7 @@ export class StdioMcpConnection extends EventEmitter {
     // Add MCP-specific env vars from config
     if (this.config.env) {
       Object.assign(safeEnv, this.config.env);
+      this.secretValues = Object.values(this.config.env).filter(v => typeof v === 'string');
     }
 
     this.process = spawn(cmd, args, {
@@ -124,7 +127,7 @@ export class StdioMcpConnection extends EventEmitter {
     // M33.1: Capture stderr in error buffer
     childProcess.stderr?.on('data', (data: Buffer) => {
       const stderr = data.toString();
-      const redacted = this.redactCredentials(stderr);
+      const redacted = redactSecretsInString(stderr, this.secretValues);
 
       // Split by lines and push each line to error buffer
       // TD-028: the buffer is exposed via the admin API, so it gets the same redaction as the log
@@ -155,7 +158,10 @@ export class StdioMcpConnection extends EventEmitter {
     childProcess.on('error', (err: Error) => {
       logger.error({ err }, `[MCP:${this.config.name}] Process error:`);
       // M33.1: Log error to buffer
-      this.errorBuffer.push(`Process error: ${redactSecretsInString(err.message)}`, 'error');
+      this.errorBuffer.push(
+        `Process error: ${redactSecretsInString(err.message, this.secretValues)}`,
+        'error'
+      );
       this.isHealthy = false;
       this.emit('error', err);
     });
@@ -281,29 +287,6 @@ export class StdioMcpConnection extends EventEmitter {
         `[MCP:${this.config.name}] Notification`
       );
     }
-  }
-
-  /**
-   * Redact potential credentials from stderr output
-   * F-SEC-M6-004: Prevent credential leakage in logs
-   */
-  private redactCredentials(text: string): string {
-    return redactSecretsInString(
-      text
-        // API keys (OpenAI, Anthropic, etc.)
-        .replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***REDACTED***')
-        .replace(/sk_[a-z]+_[a-zA-Z0-9]{20,}/g, 'sk_***REDACTED***')
-        // GitHub tokens
-        .replace(/ghp_[a-zA-Z0-9]{36,}/g, 'ghp_***REDACTED***')
-        .replace(/github_pat_[a-zA-Z0-9_]{82}/g, 'github_pat_***REDACTED***')
-        // Bearer tokens
-        .replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, 'Bearer ***REDACTED***')
-        // Generic tokens/passwords in key=value or "key": "value" format
-        .replace(
-          /(token|password|secret|key|apikey|api_key)[\s]*[:=][\s]*["']?[^\s"',}]+/gi,
-          '$1=***REDACTED***'
-        )
-    );
   }
 
   /**

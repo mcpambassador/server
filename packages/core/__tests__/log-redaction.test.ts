@@ -120,7 +120,7 @@ describe('log redaction (TD-026)', () => {
   it('redactSecretsInString covers Ambassador keys, JWTs, bearer and URL query secrets', () => {
     const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjYW5hcnkifQ.c2lnbmF0dXJlLWNhbmFyeQ';
     const s = redactSecretsInString(
-      `amb_pk_abc123 amb_ak_def456 amb_st_g789 amb_rt_h012 ${jwt} Bearer abc.def ` +
+      `amb_pk_abc123abc123abc123 amb_ak_def456def456def456 amb_st_g789g789g789g789 amb_rt_h012h012h012h012 ${jwt} Bearer abc.def ` +
         'https://x/?code=C1&state=S1&access_token=T1&keep=1 password: hunter2'
     );
     for (const bad of [
@@ -157,5 +157,84 @@ describe('log redaction (TD-026)', () => {
     for (const h of ['authorization', 'cookie', 'set-cookie', 'x-admin-key', 'x-session-token']) {
       expect(REDACT_PATHS).toContain(`["${h}"]`);
     }
+  });
+
+  // Reviewer gaps R1-R4, exact-value (S1) and PEM: each leak must be scrubbed from the message and
+  // the stack of an Error, including one reached through `cause`.
+  describe('credential shapes (R1-R4, S1, PEM)', () => {
+    const PEM =
+      '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqcanarypem0123456789\nabcdefcanarypemline2\n-----END PRIVATE KEY-----';
+    const LEAKS: Record<string, { text: string; secret: string }> = {
+      'R1 amb_at_': {
+        text: 'tok amb_at_canaryaccess0123456789ab',
+        secret: 'canaryaccess0123456789ab',
+      },
+      'R1 amb_ac_': {
+        text: 'code amb_ac_canaryauthcode0123456789',
+        secret: 'canaryauthcode0123456789',
+      },
+      'R2 userinfo': {
+        text: 'connect postgres://dbuser:canaryDbPass99@db.internal:5432/x',
+        secret: 'canaryDbPass99',
+      },
+      'R2 userinfo https': {
+        text: 'GET https://svc:canarySvcPw77@api.example/v1',
+        secret: 'canarySvcPw77',
+      },
+      'R3 basic': {
+        text: 'Authorization: Basic Y2FuYXJ5dXNlcjpjYW5hcnlwdw== extra',
+        secret: 'Y2FuYXJ5dXNlcjpjYW5hcnlwdw',
+      },
+      'R3 other scheme': {
+        text: 'authorization: Digest username=canaryuser response=canarydigest01',
+        secret: 'canarydigest01',
+      },
+      'R4 cookie': {
+        text: 'Cookie: a=1; sid=canarycookie11; other=canarycookie22',
+        secret: 'canarycookie22',
+      },
+      'R4 set-cookie': {
+        text: 'Set-Cookie: sessionId=canarysetck33; Path=/; HttpOnly',
+        secret: 'canarysetck33',
+      },
+      'R4 sessionId': { text: 'sessionId=canarysession44 ok', secret: 'canarysession44' },
+      'R4 _csrf': { text: '"_csrf": "canarycsrf55"', secret: 'canarycsrf55' },
+      PEM: { text: `key follows ${PEM} done`, secret: 'canarypem' },
+    };
+
+    for (const [name, { text, secret }] of Object.entries(LEAKS)) {
+      it(`${name}: scrubbed from string, message, stack and cause`, () => {
+        expect(redactSecretsInString(text)).not.toContain(secret);
+
+        const { logger, out } = capture();
+        const cause = new Error(`inner: ${text}`);
+        const err = new Error(`outer: ${text}`, { cause });
+        err.stack = `Error: outer\n    at ${text.replace(/\n/g, ' ')} (file.ts:1:1)`;
+        logger.error({ err }, 'boom');
+        expect(out()).not.toContain(secret);
+      });
+    }
+
+    it('keeps the line after a Cookie header untouched', () => {
+      expect(redactSecretsInString('Cookie: a=canary1234\nnext line ok')).toContain('next line ok');
+    });
+
+    it('S1: exact values (len >= 8) are scrubbed even when they look like nothing', () => {
+      const vals = ['plainvaultsecret', 'short', 'p@ss.word/with+regex(chars)'];
+      const text = 'fail plainvaultsecret then short then p@ss.word/with+regex(chars) done';
+      const s = redactSecretsInString(text, vals);
+      expect(s).not.toContain('plainvaultsecret');
+      expect(s).not.toContain('p@ss.word/with+regex(chars)');
+      expect(s).toContain('short'); // under 8 chars: left alone
+      expect(redactSecretsInString(text)).toContain('plainvaultsecret'); // no list, no scrub
+    });
+
+    it('S1: the longest exact value wins when values overlap', () => {
+      const s = redactSecretsInString('x supersecretvalue99 y', [
+        'supersecret',
+        'supersecretvalue99',
+      ]);
+      expect(s).not.toContain('value99');
+    });
   });
 });
