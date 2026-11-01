@@ -123,7 +123,7 @@ export function checkIsolationAvailable(
     })();
 
   const hint =
-    'Run the container via docker/entrypoint.sh with cap_add SETUID, SETGID, KILL, CHOWN, or unset MCP_AMBASSADOR_CHILD_UID to disable child isolation (not recommended).';
+    'Run the container via docker/entrypoint.sh with cap_add SETUID, SETGID, KILL, CHOWN, SETPCAP, or unset MCP_AMBASSADOR_CHILD_UID to disable child isolation (not recommended).';
   if (!setprivOk) {
     return `child isolation (uid ${iso.uid}) requires ${SETPRIV_PATH} (util-linux), which is missing. ${hint}`;
   }
@@ -167,7 +167,7 @@ export function wrapCommandForIsolation(
       '--',
       '/bin/sh',
       '-c',
-      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd "$0" && exec "$@"',
+      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
       cwd,
       cmd,
       ...args,

@@ -43,11 +43,11 @@ afterEach(() => {
 
 describe('resolveChildIsolation', () => {
   it('is disabled by default', () => {
-    expect(resolveChildIsolation({}, 1000)).toBeNull();
-    expect(resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: ' ' }, 1000)).toBeNull();
+    expect(resolveChildIsolation({}, 1000, 1000)).toBeNull();
+    expect(resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: ' ' }, 1000, 1000)).toBeNull();
   });
   it('reads uid, defaults gid to uid and home', () => {
-    expect(resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: '1001' }, 1000)).toEqual(iso);
+    expect(resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: '1001' }, 1000, 1000)).toEqual(iso);
     expect(
       resolveChildIsolation(
         {
@@ -55,15 +55,16 @@ describe('resolveChildIsolation', () => {
           MCP_AMBASSADOR_CHILD_GID: '1002',
           MCP_AMBASSADOR_CHILD_HOME: '/tmp/h',
         },
+        1000,
         1000
       )
     ).toEqual({ uid: 1001, gid: 1002, home: '/tmp/h' });
   });
   it('rejects bad values, root and the server uid', () => {
     for (const v of ['abc', '0', '-1', '1e3', '4294967295']) {
-      expect(() => resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: v }, 1000)).toThrow();
+      expect(() => resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: v }, 1000, 1000)).toThrow();
     }
-    expect(() => resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: '1000' }, 1000)).toThrow(
+    expect(() => resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: '1000' }, 1000, 1000)).toThrow(
       /equals the server uid/
     );
     for (const h of [
@@ -79,6 +80,7 @@ describe('resolveChildIsolation', () => {
       expect(() =>
         resolveChildIsolation(
           { MCP_AMBASSADOR_CHILD_UID: '1001', MCP_AMBASSADOR_CHILD_HOME: h },
+          1000,
           1000
         )
       ).toThrow(/single path component/);
@@ -157,7 +159,7 @@ describe('spawn wrapping', () => {
       '--',
       '/bin/sh',
       '-c',
-      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd "$0" && exec "$@"',
+      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
       '/tmp/mcp-home',
       'npx',
       '-y',
