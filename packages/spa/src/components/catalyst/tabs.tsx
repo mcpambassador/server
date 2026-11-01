@@ -1,6 +1,6 @@
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
-import clsx from 'clsx'
-import type React from 'react'
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
+import clsx from 'clsx';
+import type React from 'react';
 
 export function Tabs({
   className,
@@ -11,22 +11,23 @@ export function Tabs({
     <TabGroup {...props} className={clsx(className)}>
       {children}
     </TabGroup>
-  )
+  );
 }
 
 export function TabsList({ className, ...props }: React.ComponentPropsWithoutRef<typeof TabList>) {
   return (
     <TabList
       {...props}
-      className={clsx(
-        className,
-        'flex gap-4 border-b border-zinc-950/10 dark:border-white/10'
-      )}
+      className={clsx(className, 'flex gap-4 border-b border-zinc-950/10 dark:border-white/10')}
     />
-  )
+  );
 }
 
-export function TabsTrigger({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof Tab>) {
+export function TabsTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Tab>) {
   return (
     <Tab
       {...props}
@@ -40,19 +41,20 @@ export function TabsTrigger({ className, children, ...props }: React.ComponentPr
     >
       {children}
     </Tab>
-  )
+  );
 }
 
-export function TabsContent({ className, ...props }: React.ComponentPropsWithoutRef<typeof TabPanel>) {
-  return (
-    <TabPanel
-      {...props}
-      className={clsx(className, 'mt-4')}
-    />
-  )
+export function TabsContent({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TabPanel>) {
+  return <TabPanel {...props} className={clsx(className, 'mt-4')} />;
 }
 
 // Wrapper for TabPanels (required by Headless UI)
-export function TabsPanels({ className, ...props }: React.ComponentPropsWithoutRef<typeof TabPanels>) {
-  return <TabPanels {...props} className={clsx(className)} />
+export function TabsPanels({
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TabPanels>) {
+  return <TabPanels {...props} className={clsx(className)} />;
 }

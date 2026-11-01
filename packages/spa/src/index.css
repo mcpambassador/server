@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Switch to class-based dark mode so only elements inside a
    .dark ancestor get dark: variants. The sidebar is wrapped
@@ -24,7 +24,7 @@
 
   body {
     @apply bg-zinc-50 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     font-variant-numeric: normal;
   }
 

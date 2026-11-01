@@ -1,80 +1,30 @@
 /**
  * Remote agent endpoint types (ADR-020).
- * Mirrors packages/contracts/src/agent-endpoint.ts (the SPA does not depend on the contracts package).
+ * Wire types come from @mcpambassador/contracts (type-only imports, so zod stays out of the bundle).
  */
+import type {
+  ConsentDetails,
+  ConsentDecision,
+  ConsentDecisionResponse,
+  AgentGrantSummary,
+  CreateGrantRequest,
+  CreateGrantResponse,
+  OAuthClientSummary,
+  AgentEndpointSettings,
+} from '@mcpambassador/contracts';
 
-export interface ConsentSubscription {
-  name: string;
-  scope: string;
-  description?: string;
-}
+export type {
+  ConsentDetails,
+  ConsentDecision,
+  ConsentDecisionResponse,
+  AgentGrantSummary,
+  CreateGrantRequest,
+  CreateGrantResponse,
+  OAuthClientSummary,
+  AgentEndpointSettings,
+};
 
-export interface ConsentDetails {
-  client_name: string;
-  client_verified: boolean;
-  requested_scopes: string[];
-  available_subscriptions: ConsentSubscription[];
-  default_ttl_seconds: number;
-  max_ttl_seconds: number;
-}
-
-export interface ConsentDecision {
-  decision: 'approve' | 'deny';
-  scopes: string[];
-  tool_allowlist?: string[];
-  ttl_seconds: number;
-  label?: string;
-}
-
-export interface ConsentDecisionResponse {
-  redirect_url: string;
-}
-
-export interface AgentGrantSummary {
-  grant_id: string;
-  label: string;
-  client_id: string | null;
-  client_name: string | null;
-  scopes: string[];
-  tool_allowlist: string[] | null;
-  resource: string;
-  created_at: string;
-  expires_at: string;
-  last_used_at: string | null;
-  revoked_at: string | null;
-  has_refresh_token: boolean;
-}
-
-export interface CreateGrantRequest {
-  label: string;
-  scopes: string[];
-  tool_allowlist?: string[];
-  ttl_seconds?: number;
-}
-
-export interface CreateGrantResponse {
-  grant_id: string;
-  access_token: string;
-  token_type: 'Bearer';
-  expires_at: string;
-  resource: string;
-  scopes: string[];
-}
-
-export interface OAuthClientSummary {
-  client_id: string;
-  client_name: string;
-  redirect_uris: string[];
-  registered_via: 'admin' | 'dcr';
-  created_at: string;
-  last_used_at: string | null;
-  disabled: boolean;
-}
-
-export interface AgentEndpointSettings {
-  enabled: boolean;
-  dynamic_client_registration: boolean;
-}
+export type ConsentSubscription = ConsentDetails['available_subscriptions'][number];
 
 export type GrantStatus = 'active' | 'expired' | 'revoked';
 

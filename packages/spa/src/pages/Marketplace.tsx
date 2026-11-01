@@ -1,6 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { MagnifyingGlassIcon, CubeIcon, KeyIcon, ChevronDownIcon, WrenchScrewdriverIcon } from '@heroicons/react/20/solid';
+import {
+  MagnifyingGlassIcon,
+  CubeIcon,
+  KeyIcon,
+  ChevronDownIcon,
+  WrenchScrewdriverIcon,
+} from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -51,7 +57,7 @@ function ToolPreview({ tools }: { tools: McpTool[] }) {
     <div className="space-y-1">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(v => !v)}
         className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors group"
         aria-expanded={open}
       >
@@ -69,7 +75,7 @@ function ToolPreview({ tools }: { tools: McpTool[] }) {
           className="mt-2 space-y-1 rounded-md border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/50 px-3 py-2"
           role="list"
         >
-          {preview.map((tool) => (
+          {preview.map(tool => (
             <li
               key={tool.name}
               className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300"
@@ -112,15 +118,14 @@ export function Marketplace() {
 
   const filteredMcps = useMemo(() => {
     const entries = marketplace?.data ?? [];
-    return entries.filter((mcp) => {
+    return entries.filter(mcp => {
       const lowerQuery = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
         mcp.name.toLowerCase().includes(lowerQuery) ||
         mcp.description?.toLowerCase().includes(lowerQuery);
 
-      const matchesCategory =
-        activeCategory === ALL_CATEGORY || mcp.category === activeCategory;
+      const matchesCategory = activeCategory === ALL_CATEGORY || mcp.category === activeCategory;
 
       return matchesSearch && matchesCategory;
     });
@@ -143,7 +148,10 @@ export function Marketplace() {
       return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
+            <div
+              key={i}
+              className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10"
+            >
               <div className="animate-pulse space-y-3">
                 <div className="h-6 w-3/4 rounded bg-zinc-200 dark:bg-zinc-700" />
                 <div className="h-4 w-full rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -171,14 +179,16 @@ export function Marketplace() {
 
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {mcps.map((mcp) => (
+        {mcps.map(mcp => (
           <div
             key={mcp.id}
             className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
           >
             <div className="flex flex-col flex-1 space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">{mcp.name}</h3>
+                <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+                  {mcp.name}
+                </h3>
                 <McpIcon iconUrl={mcp.icon_url} name={mcp.name} />
               </div>
               <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 line-clamp-2">
@@ -229,7 +239,7 @@ export function Marketplace() {
         <Input
           placeholder="Search MCPs..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={e => setSearchQuery(e.target.value)}
           className="pl-10"
         />
       </div>
@@ -238,17 +248,17 @@ export function Marketplace() {
       {!isLoading && categories.length > 0 ? (
         <Tabs
           selectedIndex={selectedTabIndex}
-          onChange={(index) => handleCategoryChange(allTabKeys[index] ?? ALL_CATEGORY)}
+          onChange={index => handleCategoryChange(allTabKeys[index] ?? ALL_CATEGORY)}
         >
           <TabsList>
             <TabsTrigger>All</TabsTrigger>
-            {categories.map((category) => (
+            {categories.map(category => (
               <TabsTrigger key={category}>{category}</TabsTrigger>
             ))}
           </TabsList>
           <TabsPanels>
             {/* One panel per tab; all panels show the same filtered grid driven by URL state */}
-            {allTabKeys.map((key) => (
+            {allTabKeys.map(key => (
               <TabsContent key={key}>
                 <McpGrid mcps={filteredMcps} />
               </TabsContent>

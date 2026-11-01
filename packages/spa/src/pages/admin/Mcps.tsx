@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  PlusIcon, 
-  EyeIcon, 
-  ArrowPathIcon, 
-  ArchiveBoxIcon, 
+import {
+  PlusIcon,
+  EyeIcon,
+  ArrowPathIcon,
+  ArchiveBoxIcon,
   TrashIcon,
   ArrowPathRoundedSquareIcon,
   ExclamationTriangleIcon,
@@ -17,9 +17,22 @@ import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
-import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Dialog,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import {
   useAdminMcps,
@@ -37,7 +50,9 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 export function McpsAdmin() {
   usePageTitle('Admin - MCPs');
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<'draft' | 'published' | 'archived' | undefined>(
+    undefined
+  );
   const { data: mcpsData, isLoading } = useAdminMcps({ status: statusFilter });
   const { data: healthData } = useAdminMcpHealth();
   const deleteMcp = useDeleteMcp();
@@ -54,8 +69,12 @@ export function McpsAdmin() {
 
   const hasPendingChanges = catalogStatus?.has_changes ?? false;
   const totalChanges = hasPendingChanges
-    ? (catalogStatus!.shared.to_add.length + catalogStatus!.shared.to_remove.length + catalogStatus!.shared.to_update.length +
-       catalogStatus!.per_user.to_add.length + catalogStatus!.per_user.to_remove.length + catalogStatus!.per_user.to_update.length)
+    ? catalogStatus!.shared.to_add.length +
+      catalogStatus!.shared.to_remove.length +
+      catalogStatus!.shared.to_update.length +
+      catalogStatus!.per_user.to_add.length +
+      catalogStatus!.per_user.to_remove.length +
+      catalogStatus!.per_user.to_update.length
     : 0;
 
   // Build a lookup map from MCP internal name to health entry
@@ -85,7 +104,9 @@ export function McpsAdmin() {
         toast.error('Validation failed', { description: result.errors.join(', ') });
       }
     } catch (error) {
-      toast.error('Validate MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Validate MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -96,7 +117,9 @@ export function McpsAdmin() {
       setPublishDialogOpen(false);
       setMcpToPublish(null);
     } catch (error) {
-      toast.error('Publish MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Publish MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -107,7 +130,9 @@ export function McpsAdmin() {
       setArchiveDialogOpen(false);
       setMcpToArchive(null);
     } catch (error) {
-      toast.error('Archive MCP failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Archive MCP failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -134,7 +159,9 @@ export function McpsAdmin() {
         toast.warning(`${result.summary.successful} succeeded, ${result.summary.failed} failed`);
       }
     } catch (error) {
-      toast.error('Apply changes failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Apply changes failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -157,7 +184,9 @@ export function McpsAdmin() {
             <ArrowPathRoundedSquareIcon />
             Apply Changes
             {hasPendingChanges && totalChanges > 0 && (
-              <Badge color="zinc" className="ml-1">{totalChanges}</Badge>
+              <Badge color="zinc" className="ml-1">
+                {totalChanges}
+              </Badge>
             )}
           </Button>
           <Button onClick={() => navigate('/app/admin/mcps/new')}>
@@ -199,19 +228,23 @@ export function McpsAdmin() {
             <ExclamationTriangleIcon className="size-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                {totalChanges} pending change{totalChanges !== 1 ? 's' : ''}:
-                {' '}
+                {totalChanges} pending change{totalChanges !== 1 ? 's' : ''}:{' '}
                 {[
                   catalogStatus.shared.to_add.length + catalogStatus.per_user.to_add.length > 0 &&
                     `${catalogStatus.shared.to_add.length + catalogStatus.per_user.to_add.length} to add`,
-                  catalogStatus.shared.to_update.length + catalogStatus.per_user.to_update.length > 0 &&
+                  catalogStatus.shared.to_update.length + catalogStatus.per_user.to_update.length >
+                    0 &&
                     `${catalogStatus.shared.to_update.length + catalogStatus.per_user.to_update.length} to update`,
-                  catalogStatus.shared.to_remove.length + catalogStatus.per_user.to_remove.length > 0 &&
+                  catalogStatus.shared.to_remove.length + catalogStatus.per_user.to_remove.length >
+                    0 &&
                     `${catalogStatus.shared.to_remove.length + catalogStatus.per_user.to_remove.length} to remove`,
-                ].filter(Boolean).join(', ')}
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                Click &quot;Apply Changes&quot; to preview and apply these changes to the running server
+                Click &quot;Apply Changes&quot; to preview and apply these changes to the running
+                server
               </p>
             </div>
           </div>
@@ -299,7 +332,7 @@ export function McpsAdmin() {
               </TableRow>
             ) : (
               // Data rows
-              mcps.map((mcp) => (
+              mcps.map(mcp => (
                 <TableRow key={mcp.mcp_id}>
                   <TableCell>
                     <Link
@@ -314,15 +347,17 @@ export function McpsAdmin() {
                       {mcp.name}
                     </code>
                   </TableCell>
-                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.transport_type}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">
+                    {mcp.transport_type}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       color={
                         mcp.status === 'draft'
                           ? 'zinc'
                           : mcp.status === 'published'
-                          ? 'green'
-                          : 'zinc'
+                            ? 'green'
+                            : 'zinc'
                       }
                     >
                       {mcp.status}
@@ -335,8 +370,8 @@ export function McpsAdmin() {
                           mcp.validation_status === 'valid'
                             ? 'green'
                             : mcp.validation_status === 'invalid'
-                            ? 'red'
-                            : 'zinc'
+                              ? 'red'
+                              : 'zinc'
                         }
                       >
                         {mcp.validation_status}
@@ -355,17 +390,17 @@ export function McpsAdmin() {
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`inline-block size-2 rounded-full ${
-                              health.connected
-                                ? 'bg-green-500'
-                                : 'bg-red-500'
+                              health.connected ? 'bg-green-500' : 'bg-red-500'
                             }`}
                             title={health.connected ? 'Connected' : 'Disconnected'}
                           />
-                          <span className={`text-sm ${
-                            health.connected
-                              ? 'text-green-700 dark:text-green-400'
-                              : 'text-red-700 dark:text-red-400'
-                          }`}>
+                          <span
+                            className={`text-sm ${
+                              health.connected
+                                ? 'text-green-700 dark:text-green-400'
+                                : 'text-red-700 dark:text-red-400'
+                            }`}
+                          >
                             {health.connected ? 'Online' : 'Offline'}
                           </span>
                           {health.detail.toolCount != null && health.detail.toolCount > 0 && (
@@ -377,7 +412,9 @@ export function McpsAdmin() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-zinc-700 dark:text-zinc-300">{mcp.isolation_mode}</TableCell>
+                  <TableCell className="text-zinc-700 dark:text-zinc-300">
+                    {mcp.isolation_mode}
+                  </TableCell>
                   <TableCell className="text-zinc-700 dark:text-zinc-300">
                     {new Date(mcp.created_at).toLocaleDateString()}
                   </TableCell>
@@ -473,7 +510,8 @@ export function McpsAdmin() {
       <Alert open={publishDialogOpen} onClose={setPublishDialogOpen}>
         <AlertTitle>Publish MCP?</AlertTitle>
         <AlertDescription>
-          This will publish &quot;{mcpToPublish?.display_name}&quot; and make it available to authorized users. Ensure the configuration is correct before publishing.
+          This will publish &quot;{mcpToPublish?.display_name}&quot; and make it available to
+          authorized users. Ensure the configuration is correct before publishing.
         </AlertDescription>
         <AlertActions>
           <Button
@@ -498,7 +536,8 @@ export function McpsAdmin() {
       <Alert open={archiveDialogOpen} onClose={setArchiveDialogOpen}>
         <AlertTitle>Archive MCP?</AlertTitle>
         <AlertDescription>
-          This will archive &quot;{mcpToArchive?.display_name}&quot; and make it unavailable to users. You can re-publish it later.
+          This will archive &quot;{mcpToArchive?.display_name}&quot; and make it unavailable to
+          users. You can re-publish it later.
         </AlertDescription>
         <AlertActions>
           <Button
@@ -526,21 +565,39 @@ export function McpsAdmin() {
             {catalogStatus?.shared.to_add && catalogStatus.shared.to_add.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 text-sm font-bold">+</div>
-                  <h4 className="text-sm font-semibold text-green-700 dark:text-green-400">To Add ({catalogStatus.shared.to_add.length + (catalogStatus.per_user.to_add?.length ?? 0)})</h4>
+                  <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 text-sm font-bold">
+                    +
+                  </div>
+                  <h4 className="text-sm font-semibold text-green-700 dark:text-green-400">
+                    To Add (
+                    {catalogStatus.shared.to_add.length +
+                      (catalogStatus.per_user.to_add?.length ?? 0)}
+                    )
+                  </h4>
                 </div>
                 <div className="ml-8 space-y-2">
                   {catalogStatus.shared.to_add.map(item => (
-                    <div key={item.name} className="rounded-lg bg-green-50 dark:bg-green-500/5 ring-1 ring-green-600/20 dark:ring-green-400/20 p-3">
-                      <p className="text-sm font-medium text-green-900 dark:text-green-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-green-50 dark:bg-green-500/5 ring-1 ring-green-600/20 dark:ring-green-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-green-900 dark:text-green-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                        <span className="font-medium">Type:</span> {item.transport_type} · <span className="font-medium">Isolation:</span> shared
+                        <span className="font-medium">Type:</span> {item.transport_type} ·{' '}
+                        <span className="font-medium">Isolation:</span> shared
                       </p>
                     </div>
                   ))}
                   {catalogStatus.per_user.to_add.map(item => (
-                    <div key={item.name} className="rounded-lg bg-green-50 dark:bg-green-500/5 ring-1 ring-green-600/20 dark:ring-green-400/20 p-3">
-                      <p className="text-sm font-medium text-green-900 dark:text-green-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-green-50 dark:bg-green-500/5 ring-1 ring-green-600/20 dark:ring-green-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-green-900 dark:text-green-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-green-700 dark:text-green-300 mt-1">
                         <span className="font-medium">Isolation:</span> per_user
                       </p>
@@ -551,24 +608,45 @@ export function McpsAdmin() {
             )}
 
             {/* To Update section */}
-            {((catalogStatus?.shared.to_update?.length ?? 0) + (catalogStatus?.per_user.to_update?.length ?? 0)) > 0 && (
+            {(catalogStatus?.shared.to_update?.length ?? 0) +
+              (catalogStatus?.per_user.to_update?.length ?? 0) >
+              0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center size-6 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-bold">↻</div>
-                  <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-400">To Update ({(catalogStatus?.shared.to_update?.length ?? 0) + (catalogStatus?.per_user.to_update?.length ?? 0)})</h4>
+                  <div className="flex items-center justify-center size-6 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-bold">
+                    ↻
+                  </div>
+                  <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    To Update (
+                    {(catalogStatus?.shared.to_update?.length ?? 0) +
+                      (catalogStatus?.per_user.to_update?.length ?? 0)}
+                    )
+                  </h4>
                 </div>
                 <div className="ml-8 space-y-2">
                   {catalogStatus?.shared.to_update.map(item => (
-                    <div key={item.name} className="rounded-lg bg-amber-50 dark:bg-amber-500/5 ring-1 ring-amber-600/20 dark:ring-amber-400/20 p-3">
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-amber-50 dark:bg-amber-500/5 ring-1 ring-amber-600/20 dark:ring-amber-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                        <span className="font-medium">Changed:</span> {item.changed_fields.join(', ')} · <span className="font-medium">Isolation:</span> shared
+                        <span className="font-medium">Changed:</span>{' '}
+                        {item.changed_fields.join(', ')} ·{' '}
+                        <span className="font-medium">Isolation:</span> shared
                       </p>
                     </div>
                   ))}
                   {catalogStatus?.per_user.to_update.map(item => (
-                    <div key={item.name} className="rounded-lg bg-amber-50 dark:bg-amber-500/5 ring-1 ring-amber-600/20 dark:ring-amber-400/20 p-3">
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-amber-50 dark:bg-amber-500/5 ring-1 ring-amber-600/20 dark:ring-amber-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
                         <span className="font-medium">Isolation:</span> per_user
                       </p>
@@ -579,24 +657,43 @@ export function McpsAdmin() {
             )}
 
             {/* To Remove section */}
-            {((catalogStatus?.shared.to_remove?.length ?? 0) + (catalogStatus?.per_user.to_remove?.length ?? 0)) > 0 && (
+            {(catalogStatus?.shared.to_remove?.length ?? 0) +
+              (catalogStatus?.per_user.to_remove?.length ?? 0) >
+              0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center size-6 rounded-full bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-sm font-bold">−</div>
-                  <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">To Remove ({(catalogStatus?.shared.to_remove?.length ?? 0) + (catalogStatus?.per_user.to_remove?.length ?? 0)})</h4>
+                  <div className="flex items-center justify-center size-6 rounded-full bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-sm font-bold">
+                    −
+                  </div>
+                  <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">
+                    To Remove (
+                    {(catalogStatus?.shared.to_remove?.length ?? 0) +
+                      (catalogStatus?.per_user.to_remove?.length ?? 0)}
+                    )
+                  </h4>
                 </div>
                 <div className="ml-8 space-y-2">
                   {catalogStatus?.shared.to_remove.map(item => (
-                    <div key={item.name} className="rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20 p-3">
-                      <p className="text-sm font-medium text-red-900 dark:text-red-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-red-700 dark:text-red-300 mt-1">
                         <span className="font-medium">Reason:</span> {item.reason}
                       </p>
                     </div>
                   ))}
                   {catalogStatus?.per_user.to_remove.map(item => (
-                    <div key={item.name} className="rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20 p-3">
-                      <p className="text-sm font-medium text-red-900 dark:text-red-200">{item.name}</p>
+                    <div
+                      key={item.name}
+                      className="rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20 p-3"
+                    >
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-red-700 dark:text-red-300 mt-1">
                         <span className="font-medium">Isolation:</span> per_user
                       </p>
@@ -623,7 +720,9 @@ export function McpsAdmin() {
           </div>
         </DialogBody>
         <DialogActions>
-          <Button plain onClick={() => setPreviewOpen(false)}>Cancel</Button>
+          <Button plain onClick={() => setPreviewOpen(false)}>
+            Cancel
+          </Button>
           <Button color="amber" onClick={handleApply} disabled={applyCatalogChanges.isPending}>
             {applyCatalogChanges.isPending ? 'Applying...' : 'Apply Changes'}
           </Button>
@@ -646,7 +745,9 @@ export function McpsAdmin() {
               )}
               <div>
                 <DialogTitle>
-                  {applyResult.summary.failed === 0 ? 'Changes Applied' : 'Changes Applied with Errors'}
+                  {applyResult.summary.failed === 0
+                    ? 'Changes Applied'
+                    : 'Changes Applied with Errors'}
                 </DialogTitle>
                 <DialogDescription>
                   {applyResult.summary.successful} succeeded
@@ -658,8 +759,13 @@ export function McpsAdmin() {
               <div className="space-y-3">
                 {/* Shared successes */}
                 {applyResult.shared.added.map(name => (
-                  <div key={`add-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`add-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Added</p>
@@ -667,8 +773,13 @@ export function McpsAdmin() {
                   </div>
                 ))}
                 {applyResult.shared.updated.map(name => (
-                  <div key={`upd-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`upd-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Updated</p>
@@ -676,8 +787,13 @@ export function McpsAdmin() {
                   </div>
                 ))}
                 {applyResult.shared.removed.map(name => (
-                  <div key={`rem-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`rem-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Removed</p>
@@ -687,41 +803,73 @@ export function McpsAdmin() {
 
                 {/* Per-user changes */}
                 {applyResult.per_user.configs_added.map(name => (
-                  <div key={`pu-add-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`pu-add-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Added (per-user)</p>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                        Added (per-user)
+                      </p>
                     </div>
                   </div>
                 ))}
                 {applyResult.per_user.configs_updated.map(name => (
-                  <div key={`pu-upd-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`pu-upd-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Updated (per-user)</p>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                        Updated (per-user)
+                      </p>
                     </div>
                   </div>
                 ))}
                 {applyResult.per_user.configs_removed.map(name => (
-                  <div key={`pu-rem-${name}`} className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">✓</div>
+                  <div
+                    key={`pu-rem-${name}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/50"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✓
+                    </div>
                     <div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{name}</p>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">Removed (per-user)</p>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                        Removed (per-user)
+                      </p>
                     </div>
                   </div>
                 ))}
 
                 {/* Errors */}
                 {applyResult.shared.errors.map((err, i) => (
-                  <div key={`err-${i}`} className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20">
-                    <div className="flex items-center justify-center size-6 rounded-full bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5 text-sm font-bold">✗</div>
+                  <div
+                    key={`err-${i}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/5 ring-1 ring-red-600/20 dark:ring-red-400/20"
+                  >
+                    <div className="flex items-center justify-center size-6 rounded-full bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 flex-shrink-0 mt-0.5 text-sm font-bold">
+                      ✗
+                    </div>
                     <div>
-                      <p className="text-sm font-medium text-red-900 dark:text-red-200">{err.name}</p>
-                      <p className="text-xs text-red-700 dark:text-red-300 mt-0.5 font-medium">{err.action} failed</p>
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-mono">{err.error}</p>
+                      <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                        {err.name}
+                      </p>
+                      <p className="text-xs text-red-700 dark:text-red-300 mt-0.5 font-medium">
+                        {err.action} failed
+                      </p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-mono">
+                        {err.error}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -729,8 +877,8 @@ export function McpsAdmin() {
                 {/* Per-user note */}
                 {applyResult.per_user.active_users_affected > 0 && (
                   <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/50 p-3 text-xs text-zinc-600 dark:text-zinc-400">
-                    {applyResult.per_user.note}
-                    {' '}({applyResult.per_user.active_users_affected} active user{applyResult.per_user.active_users_affected !== 1 ? 's' : ''} affected)
+                    {applyResult.per_user.note} ({applyResult.per_user.active_users_affected} active
+                    user{applyResult.per_user.active_users_affected !== 1 ? 's' : ''} affected)
                   </div>
                 )}
 
@@ -738,7 +886,8 @@ export function McpsAdmin() {
                 {applyResult.summary.failed > 0 && (
                   <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-600/20 dark:ring-amber-400/20 p-3">
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      <span className="font-medium">Note:</span> Failed changes remain pending. Fix the issues and apply again.
+                      <span className="font-medium">Note:</span> Failed changes remain pending. Fix
+                      the issues and apply again.
                     </p>
                   </div>
                 )}

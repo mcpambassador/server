@@ -1,5 +1,11 @@
 import { ReactNode } from 'react';
-import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Dialog,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Button } from '@/components/catalyst/button';
 
 export interface ConfirmDialogProps {
@@ -33,11 +39,7 @@ export function ConfirmDialog({
     <Dialog open={open} onClose={onClose}>
       <DialogBody>
         <DialogTitle>{title}</DialogTitle>
-        {description && (
-          <DialogDescription>
-            {description}
-          </DialogDescription>
-        )}
+        {description && <DialogDescription>{description}</DialogDescription>}
         <DialogActions>
           <Button color="zinc" onClick={() => onClose(false)} disabled={isLoading}>
             {cancelLabel}

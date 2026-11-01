@@ -37,15 +37,21 @@ export function ReviewStep({
         </div>
         <div>
           <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Display Name</dt>
-          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.display_name}</dd>
+          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+            {formData.display_name}
+          </dd>
         </div>
         <div>
           <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Transport</dt>
-          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.transport_type}</dd>
+          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+            {formData.transport_type}
+          </dd>
         </div>
         <div>
           <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Isolation</dt>
-          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">{formData.isolation_mode}</dd>
+          <dd className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+            {formData.isolation_mode}
+          </dd>
         </div>
         <div>
           <dt className="text-sm/6 text-zinc-500 dark:text-zinc-400">Authentication Type</dt>
@@ -53,8 +59,8 @@ export function ReviewStep({
             {formData.auth_type === 'none'
               ? 'None'
               : formData.auth_type === 'static'
-              ? 'Static Credentials'
-              : 'OAuth 2.0'}
+                ? 'Static Credentials'
+                : 'OAuth 2.0'}
           </dd>
         </div>
         {formData.auth_type === 'oauth2' && (
@@ -85,7 +91,8 @@ export function ReviewStep({
 
       <div>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 mb-4">
-          You can now publish this MCP to make it available to users, or save it as a draft for later.
+          You can now publish this MCP to make it available to users, or save it as a draft for
+          later.
         </p>
         <div className="flex gap-2">
           {validationResult?.valid && (

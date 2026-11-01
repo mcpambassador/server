@@ -171,9 +171,7 @@ export function GettingStartedChecklist({
   hasSubscriptions,
   clients,
 }: GettingStartedChecklistProps) {
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(DISMISSED_KEY) === 'true'
-  );
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === 'true');
 
   const handleDismiss = useCallback(() => {
     localStorage.setItem(DISMISSED_KEY, 'true');
@@ -294,7 +292,10 @@ export function GettingStartedChecklist({
             completed={false}
           >
             <CodeSnippet label="VS Code (settings.json)" code={VS_CODE_SNIPPET} />
-            <CodeSnippet label="Claude Desktop (claude_desktop_config.json)" code={CLAUDE_DESKTOP_SNIPPET} />
+            <CodeSnippet
+              label="Claude Desktop (claude_desktop_config.json)"
+              code={CLAUDE_DESKTOP_SNIPPET}
+            />
           </ChecklistStep>
         </li>
       </ol>

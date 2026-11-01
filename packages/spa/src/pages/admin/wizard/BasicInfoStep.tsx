@@ -50,11 +50,7 @@ export function BasicInfoStep({
               </p>
             )}
           </div>
-          <Button
-            color="zinc"
-            onClick={onOpenRegistryModal}
-            className="ml-4 shrink-0"
-          >
+          <Button color="zinc" onClick={onOpenRegistryModal} className="ml-4 shrink-0">
             <ArrowDownTrayIcon data-slot="icon" />
             {importedFromRegistry ? 'Change Registry Entry' : 'Import from Registry'}
           </Button>
@@ -65,7 +61,7 @@ export function BasicInfoStep({
         <Label>Internal Name * (e.g., github, slack)</Label>
         <Input
           value={formData.name}
-          onChange={(e) => onChange({ name: e.target.value })}
+          onChange={e => onChange({ name: e.target.value })}
           placeholder="github"
           disabled={!!createdMcpId}
           aria-invalid={!!errors.name}
@@ -78,7 +74,8 @@ export function BasicInfoStep({
         )}
         {createdMcpId && (
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Internal name cannot be changed after creation. Delete this draft and start over if a different name is needed.
+            Internal name cannot be changed after creation. Delete this draft and start over if a
+            different name is needed.
           </p>
         )}
       </Field>
@@ -87,7 +84,7 @@ export function BasicInfoStep({
         <Label>Display Name *</Label>
         <Input
           value={formData.display_name}
-          onChange={(e) => onChange({ display_name: e.target.value })}
+          onChange={e => onChange({ display_name: e.target.value })}
           placeholder="GitHub"
           aria-invalid={!!errors.display_name}
           aria-describedby={errors.display_name ? 'display-name-error' : undefined}
@@ -103,7 +100,7 @@ export function BasicInfoStep({
         <Label>Description</Label>
         <Textarea
           value={formData.description}
-          onChange={(e) => onChange({ description: e.target.value })}
+          onChange={e => onChange({ description: e.target.value })}
           rows={3}
           placeholder="Interact with GitHub repositories and issues"
         />
@@ -113,7 +110,7 @@ export function BasicInfoStep({
         <Label>Icon URL</Label>
         <Input
           value={formData.icon_url}
-          onChange={(e) => onChange({ icon_url: e.target.value })}
+          onChange={e => onChange({ icon_url: e.target.value })}
           placeholder="https://..."
         />
       </Field>
@@ -144,9 +141,7 @@ export function BasicInfoStep({
         <Listbox
           name="isolation-mode"
           value={formData.isolation_mode}
-          onChange={(value: string) =>
-            onChange({ isolation_mode: value as 'shared' | 'per_user' })
-          }
+          onChange={(value: string) => onChange({ isolation_mode: value as 'shared' | 'per_user' })}
         >
           <ListboxOption value="shared">
             <ListboxLabel>shared</ListboxLabel>

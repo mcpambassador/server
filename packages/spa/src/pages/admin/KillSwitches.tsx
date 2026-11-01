@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { PowerIcon, ExclamationTriangleIcon, ServerIcon, CubeIcon } from '@heroicons/react/20/solid';
+import {
+  PowerIcon,
+  ExclamationTriangleIcon,
+  ServerIcon,
+  CubeIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -37,7 +42,9 @@ export function KillSwitches() {
       setConfirmDialogOpen(false);
       setSelectedTarget(null);
     } catch (error) {
-      toast.error('Kill switch failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Kill switch failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -63,16 +70,15 @@ export function KillSwitches() {
 
       {/* Client Kill Switches */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Client Kill Switches</h3>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          Client Kill Switches
+        </h3>
         <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable individual API clients</p>
         <div className="mt-4">
           {clientsLoading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-3 animate-pulse"
-                >
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center justify-between py-3 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -87,10 +93,7 @@ export function KillSwitches() {
           ) : clientsData && clientsData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
               {clientsData.data.map((client: AdminClient) => (
-                <div
-                  key={client.client_id}
-                  className="flex items-center justify-between py-3"
-                >
+                <div key={client.client_id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
                       {client.client_name}
@@ -106,10 +109,7 @@ export function KillSwitches() {
                     <Button
                       color={client.status === 'active' ? 'red' : 'green'}
                       onClick={() =>
-                        handleToggle(
-                          `client:${client.client_id}`,
-                          client.status === 'active'
-                        )
+                        handleToggle(`client:${client.client_id}`, client.status === 'active')
                       }
                     >
                       <PowerIcon data-slot="icon" />
@@ -131,16 +131,17 @@ export function KillSwitches() {
 
       {/* MCP Kill Switches */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
-        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">MCP Kill Switches</h3>
-        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">Disable MCP servers system-wide</p>
+        <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+          MCP Kill Switches
+        </h3>
+        <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+          Disable MCP servers system-wide
+        </p>
         <div className="mt-4">
           {mcpsLoading ? (
             <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-3 animate-pulse"
-                >
+              {[1, 2, 3].map(i => (
+                <div key={i} className="flex items-center justify-between py-3 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
                     <div className="h-3 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -154,11 +155,15 @@ export function KillSwitches() {
             </div>
           ) : mcpsData && mcpsData.data.length > 0 ? (
             <div className="divide-y divide-zinc-950/5 dark:divide-white/10">
-              {mcpsData.data.map((mcp) => (
+              {mcpsData.data.map(mcp => (
                 <div key={mcp.mcp_id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">{mcp.display_name}</p>
-                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">{mcp.name}</p>
+                    <p className="text-sm/6 font-medium text-zinc-900 dark:text-white">
+                      {mcp.display_name}
+                    </p>
+                    <p className="text-sm/6 font-mono text-zinc-500 dark:text-zinc-400">
+                      {mcp.name}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge
@@ -174,9 +179,7 @@ export function KillSwitches() {
                     </Badge>
                     <Button
                       color={mcp.status === 'published' ? 'red' : 'green'}
-                      onClick={() =>
-                        handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')
-                      }
+                      onClick={() => handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')}
                       disabled={mcp.status === 'archived'}
                     >
                       <PowerIcon data-slot="icon" />

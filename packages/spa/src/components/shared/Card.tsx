@@ -55,9 +55,5 @@ interface CardBodyProps {
 }
 
 export function CardBody({ className, children }: CardBodyProps) {
-  return (
-    <div className={clsx('px-4 py-5 sm:p-6', className)}>
-      {children}
-    </div>
-  );
+  return <div className={clsx('px-4 py-5 sm:p-6', className)}>{children}</div>;
 }

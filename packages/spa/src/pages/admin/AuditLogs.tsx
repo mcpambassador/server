@@ -6,7 +6,14 @@ import { Button } from '@/components/catalyst/button';
 import { Badge } from '@/components/catalyst/badge';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
 import { useAuditEvents } from '@/api/hooks/use-admin';
 import type { AuditEvent } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -22,7 +29,9 @@ export function AuditLogsAdmin() {
     limit: 50,
   });
 
-  const [appliedFilters, setAppliedFilters] = useState<typeof filters & { cursor?: string }>(filters);
+  const [appliedFilters, setAppliedFilters] = useState<typeof filters & { cursor?: string }>(
+    filters
+  );
   const { data: auditData, isLoading, refetch } = useAuditEvents(appliedFilters);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -31,7 +40,7 @@ export function AuditLogsAdmin() {
     if (!auditData) return;
     const page = auditData.data ?? [];
     if (appliedFilters.cursor) {
-      setEvents((prev) => [...prev, ...page]);
+      setEvents(prev => [...prev, ...page]);
     } else {
       setEvents(page);
     }
@@ -80,9 +89,7 @@ export function AuditLogsAdmin() {
               <Input
                 type="datetime-local"
                 value={filters.start_time}
-                onChange={(e) =>
-                  setFilters({ ...filters, start_time: e.target.value })
-                }
+                onChange={e => setFilters({ ...filters, start_time: e.target.value })}
               />
             </Field>
             <Field>
@@ -90,9 +97,7 @@ export function AuditLogsAdmin() {
               <Input
                 type="datetime-local"
                 value={filters.end_time}
-                onChange={(e) =>
-                  setFilters({ ...filters, end_time: e.target.value })
-                }
+                onChange={e => setFilters({ ...filters, end_time: e.target.value })}
               />
             </Field>
             <Field>
@@ -100,9 +105,7 @@ export function AuditLogsAdmin() {
               <Input
                 placeholder="e.g., user.login"
                 value={filters.event_type}
-                onChange={(e) =>
-                  setFilters({ ...filters, event_type: e.target.value })
-                }
+                onChange={e => setFilters({ ...filters, event_type: e.target.value })}
               />
             </Field>
             <Field>
@@ -110,9 +113,7 @@ export function AuditLogsAdmin() {
               <Input
                 placeholder="Filter by user"
                 value={filters.user_id}
-                onChange={(e) =>
-                  setFilters({ ...filters, user_id: e.target.value })
-                }
+                onChange={e => setFilters({ ...filters, user_id: e.target.value })}
               />
             </Field>
           </div>
@@ -184,7 +185,7 @@ export function AuditLogsAdmin() {
               </TableRow>
             ) : (
               // Data rows
-              events.map((event) => (
+              events.map(event => (
                 <TableRow key={event.event_id}>
                   <TableCell>
                     <div className="text-sm text-zinc-900 dark:text-white">
@@ -205,8 +206,8 @@ export function AuditLogsAdmin() {
                         event.severity === 'error'
                           ? 'red'
                           : event.severity === 'warn'
-                          ? 'amber'
-                          : 'zinc'
+                            ? 'amber'
+                            : 'zinc'
                       }
                     >
                       {event.severity}
@@ -251,9 +252,7 @@ export function AuditLogsAdmin() {
           <div className="px-4 py-3 border-t border-zinc-950/5 dark:border-white/10 text-center">
             <Button
               outline
-              onClick={() =>
-                setAppliedFilters((prev) => ({ ...prev, cursor: nextCursor }))
-              }
+              onClick={() => setAppliedFilters(prev => ({ ...prev, cursor: nextCursor }))}
             >
               Load More
             </Button>

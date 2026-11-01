@@ -31,16 +31,8 @@ import {
 } from '@/components/catalyst/dialog';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
-import {
-  InlineAlert,
-  InlineAlertDescription,
-} from '@/components/catalyst/inline-alert';
-import {
-  Alert,
-  AlertDescription,
-  AlertActions,
-  AlertTitle,
-} from '@/components/catalyst/alert';
+import { InlineAlert, InlineAlertDescription } from '@/components/catalyst/inline-alert';
+import { Alert, AlertDescription, AlertActions, AlertTitle } from '@/components/catalyst/alert';
 import {
   useClients,
   useCreateClient,
@@ -151,7 +143,9 @@ export function Clients() {
       setKeyDialogOpen(true);
       setFormData({ client_name: '', expires_at: '' });
     } catch (error) {
-      toast.error('Failed to create client', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to create client', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -171,7 +165,9 @@ export function Clients() {
         data: { status: newStatus },
       });
     } catch (error) {
-      toast.error('Failed to update client', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to update client', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -182,7 +178,9 @@ export function Clients() {
         setDeleteDialogOpen(false);
         setClientToDelete(null);
       } catch (error) {
-        toast.error('Failed to delete client', { description: (error as Error)?.message ?? String(error) });
+        toast.error('Failed to delete client', {
+          description: (error as Error)?.message ?? String(error),
+        });
       }
     }
   };
@@ -193,9 +191,7 @@ export function Clients() {
       <div className="flex items-center justify-between">
         <div>
           <Heading>My Clients</Heading>
-          <p className="mt-1 text-sm text-zinc-500">
-            Manage your MCP API clients and credentials
-          </p>
+          <p className="mt-1 text-sm text-zinc-500">Manage your MCP API clients and credentials</p>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <PlusIcon data-slot="icon" />
@@ -234,7 +230,7 @@ export function Clients() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {clients.map((client) => {
+              {clients.map(client => {
                 const connStatus = deriveConnectionStatus(client);
                 const connConfig = CONNECTION_STATUS_CONFIG[connStatus];
                 const isSessionExpired = connStatus === 'expired' && client.status === 'active';
@@ -269,9 +265,7 @@ export function Clients() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge color={connConfig.color}>
-                          {connConfig.label}
-                        </Badge>
+                        <Badge color={connConfig.color}>{connConfig.label}</Badge>
                       </TableCell>
                       <TableCell className="text-zinc-500 tabular-nums">
                         {formatRelativeTime(client.lastUsedAt)}
@@ -280,9 +274,7 @@ export function Clients() {
                         {client.subscriptionCount ?? 0}
                       </TableCell>
                       <TableCell className="text-zinc-500">
-                        {client.expiresAt
-                          ? new Date(client.expiresAt).toLocaleDateString()
-                          : '—'}
+                        {client.expiresAt ? new Date(client.expiresAt).toLocaleDateString() : '—'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -299,7 +291,9 @@ export function Clients() {
                               plain
                               onClick={() => handleToggleStatus(client)}
                               disabled={updateClient.isPending}
-                              title={client.status === 'active' ? 'Suspend client' : 'Reactivate client'}
+                              title={
+                                client.status === 'active' ? 'Suspend client' : 'Reactivate client'
+                              }
                               aria-label={
                                 client.status === 'active'
                                   ? `Suspend ${client.clientName}`
@@ -333,9 +327,7 @@ export function Clients() {
                         <TableCell colSpan={8} className="py-2 px-4">
                           <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800">
                             <ExclamationTriangleIcon className="size-4 shrink-0 text-amber-500 dark:text-amber-400" />
-                            <span>
-                              Session expired — restart your AI tool to reconnect.
-                            </span>
+                            <span>Session expired — restart your AI tool to reconnect.</span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -361,9 +353,7 @@ export function Clients() {
               <Input
                 placeholder="My Application"
                 value={formData.client_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, client_name: e.target.value })
-                }
+                onChange={e => setFormData({ ...formData, client_name: e.target.value })}
               />
             </Field>
             <Field>
@@ -371,9 +361,7 @@ export function Clients() {
               <Input
                 type="datetime-local"
                 value={formData.expires_at}
-                onChange={(e) =>
-                  setFormData({ ...formData, expires_at: e.target.value })
-                }
+                onChange={e => setFormData({ ...formData, expires_at: e.target.value })}
               />
             </Field>
           </div>
@@ -399,13 +387,11 @@ export function Clients() {
       <Dialog open={keyDialogOpen} onClose={setKeyDialogOpen}>
         <DialogBody>
           <DialogTitle>API Key Created</DialogTitle>
-          <DialogDescription>
-            Save this key securely. It will only be shown once.
-          </DialogDescription>
+          <DialogDescription>Save this key securely. It will only be shown once.</DialogDescription>
           <InlineAlert color="warning">
             <InlineAlertDescription>
-              This is the only time you&apos;ll see the full API key. Copy it
-              now and store it securely.
+              This is the only time you&apos;ll see the full API key. Copy it now and store it
+              securely.
             </InlineAlertDescription>
           </InlineAlert>
           <Field>
@@ -442,8 +428,8 @@ export function Clients() {
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Are you sure?</AlertTitle>
         <AlertDescription>
-          This will permanently revoke the client and all associated
-          subscriptions. This action cannot be undone.
+          This will permanently revoke the client and all associated subscriptions. This action
+          cannot be undone.
         </AlertDescription>
         <AlertActions>
           <Button
