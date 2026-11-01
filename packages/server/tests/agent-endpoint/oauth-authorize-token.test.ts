@@ -3,7 +3,7 @@
  * refresh rotation / reuse detection, revoke, DCR toggle, one-shot grants.
  * All `itImpl` until P4/P5 replace the 501 stubs (see helpers.ts).
  */
-import { describe, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import {
   OAUTH_REGISTER_ROUTE,
   AGENT_GRANTS_ROUTE,
@@ -67,7 +67,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(requestId.length).toBeGreaterThanOrEqual(16);
   });
 
-  itImpl.each([
+  it.each([
     ['unknown client_id', { client_id: 'nope' }],
     ['unregistered redirect_uri', { redirect_uri: 'https://evil.example/cb' }],
   ])('%s → error page/JSON, NO redirect', async (_n, over) => {
@@ -82,7 +82,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(res.headers['location']).toBeUndefined();
   });
 
-  itImpl.each([
+  it.each([
     ['PKCE method plain', { code_challenge_method: 'plain' }],
     ['response_type token', { response_type: 'token' }],
     ['resource ≠ canonical /mcp', { resource: 'https://other.example/mcp' }],
@@ -134,7 +134,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(post.statusCode).toBe(403);
   });
 
-  itImpl('unknown request_id → 404', async () => {
+  it('unknown request_id → 404', async () => {
     const res = await alice.request({ method: 'GET', url: '/v1/oauth/consent/does-not-exist' });
     expect(res.statusCode).toBe(404);
   });
@@ -329,16 +329,13 @@ describe('token endpoint', () => {
     30_000
   );
 
-  itImpl(
-    'unsupported grant_type (password / client_credentials) → unsupported_grant_type',
-    async () => {
-      for (const grant_type of ['password', 'client_credentials']) {
-        const res = await tokenRequest(s, { grant_type, client_id: clientId });
-        expect(res.statusCode).toBe(400);
-        expect(JSON.parse(res.body).error).toBe('unsupported_grant_type');
-      }
+  it('unsupported grant_type (password / client_credentials) → unsupported_grant_type', async () => {
+    for (const grant_type of ['password', 'client_credentials']) {
+      const res = await tokenRequest(s, { grant_type, client_id: clientId });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error).toBe('unsupported_grant_type');
     }
-  );
+  });
 
   itImpl('rate limit: more than token_per_minute requests → 429', async () => {
     const limited = await startAgentTestServer(
@@ -461,7 +458,7 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
 describe('dynamic client registration (RFC 7591)', () => {
   const body = { client_name: 'dcr-agent', redirect_uris: [REDIRECT_URI] };
 
-  itImpl('off by default: /oauth/register is refused', async () => {
+  it('off by default: /oauth/register is refused', async () => {
     const s = await startAgentTestServer(agentEndpointOpts());
     try {
       const res = await s.admin.inject({
@@ -477,7 +474,7 @@ describe('dynamic client registration (RFC 7591)', () => {
     }
   });
 
-  itImpl('on: registers public client; returns client_id; no secret', async () => {
+  it('on: registers public client; returns client_id; no secret', async () => {
     const s = await startAgentTestServer(agentEndpointOpts({ dynamic_client_registration: true }));
     try {
       const res = await s.admin.inject({
@@ -496,7 +493,7 @@ describe('dynamic client registration (RFC 7591)', () => {
     }
   });
 
-  itImpl.each([
+  it.each([
     ['non-https non-localhost redirect', { redirect_uris: ['http://evil.example/cb'] }],
     ['javascript: redirect', { redirect_uris: ['javascript:alert(1)'] }],
     ['confidential auth method', { token_endpoint_auth_method: 'client_secret_basic' }],
@@ -516,7 +513,7 @@ describe('dynamic client registration (RFC 7591)', () => {
     }
   });
 
-  itImpl('on: rate limited (register_per_hour) and capped (max_oauth_clients)', async () => {
+  it('on: rate limited (register_per_hour) and capped (max_oauth_clients)', async () => {
     const s = await startAgentTestServer(
       agentEndpointOpts({
         dynamic_client_registration: true,
@@ -543,7 +540,7 @@ describe('dynamic client registration (RFC 7591)', () => {
     }
   });
 
-  itImpl('DCR client is flagged unverified on the consent screen', async () => {
+  it('DCR client is flagged unverified on the consent screen', async () => {
     const s = await startAgentTestServer(agentEndpointOpts({ dynamic_client_registration: true }));
     try {
       const reg = await s.admin.inject({
@@ -596,7 +593,7 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     expect(d.resource).toBe(TEST_RESOURCE);
   });
 
-  itImpl('requires a session + CSRF; admin key alone is not enough', async () => {
+  it('requires a session + CSRF; admin key alone is not enough', async () => {
     const noCsrf = await s.admin.inject({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
@@ -613,7 +610,7 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     expect([401, 403]).toContain(noSession.statusCode);
   });
 
-  itImpl('TTL above max is clamped/rejected (≤ 24h)', async () => {
+  it('TTL above max is clamped/rejected (≤ 24h)', async () => {
     const res = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,
@@ -632,7 +629,7 @@ describe('one-shot grants (POST /v1/users/me/agent-grants)', () => {
     }
   });
 
-  itImpl('list shows only own grants; delete revokes; others cannot delete', async () => {
+  it('list shows only own grants; delete revokes; others cannot delete', async () => {
     const bob = await loginSession(s, await createUser(s, 'bob'));
     const created = await alice.request({
       method: 'POST',
