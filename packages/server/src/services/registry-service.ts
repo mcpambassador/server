@@ -7,6 +7,7 @@
  * @see mcpambassador_docs/community-registry-spec.md
  */
 
+import { SecretStore } from './secret-store.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
@@ -76,7 +77,10 @@ export class RegistryService {
   private cachedRegistry: RegistryData | null = null;
   private lastFetchedAt: Date | null = null;
 
-  constructor(config: RegistryConfig, db: DatabaseClient) {
+  private secretStore: SecretStore;
+
+  constructor(config: RegistryConfig, db: DatabaseClient, secretStore?: SecretStore) {
+    this.secretStore = secretStore ?? new SecretStore();
     this.config = config;
     this.db = db;
   }
@@ -260,6 +264,33 @@ export class RegistryService {
         success: false,
         message: `MCP '${name}' not found in registry`,
       };
+    }
+
+    // TD-027: registry-supplied oauth_config gets the same secret-binding check as admin saves
+    if (registryEntry.auth_type === 'oauth2' || registryEntry.oauth_config) {
+      const oc = registryEntry.oauth_config as
+        | {
+            client_secret_env?: string;
+            token_url?: string;
+            auth_url?: string;
+            revocation_url?: string;
+          }
+        | undefined;
+      if (oc && oc.client_secret_env && oc.token_url) {
+        try {
+          this.secretStore.assertOAuthConfig({
+            client_secret_env: oc.client_secret_env,
+            token_url: oc.token_url,
+            auth_url: oc.auth_url,
+            revocation_url: oc.revocation_url,
+          });
+        } catch (e) {
+          return {
+            success: false,
+            message: `MCP '${name}' has an invalid oauth_config: ${e instanceof Error ? e.message : 'rejected'}`,
+          };
+        }
+      }
     }
 
     // Check if already installed

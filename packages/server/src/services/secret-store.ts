@@ -58,4 +58,21 @@ export class SecretStore {
     this.assertBinding(name, tokenUrl);
     return this.entries.get(name)!.value;
   }
+
+  /**
+   * Save/import-time check of an MCP's oauth_config: https auth_url, and the client secret
+   * must be a store secret permitted for token_url AND revocation_url (both receive it).
+   */
+  assertOAuthConfig(oauth: {
+    client_secret_env: string;
+    token_url: string;
+    auth_url?: string;
+    revocation_url?: string;
+  }): void {
+    if (oauth.auth_url !== undefined && !/^https:\/\//i.test(oauth.auth_url)) {
+      throw new OAuthConfigError('auth_url must use https');
+    }
+    this.assertBinding(oauth.client_secret_env, oauth.token_url);
+    if (oauth.revocation_url) this.assertBinding(oauth.client_secret_env, oauth.revocation_url);
+  }
 }
