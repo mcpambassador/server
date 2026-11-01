@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   MagnifyingGlassIcon,
-  CubeIcon,
   CheckBadgeIcon,
   ArrowPathIcon,
   GlobeAltIcon,
@@ -216,15 +215,6 @@ export function Registry() {
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3">
-                    {mcp.icon_url ? (
-                      <img
-                        src={mcp.icon_url}
-                        alt={mcp.display_name}
-                        className="size-8 rounded shrink-0"
-                      />
-                    ) : (
-                      <CubeIcon className="size-8 text-zinc-400 dark:text-zinc-500 shrink-0" />
-                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white truncate">

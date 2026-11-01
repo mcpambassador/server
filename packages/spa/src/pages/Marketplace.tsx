@@ -21,23 +21,6 @@ import type { McpTool } from '@/api/types';
 const ALL_CATEGORY = 'all';
 const TOOL_PREVIEW_LIMIT = 5;
 
-function McpIcon({ iconUrl, name }: { iconUrl?: string; name: string }) {
-  const [errored, setErrored] = useState(false);
-
-  if (iconUrl && !errored) {
-    return (
-      <img
-        src={iconUrl}
-        alt={`${name} icon`}
-        className="size-5 shrink-0 rounded object-contain"
-        onError={() => setErrored(true)}
-      />
-    );
-  }
-
-  return <CubeIcon className="size-5 text-zinc-400 dark:text-zinc-500 shrink-0" />;
-}
-
 function ToolPreview({ tools }: { tools: McpTool[] }) {
   const [open, setOpen] = useState(false);
 
@@ -189,7 +172,6 @@ export function Marketplace() {
                 <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
                   {mcp.name}
                 </h3>
-                <McpIcon iconUrl={mcp.icon_url} name={mcp.name} />
               </div>
               <p className="text-sm/6 text-zinc-500 dark:text-zinc-400 line-clamp-2">
                 {mcp.description || 'No description available'}
