@@ -74,6 +74,9 @@ export class UserMcpPool {
   private healthCheckInterval: NodeJS.Timeout | null = null;
   // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate change detection
   private storedMcpFingerprints = new Map<string, string>();
+  // ADR-020 S6: last time a remote agent (/mcp) used this user's MCPs; keeps them alive and lets
+  // the lifecycle manager reap them once agents go quiet and no stdio session remains
+  private agentActivity = new Map<string, number>();
 
   constructor(config: UserMcpPoolConfig) {
     this.config = config;
@@ -386,6 +389,7 @@ export class UserMcpPool {
    * Idempotent — safe to call if already terminated
    */
   async terminateForUser(userId: string): Promise<void> {
+    this.agentActivity.delete(userId);
     const instanceSet = this.userInstances.get(userId);
 
     if (!instanceSet) {
@@ -483,6 +487,26 @@ export class UserMcpPool {
 
     // Route invocation to the correct MCP
     return await connection.invokeTool(request);
+  }
+
+  /** Record agent (/mcp) activity for a user */
+  markActivity(userId: string, nowMs: number = Date.now()): void {
+    this.agentActivity.set(userId, nowMs);
+  }
+
+  /** True if an agent used this user's MCPs within the window (default 5 min) */
+  hasRecentActivity(
+    userId: string,
+    withinMs: number = 300_000,
+    nowMs: number = Date.now()
+  ): boolean {
+    const t = this.agentActivity.get(userId);
+    return t !== undefined && nowMs - t < withinMs;
+  }
+
+  /** Users that currently have pool instances */
+  listActiveUserIds(): string[] {
+    return [...this.userInstances.keys()];
   }
 
   /**

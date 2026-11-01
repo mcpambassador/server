@@ -133,9 +133,34 @@ export class SessionLifecycleManager {
 
       // 4. Check spinning_down sessions for suspended transition
       await this.checkSpinningDownSessions(nowIso);
+
+      // 5. ADR-020 S6: reap per-user MCPs that only agents used and have gone quiet
+      await this.reapIdleAgentUsers();
     } catch (err) {
       logger.error({ err }, '[SessionLifecycle] evaluateSessions failed');
       throw err;
+    }
+  }
+
+  /**
+   * Terminate pool instances for users with no recent agent activity and no live
+   * (active/idle) stdio session. Sessions in spinning_down/suspended/expired are handled above.
+   */
+  private async reapIdleAgentUsers(): Promise<void> {
+    if (!this.userPool) return;
+    for (const userId of this.userPool.listActiveUserIds()) {
+      if (this.userPool.hasRecentActivity(userId)) continue;
+      const live = await this.db.query.user_sessions.findFirst({
+        where: (sessions, { eq, and: a, inArray }) =>
+          a(eq(sessions.user_id, userId), inArray(sessions.status, ['active', 'idle'])),
+      });
+      if (live) continue;
+      try {
+        await this.userPool.terminateForUser(userId);
+        logger.info(`[SessionLifecycle] Reaped idle per-user MCPs for user ${userId}`);
+      } catch (err) {
+        logger.error({ err, userId }, '[SessionLifecycle] Failed to reap per-user MCPs');
+      }
     }
   }
 
@@ -155,7 +180,7 @@ export class SessionLifecycleManager {
       );
 
       // M17.3: Terminate per-user MCP connections on expiry
-      if (this.userPool && session.user_id) {
+      if (this.userPool && session.user_id && !this.userPool.hasRecentActivity(session.user_id)) {
         try {
           await this.userPool.terminateForUser(session.user_id);
           logger.info(
@@ -316,7 +341,7 @@ export class SessionLifecycleManager {
       logger.info(`[SessionLifecycle] Session ${session.session_id} transitioning to suspended`);
 
       // M17.3: Terminate per-user MCP connections before transitioning
-      if (this.userPool && session.user_id) {
+      if (this.userPool && session.user_id && !this.userPool.hasRecentActivity(session.user_id)) {
         try {
           await this.userPool.terminateForUser(session.user_id);
           logger.info(`[SessionLifecycle] Terminated per-user MCPs for user ${session.user_id}`);

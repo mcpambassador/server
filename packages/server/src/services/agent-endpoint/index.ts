@@ -72,6 +72,7 @@ import {
 } from '@mcpambassador/contracts';
 import { generateOpaqueId, generateToken, hashToken, logPrefix, verifyPkceS256 } from './crypto.js';
 import { RateLimiter } from './rate-limiter.js';
+import { AgentStreamRegistry } from './streams.js';
 import {
   getActiveBoundClient,
   listSubscriptionScopes,
@@ -82,6 +83,7 @@ import {
 } from './bound-client.js';
 
 export { hashToken, logPrefix } from './crypto.js';
+export { AgentStreamRegistry } from './streams.js';
 
 /** Resolved, absolute URLs derived from config/PUBLIC_URL only */
 export interface ResolvedAgentEndpointConfig extends AgentEndpointConfig {
@@ -103,6 +105,8 @@ export interface AgentEndpointDeps {
   audit: AuditProvider;
   runtime: AgentEndpointRuntime;
   limiter: RateLimiter;
+  /** In-flight /mcp requests (concurrency cap + abort on revoke) */
+  streams: AgentStreamRegistry;
 }
 
 export function createAgentEndpointDeps(
@@ -116,6 +120,7 @@ export function createAgentEndpointDeps(
     audit,
     runtime: { dynamic_client_registration: config.dynamic_client_registration },
     limiter: new RateLimiter(),
+    streams: new AgentStreamRegistry(),
   };
 }
 
@@ -797,6 +802,7 @@ export async function revokeToken(
   if (!grant || grant.client_id !== req.client_id) return;
   if (tok.kind === 'refresh' && tok.family_id) await revokeTokenFamily(deps.db, tok.family_id);
   else await revokeSingleToken(deps.db, hash);
+  deps.streams.closeGrant(grant.grant_id);
   await emitAgentAudit(deps, 'agent_token_revoked', {
     user_id: grant.user_id,
     bound_client_id: grant.bound_client_id ?? undefined,
@@ -890,6 +896,7 @@ export async function revokeGrant(
   }
   if (!grant.revoked_at) {
     await revokeAgentGrant(deps.db, grantId, actor.user_id);
+    deps.streams.closeGrant(grantId);
     await emitAgentAudit(deps, 'agent_grant_revoked', {
       user_id: actor.user_id,
       bound_client_id: grant.bound_client_id ?? undefined,

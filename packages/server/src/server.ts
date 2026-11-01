@@ -721,7 +721,13 @@ export class AmbassadorServer {
 
     // Client routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.adminServer, { db: this.db!, audit: this.audit! });
+    await registerClientRoutes(this.adminServer, {
+      db: this.db!,
+      audit: this.audit!,
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
+    });
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
@@ -1645,7 +1651,13 @@ export class AmbassadorServer {
 
     // M25: Register client and subscription routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.fastify, { db: this.db!, audit: this.audit! });
+    await registerClientRoutes(this.fastify, {
+      db: this.db!,
+      audit: this.audit!,
+      onGrantsRevoked: ids => {
+        for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
+      },
+    });
 
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
     await registerSubscriptionRoutes(this.fastify, { db: this.db! });
@@ -1664,7 +1676,15 @@ export class AmbassadorServer {
     // ADR-020: MCP resource server (off by default)
     if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
       const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
-      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps());
+      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps(), {
+        toolDeps: this.getToolServiceDeps(),
+        userPool: this.userPool,
+        ensureUserMcps: async (userId: string) => {
+          if (this.userPool.hasActiveInstances(userId)) return;
+          const creds = await this.loadUserCredentialsForMcps(userId);
+          await this.userPool.spawnForUser(userId, creds);
+        },
+      });
     }
 
     // M23.4: Register marketplace routes
