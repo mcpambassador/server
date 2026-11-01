@@ -490,7 +490,7 @@ export class AmbassadorServer {
           event_id: crypto.randomUUID(),
           timestamp: new Date().toISOString(),
           event_type: 'admin_action',
-          severity: action === 'mcp_respawn_gave_up' ? 'error' : 'warn',
+          severity: action === 'mcp_respawn_failing' ? 'error' : 'warn',
           source_ip: '127.0.0.1',
           action,
           metadata,
