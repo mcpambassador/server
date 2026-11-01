@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test audit gate script
+        run: node --test scripts/
+
       - name: Run production audit (fail on high/critical, minus tracked ignoreGhsas)
         run: node scripts/audit-prod.mjs
 
