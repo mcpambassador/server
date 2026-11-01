@@ -1,5 +1,6 @@
 /** TD-045: an oversize downstream response fails only its own request, never hangs, never kills the MCP. */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { RespawnController } from '../../src/downstream/respawn.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -136,4 +137,103 @@ describe('TD-045 respawn audit and per-user pool', () => {
     expect(events.length).toBe(n);
     expect(conn.isConnected()).toBe(false);
   }, 45_000);
+});
+
+describe('TD-045 review fixes', () => {
+  it('a runaway line (>64MB, no kill) fails the call and the process keeps serving', async () => {
+    const c = new StdioMcpConnection(cfg('td045-run', resultFile('r7', 66 * MB)));
+    await c.start();
+    cleanups.push(() => c.stop());
+    const pid = (c as any).process.pid;
+    await expect(c.invokeTool({ tool_name: 'big', arguments: {} })).rejects.toThrow(/too large/);
+    expect((c as any).process.pid).toBe(pid);
+    expect(c.isConnected()).toBe(true);
+    expect(JSON.stringify(await c.invokeTool({ tool_name: '__env', arguments: {} }))).toContain(
+      'FAKE_MCP_TOOLS'
+    );
+  }, 60_000);
+
+  it('start() refuses to overwrite a live process', async () => {
+    const c = new StdioMcpConnection(cfg('td045-g', resultFile('r8', 10)));
+    await c.start();
+    cleanups.push(() => c.stop());
+    const pid = (c as any).process.pid;
+    await expect(c.start()).rejects.toThrow(/already running/);
+    expect((c as any).process.pid).toBe(pid);
+  }, 30_000);
+
+  it('a stdin error (EPIPE) fails pending requests and does not throw uncaught', async () => {
+    const c = new StdioMcpConnection(cfg('td045-e', resultFile('r9', 10)));
+    await c.start();
+    cleanups.push(() => c.stop());
+    const p = c.invokeTool({ tool_name: '__env', arguments: {} });
+    (c as any).process.stdin.emit('error', new Error('write EPIPE'));
+    await expect(p).rejects.toThrow(/unavailable/);
+  }, 30_000);
+
+  it('restartMcp during a pending respawn leaves exactly one live process', async () => {
+    const m = new SharedMcpManager();
+    const events: string[] = [];
+    m.setAuditSink(a => events.push(a));
+    await m.addMcp(cfg('td045-rs', resultFile('r10', 10)));
+    cleanups.push(() => m.shutdown());
+    const conn = m.getConnection('td045-rs') as StdioMcpConnection;
+    (conn as any).process.kill('SIGKILL');
+    expect(await until(() => !conn.isConnected(), 3000)).toBe(true);
+    await m.restartMcp('td045-rs');
+    const pid = (conn as any).process.pid;
+    await new Promise(r => setTimeout(r, 2500)); // past the 1s respawn timer
+    expect((conn as any).process.pid).toBe(pid);
+    expect(() => process.kill(pid, 0)).not.toThrow();
+    expect(events).not.toContain('mcp_respawned');
+  }, 30_000);
+
+  it('a respawn superseded while start() is in flight stops the new process', async () => {
+    const stop = vi.fn(async () => undefined);
+    const conn = {
+      start: () => new Promise<void>(r => setTimeout(r, 600)),
+      stop,
+    } as never;
+    const rc = new RespawnController('shared');
+    rc.schedule(
+      'k',
+      conn,
+      () => true,
+      () => undefined
+    );
+    await new Promise(r => setTimeout(r, 1300)); // timer (1s) fired, start() in flight
+    expect(rc.status('k').state).toBe('respawning');
+    rc.cancel('k');
+    await new Promise(r => setTimeout(r, 700));
+    expect(stop).toHaveBeenCalledTimes(1);
+  }, 10_000);
+
+  it('keeps retrying past the attempt budget instead of giving up', async () => {
+    const events: string[] = [];
+    const rc = new RespawnController('shared', a => events.push(a));
+    let starts = 0;
+    const conn = {
+      start: () => {
+        starts++;
+        return Promise.reject(new Error('boom'));
+      },
+      stop: async () => undefined,
+    } as never;
+    vi.useFakeTimers();
+    try {
+      rc.schedule(
+        'k',
+        conn,
+        () => true,
+        () => undefined
+      );
+      for (let i = 0; i < 9; i++) await vi.advanceTimersByTimeAsync(31_000);
+      expect(starts).toBeGreaterThan(RespawnController.FAILING_AFTER);
+      expect(rc.status('k').state).toBe('failing');
+      expect(events).toContain('mcp_respawn_failing');
+    } finally {
+      rc.close();
+      vi.useRealTimers();
+    }
+  });
 });

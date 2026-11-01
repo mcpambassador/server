@@ -336,11 +336,11 @@ export class SharedMcpManager {
       const h = await conn.healthCheck();
       // TD-045: surface respawn state; a respawning MCP is degraded, one we gave up on is unhealthy
       const r = this.respawn.status(name);
-      if (r.state === 'gave_up') {
+      if (r.state === 'failing') {
         return {
           ...h,
           status: 'unhealthy' as const,
-          error: `respawn gave up after ${r.attempts} attempts`,
+          error: `respawn failing after ${r.attempts} attempts (still retrying)`,
         };
       }
       if (r.state === 'respawning') return { ...h, status: 'degraded' as const };
@@ -509,6 +509,7 @@ export class SharedMcpManager {
    */
   async updateMcp(name: string, config: DownstreamMcpConfig, fingerprint?: string): Promise<void> {
     logger.info(`[SharedMcpManager] Updating MCP: ${name}`);
+    this.respawn.cancel(name);
     await this.removeMcp(name);
     await this.addMcp(config, fingerprint);
   }

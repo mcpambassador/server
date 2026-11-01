@@ -1,26 +1,33 @@
 /**
- * TD-045: respawn of stdio MCP processes that exit unexpectedly (crash, OOM kill, output flood).
- * Shared by SharedMcpManager and UserMcpPool. Exponential backoff, bounded attempts, audit callback,
- * and a per-key status that health checks surface.
+ * TD-045: respawn of stdio MCP processes that exit unexpectedly (crash, OOM kill, ...).
+ * Shared by SharedMcpManager and UserMcpPool. Exponential backoff that retries forever at the cap (a
+ * permanently dead MCP is a worse outcome than a retry every 30 s), an audit callback, and a per-key
+ * status that health checks surface.
+ *
+ * Races: every cancel() bumps the key's generation. A respawn whose start() is already in flight checks
+ * the generation (and `isCurrent`) when start() resolves and stops the connection if it was superseded,
+ * so a remove / update / restart / shutdown during a respawn never leaves an orphan process.
  */
 import { logger } from '@mcpambassador/core';
 import type { StdioMcpConnection } from './stdio-connection.js';
 
 export type RespawnEventSink = (action: string, metadata: Record<string, unknown>) => void;
 export interface RespawnStatus {
-  state: 'ok' | 'respawning' | 'gave_up';
+  /** `failing`: still retrying, but past the normal attempt budget (health reports unhealthy). */
+  state: 'ok' | 'respawning' | 'failing';
   attempts: number;
 }
 
 export class RespawnController {
-  static readonly MAX_ATTEMPTS = 5;
+  static readonly FAILING_AFTER = 5;
   static readonly BASE_MS = 1000;
   static readonly CAP_MS = 30000;
   static readonly STABLE_MS = 60000;
 
   private attempts = new Map<string, number>();
   private timers = new Map<string, NodeJS.Timeout>();
-  private gaveUp = new Set<string>();
+  private inflight = new Set<string>();
+  private generation = new Map<string, number>();
   private closed = false;
 
   constructor(
@@ -36,6 +43,10 @@ export class RespawnController {
     }
   }
 
+  private gen(key: string): number {
+    return this.generation.get(key) ?? 0;
+  }
+
   /**
    * Call on an unexpected exit. `isCurrent` must be false once the connection was removed or replaced;
    * `afterStart` runs after a successful restart (e.g. refresh the tool catalog).
@@ -47,67 +58,88 @@ export class RespawnController {
     afterStart: () => Promise<void> | void,
     reason = 'process_exited'
   ): void {
-    if (this.closed || this.timers.has(key) || !isCurrent()) return;
+    if (this.closed || this.timers.has(key) || this.inflight.has(key) || !isCurrent()) return;
+    this.plan(key, connection, isCurrent, afterStart, reason);
+  }
+
+  private plan(
+    key: string,
+    connection: StdioMcpConnection,
+    isCurrent: () => boolean,
+    afterStart: () => Promise<void> | void,
+    reason: string
+  ): void {
+    if (this.closed || !isCurrent()) return;
     const attempt = (this.attempts.get(key) ?? 0) + 1;
-    if (attempt > RespawnController.MAX_ATTEMPTS) {
-      this.gaveUp.add(key);
-      logger.error(`[respawn] ${this.scope}:${key} giving up after ${attempt - 1} attempts`);
-      this.emit('mcp_respawn_gave_up', key, { attempts: attempt - 1 });
-      return;
-    }
     this.attempts.set(key, attempt);
     const delay = Math.min(
       RespawnController.BASE_MS * 2 ** (attempt - 1),
       RespawnController.CAP_MS
     );
+    const gen = this.gen(key);
     logger.warn(`[respawn] ${this.scope}:${key} respawn ${attempt} in ${delay}ms`);
     this.emit('mcp_process_exited', key, { reason, attempt, delay_ms: delay });
+    if (attempt === RespawnController.FAILING_AFTER + 1) {
+      this.emit('mcp_respawn_failing', key, { attempts: attempt - 1, will_keep_retrying: true });
+    }
     const timer = setTimeout(() => {
       this.timers.delete(key);
-      if (this.closed || !isCurrent()) return;
+      if (this.closed || this.gen(key) !== gen || !isCurrent()) return;
+      this.inflight.add(key);
       connection
         .start()
         .then(async () => {
+          this.inflight.delete(key);
+          if (this.closed || this.gen(key) !== gen || !isCurrent()) {
+            // superseded while start() was running: do not leave the new process behind
+            await connection.stop().catch(() => undefined);
+            return;
+          }
           await afterStart();
           this.emit('mcp_respawned', key, { attempt });
           const t = setTimeout(() => {
-            this.attempts.delete(key);
-            this.gaveUp.delete(key);
+            if (this.gen(key) === gen) this.attempts.delete(key);
           }, RespawnController.STABLE_MS);
           t.unref();
         })
         .catch(err => {
+          this.inflight.delete(key);
           logger.error({ err }, `[respawn] ${this.scope}:${key} respawn failed`);
           this.emit('mcp_respawn_failed', key, { attempt });
-          this.schedule(key, connection, isCurrent, afterStart, 'respawn_failed');
+          if (this.gen(key) === gen)
+            this.plan(key, connection, isCurrent, afterStart, 'respawn_failed');
         });
     }, delay);
     timer.unref();
     this.timers.set(key, timer);
   }
 
+  /** Cancel a pending respawn and invalidate one whose start() is in flight. */
   cancel(key: string): void {
     const t = this.timers.get(key);
     if (t) clearTimeout(t);
     this.timers.delete(key);
     this.attempts.delete(key);
-    this.gaveUp.delete(key);
+    this.generation.set(key, this.gen(key) + 1);
   }
 
   cancelPrefix(prefix: string): void {
-    for (const k of [...this.timers.keys(), ...this.attempts.keys()]) {
-      if (k.startsWith(prefix)) this.cancel(k);
-    }
+    const keys = new Set([...this.timers.keys(), ...this.attempts.keys(), ...this.inflight]);
+    for (const k of keys) if (k.startsWith(prefix)) this.cancel(k);
   }
 
   close(): void {
     this.closed = true;
-    for (const k of [...this.timers.keys()]) this.cancel(k);
+    for (const k of new Set([...this.timers.keys(), ...this.inflight])) this.cancel(k);
   }
 
   status(key: string): RespawnStatus {
-    if (this.gaveUp.has(key)) return { state: 'gave_up', attempts: this.attempts.get(key) ?? 0 };
-    if (this.timers.has(key)) return { state: 'respawning', attempts: this.attempts.get(key) ?? 0 };
-    return { state: 'ok', attempts: this.attempts.get(key) ?? 0 };
+    const attempts = this.attempts.get(key) ?? 0;
+    const active = this.timers.has(key) || this.inflight.has(key);
+    if (!active) return { state: 'ok', attempts };
+    return {
+      state: attempts > RespawnController.FAILING_AFTER ? 'failing' : 'respawning',
+      attempts,
+    };
   }
 }

@@ -57,7 +57,7 @@ export class StdioMcpConnection extends EventEmitter {
   private process: ChildProcess | null = null;
   private messageBuffer = '';
   // TD-045: set while discarding the rest of an oversize line
-  private discarding: { head: string; tail: string; bytes: number } | null = null;
+  private discarding: { head: string; tail: string; bytes: number; failed?: boolean } | null = null;
   private stopRequested = false;
   private pendingRequests = new Map<
     number,
@@ -93,6 +93,10 @@ export class StdioMcpConnection extends EventEmitter {
    * Start the MCP process
    */
   async start(): Promise<void> {
+    // TD-045: never overwrite a live process (it would be orphaned, still holding credentials)
+    if (this.process && !this.processExited) {
+      throw new Error(`[${this.config.name}] Process already running`);
+    }
     this.stopRequested = false;
     this.messageBuffer = '';
     this.discarding = null;
@@ -146,6 +150,14 @@ export class StdioMcpConnection extends EventEmitter {
     });
 
     const childProcess = this.process; // Capture for closure
+
+    // TD-045: a write to a dead child emits EPIPE asynchronously on stdin. Unhandled, it would crash the
+    // whole server. Fail the in-flight requests instead; the exit handler does the rest.
+    childProcess.stdin?.on('error', (err: Error) => {
+      logger.warn({ errName: err.name }, `[MCP:${this.config.name}] stdin error`);
+      this.errorBuffer.push(`stdin error: ${err.name}`, 'error');
+      this.rejectAllPending(new Error(`[${this.config.name}] MCP process unavailable`));
+    });
 
     // Handle stdout (JSON-RPC responses)
     childProcess.stdout?.on('data', (data: Buffer) => {
@@ -268,14 +280,12 @@ export class StdioMcpConnection extends EventEmitter {
         this.discarding.bytes += part.length;
         this.discarding.tail = (this.discarding.tail + part).slice(-StdioMcpConnection.EDGE_BYTES);
         if (nl === -1) {
-          if (this.discarding.bytes > StdioMcpConnection.MAX_DISCARD_BYTES) {
-            this.killRunaway();
-          }
+          this.failRunaway(this.discarding);
           return;
         }
         const d = this.discarding;
         this.discarding = null;
-        this.failOversize(d.head, d.tail, d.bytes);
+        if (!d.failed) this.failOversize(d.head, d.tail, d.bytes);
         chunk = chunk.slice(nl + 1);
         continue;
       }
@@ -317,7 +327,7 @@ export class StdioMcpConnection extends EventEmitter {
           tail: buf.slice(-StdioMcpConnection.EDGE_BYTES),
           bytes: buf.length,
         };
-        if (this.discarding.bytes > StdioMcpConnection.MAX_DISCARD_BYTES) this.killRunaway();
+        this.failRunaway(this.discarding);
       }
     }
   }
@@ -355,13 +365,20 @@ export class StdioMcpConnection extends EventEmitter {
     }
   }
 
-  /** TD-045: a line that never ends. Kill the process; the exit handler fails pending and the manager respawns it. */
-  private killRunaway(): void {
-    logger.error(`[MCP:${this.config.name}] Unterminated output over limit, killing process`);
-    this.discarding = null;
-    this.isHealthy = false;
-    this.process?.kill('SIGKILL');
-    this.emit('error', new Error('Output size limit exceeded'));
+  /**
+   * TD-045: a line that never ends. Discarding is O(1) memory, so the process is left alone; the requests
+   * in flight cannot be matched to the line, so fail them once instead of letting them hang.
+   */
+  private failRunaway(d: { bytes: number; failed?: boolean }): void {
+    if (d.failed || d.bytes <= StdioMcpConnection.MAX_DISCARD_BYTES) return;
+    d.failed = true;
+    logger.error(`[MCP:${this.config.name}] Unterminated output over limit, discarding`);
+    this.errorBuffer.push('Unterminated oversize output discarded', 'error');
+    this.rejectAllPending(
+      new Error(
+        `[${this.config.name}] Response too large (limit ${StdioMcpConnection.MAX_MESSAGE_SIZE} bytes)`
+      )
+    );
   }
 
   /**
