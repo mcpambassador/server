@@ -8,6 +8,7 @@ import type {
   ConnectionHealth,
 } from './types.js';
 import { validateMcpConfig, validateToolName } from './types.js';
+import { RespawnController, type RespawnEventSink } from './respawn.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 import { logger } from '@mcpambassador/core';
@@ -59,6 +60,35 @@ export class SharedMcpManager {
   private aggregatedTools: AggregatedTool[] = [];
   private configFingerprints = new Map<string, string>(); // ADR-013: mcp_name → sha256 of config
 
+  // TD-045: respawn of shared stdio MCPs that die unexpectedly
+  private respawn = new RespawnController('shared', (action, meta) =>
+    this.auditSink?.(action, meta)
+  );
+  private auditSink?: RespawnEventSink;
+
+  /** Wire audit emission for process exit / respawn events (set by the server after audit is up). */
+  setAuditSink(sink: RespawnEventSink): void {
+    this.auditSink = sink;
+  }
+
+  private registerHandlers(name: string, connection: StdioMcpConnection | HttpMcpConnection): void {
+    connection.on('disconnect', (info?: { intentional?: boolean }) => {
+      logger.info(`[SharedMcpManager] MCP ${name} disconnected`);
+      void this.aggregateTools(); // Refresh tool catalog
+      if (connection instanceof StdioMcpConnection && !info?.intentional) {
+        this.respawn.schedule(
+          name,
+          connection,
+          () => this.connections.get(name) === connection,
+          () => this.aggregateTools()
+        );
+      }
+    });
+    connection.on('error', err => {
+      logger.error({ err }, `[SharedMcpManager] MCP ${name} error:`);
+    });
+  }
+
   constructor() {
     logger.info('[SharedMcpManager] Initialized');
   }
@@ -81,15 +111,7 @@ export class SharedMcpManager {
 
           // Register connection event handlers
           connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
-          connection.on('disconnect', () => {
-            logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
-            this.aggregateTools(); // Refresh tool catalog
-          });
-
-          connection.on('error', err => {
-            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            logger.error({ err }, `[SharedMcpManager] MCP ${config.name} error:`);
-          });
+          this.registerHandlers(config.name, connection);
         } else if (config.transport === 'http' || config.transport === 'sse') {
           const connection = new HttpMcpConnection(config);
           await connection.start();
@@ -97,15 +119,7 @@ export class SharedMcpManager {
 
           // Register connection event handlers
           connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
-          connection.on('disconnect', () => {
-            logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
-            this.aggregateTools(); // Refresh tool catalog
-          });
-
-          connection.on('error', err => {
-            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-            logger.error({ err }, `[SharedMcpManager] MCP ${config.name} error:`);
-          });
+          this.registerHandlers(config.name, connection);
         } else {
           logger.warn(
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
@@ -318,7 +332,20 @@ export class SharedMcpManager {
    * Health check all connections
    */
   async healthCheckAll(): Promise<ConnectionHealth[]> {
-    const healthChecks = Array.from(this.connections.values()).map(conn => conn.healthCheck());
+    const healthChecks = Array.from(this.connections.entries()).map(async ([name, conn]) => {
+      const h = await conn.healthCheck();
+      // TD-045: surface respawn state; a respawning MCP is degraded, one we gave up on is unhealthy
+      const r = this.respawn.status(name);
+      if (r.state === 'failing') {
+        return {
+          ...h,
+          status: 'unhealthy' as const,
+          error: `respawn failing after ${r.attempts} attempts (still retrying)`,
+        };
+      }
+      if (r.state === 'respawning') return { ...h, status: 'degraded' as const };
+      return h;
+    });
 
     return await Promise.all(healthChecks);
   }
@@ -361,6 +388,7 @@ export class SharedMcpManager {
     }
 
     logger.info(`[SharedMcpManager] Restarting MCP: ${name}`);
+    this.respawn.cancel(name);
 
     await connection.stop();
     await connection.start();
@@ -427,16 +455,7 @@ export class SharedMcpManager {
 
     // Register event handlers (same as initialize())
     connection.on('tools_list_changed', () => this.onToolsListChanged?.(config.name));
-    connection.on('disconnect', () => {
-      logger.info(`[SharedMcpManager] MCP ${config.name} disconnected`);
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      this.aggregateTools();
-    });
-
-    connection.on('error', err => {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      logger.error({ err }, `[SharedMcpManager] MCP ${config.name} error:`);
-    });
+    this.registerHandlers(config.name, connection);
 
     // Store fingerprint (use provided one or compute from DownstreamMcpConfig)
     if (fingerprint) {
@@ -473,6 +492,7 @@ export class SharedMcpManager {
     }
 
     logger.info(`[SharedMcpManager] Removing MCP: ${name}`);
+    this.respawn.cancel(name);
     await connection.stop();
     this.connections.delete(name);
     this.configFingerprints.delete(name);
@@ -489,6 +509,7 @@ export class SharedMcpManager {
    */
   async updateMcp(name: string, config: DownstreamMcpConfig, fingerprint?: string): Promise<void> {
     logger.info(`[SharedMcpManager] Updating MCP: ${name}`);
+    this.respawn.cancel(name);
     await this.removeMcp(name);
     await this.addMcp(config, fingerprint);
   }
@@ -498,6 +519,7 @@ export class SharedMcpManager {
    */
   async shutdown(): Promise<void> {
     logger.info('[SharedMcpManager] Shutting down all connections...');
+    this.respawn.close();
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {

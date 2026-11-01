@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 import { validateMcpConfig, validateToolName } from './types.js';
 import { isBlockedEnvName } from '../services/runner-guard.js';
+import { RespawnController, type RespawnEventSink } from './respawn.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 
@@ -420,6 +421,7 @@ export class UserMcpPool {
     }
 
     logger.info(`[UserMcpPool] Terminating MCP instances for user ${userId}...`);
+    this.respawn.cancelPrefix(`${userId}:`);
     instanceSet.status = 'terminating';
 
     // Stop all connections (parallel)
@@ -640,6 +642,15 @@ export class UserMcpPool {
     return result;
   }
 
+  // TD-045: respawn of per-user stdio instances that exit unexpectedly
+  private respawn = new RespawnController('user', (action, meta) => this.auditSink?.(action, meta));
+  private auditSink?: RespawnEventSink;
+
+  /** Wire audit emission for process exit / respawn events (set by the server after audit is up). */
+  setAuditSink(sink: RespawnEventSink): void {
+    this.auditSink = sink;
+  }
+
   /**
    * CR-M17-006: Register event handlers for a connection
    * Extracted helper to avoid code duplication between stdio and http setup
@@ -649,9 +660,25 @@ export class UserMcpPool {
     userId: string,
     mcpName: string
   ): void {
-    connection.on('disconnect', () => {
+    connection.on('disconnect', (info?: { intentional?: boolean }) => {
       logger.info(`[UserMcpPool] User ${userId} MCP ${mcpName} disconnected`);
-      this.aggregateToolsForUser(userId);
+      void this.aggregateToolsForUser(userId);
+      // TD-045: an unexpected exit of a still-registered stdio instance respawns it with backoff
+      if (connection instanceof StdioMcpConnection && !info?.intentional) {
+        this.respawn.schedule(
+          `${userId}:${mcpName}`,
+          connection,
+          () => {
+            const set = this.userInstances.get(userId);
+            return (
+              set !== undefined &&
+              set.status === 'ready' &&
+              set.connections.get(mcpName) === connection
+            );
+          },
+          () => this.aggregateToolsForUser(userId)
+        );
+      }
     });
 
     connection.on('error', err => {
@@ -754,6 +781,7 @@ export class UserMcpPool {
    */
   async shutdown(): Promise<void> {
     logger.info('[UserMcpPool] Shutting down all user instances...');
+    this.respawn.close();
 
     // Stop health check interval
     if (this.healthCheckInterval) {
