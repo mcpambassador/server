@@ -86,6 +86,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   // TD-039: runner-changing options and reserved env names are rejected at the door (generic reason).
   const checkRunnerGuard = (
     body: {
+      transport_type?: string;
       config?: Record<string, unknown>;
       credential_schema?: Record<string, unknown>;
       oauth_config?: { access_token_env_var?: string };
@@ -93,7 +94,7 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     reply: FastifyReply
   ): boolean => {
     const reason =
-      commandNotPermittedReason(body.config) ??
+      commandNotPermittedReason(body.config, body.transport_type) ??
       checkCatalogEntry({
         config: body.config,
         credential_schema: body.credential_schema,

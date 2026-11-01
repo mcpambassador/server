@@ -264,6 +264,27 @@ describe('registry install', () => {
     expect(ok.success, JSON.stringify(ok)).toBe(true);
     expect(await getMcpEntryByName(s.db, clean)).not.toBeNull();
   });
+
+  it('docker entry: success:false, nothing stored, value not echoed; an allowlisted one installs', async () => {
+    const prev = process.env['MCP_ALLOWED_COMMANDS'];
+    delete process.env['MCP_ALLOWED_COMMANDS'];
+    try {
+      const dk = nm('reg-docker');
+      const okn = nm('reg-ok');
+      const svc = await svcFor([
+        { name: dk, command: ['docker', 'run', `${CANARY}/img`] },
+        { name: okn, command: ['npx', '-y', 'pkg@1.2.3'] },
+      ]);
+      const r = await svc.installEntry(dk);
+      expect(r.success).toBe(false);
+      expect(JSON.stringify(r)).toContain('MCP_ALLOWED_COMMANDS');
+      expect(JSON.stringify(r)).not.toContain(CANARY);
+      expect(await getMcpEntryByName(s.db, dk)).toBeNull();
+      expect((await svc.installEntry(okn)).success).toBe(true);
+    } finally {
+      if (prev !== undefined) process.env['MCP_ALLOWED_COMMANDS'] = prev;
+    }
+  });
 });
 
 describe('spawn time: a bad config already in the database', () => {

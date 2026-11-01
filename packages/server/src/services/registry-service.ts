@@ -568,7 +568,7 @@ export class RegistryService {
     // TD-039: same runner-flag / reserved-env rule as an admin create (a registry entry may look
     // pinned yet fetch from elsewhere). Generic reason, no values.
     const guardReason =
-      commandNotPermittedReason(registryEntry.config) ??
+      commandNotPermittedReason(registryEntry.config, registryEntry.transport_type) ??
       checkCatalogEntry({
         config: registryEntry.config,
         credential_schema: registryEntry.credential_schema,

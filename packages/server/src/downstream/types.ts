@@ -91,8 +91,11 @@ export function getAllowedCommands(): string[] {
  * (never stricter than spawn). Returns a generic reason, or null when fine or not applicable.
  */
 export function commandNotPermittedReason(
-  config: Record<string, unknown> | undefined
+  config: Record<string, unknown> | undefined,
+  transportType?: string
 ): string | null {
+  // spawn only runs a command for stdio; an omitted type (PATCH) is checked on the config alone
+  if (transportType !== undefined && transportType !== 'stdio') return null;
   const command = config?.['command'];
   if (!Array.isArray(command) || typeof command[0] !== 'string' || command[0] === '') return null;
   return getAllowedCommands().includes(command[0])
