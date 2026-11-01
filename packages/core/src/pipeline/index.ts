@@ -58,6 +58,8 @@ export interface AgentSession {
 export interface PipelineInvokeOptions {
   /** Skips the authn provider; the caller has already validated the agent token. */
   preAuthenticatedSession?: AgentSession;
+  /** Extra fields merged into the tool_invocation / tool_error audit metadata (ADR-022 `via`, mode). */
+  auditMetadata?: Record<string, unknown>;
 }
 
 /** SessionContext for an agent session (authz keys off client_id = the bound client) */
@@ -333,7 +335,13 @@ export class Pipeline {
           status: hasError ? 'error' : 'success',
           duration_ms: duration,
         },
-        metadata: hasError ? { error: response.metadata?.error } : undefined,
+        metadata:
+          hasError || options?.auditMetadata
+            ? {
+                ...(options?.auditMetadata ?? {}),
+                ...(hasError ? { error: response.metadata?.error } : {}),
+              }
+            : undefined,
       });
 
       return response;

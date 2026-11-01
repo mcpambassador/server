@@ -31,6 +31,9 @@ describe('server boot with tracked migrations', () => {
     db.exec('DROP TABLE tool_pins');
     db.exec('ALTER TABLE mcp_catalog DROP COLUMN pin_policy');
     db.exec('ALTER TABLE mcp_catalog DROP COLUMN origin');
+    // ...and 0005 (ADR-022)
+    db.exec('ALTER TABLE agent_grants DROP COLUMN disclosure_mode');
+    db.exec('ALTER TABLE oauth_auth_codes DROP COLUMN disclosure_mode');
     db.close();
 
     s = await restartAgentTestServer(s, opts);

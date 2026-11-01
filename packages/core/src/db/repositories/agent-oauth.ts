@@ -38,6 +38,7 @@ export interface OAuthClientRecord {
 }
 
 export type AgentGrantKind = 'oauth' | 'one_shot';
+export type AgentGrantDisclosureMode = 'full' | 'progressive';
 
 export interface AgentGrantRecord {
   grant_id: string;
@@ -51,6 +52,8 @@ export interface AgentGrantRecord {
   label: string;
   scopes: string[];
   tool_allowlist: string[] | null;
+  /** ADR-022: tools/list presentation; 'full' for grants created before 3b */
+  disclosure_mode: AgentGrantDisclosureMode;
   resource: string;
   created_at: string;
   expires_at: string;
@@ -82,6 +85,7 @@ export interface AuthCodeRecord {
   code_challenge: string;
   scopes: string[];
   tool_allowlist: string[] | null;
+  disclosure_mode: AgentGrantDisclosureMode;
   resource: string;
   bound_client_id: string;
   label: string | null;
@@ -118,6 +122,7 @@ function toGrant(r: any): AgentGrantRecord {
     label: r.label,
     scopes: JSON.parse(r.scopes) as string[],
     tool_allowlist: parseArr(r.tool_allowlist),
+    disclosure_mode: r.disclosure_mode === 'progressive' ? 'progressive' : 'full',
     resource: r.resource,
     created_at: r.created_at,
     expires_at: r.expires_at,
@@ -149,6 +154,7 @@ function toCode(r: any): AuthCodeRecord {
     code_challenge: r.code_challenge,
     scopes: JSON.parse(r.scopes) as string[],
     tool_allowlist: parseArr(r.tool_allowlist),
+    disclosure_mode: r.disclosure_mode === 'progressive' ? 'progressive' : 'full',
     resource: r.resource,
     bound_client_id: r.bound_client_id,
     label: r.label ?? null,
@@ -361,21 +367,32 @@ export async function createAgentGrant(
   db: DatabaseClient,
   data: Omit<
     AgentGrantRecord,
-    'created_at' | 'last_used_at' | 'revoked_at' | 'revoked_by' | 'kind'
+    'created_at' | 'last_used_at' | 'revoked_at' | 'revoked_by' | 'kind' | 'disclosure_mode'
   > & {
     kind?: AgentGrantKind;
+    disclosure_mode?: AgentGrantDisclosureMode;
   }
 ): Promise<AgentGrantRecord> {
   const created_at = now();
   const kind: AgentGrantKind = data.kind ?? 'oauth';
+  const disclosure_mode: AgentGrantDisclosureMode = data.disclosure_mode ?? 'full';
   await compatInsert(db, agent_grants).values({
     ...data,
     kind,
+    disclosure_mode,
     scopes: j(data.scopes),
     tool_allowlist: data.tool_allowlist == null ? null : j(data.tool_allowlist),
     created_at,
   });
-  return { ...data, kind, created_at, last_used_at: null, revoked_at: null, revoked_by: null };
+  return {
+    ...data,
+    kind,
+    disclosure_mode,
+    created_at,
+    last_used_at: null,
+    revoked_at: null,
+    revoked_by: null,
+  };
 }
 export async function getAgentGrant(
   db: DatabaseClient,

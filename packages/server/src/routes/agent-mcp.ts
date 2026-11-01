@@ -19,12 +19,7 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import {
-  AuthorizationError,
-  ValidationError,
-  logger,
-  type AgentSession,
-} from '@mcpambassador/core';
+import { logger, type AgentSession } from '@mcpambassador/core';
 import type { AgentAuthFailureReason } from '@mcpambassador/contracts';
 import {
   AGENT_MCP_ROUTE,
@@ -41,12 +36,20 @@ import {
 } from '../services/agent-endpoint/index.js';
 import {
   agentScopeAllows,
-  invokeAgentTool,
-  KillSwitchError,
   listAgentTools,
   type AgentToolRestriction,
   type ToolServiceDeps,
 } from '../services/tool-service.js';
+import {
+  META_TOOL_DEFINITIONS,
+  META_TOOL_DESCRIBE,
+  META_TOOL_SEARCH,
+  handleMetaTool,
+  isMetaToolName,
+  runToolCall,
+  targetsOfToolCall,
+  type MetaToolContext,
+} from '../services/agent-endpoint/meta-tools.js';
 import type { UserMcpPool } from '../downstream/index.js';
 import { registerCookieFreeGuard } from './agent-oauth.js';
 
@@ -61,23 +64,30 @@ export interface AgentMcpHost {
 
 const SERVER_INFO = { name: 'mcp-ambassador', version: '1.0.0' } as const;
 
-/** Methods present in a JSON-RPC body (object or batch) */
-function rpcMethods(body: unknown): string[] {
-  const one = (m: unknown): string[] =>
-    m && typeof m === 'object' && typeof (m as { method?: unknown }).method === 'string'
-      ? [(m as { method: string }).method]
-      : [];
-  return Array.isArray(body) ? body.flatMap(one) : one(body);
+/**
+ * Tools that tools/call requests in a JSON-RPC body (object or batch) target. `ambassador__call_tool` is
+ * unwrapped exactly one level (ADR-022 P2) so a call outside the grant's scopes cannot hide behind it.
+ */
+function toolCallTargets(body: unknown): Array<{ name: string; mcp?: string; wrapped: boolean }> {
+  const items = Array.isArray(body) ? body : [body];
+  const out: Array<{ name: string; mcp?: string; wrapped: boolean }> = [];
+  for (const m of items) {
+    if (!m || typeof m !== 'object') continue;
+    const o = m as { method?: unknown; params?: unknown };
+    if (o.method === 'tools/call') out.push(...targetsOfToolCall(o.params));
+  }
+  return out;
 }
 
-/** Tool names of tools/call requests in a JSON-RPC body (object or batch) */
-function toolCallNames(body: unknown): string[] {
+/** Names of tools/call requests as sent (not unwrapped): used to weight rate limits */
+function rawCallNames(body: unknown): string[] {
   const items = Array.isArray(body) ? body : [body];
   const out: string[] = [];
   for (const m of items) {
     if (!m || typeof m !== 'object') continue;
     const o = m as { method?: unknown; params?: { name?: unknown } };
-    if (o.method === 'tools/call' && typeof o.params?.name === 'string') out.push(o.params.name);
+    if (o.method === 'tools/call')
+      out.push(typeof o.params?.name === 'string' ? o.params.name : '');
   }
   return out;
 }
@@ -238,7 +248,36 @@ export async function registerAgentMcpRoutes(
     const agent = toAgentSession(p);
     const restriction = restrictionOf(p);
 
+    const metaCtx = (): MetaToolContext => ({
+      deps: host.toolDeps,
+      agent,
+      restriction,
+      mode: p.disclosure_mode,
+      sourceIp,
+      auditDiscovery: metadata =>
+        emitAgentAudit(deps, 'agent_tool_discovery', {
+          user_id: p.user_id,
+          bound_client_id: p.bound_client_id,
+          source_ip: sourceIp,
+          metadata: {
+            agent_grant_id: p.grant_id,
+            disclosure_mode: p.disclosure_mode,
+            ...metadata,
+          },
+        }),
+    });
+
     server.setRequestHandler(ListToolsRequestSchema, async () => {
+      // ADR-022: progressive grants see only the three fixed, server-authored meta-tools
+      if (p.disclosure_mode === 'progressive') {
+        return {
+          tools: META_TOOL_DEFINITIONS.map(t => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+          })),
+        };
+      }
       await prepareUser(p);
       const tools = await listAgentTools(host.toolDeps, agent, restriction);
       return {
@@ -251,33 +290,17 @@ export async function registerAgentMcpRoutes(
     });
 
     server.setRequestHandler(CallToolRequestSchema, async (call): Promise<CallToolResult> => {
-      const text = (msg: string): CallToolResult => ({
-        content: [{ type: 'text', text: msg }],
-        isError: true,
-      });
       try {
         await prepareUser(p);
-        const response = await invokeAgentTool(
-          host.toolDeps,
-          agent,
-          restriction,
-          { tool: call.params.name, arguments: call.params.arguments ?? {} },
-          sourceIp
-        );
-        const err = response.metadata?.error;
-        if (err) return text(typeof err === 'string' ? err : 'Tool invocation failed');
-        const result = response.result;
-        const content = Array.isArray(result)
-          ? (result as CallToolResult['content'])
-          : [{ type: 'text' as const, text: JSON.stringify(result ?? null) }];
-        return { content, isError: response.metadata?.is_error === true };
       } catch (e) {
-        if (e instanceof KillSwitchError) return text(e.message);
-        if (e instanceof AuthorizationError) return text('Tool not permitted');
-        if (e instanceof ValidationError) return text(e.message);
         logger.error(`[agent-mcp] tools/call failed: ${String(e)}`);
-        return text('Tool invocation failed');
+        return { content: [{ type: 'text', text: 'Tool invocation failed' }], isError: true };
       }
+      // P1: a name in the reserved set always dispatches to the meta-tool (never to a downstream tool)
+      if (isMetaToolName(call.params.name)) {
+        return handleMetaTool(metaCtx(), call.params.name, call.params.arguments);
+      }
+      return runToolCall(metaCtx(), call.params.name, call.params.arguments ?? {}, {});
     });
     return server;
   }
@@ -303,29 +326,56 @@ export async function registerAgentMcpRoutes(
 
       // A tool outside the token's scopes is an auth failure (403 insufficient_scope), not a tool error.
       // Allowlist and kill-switch denials stay JSON-RPC tool results (same text as /v1/tools/invoke).
-      const callNames = toolCallNames(req.body);
-      if (callNames.length > 0) {
+      const targets = toolCallTargets(req.body);
+      if (targets.length > 0) {
         await prepareUser(p);
+        // keepShadowed: same-named tools of different MCPs stay visible so ambassador__call_tool's
+        // optional `mcp` is checked against the MCP it names (direct calls keep first-wins below)
         const catalog = await host.toolDeps.toolRouter.getIsolationAwareToolCatalog(
           host.toolDeps.db,
           p.user_id,
-          p.bound_client_id
+          p.bound_client_id,
+          { keepShadowed: true }
         );
-        for (const name of callNames) {
-          const tool = catalog.find(t => t.name === name);
-          if (tool && !agentScopeAllows(p.scopes, tool)) {
+        for (const target of targets) {
+          const cands = catalog.filter(
+            t => t.name === target.name && (target.mcp === undefined || t.source_mcp === target.mcp)
+          );
+          // Direct call: the first-wins tool is the one that would run. Wrapped call: the resolver may pick
+          // any permitted candidate, so it is denied only when every candidate is out of scope.
+          const denied = target.wrapped
+            ? cands.length > 0 && cands.every(t => !agentScopeAllows(p.scopes, t))
+            : cands.length > 0 && !agentScopeAllows(p.scopes, cands[0]!);
+          if (denied) {
             return fail(req, reply, 'insufficient_scope', {
               principal: p,
               token: bearerFrom(req),
-              scope: `mcp:${tool.source_mcp}`,
+              scope: `mcp:${cands[0]!.source_mcp}`,
             });
           }
         }
       }
 
       // Rate limit tools/call per grant and per user (before doing any work)
-      const calls = rpcMethods(req.body).filter(m => m === 'tools/call').length;
-      for (let i = 0; i < calls; i++) {
+      // ADR-022: search/describe draw from their own bucket at half the weight of a call (2x the limit),
+      // so enumeration is cheaper than calling but still bounded; call_tool counts as a call.
+      const callNames = rawCallNames(req.body);
+      for (const callName of callNames) {
+        if (callName === META_TOOL_SEARCH || callName === META_TOOL_DESCRIBE) {
+          if (
+            !deps.limiter.allow(
+              `mcp_disc_grant:${p.grant_id}`,
+              rl.tool_calls_per_minute_per_grant * 2,
+              60_000
+            )
+          ) {
+            return reply
+              .status(429)
+              .header('Retry-After', '60')
+              .send(jsonRpcError(-32000, 'Rate limit exceeded'));
+          }
+          continue;
+        }
         const ok =
           deps.limiter.allow(
             `mcp_call_grant:${p.grant_id}`,
