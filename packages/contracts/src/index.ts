@@ -28,3 +28,6 @@ export * from './kill-switch.js';
 
 // ADR-021 tool definition pinning
 export * from './tool-pins.js';
+
+// ADR-023 human approval gates
+export * from './approvals.js';

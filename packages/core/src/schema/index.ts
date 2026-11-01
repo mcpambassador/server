@@ -16,8 +16,15 @@
  * @see ADR-006 Admin Authentication Model
  */
 
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+  primaryKey,
+} from 'drizzle-orm/sqlite-core';
+import { relations, sql } from 'drizzle-orm';
 
 /**
  * users table
@@ -499,6 +506,13 @@ export const mcp_catalog = sqliteTable(
     pin_policy: text('pin_policy', { enum: ['review', 'auto'] })
       .notNull()
       .default('review'),
+    /** ADR-023: MCP-wide approval default for tools first seen after it is set (CHECKs in migration 0006) */
+    default_requires_approval: integer('default_requires_approval', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    default_approver: text('default_approver', { enum: ['owner', 'admin'] })
+      .notNull()
+      .default('owner'),
     // ADR-021: only 'custom' (admin-created) MCPs may use pin_policy=auto
     origin: text('origin', { enum: ['custom', 'registry', 'import', 'unknown'] })
       .notNull()
@@ -858,6 +872,92 @@ export const tool_pins = sqliteTable(
   },
   table => ({
     statusIdx: index('idx_tool_pins_status').on(table.status),
+  })
+);
+
+/**
+ * Per-tool approval policy (ADR-023). Keyed by (mcp_id, tool_name), not by pin hash, so a changed
+ * definition keeps its gate. No row = ungated unless the MCP default says otherwise.
+ */
+export const tool_policies = sqliteTable(
+  'tool_policies',
+  {
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade' }),
+    tool_name: text('tool_name').notNull(),
+    requires_approval: integer('requires_approval', { mode: 'boolean' }).notNull().default(false),
+    approver: text('approver', { enum: ['owner', 'admin'] }).notNull(),
+    updated_by: text('updated_by').notNull(),
+    updated_at: text('updated_at').notNull(),
+  },
+  table => ({
+    pk: primaryKey({ columns: [table.mcp_id, table.tool_name] }),
+  })
+);
+
+/**
+ * Approval requests (ADR-023). Raw arguments are never stored: `args_hash` binds the exact routed
+ * arguments, `preview` is a sanitized excerpt kept only while open (CHECKs in migration 0006).
+ * `expires_at` is the pending expiry, reset to the approved-use deadline on approval.
+ */
+export const approval_requests = sqliteTable(
+  'approval_requests',
+  {
+    approval_id: text('approval_id').primaryKey().notNull(),
+    grant_id: text('grant_id')
+      .notNull()
+      .references(() => agent_grants.grant_id, { onDelete: 'cascade' }),
+    bound_client_id: text('bound_client_id').references(() => clients.client_id, {
+      onDelete: 'set null',
+    }),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade' }),
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade' }),
+    tool_name: text('tool_name').notNull(),
+    args_hash: text('args_hash').notNull(),
+    pin_hash: text('pin_hash'),
+    required_approver: text('required_approver', { enum: ['owner', 'admin'] }).notNull(),
+    status: text('status', {
+      enum: ['pending', 'approved', 'denied', 'expired', 'voided', 'consumed'],
+    })
+      .notNull()
+      .default('pending'),
+    preview: text('preview'),
+    via: text('via'),
+    disclosure_mode: text('disclosure_mode', { enum: ['full', 'progressive'] })
+      .notNull()
+      .default('full'),
+    created_at: text('created_at').notNull(),
+    expires_at: text('expires_at').notNull(),
+    decided_at: text('decided_at'),
+    decided_by: text('decided_by'),
+    approver_role: text('approver_role', { enum: ['owner', 'admin'] }),
+    self_approved: integer('self_approved', { mode: 'boolean' }).notNull().default(false),
+    decision_reason: text('decision_reason'),
+    consumed_at: text('consumed_at'),
+    void_reason: text('void_reason'),
+  },
+  table => ({
+    statusExpiresIdx: index('idx_approval_requests_status_expires').on(
+      table.status,
+      table.expires_at
+    ),
+    userStatusIdx: index('idx_approval_requests_user_status').on(table.user_id, table.status),
+    grantStatusIdx: index('idx_approval_requests_grant_status').on(table.grant_id, table.status),
+    cooldownIdx: index('idx_approval_requests_cooldown').on(
+      table.grant_id,
+      table.mcp_id,
+      table.tool_name,
+      table.status,
+      table.decided_at
+    ),
+    uniqueOpenCall: uniqueIndex('unique_open_approval_call')
+      .on(table.grant_id, table.mcp_id, table.tool_name, table.args_hash)
+      .where(sql`${table.status} IN ('pending','approved')`),
   })
 );
 
