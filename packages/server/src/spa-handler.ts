@@ -24,6 +24,31 @@ export function isAgentEndpointPath(url: string): boolean {
   );
 }
 
+/** H-2: CSP and hardening headers for every HTML/asset response the SPA handler serves. */
+export const SPA_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
+function applySpaSecurityHeaders(reply: {
+  header: (name: string, value: string) => unknown;
+}): void {
+  reply.header('Content-Security-Policy', SPA_CSP);
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+}
+
+/** SPA index.html response (login, setup, client-side routes): HTML, uncached, with the security headers. */
+function sendSpaHtml(
+  reply: {
+    type: (t: string) => { header: (n: string, v: string) => { send: (b: string) => unknown } };
+    header: (name: string, value: string) => unknown;
+  },
+  html: string
+): unknown {
+  applySpaSecurityHeaders(reply);
+  return reply.type('text/html').header('Cache-Control', 'no-cache').send(html);
+}
+
 /**
  * M24.10: SPA Handler
  * Serves the React SPA for routes matching /app/*
@@ -62,17 +87,10 @@ export async function registerSpaHandler(
     return;
   }
 
-  // H-2 fix: Add Content-Security-Policy headers for SPA routes
+  // H-2 fix: CSP and security headers for SPA routes. /login and /setup (credential pages) and the
+  // client-side-route fallback set them in sendSpaHtml; this hook covers /app static files.
   fastify.addHook('onSend', async (request, reply) => {
-    if (request.url.startsWith('/app')) {
-      reply.header(
-        'Content-Security-Policy',
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-      );
-      reply.header('X-Content-Type-Options', 'nosniff');
-      reply.header('X-Frame-Options', 'DENY');
-      reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-    }
+    if (request.url.startsWith('/app')) applySpaSecurityHeaders(reply);
   });
 
   // Register static file serving for SPA assets
@@ -120,14 +138,10 @@ export async function registerSpaHandler(
   });
 
   // SPA fallback for /login route (React Router defines it at root level)
-  fastify.get('/login', async (_request, reply) => {
-    return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
-  });
+  fastify.get('/login', async (_request, reply) => sendSpaHtml(reply, indexHtml));
 
   // SPA fallback for /setup route (first-run wizard)
-  fastify.get('/setup', async (_request, reply) => {
-    return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
-  });
+  fastify.get('/setup', async (_request, reply) => sendSpaHtml(reply, indexHtml));
 
   // SPA fallback for all unmatched GET requests (client-side routes)
   // This catches routes like /app/dashboard, /app/admin/users, etc.
@@ -139,7 +153,7 @@ export async function registerSpaHandler(
       !request.url.startsWith('/health') &&
       !isAgentEndpointPath(request.url)
     ) {
-      return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
+      return sendSpaHtml(reply, indexHtml);
     }
     // Return proper 404 for API routes and non-GET requests
     return reply.status(404).send({
