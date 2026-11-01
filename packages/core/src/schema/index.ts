@@ -496,6 +496,9 @@ export const mcp_catalog = sqliteTable(
     })
       .notNull()
       .default('shared'),
+    pin_policy: text('pin_policy', { enum: ['review', 'auto'] })
+      .notNull()
+      .default('review'),
     requires_user_credentials: integer('requires_user_credentials', { mode: 'boolean' })
       .notNull()
       .default(false),
@@ -812,6 +815,38 @@ export const kill_switches = sqliteTable('kill_switches', {
   activated_at: text('activated_at').notNull(),
   activated_by: text('activated_by').notNull(),
 });
+
+/**
+ * Tool definition pins (ADR-021). scope_user_id NULL = shared MCP / all-users baseline.
+ * Uniqueness (mcp_id, COALESCE(scope_user_id,''), tool_name) is enforced by a SQL expression index
+ * in migration 0004. Definitions are public metadata (canonical JSON); no secrets.
+ */
+export const tool_pins = sqliteTable(
+  'tool_pins',
+  {
+    pin_id: text('pin_id').primaryKey().notNull(),
+    mcp_id: text('mcp_id')
+      .notNull()
+      .references(() => mcp_catalog.mcp_id, { onDelete: 'cascade' }),
+    scope_user_id: text('scope_user_id').references(() => users.user_id, { onDelete: 'cascade' }),
+    tool_name: text('tool_name').notNull(),
+    status: text('status', { enum: ['approved', 'pending_review', 'rejected'] }).notNull(),
+    approved_hash: text('approved_hash'),
+    approved_definition: text('approved_definition'),
+    pending_hash: text('pending_hash'),
+    pending_definition: text('pending_definition'),
+    rejected_hash: text('rejected_hash'),
+    flags: text('flags'),
+    absent: integer('absent', { mode: 'boolean' }).notNull().default(false),
+    first_seen_at: text('first_seen_at').notNull(),
+    approved_at: text('approved_at'),
+    approved_by: text('approved_by'),
+    updated_at: text('updated_at').notNull(),
+  },
+  table => ({
+    statusIdx: index('idx_tool_pins_status').on(table.status),
+  })
+);
 
 /**
  * Drizzle relations (for ORM query joins)
