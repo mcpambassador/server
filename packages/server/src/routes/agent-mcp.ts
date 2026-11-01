@@ -148,7 +148,14 @@ export async function registerAgentMcpRoutes(
       return reply.status(403).send(jsonRpcError(-32000, 'Origin not allowed'));
     }
     if (reason === 'token_in_query') {
-      return reply.status(400).send(jsonRpcError(-32000, 'Tokens must not be sent in the URL'));
+      // Treated as "no credentials presented": 401 (never echo or honour a URL token)
+      return reply
+        .status(401)
+        .header(
+          'WWW-Authenticate',
+          `Bearer error="invalid_request", error_description="tokens must not be sent in the URL", resource_metadata="${config.protectedResourceMetadataUrl}"`
+        )
+        .send(jsonRpcError(-32000, 'Tokens must not be sent in the URL'));
     }
     if (reason === 'insufficient_scope') {
       return reply
@@ -369,14 +376,17 @@ export async function registerAgentMcpRoutes(
   });
 
   // ----- GET / DELETE /mcp: stateless server — no standalone SSE stream, no sessions -----
-  const notAllowed = async (req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
+  // Auth runs in onRequest so an unauthenticated DELETE/GET gets 401 before body parsing (an empty
+  // JSON body would otherwise 400 first).
+  const authOnRequest = async (req: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const p = await authenticate(req, reply);
-    if (!p) return reply;
-    return reply
+    return p ? undefined : reply;
+  };
+  const notAllowed = async (_req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
+    reply
       .status(405)
       .header('Allow', 'POST')
       .send(jsonRpcError(-32000, 'Method not allowed: this MCP endpoint is stateless (POST only)'));
-  };
-  app.get(AGENT_MCP_ROUTE, notAllowed);
-  app.delete(AGENT_MCP_ROUTE, notAllowed);
+  app.get(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
+  app.delete(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
 }

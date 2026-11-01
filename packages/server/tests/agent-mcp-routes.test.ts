@@ -196,7 +196,7 @@ describe('/mcp', () => {
       headers: { ...MCP_HEADERS, authorization: `Bearer ${g.access_token}` },
       payload: rpc('tools/list'),
     });
-    expect(q.statusCode).toBe(400);
+    expect(q.statusCode).toBe(401);
     const o = await post(g.access_token, rpc('tools/list'), { origin: 'https://evil.example' });
     expect(o.statusCode).toBe(403);
     expect(events.some(e => e.action === 'agent_auth_failure')).toBe(true);
@@ -231,12 +231,13 @@ describe('/mcp', () => {
     expect(inv.client_id).toBe('k1');
     expect(inv.session_id).toBe(`agent:${g.grant_id}`);
 
-    // out-of-scope tool is refused at routing time even though the client could call it
+    // out-of-scope tool is refused with 403 insufficient_scope even though the client could call it
     const denied = await post(
       g.access_token,
       rpc('tools/call', { name: 'fs_read', arguments: {} }, 2)
     );
-    expect(denied.json().result.isError).toBe(true);
+    expect(denied.statusCode).toBe(403);
+    expect(String(denied.headers['www-authenticate'])).toContain('error="insufficient_scope"');
     expect(invoked).toEqual(['gh_issue']);
   });
 
