@@ -8,6 +8,7 @@ import type {
   ConnectionHealth,
 } from './types.js';
 import { validateMcpConfig, validateToolName } from './types.js';
+import { RespawnController, type RespawnEventSink } from './respawn.js';
 import { StdioMcpConnection } from './stdio-connection.js';
 import { HttpMcpConnection } from './http-connection.js';
 import { logger } from '@mcpambassador/core';
@@ -59,69 +60,33 @@ export class SharedMcpManager {
   private aggregatedTools: AggregatedTool[] = [];
   private configFingerprints = new Map<string, string>(); // ADR-013: mcp_name → sha256 of config
 
-  // TD-045: respawn state for shared stdio MCPs that die unexpectedly (oversize flood, crash)
-  private respawnAttempts = new Map<string, number>();
-  private respawnTimers = new Map<string, NodeJS.Timeout>();
-  private shuttingDown = false;
-  private static readonly RESPAWN_MAX_ATTEMPTS = 5;
-  private static readonly RESPAWN_BASE_MS = 1000;
-  private static readonly RESPAWN_CAP_MS = 30000;
+  // TD-045: respawn of shared stdio MCPs that die unexpectedly
+  private respawn = new RespawnController('shared', (action, meta) =>
+    this.auditSink?.(action, meta)
+  );
+  private auditSink?: RespawnEventSink;
+
+  /** Wire audit emission for process exit / respawn events (set by the server after audit is up). */
+  setAuditSink(sink: RespawnEventSink): void {
+    this.auditSink = sink;
+  }
 
   private registerHandlers(name: string, connection: StdioMcpConnection | HttpMcpConnection): void {
     connection.on('disconnect', (info?: { intentional?: boolean }) => {
       logger.info(`[SharedMcpManager] MCP ${name} disconnected`);
       void this.aggregateTools(); // Refresh tool catalog
       if (connection instanceof StdioMcpConnection && !info?.intentional) {
-        this.scheduleRespawn(name, connection);
+        this.respawn.schedule(
+          name,
+          connection,
+          () => this.connections.get(name) === connection,
+          () => this.aggregateTools()
+        );
       }
     });
     connection.on('error', err => {
       logger.error({ err }, `[SharedMcpManager] MCP ${name} error:`);
     });
-  }
-
-  private cancelRespawn(name: string): void {
-    const t = this.respawnTimers.get(name);
-    if (t) clearTimeout(t);
-    this.respawnTimers.delete(name);
-    this.respawnAttempts.delete(name);
-  }
-
-  /** TD-045: restart an unexpectedly dead shared stdio MCP with exponential backoff, bounded attempts. */
-  private scheduleRespawn(name: string, connection: StdioMcpConnection): void {
-    if (this.shuttingDown || this.respawnTimers.has(name)) return;
-    const attempt = (this.respawnAttempts.get(name) ?? 0) + 1;
-    if (attempt > SharedMcpManager.RESPAWN_MAX_ATTEMPTS) {
-      logger.error(
-        `[SharedMcpManager] MCP ${name}: giving up after ${attempt - 1} respawn attempts`
-      );
-      return;
-    }
-    this.respawnAttempts.set(name, attempt);
-    const delay = Math.min(
-      SharedMcpManager.RESPAWN_BASE_MS * 2 ** (attempt - 1),
-      SharedMcpManager.RESPAWN_CAP_MS
-    );
-    logger.warn(`[SharedMcpManager] MCP ${name}: respawn ${attempt} in ${delay}ms`);
-    const timer = setTimeout(() => {
-      this.respawnTimers.delete(name);
-      // removed or replaced while waiting: do nothing
-      if (this.shuttingDown || this.connections.get(name) !== connection) return;
-      connection
-        .start()
-        .then(() => this.aggregateTools())
-        .then(() => {
-          // stable for a while after a successful start: forget the failures
-          const t = setTimeout(() => this.respawnAttempts.delete(name), 60000);
-          t.unref();
-        })
-        .catch(err => {
-          logger.error({ err }, `[SharedMcpManager] MCP ${name}: respawn failed:`);
-          this.scheduleRespawn(name, connection);
-        });
-    }, delay);
-    timer.unref();
-    this.respawnTimers.set(name, timer);
   }
 
   constructor() {
@@ -367,7 +332,20 @@ export class SharedMcpManager {
    * Health check all connections
    */
   async healthCheckAll(): Promise<ConnectionHealth[]> {
-    const healthChecks = Array.from(this.connections.values()).map(conn => conn.healthCheck());
+    const healthChecks = Array.from(this.connections.entries()).map(async ([name, conn]) => {
+      const h = await conn.healthCheck();
+      // TD-045: surface respawn state; a respawning MCP is degraded, one we gave up on is unhealthy
+      const r = this.respawn.status(name);
+      if (r.state === 'gave_up') {
+        return {
+          ...h,
+          status: 'unhealthy' as const,
+          error: `respawn gave up after ${r.attempts} attempts`,
+        };
+      }
+      if (r.state === 'respawning') return { ...h, status: 'degraded' as const };
+      return h;
+    });
 
     return await Promise.all(healthChecks);
   }
@@ -410,6 +388,7 @@ export class SharedMcpManager {
     }
 
     logger.info(`[SharedMcpManager] Restarting MCP: ${name}`);
+    this.respawn.cancel(name);
 
     await connection.stop();
     await connection.start();
@@ -513,7 +492,7 @@ export class SharedMcpManager {
     }
 
     logger.info(`[SharedMcpManager] Removing MCP: ${name}`);
-    this.cancelRespawn(name);
+    this.respawn.cancel(name);
     await connection.stop();
     this.connections.delete(name);
     this.configFingerprints.delete(name);
@@ -539,8 +518,7 @@ export class SharedMcpManager {
    */
   async shutdown(): Promise<void> {
     logger.info('[SharedMcpManager] Shutting down all connections...');
-    this.shuttingDown = true;
-    for (const name of [...this.respawnTimers.keys()]) this.cancelRespawn(name);
+    this.respawn.close();
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {

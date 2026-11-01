@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StdioMcpConnection } from '../../src/downstream/stdio-connection.js';
 import { SharedMcpManager } from '../../src/downstream/manager.js';
+import { UserMcpPool } from '../../src/downstream/user-mcp-pool.js';
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), '../fixtures/fake-mcp.mjs');
 const MB = 1024 * 1024;
@@ -96,4 +97,43 @@ describe('TD-045 shared MCP respawn', () => {
     await new Promise(r => setTimeout(r, 2500));
     expect(conn.isConnected()).toBe(false);
   }, 30_000);
+});
+
+describe('TD-045 respawn audit and per-user pool', () => {
+  it('shared: audits the exit and the respawn', async () => {
+    const m = new SharedMcpManager();
+    const events: string[] = [];
+    m.setAuditSink(a => events.push(a));
+    await m.addMcp(cfg('td045-au', resultFile('r5', 10)));
+    cleanups.push(() => m.shutdown());
+    const conn = m.getConnection('td045-au') as StdioMcpConnection;
+    (conn as any).process.kill('SIGKILL');
+    expect(await until(() => events.includes('mcp_respawned'), 15_000)).toBe(true);
+    expect(events[0]).toBe('mcp_process_exited');
+  }, 30_000);
+
+  it('per-user pool: respawns an instance that dies, not one terminated on purpose', async () => {
+    const pool = new UserMcpPool({
+      mcpConfigs: [{ ...cfg('td045-u', resultFile('r6', 10)), mcp_id: 'id-1' } as never],
+      maxInstancesPerUser: 5,
+      maxTotalInstances: 10,
+      healthCheckIntervalMs: 3_600_000,
+    });
+    const events: string[] = [];
+    pool.setAuditSink(a => events.push(a));
+    await pool.spawnForUser('u1', undefined, new Set(['id-1']));
+    cleanups.push(() => pool.shutdown());
+    const conn = (pool as any).userInstances
+      .get('u1')
+      .connections.get('td045-u') as StdioMcpConnection;
+    (conn as any).process.kill('SIGKILL');
+    expect(await until(() => events.includes('mcp_respawned'), 15_000)).toBe(true);
+    expect(conn.isConnected()).toBe(true);
+
+    await pool.terminateForUser('u1');
+    const n = events.length;
+    await new Promise(r => setTimeout(r, 2500));
+    expect(events.length).toBe(n);
+    expect(conn.isConnected()).toBe(false);
+  }, 45_000);
 });

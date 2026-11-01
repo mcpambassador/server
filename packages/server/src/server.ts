@@ -482,6 +482,23 @@ export class AmbassadorServer {
       healthCheckIntervalMs:
         this.config.ambassadorConfig?.user_pool?.health_check_interval_ms ?? 120000, // Configurable, defaults to 2 minutes
     });
+
+    // TD-045: audit downstream process exits and respawns (shared MCPs and per-user instances)
+    const mcpLifecycleAudit = (action: string, metadata: Record<string, unknown>): void => {
+      void this.audit
+        ?.emit({
+          event_id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          event_type: 'admin_action',
+          severity: action === 'mcp_respawn_gave_up' ? 'error' : 'warn',
+          source_ip: '127.0.0.1',
+          action,
+          metadata,
+        })
+        .catch(err => logger.error({ err }, '[mcp-lifecycle] audit emit failed'));
+    };
+    this.mcpManager.setAuditSink(mcpLifecycleAudit);
+    this.userPool.setAuditSink(mcpLifecycleAudit);
     // ADR-013 B1 fix: Store catalog-derived fingerprints for accurate hot reload diffing
     const { computeConfigFingerprint } = await import('./downstream/manager.js');
     const perUserFingerprints = new Map<string, string>();

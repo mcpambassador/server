@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A downstream MCP response over the message limit (1MB) no longer hangs the call for 30 seconds, and a response over 10MB no longer kills the MCP process (TD-045). The oversize line is discarded as it streams (memory stays bounded) and only the request it answers fails, quickly, with "Response too large". An unterminated flood of output (64MB without a newline) still kills the process. Pending requests are also failed immediately when the process exits. A shared stdio MCP that dies unexpectedly is respawned with exponential backoff (1s doubling to 30s, 5 attempts); an MCP stopped or removed on purpose is not.
+- A downstream MCP response over the message limit (1MB) no longer hangs the call for 30 seconds, and a response over 10MB no longer kills the MCP process (TD-045). The oversize line is discarded as it streams (memory stays bounded) and only the request it answers fails, quickly, with "Response too large". An unterminated flood of output (64MB without a newline) still kills the process. Pending requests are also failed immediately when the process exits. A stdio MCP process that exits unexpectedly (shared MCPs and per-user instances) is respawned with exponential backoff (1s doubling to 30s, 5 attempts); an MCP stopped, removed or terminated on purpose is not. Exits and respawns are audited (`mcp_process_exited`, `mcp_respawned`, `mcp_respawn_failed`, `mcp_respawn_gave_up`), and the shared-MCP health check reports `degraded` while respawning and `unhealthy` once it gave up.
 
 ### Security
 
