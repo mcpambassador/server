@@ -152,7 +152,9 @@ describe('PEM, parse errors and spawn-line args', () => {
   it('spawn log line: secrets in command args are redacted', () => {
     const spawnLines = logs.split('\n').filter(l => l.includes('Spawning subprocess'));
     expect(spawnLines.length).toBeGreaterThan(0);
-    expect(leaks(spawnLines.join('\n'), [`${N}argtoken`, `${N}argkey`, `${N}argurlpass`])).toEqual([]);
+    expect(leaks(spawnLines.join('\n'), [`${N}argtoken`, `${N}argkey`, `${N}argurlpass`])).toEqual(
+      []
+    );
     expect(leaks(sinks(), [`${N}argtoken`, `${N}argkey`, `${N}argurlpass`])).toEqual([]);
   });
 });

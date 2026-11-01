@@ -124,7 +124,14 @@ setTimeout(() => process.exit(3), 800);
   const c = new StdioMcpConnection({
     name: 'stdio-noisy',
     transport: 'stdio',
-    command: ['node', script, `--token=${N}argtoken`, '--api-key', `${N}argkey`, `--url=https://u:${N}argurlpass@h.example/x`],
+    command: [
+      'node',
+      script,
+      `--token=${N}argtoken`,
+      '--api-key',
+      `${N}argkey`,
+      `--url=https://u:${N}argurlpass@h.example/x`,
+    ],
     timeout_ms: 2500,
   } as never);
   connections.set('stdio-noisy', c);
