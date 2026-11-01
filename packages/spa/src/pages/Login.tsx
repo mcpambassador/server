@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/catalyst/button';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
@@ -12,10 +12,12 @@ import { Navigate } from 'react-router-dom';
 import { setupApi } from '@/api/setup';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { Logomark } from '@/components/brand/Logomark';
+import { returnToPath } from '@/lib/return-to';
 
 export function Login() {
   usePageTitle('Login');
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -48,7 +50,7 @@ export function Login() {
     try {
       const response = await authApi.login(username, password);
       queryClient.setQueryData(['session'], response);
-      navigate('/app/dashboard');
+      navigate(returnToPath(location.state), { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message || 'Invalid credentials');
@@ -66,13 +68,15 @@ export function Login() {
         <div>
           {/* Brand mark */}
           <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Logomark className="h-10 w-10" />
-                <div className="flex items-baseline gap-1">
-                  <span className="font-mono text-xl font-bold text-violet-400">MCP</span>
-                  <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
-                </div>
+            <div className="flex items-center gap-2">
+              <Logomark className="h-10 w-10" />
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-xl font-bold text-violet-400">MCP</span>
+                <span className="text-xl font-semibold text-zinc-900 dark:text-white">
+                  Ambassador
+                </span>
               </div>
+            </div>
           </div>
           <Heading className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-zinc-900 dark:text-white">
             Sign in to your account
@@ -85,7 +89,7 @@ export function Login() {
               <Input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={e => setUsername(e.target.value)}
                 required
                 disabled={isLoading}
                 autoComplete="username"
@@ -96,7 +100,7 @@ export function Login() {
               <Input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
                 autoComplete="current-password"
