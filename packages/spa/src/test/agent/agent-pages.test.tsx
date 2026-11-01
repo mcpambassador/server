@@ -212,6 +212,7 @@ describe('AgentAccess', () => {
           default_grant_ttl_seconds: 3600,
           max_grant_ttl_seconds: 86400,
           refresh_tokens_enabled: true,
+          resource_url: 'https://amb.test:8443/mcp',
         })
       )
     );
@@ -227,6 +228,7 @@ describe('AgentAccess', () => {
           default_grant_ttl_seconds: 1800,
           max_grant_ttl_seconds: 7200,
           refresh_tokens_enabled: true,
+          resource_url: 'https://amb.test:8443/mcp',
         })
       ),
       http.get('/v1/users/me/agent-grants', () =>

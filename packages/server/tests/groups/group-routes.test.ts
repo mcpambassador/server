@@ -292,6 +292,34 @@ describe('Admin Group Routes', () => {
     });
   });
 
+  describe('last-group rule', () => {
+    it('returns 409 CONFLICT (not 403) when removing a user from their only group, all-users', async () => {
+      const created = await server.fastify.inject({
+        method: 'POST',
+        url: '/v1/admin/users',
+        headers: { 'X-Admin-Key': server.adminKey },
+        payload: {
+          username: 'lastgroup' + Date.now(),
+          password: 'newpass123',
+          display_name: 'Last Group',
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const userId = JSON.parse(created.body).data.user_id;
+      const allUsers = await server.db.query.groups.findFirst({
+        where: (g, { eq }) => eq(g.name, 'all-users'),
+      });
+
+      const response = await server.fastify.inject({
+        method: 'DELETE',
+        url: `/v1/admin/groups/${allUsers!.group_id}/members/${userId}`,
+        headers: { 'X-Admin-Key': server.adminKey },
+      });
+      expect(response.statusCode).toBe(409);
+      expect(JSON.parse(response.body).error.code).toBe('CONFLICT');
+    });
+  });
+
   describe('DELETE /v1/admin/groups/:groupId/members/:userId', () => {
     it('should remove user from group', async () => {
       const response = await server.fastify.inject({

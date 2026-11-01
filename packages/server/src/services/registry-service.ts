@@ -267,6 +267,8 @@ export class RegistryService {
       };
     }
 
+    // Only the schema-parsed oauth_config is persisted (unknown registry keys never reach the DB)
+    let safeOauthConfig: Record<string, unknown> | undefined;
     // TD-027: registry-supplied oauth_config gets the same schema and secret-binding checks as admin saves
     if (registryEntry.auth_type === 'oauth2' || registryEntry.oauth_config) {
       try {
@@ -280,6 +282,7 @@ export class RegistryService {
           );
         }
         const oc = parsed.data;
+        safeOauthConfig = oc;
         if (oc.client_secret_env && oc.token_url) {
           this.secretStore.assertOAuthConfig({
             client_secret_env: oc.client_secret_env,
@@ -316,7 +319,7 @@ export class RegistryService {
         transport_type: registryEntry.transport_type,
         config: JSON.stringify(registryEntry.config),
         auth_type: registryEntry.auth_type || 'none',
-        oauth_config: JSON.stringify(registryEntry.oauth_config || {}),
+        oauth_config: JSON.stringify(safeOauthConfig ?? {}),
         isolation_mode: registryEntry.isolation_mode || 'shared',
         requires_user_credentials: registryEntry.requires_user_credentials ?? false,
         credential_schema: JSON.stringify(registryEntry.credential_schema || {}),

@@ -469,4 +469,9 @@ export interface UserAgentEndpointInfo {
   default_grant_ttl_seconds: number;
   max_grant_ttl_seconds: number;
   refresh_tokens_enabled: boolean;
+  /**
+   * Canonical MCP resource URL (`resource_base_url` + `/mcp`): the URL to give
+   * `claude mcp add --transport http ...`. null when the endpoint is disabled.
+   */
+  resource_url: string | null;
 }

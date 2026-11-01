@@ -340,6 +340,10 @@ export function usePublishMcp() {
     onSuccess: (_, mcpId) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
+      // The server auto-applies the catalog; refresh the pending-changes banner and health views.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'catalog-status'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'downstream'] });
     },
   });
 }
@@ -353,6 +357,10 @@ export function useArchiveMcp() {
     onSuccess: (_, mcpId) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'mcps', mcpId] });
+      // The server auto-applies the catalog; refresh the pending-changes banner and health views.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'catalog-status'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'health'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'downstream'] });
     },
   });
 }

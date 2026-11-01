@@ -31,6 +31,9 @@ import {
   getAgentGrant,
   listAgentGrantsForUser,
   listAllAgentGrants,
+  listGrantIdsForOAuthClient,
+  revokeGrantsForOAuthClient,
+  compatTransaction,
   revokeAgentGrant,
   revokeGrantsForBoundClient,
   touchAgentGrant,
@@ -350,7 +353,10 @@ export async function validateAgentToken(
   if (grant.revoked_at) return { ok: false, reason: 'revoked' };
   if (new Date(grant.expires_at).getTime() <= Date.now()) return { ok: false, reason: 'expired' };
   if (grant.resource !== deps.config.resource) return { ok: false, reason: 'bad_audience' };
-  if (grant.client_id) {
+  // Only one-shot grants may lack an OAuth client. An 'oauth' grant whose client was deleted
+  // (client_id nulled by the FK) is dead, not one-shot.
+  if (grant.kind !== 'one_shot') {
+    if (!grant.client_id) return { ok: false, reason: 'revoked' };
     const oc = await getOAuthClient(deps.db, grant.client_id);
     if (!oc || oc.disabled) return { ok: false, reason: 'revoked' };
   }
@@ -638,6 +644,7 @@ async function exchangeCode(
     grant_id: grantId,
     user_id: code.user_id,
     client_id: client.client_id,
+    kind: 'oauth',
     bound_client_id: code.bound_client_id,
     label: code.label ?? client.client_name,
     scopes: code.scopes,
@@ -863,6 +870,7 @@ export async function createGrant(
     grant_id: randomUUID(),
     user_id: userId,
     client_id: null,
+    kind: 'one_shot',
     bound_client_id: bound.client_id,
     label: req.label ?? `One-shot grant ${new Date().toISOString().slice(0, 10)}`,
     scopes: v.scopes,
@@ -986,6 +994,13 @@ export async function adminSetClientDisabled(
   const c = await getOAuthClient(deps.db, clientId);
   if (!c) throw new AgentApiError(404, 'not_found', 'OAuth client not found');
   await setOAuthClientDisabled(deps.db, clientId, disabled);
+  if (disabled) {
+    // validateAgentToken already refuses a disabled client; also cut streams that are open now.
+    // Grants are kept (not revoked) so re-enabling restores access.
+    for (const id of await listGrantIdsForOAuthClient(deps.db, clientId)) {
+      deps.streams.closeGrant(id);
+    }
+  }
   await emitAgentAudit(deps, 'oauth_client_disabled', {
     user_id: adminUserId,
     source_ip: sourceIp,
@@ -994,7 +1009,12 @@ export async function adminSetClientDisabled(
   return toClientSummary({ ...c, disabled });
 }
 
-/** Deleting a client revokes every grant issued to it first (FK would otherwise orphan them) */
+/**
+ * Deleting a client: disable it first (no new tokens/requests), then revoke-and-retain every grant
+ * issued to it and delete the client in one transaction (no grant can be created or missed in
+ * between, and none is left live with a nulled client_id). Streams are closed and each grant is
+ * audited as agent_grant_revoked after the commit.
+ */
 export async function adminDeleteClient(
   deps: AgentEndpointDeps,
   adminUserId: string,
@@ -1003,15 +1023,30 @@ export async function adminDeleteClient(
 ): Promise<void> {
   const c = await getOAuthClient(deps.db, clientId);
   if (!c) throw new AgentApiError(404, 'not_found', 'OAuth client not found');
-  const grants = (await listAllAgentGrants(deps.db)).filter(
-    g => g.client_id === clientId && !g.revoked_at
-  );
-  for (const g of grants) await revokeAgentGrant(deps.db, g.grant_id, adminUserId);
-  await deleteOAuthClient(deps.db, clientId);
+  await setOAuthClientDisabled(deps.db, clientId, true);
+  const revoked = await compatTransaction(deps.db, async () => {
+    const grants = await revokeGrantsForOAuthClient(deps.db, clientId, adminUserId);
+    await deleteOAuthClient(deps.db, clientId);
+    return grants;
+  });
+  for (const g of revoked) {
+    deps.streams.closeGrant(g.grant_id);
+    await emitAgentAudit(deps, 'agent_grant_revoked', {
+      user_id: g.user_id,
+      bound_client_id: g.bound_client_id ?? undefined,
+      source_ip: sourceIp,
+      metadata: {
+        agent_grant_id: g.grant_id,
+        revoked_by: adminUserId,
+        reason: 'oauth_client_deleted',
+        oauth_client_id: clientId,
+      },
+    });
+  }
   await emitAgentAudit(deps, 'oauth_client_deleted', {
     user_id: adminUserId,
     source_ip: sourceIp,
-    metadata: { oauth_client_id: clientId, grants_revoked: grants.length },
+    metadata: { oauth_client_id: clientId, grants_revoked: revoked.length },
   });
 }
 

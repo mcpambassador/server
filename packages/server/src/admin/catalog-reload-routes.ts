@@ -22,6 +22,8 @@ export interface AdminCatalogReloadRoutesConfig {
   db: DatabaseClient;
   mcpManager: SharedMcpManager;
   userPool: UserMcpPool | null;
+  /** Shared instance (so its mutex covers auto-apply from publish/archive). */
+  reloader?: CatalogReloader;
 }
 
 /**
@@ -38,7 +40,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
   }
 
   // Create reloader service
-  const reloader = new CatalogReloader(db, mcpManager, userPool);
+  const reloader = opts.reloader ?? new CatalogReloader(db, mcpManager, userPool);
 
   // ==========================================================================
   // GET /v1/admin/catalog/status
