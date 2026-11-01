@@ -9,6 +9,7 @@ import type {
   CreateGrantResponse,
   OAuthClientSummary,
   AgentEndpointSettings,
+  UserAgentEndpointInfo,
 } from '../agent-types';
 
 type Paginated<T> =
@@ -114,6 +115,16 @@ export function useCreateGrant() {
     mutationFn: (data: CreateGrantRequest) =>
       apiClient.post<CreateGrantResponse>('/v1/users/me/agent-grants', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agent-grants'] }),
+  });
+}
+
+// Endpoint status + grant limits for any signed-in user
+export function useAgentEndpointInfo() {
+  return useQuery({
+    queryKey: ['agent-endpoint-info'],
+    queryFn: () => apiClient.get<UserAgentEndpointInfo>('/v1/users/me/agent-endpoint'),
+    retry: false,
+    staleTime: 60_000,
   });
 }
 

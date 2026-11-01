@@ -1,3 +1,4 @@
+import { useAgentEndpointInfo } from '@/api/hooks/use-agent';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeIcon,
@@ -81,6 +82,7 @@ export function AppSidebar() {
   const queryClient = useQueryClient();
   const { resolvedTheme, setTheme } = useTheme();
 
+  const { data: agentEndpoint } = useAgentEndpointInfo();
   const { data: session } = useQuery({
     queryKey: ['session'],
     queryFn: authApi.getSession,
@@ -124,16 +126,18 @@ export function AppSidebar() {
         {/* User Section */}
         <SidebarSection>
           <SidebarHeading>User</SidebarHeading>
-          {userNavItems.map(item => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <SidebarItem key={item.href} href={item.href} current={active}>
-                <Icon />
-                <SidebarLabel>{item.title}</SidebarLabel>
-              </SidebarItem>
-            );
-          })}
+          {userNavItems
+            .filter(item => item.href !== '/app/agent-access' || agentEndpoint?.enabled === true)
+            .map(item => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <SidebarItem key={item.href} href={item.href} current={active}>
+                  <Icon />
+                  <SidebarLabel>{item.title}</SidebarLabel>
+                </SidebarItem>
+              );
+            })}
         </SidebarSection>
 
         {/* Admin Section */}

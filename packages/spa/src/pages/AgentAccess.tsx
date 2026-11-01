@@ -34,6 +34,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useAgentGrants, useRevokeGrant, useCreateGrant } from '@/api/hooks/use-agent';
 import { Link } from 'react-router-dom';
+import { useAgentEndpointInfo } from '@/api/hooks/use-agent';
 import { useClients, useClientSubscriptions } from '@/api/hooks/use-clients';
 import {
   grantStatus,
@@ -45,8 +46,9 @@ import {
 } from '@/api/agent-types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-const ONE_SHOT_DEFAULT_TTL = 3600;
-const ONE_SHOT_MAX_TTL = 24 * 3600; // server cap (max_grant_ttl_seconds default); replace with live value
+// Fallbacks (server defaults) while /v1/users/me/agent-endpoint is loading or unavailable.
+const FALLBACK_DEFAULT_TTL = 3600;
+const FALLBACK_MAX_TTL = 24 * 3600;
 
 const statusColor = { active: 'green', expired: 'zinc', revoked: 'red' } as const;
 
@@ -54,7 +56,17 @@ function fmt(ts: string | null): string {
   return ts ? new Date(ts).toLocaleString() : 'Never';
 }
 
-function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateGrantDialog({
+  open,
+  onClose,
+  defaultTtl,
+  maxTtl,
+}: {
+  open: boolean;
+  onClose: () => void;
+  defaultTtl: number;
+  maxTtl: number;
+}) {
   const { data: allClients, isLoading: clientsLoading } = useClients();
   const clients = (allClients ?? []).filter(c => c.status === 'active');
   const [clientId, setClientId] = useState<string | null>(null);
@@ -64,21 +76,22 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [label, setLabel] = useState('');
   const [scopes, setScopes] = useState<Set<string>>(new Set());
   const [toolsText, setToolsText] = useState('');
-  const [ttl, setTtl] = useState(ONE_SHOT_DEFAULT_TTL);
+  const [ttlChoice, setTtlChoice] = useState<number | null>(null);
+  const ttl = Math.min(ttlChoice ?? defaultTtl, maxTtl);
   const [result, setResult] = useState<CreateGrantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const mcpNames = Array.from(
     new Set((subs ?? []).filter(s => s.status === 'active').map(s => s.mcpName))
   ).sort();
-  const options = ttlOptions(ONE_SHOT_DEFAULT_TTL, ONE_SHOT_MAX_TTL);
+  const options = ttlOptions(defaultTtl, maxTtl);
 
   const reset = () => {
     setLabel('');
     setClientId(null);
     setScopes(new Set());
     setToolsText('');
-    setTtl(ONE_SHOT_DEFAULT_TTL);
+    setTtlChoice(null);
     setResult(null);
     setError(null);
   };
@@ -158,9 +171,9 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <DialogTitle>Create one-shot grant</DialogTitle>
             <DialogDescription>
               For CI and headless agents that cannot complete a browser sign-in. The token works
-              until the lifetime you choose below (default {formatDuration(ONE_SHOT_DEFAULT_TTL)},
-              maximum {formatDuration(ONE_SHOT_MAX_TTL)}) and is not renewable: no refresh token is
-              issued, so create a new grant when it expires.
+              until the lifetime you choose below (default {formatDuration(defaultTtl)}, maximum{' '}
+              {formatDuration(maxTtl)}) and is not renewable: no refresh token is issued, so create
+              a new grant when it expires.
             </DialogDescription>
             {!clientsLoading && clients.length === 0 ? (
               <div role="alert" className="mt-4 space-y-2">
@@ -242,7 +255,11 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 </Field>
                 <Field>
                   <Label>Expires after</Label>
-                  <Select name="ttl" value={ttl} onChange={e => setTtl(Number(e.target.value))}>
+                  <Select
+                    name="ttl"
+                    value={ttl}
+                    onChange={e => setTtlChoice(Number(e.target.value))}
+                  >
                     {options.map(o => (
                       <option key={o.seconds} value={o.seconds}>
                         {o.label}
@@ -278,6 +295,7 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
 export function AgentAccess() {
   usePageTitle('Agent access');
   const { grants, isLoading, error, hasMore, loadMore, loadingMore } = useAgentGrants();
+  const { data: info, isLoading: infoLoading } = useAgentEndpointInfo();
   const revoke = useRevokeGrant();
   const [pending, setPending] = useState<AgentGrantSummary | null>(null);
   const [revokeAllOpen, setRevokeAllOpen] = useState(false);
@@ -303,6 +321,18 @@ export function AgentAccess() {
     if (failed > 0) toast.error(`${failed} grant(s) could not be revoked`);
     else toast.success('All agent access revoked');
   };
+
+  if (!infoLoading && info && !info.enabled) {
+    return (
+      <div className="space-y-2">
+        <Heading>Agent access</Heading>
+        <Text role="status">
+          Remote agent access is not enabled on this server. Ask an administrator to enable the
+          agent endpoint.
+        </Text>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -435,7 +465,12 @@ export function AgentAccess() {
         onConfirm={revokeAll}
         isLoading={revoke.isPending}
       />
-      <CreateGrantDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateGrantDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        defaultTtl={info?.default_grant_ttl_seconds ?? FALLBACK_DEFAULT_TTL}
+        maxTtl={info?.max_grant_ttl_seconds ?? FALLBACK_MAX_TTL}
+      />
     </div>
   );
 }

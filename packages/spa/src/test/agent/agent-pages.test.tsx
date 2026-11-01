@@ -204,6 +204,45 @@ describe('OAuthConsent', () => {
 });
 
 describe('AgentAccess', () => {
+  it('shows a not-enabled notice when the endpoint is disabled', async () => {
+    server.use(
+      http.get('/v1/users/me/agent-endpoint', () =>
+        ok({
+          enabled: false,
+          default_grant_ttl_seconds: 3600,
+          max_grant_ttl_seconds: 86400,
+          refresh_tokens_enabled: true,
+        })
+      )
+    );
+    renderAt(<AgentAccess />, '/app/agent-access');
+    expect(await screen.findByText(/not enabled on this server/)).toBeInTheDocument();
+  });
+
+  it('uses live grant limits in the create dialog', async () => {
+    server.use(
+      http.get('/v1/users/me/agent-endpoint', () =>
+        ok({
+          enabled: true,
+          default_grant_ttl_seconds: 1800,
+          max_grant_ttl_seconds: 7200,
+          refresh_tokens_enabled: true,
+        })
+      ),
+      http.get('/v1/users/me/agent-grants', () =>
+        HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
+      ),
+      http.get('/v1/users/me/clients', () =>
+        ok([{ id: 'c1', clientName: 'Laptop', status: 'active' }])
+      ),
+      http.get('/v1/users/me/clients/c1/subscriptions', () => ok([]))
+    );
+    renderAt(<AgentAccess />, '/app/agent-access');
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
+    expect(await screen.findByText(/default 30 minutes, maximum 2 hours/)).toBeInTheDocument();
+  });
   const future = new Date(Date.now() + 3600_000).toISOString();
   const grant = {
     grant_id: 'g1',
