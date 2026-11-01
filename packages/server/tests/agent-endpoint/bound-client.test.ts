@@ -206,7 +206,7 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
     }
   );
 
-  itImpl('deleting the client → 401 (grant cascades)', async () => {
+  itImpl('deleting the client → 401; grant is kept, revoked_at set, audited', async () => {
     const c = await createAmbClient(alice, 'to-delete');
     const tok = await grantToken(c);
     await alice.request({ method: 'DELETE', url: `/v1/users/me/clients/${c}` });
@@ -214,7 +214,13 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
     const list = JSON.parse(
       (await alice.request({ method: 'GET', url: AGENT_GRANTS_ROUTE })).body
     ).data;
-    expect(JSON.stringify(list)).not.toContain(c);
+    const items = (Array.isArray(list) ? list : list.items) as {
+      bound_client_id: string;
+      revoked_at: string | null;
+    }[];
+    const g = items.find(x => x.bound_client_id === c);
+    expect(g, 'grant must be kept after bound client deletion').toBeTruthy();
+    expect(g!.revoked_at).toBeTruthy();
   });
 
   itImpl('refresh for a grant whose client was suspended fails', async () => {
