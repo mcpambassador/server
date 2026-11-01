@@ -77,9 +77,10 @@ export function hashCanonical(canonical: string): string {
 }
 
 // eslint-disable-next-line no-control-regex
-const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+const CONTROL_CHARS =
+  /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u00ad\u180e]/g;
 
-/** D5: tool names in audit metadata and logs: control characters stripped, length-capped. */
+/** D5: tool names in audit metadata and logs: control, zero-width and bidi characters stripped, length-capped. */
 export function sanitizeToolNameForLog(name: unknown): string {
   const s = typeof name === 'string' ? name : String(name);
   return s.replace(CONTROL_CHARS, '').slice(0, TOOL_NAME_LOG_MAX_LENGTH);

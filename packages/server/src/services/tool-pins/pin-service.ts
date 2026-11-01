@@ -23,6 +23,7 @@ import {
 } from '@mcpambassador/contracts';
 import {
   countPendingToolPins,
+  getToolPinByKey,
   insertToolPin,
   listAllToolPins,
   logger,
@@ -38,6 +39,8 @@ import {
   snapshotProjectionHash,
 } from './canonical.js';
 import { hasReservedName, scanToolDefinition } from './flags.js';
+
+const MAX_TOOL_NAME_CHARS = 512;
 
 export type PinAuditFn = (action: ToolPinAuditAction, metadata: Record<string, unknown>) => void;
 
@@ -112,8 +115,16 @@ export class ToolPinService {
           '[tool-pins] approved_definition does not match approved_hash; tool hidden'
         );
       } else {
-        const parsed = parseToolDefinition(JSON.parse(rec.approved_definition));
-        if (parsed.ok) loaded.approved = parsed.definition;
+        // B5: a corrupt row must never fail startup; the tool is simply hidden.
+        try {
+          const parsed = parseToolDefinition(JSON.parse(rec.approved_definition));
+          if (parsed.ok) loaded.approved = parsed.definition;
+        } catch {
+          logger.error(
+            { mcp_id: rec.mcp_id, tool: sanitizeToolNameForLog(rec.tool_name) },
+            '[tool-pins] approved_definition is not valid JSON; tool hidden'
+          );
+        }
       }
     }
     this.pins.set(key(rec.mcp_id, rec.scope_user_id, rec.tool_name), loaded);
@@ -390,8 +401,29 @@ export class ToolPinService {
     return { pending_count: pending, baseline_unreviewed_count: baseline, held_mcps: held };
   }
 
-  /** Compare live definitions with the pins for one (mcp, scope). Never throws on bad downstream data. */
-  async observe(args: ObserveArgs): Promise<ObserveSummary> {
+  /** Per-(mcp, scope) promise chain: concurrent observes of one scope run strictly in order (B2). */
+  private chains = new Map<string, Promise<unknown>>();
+
+  /**
+   * Compare live definitions with the pins for one (mcp, scope). Never throws on bad downstream data.
+   * Serialized per (mcp, scope) so two overlapping discoveries cannot race on the same rows.
+   */
+  observe(args: ObserveArgs): Promise<ObserveSummary> {
+    const k = key(args.mcpId, args.scopeUserId, '');
+    const prev = this.chains.get(k) ?? Promise.resolve();
+    const run = prev.then(
+      () => this.observeLocked(args),
+      () => this.observeLocked(args)
+    );
+    const tail = run.catch(() => undefined);
+    this.chains.set(k, tail);
+    void tail.then(() => {
+      if (this.chains.get(k) === tail) this.chains.delete(k);
+    });
+    return run;
+  }
+
+  private async observeLocked(args: ObserveArgs): Promise<ObserveSummary> {
     const { mcpId, scopeUserId, liveTools, policy } = args;
     const summary: ObserveSummary = {
       created: 0,
@@ -402,12 +434,20 @@ export class ToolPinService {
     };
     const seen = new Set<string>();
     const scopeKey = key(mcpId, scopeUserId, '');
+    // duplicate_name: the same name twice in one list hides BOTH (the router skips them too).
+    const nameCounts = new Map<string, number>();
+    for (const raw of liveTools) {
+      const n = (raw as { name?: unknown } | null)?.name;
+      if (typeof n === 'string') nameCounts.set(n, (nameCounts.get(n) ?? 0) + 1);
+    }
 
     for (const raw of liveTools) {
       const name = (raw as { name?: unknown } | null)?.name;
-      if (typeof name !== 'string' || name.length === 0 || name.length > 512) continue;
+      if (typeof name !== 'string' || name.length === 0 || name.length > MAX_TOOL_NAME_CHARS)
+        continue;
+      if (seen.has(name)) continue; // second occurrence: only the first is recorded
       seen.add(name);
-      const assessed = this.assess(raw, name);
+      const assessed = this.assess(raw, name, (nameCounts.get(name) ?? 0) > 1);
       const existing = this.pins.get(key(mcpId, scopeUserId, name))?.rec;
       const logName = sanitizeToolNameForLog(name);
 
@@ -487,6 +527,13 @@ export class ToolPinService {
         updated_at: ts,
       };
       await insertToolPin(this.db, rec);
+      const stored = await getToolPinByKey(this.db, mcpId, scopeUserId, name);
+      if (stored && stored.pin_id !== rec.pin_id) {
+        // Lost a race with another writer: adopt its row, record nothing.
+        this.index(stored);
+        summary.unchanged++;
+        continue;
+      }
       this.index(rec);
       summary.created++;
       if (approve) summary.autoApproved++;
@@ -588,7 +635,7 @@ export class ToolPinService {
   }
 
   /** Canonical form + hash + flags for one raw downstream tool. Never throws. */
-  private assess(raw: unknown, name: string): Assessed {
+  private assess(raw: unknown, name: string, duplicate = false): Assessed {
     const parsed = parseToolDefinition(raw);
     const flagCodes = new Set<ToolPinFlagCode>();
     let canonical: string;
@@ -598,7 +645,9 @@ export class ToolPinService {
 
     if (parsed.ok) {
       const c = canonicalizeToolDefinition(parsed.definition);
-      canonical = c.canonical;
+      // B4: a valid but oversize definition is stored as a size marker (never the unbounded text),
+      // keyed by the hash of the FULL canonical text. It is flagged canonical_too_large => not approvable.
+      canonical = c.tooLarge ? JSON.stringify({ truncated: true, bytes: c.bytes }) : c.canonical;
       hash = c.hash;
       tooLarge = c.tooLarge;
       heuristics = scanToolDefinition(parsed.definition);
@@ -614,6 +663,7 @@ export class ToolPinService {
     for (const c of heuristics?.codes ?? []) flagCodes.add(c);
     if (tooLarge) flagCodes.add('canonical_too_large');
     if (hasReservedName(name)) flagCodes.add('reserved_name');
+    if (duplicate) flagCodes.add('duplicate_name');
     return {
       canonical,
       hash,
