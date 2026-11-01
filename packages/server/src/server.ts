@@ -560,7 +560,10 @@ export class AmbassadorServer {
               timestamp: new Date().toISOString(),
               event_type: 'admin_action',
               severity:
-                action === 'approval_flood_blocked' || action === 'approval_cooldown_applied'
+                action === 'approval_flood_blocked' ||
+                action === 'approval_cooldown_applied' ||
+                action === 'approval_credential_refused' ||
+                action === 'approval_reauth_failed'
                   ? 'warn'
                   : 'info',
               source_ip: '127.0.0.1',
@@ -831,6 +834,25 @@ export class AmbassadorServer {
     await registerAuthRoutes(this.adminServer, {
       db: this.db!,
     });
+
+    // ADR-023: reauth + approval queue API (session-only; see approvals-api/session-guard.ts)
+    {
+      const { StepUpStore } = await import('./auth/step-up.js');
+      const { registerReauthRoute } = await import('./auth/reauth-routes.js');
+      const { registerApprovalApiRoutes } = await import('./approvals-api/routes.js');
+      const stepUp = new StepUpStore();
+      await registerReauthRoute(this.adminServer, {
+        db: this.db!,
+        stepUp,
+        emit: (a, m) => this.approvals?.emit(a, m),
+      });
+      await registerApprovalApiRoutes(this.adminServer, {
+        db: this.db!,
+        getApprovals: () => this.approvals,
+        getPins: () => this.toolPins,
+        stepUp,
+      });
+    }
 
     // Setup routes (first-run setup wizard)
     const { registerSetupRoutes } = await import('./auth/setup-routes.js');
