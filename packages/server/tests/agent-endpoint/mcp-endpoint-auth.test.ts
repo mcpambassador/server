@@ -48,7 +48,7 @@ describe('/mcp rejects unauthenticated / invalid callers', () => {
   const post = (headers: Record<string, string> = {}, url = AGENT_MCP_ROUTE) =>
     s.api.inject({ method: 'POST', url, headers: { ...MCP_HEADERS, ...headers }, payload: INIT });
 
-  itImpl('no token → 401 with WWW-Authenticate resource_metadata', async () => {
+  it('no token → 401 with WWW-Authenticate resource_metadata', async () => {
     const res = await post();
     expect(res.statusCode).toBe(401);
     const www = String(res.headers['www-authenticate']);
@@ -58,36 +58,36 @@ describe('/mcp rejects unauthenticated / invalid callers', () => {
     );
   });
 
-  itImpl.each(['GET', 'DELETE'] as const)('no token on %s → 401', async method => {
+  it.each(['GET', 'DELETE'] as const)('no token on %s → 401', async method => {
     const res = await s.api.inject({ method, url: AGENT_MCP_ROUTE, headers: MCP_HEADERS });
     expect(res.statusCode).toBe(401);
     expect(String(res.headers['www-authenticate'])).toContain('resource_metadata=');
   });
 
-  itImpl('garbage bearer → 401 invalid_token', async () => {
+  it('garbage bearer → 401 invalid_token', async () => {
     const res = await post({ authorization: 'Bearer not-a-real-token' });
     expect(res.statusCode).toBe(401);
     expect(String(res.headers['www-authenticate'])).toContain('error="invalid_token"');
   });
 
-  itImpl('well-formed but unknown amb_at_ token → 401', async () => {
+  it('well-formed but unknown amb_at_ token → 401', async () => {
     const res = await post({ authorization: `Bearer ${ACCESS_TOKEN_PREFIX}${'a'.repeat(43)}` });
     expect(res.statusCode).toBe(401);
   });
 
-  itImpl('non-Bearer scheme → 401', async () => {
+  it('non-Bearer scheme → 401', async () => {
     const res = await post({ authorization: 'Basic dXNlcjpwYXNz' });
     expect(res.statusCode).toBe(401);
   });
 
-  itImpl('admin key and client preshared keys are not accepted as bearer', async () => {
+  it('admin key and client preshared keys are not accepted as bearer', async () => {
     const res = await post({ authorization: `Bearer ${s.adminKey}` });
     expect(res.statusCode).toBe(401);
     const res2 = await post({ 'x-admin-key': s.adminKey });
     expect(res2.statusCode).toBe(401);
   });
 
-  itImpl('token in query string is rejected even if otherwise valid-looking', async () => {
+  it('token in query string is rejected even if otherwise valid-looking', async () => {
     const res = await post(
       {},
       `${AGENT_MCP_ROUTE}?access_token=${ACCESS_TOKEN_PREFIX}${'a'.repeat(43)}`
@@ -96,7 +96,7 @@ describe('/mcp rejects unauthenticated / invalid callers', () => {
     expect(res.body).not.toContain(ACCESS_TOKEN_PREFIX + 'a'.repeat(43));
   });
 
-  itImpl('disallowed Origin → 403 (checked before auth success could matter)', async () => {
+  it('disallowed Origin → 403 (checked before auth success could matter)', async () => {
     const res = await post({ origin: 'https://evil.example' });
     expect(res.statusCode).toBe(403);
   });

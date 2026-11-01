@@ -108,7 +108,7 @@ describe('audit lifecycle events + no token leakage', () => {
     for (const sp of spies) sp.mockRestore();
   });
 
-  async function issue(): Promise<{ access: string; refreshTok: string }> {
+  async function issue(): Promise<{ access: string; refreshTok: string; code: string }> {
     const { verifier, challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -119,7 +119,7 @@ describe('audit lifecycle events + no token leakage', () => {
     const res = await exchangeCode(s, { client_id: clientId, code, verifier });
     const b = JSON.parse(res.body);
     secrets.push(b.access_token, b.refresh_token);
-    return { access: b.access_token, refreshTok: b.refresh_token };
+    return { access: b.access_token, refreshTok: b.refresh_token, code };
   }
 
   it('client registration, grant + token issue are audited', async () => {
@@ -171,7 +171,7 @@ describe('audit lifecycle events + no token leakage', () => {
     await waitForAudit(s, 'oauth_client_disabled');
   });
 
-  itImpl.each([
+  it.each([
     ['missing_token', {} as Record<string, string>, ''],
     ['bad_token', { authorization: 'Bearer amb_at_' + 'z'.repeat(43) }, ''],
     [
@@ -183,12 +183,18 @@ describe('audit lifecycle events + no token leakage', () => {
   ])(
     'failed /mcp auth (%s) is audited as agent_auth_failure with the reason',
     async (reason, headers, qs) => {
-      await s.api.inject({ method: 'POST', url: AGENT_MCP_ROUTE + qs, headers, payload: '{}' });
+      await s.api.inject({
+        method: 'POST',
+        url: AGENT_MCP_ROUTE + qs,
+        headers: { 'content-type': 'application/json', ...headers },
+        payload: '{}',
+      });
       await waitForAudit(s, 'agent_auth_failure', reason);
     }
   );
 
   itImpl('raw tokens, codes, verifiers never appear in audit, DB files, or logs', async () => {
+    clientId = await registerAdminClient(s); // earlier tests disabled the shared client
     await issue();
     // include the garbage tokens used on the failure paths
     const garbage = ['z'.repeat(43), 'y'.repeat(43), 'x'.repeat(43)].map(g => 'amb_at_' + g);
@@ -207,14 +213,16 @@ describe('audit lifecycle events + no token leakage', () => {
     }
   });
 
-  itImpl('audit rows for issued tokens carry an 8-char hash prefix', async () => {
+  it('audit rows carry an 8-char hash prefix, never the raw value', async () => {
+    clientId = await registerAdminClient(s);
     const t = await issue();
-    const line = await waitForAudit(s, 'agent_token_issued');
-    const prefixes = [sha(t.access).slice(0, 8), sha(t.refreshTok).slice(0, 8)];
-    expect(
-      prefixes.some(p => line.includes(p)) ||
-        auditLines(s).some(l => prefixes.some(p => l.includes(p)))
-    ).toBe(true);
+    // issued: prefix of the authorization code; refreshed: prefix of the new access token
+    // (wait on the prefix itself: earlier tests already left matching action lines in the file)
+    await waitForAudit(s, 'agent_token_issued', sha(t.code).slice(0, 8));
+    const r = JSON.parse(
+      (await refresh(s, { client_id: clientId, refresh_token: t.refreshTok })).body
+    );
+    await waitForAudit(s, 'agent_token_refreshed', sha(r.access_token).slice(0, 8));
   });
 });
 

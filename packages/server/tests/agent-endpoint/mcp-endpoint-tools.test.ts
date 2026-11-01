@@ -2,7 +2,7 @@
  * ADR-020 test-plan #4 + #5 with a REAL downstream MCP (tests/fixtures/fake-mcp.mjs):
  * isolation between clients, per-user spawn over /mcp, call-time scope/allowlist, kill-switch
  * parity, /v1/tools parity, audit on client delete, and auth-failure reasons.
- * itImpl until P5 (/mcp) lands.
+ * Kill-switch gaps (hide, 400 targets, list, persistence) stay itImpl until platform lands them.
  */
 import os from 'os';
 import path from 'path';
@@ -10,12 +10,13 @@ import fs from 'fs';
 import { createHash } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AGENT_GRANTS_ROUTE } from '@mcpambassador/contracts';
+import { AGENT_GRANTS_ROUTE, AGENT_MCP_ROUTE } from '@mcpambassador/contracts';
 import { agent_grants } from '@mcpambassador/core';
 import {
   startAgentTestServer,
   stopAgentTestServer,
   agentEndpointOpts,
+  restartAgentTestServer,
   createUser,
   loginSession,
   itImpl,
@@ -33,6 +34,7 @@ import {
   stdioTools,
   stdioInvoke,
   rpc,
+  MCP_HEADERS,
   mcpToolNames,
   isDenied,
   waitForAudit,
@@ -47,6 +49,7 @@ let restoreEnv: () => void;
 let logDir: string;
 let alice: UserSession;
 let aliceId: string;
+let aliceCreds: { username: string; password: string };
 let carol: UserSession;
 let carolId: string;
 let fkA: FakeMcp; // shared: echo, other
@@ -92,6 +95,7 @@ beforeAll(async () => {
   s = await startAgentTestServer(agentEndpointOpts());
   const au = await createUser(s, 'alice');
   aliceId = au.userId;
+  aliceCreds = { username: au.username, password: au.password };
   alice = await loginSession(s, au);
   const cu = await createUser(s, 'carol');
   carolId = cu.userId;
@@ -128,7 +132,7 @@ afterAll(async () => {
 });
 
 describe('client isolation over /mcp', () => {
-  itImpl("a token bound to client A never sees (or calls) client B's tools", async () => {
+  it("a token bound to client A never sees (or calls) client B's tools", async () => {
     const a = await oneShot(alice, cA.clientId);
     const names = await mcpToolNames(s, a.token);
     expect(names).toEqual(expect.arrayContaining(['echo', 'other']));
@@ -145,7 +149,7 @@ describe('client isolation over /mcp', () => {
 });
 
 describe('per-user MCP over /mcp with no stdio session', () => {
-  itImpl('spawns on demand, lists and calls the per-user tool', async () => {
+  it('spawns on demand, lists and calls the per-user tool', async () => {
     const before = await s.admin.inject({
       method: 'GET',
       url: '/v1/admin/sessions',
@@ -160,7 +164,7 @@ describe('per-user MCP over /mcp with no stdio session', () => {
     expect(JSON.parse(callText(r)).args).toEqual({ q: 'hi' });
   });
 
-  itImpl('the agent token never reaches the downstream process env', async () => {
+  it('the agent token never reaches the downstream process env', async () => {
     const g = await oneShot(carol, cU.clientId);
     const r = await rpc(s, g.token, 'tools/call', { name: '__env', arguments: {} });
     expect(isDenied(r)).toBe(false);
@@ -172,7 +176,7 @@ describe('per-user MCP over /mcp with no stdio session', () => {
 });
 
 describe('scope and allowlist are enforced at call time on real tools', () => {
-  itImpl('scope mcp:fk-b: sees and calls only fk-b tools, fk-a tool is denied', async () => {
+  it('scope mcp:fk-b: sees and calls only fk-b tools, fk-a tool is denied', async () => {
     const g = await oneShot(alice, cAB.clientId, { scopes: ['mcp:fk-b'] });
     const names = await mcpToolNames(s, g.token);
     expect(names).toContain('btool');
@@ -185,32 +189,29 @@ describe('scope and allowlist are enforced at call time on real tools', () => {
     );
   });
 
-  itImpl(
-    'allowlist [echo]: echo works, real tool "other" is denied and never reaches downstream',
-    async () => {
-      const g = await oneShot(alice, cA.clientId, { tool_allowlist: ['echo'] });
-      expect(await mcpToolNames(s, g.token)).toEqual(['echo']);
-      expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} }))).toBe(
-        false
+  it('allowlist [echo]: echo works, real tool "other" is denied and never reaches downstream', async () => {
+    const g = await oneShot(alice, cA.clientId, { tool_allowlist: ['echo'] });
+    expect(await mcpToolNames(s, g.token)).toEqual(['echo']);
+    expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} }))).toBe(
+      false
+    );
+    expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'other', arguments: {} }))).toBe(
+      true
+    );
+    const log = fs.existsSync(fkALog()) ? fs.readFileSync(fkALog(), 'utf8') : '';
+    const reachedOther = log
+      .split('\n')
+      .filter(Boolean)
+      .map(l => JSON.parse(l))
+      .some(
+        e => e.kind === 'req' && e.msg?.method === 'tools/call' && e.msg?.params?.name === 'other'
       );
-      expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'other', arguments: {} }))).toBe(
-        true
-      );
-      const log = fs.existsSync(fkALog()) ? fs.readFileSync(fkALog(), 'utf8') : '';
-      const reachedOther = log
-        .split('\n')
-        .filter(Boolean)
-        .map(l => JSON.parse(l))
-        .some(
-          e => e.kind === 'req' && e.msg?.method === 'tools/call' && e.msg?.params?.name === 'other'
-        );
-      expect(reachedOther, 'denied tools/call must not be forwarded downstream').toBe(false);
-    }
-  );
+    expect(reachedOther, 'denied tools/call must not be forwarded downstream').toBe(false);
+  });
 });
 
 describe('kill switch parity with the stdio path', () => {
-  itImpl('mcp:fk-a → /mcp denial text equals the /v1/tools/invoke denial', async () => {
+  it('mcp:fk-a → /mcp denial text equals the /v1/tools/invoke denial', async () => {
     const g = await oneShot(alice, cA.clientId);
     expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} }))).toBe(
       false
@@ -235,7 +236,7 @@ describe('kill switch parity with the stdio path', () => {
 });
 
 describe('parity with /v1/tools and /v1/tools/invoke', () => {
-  itImpl('tools/list matches /v1/tools for the same client', async () => {
+  it('tools/list matches /v1/tools for the same client', async () => {
     const stdio = JSON.parse((await stdioTools(s, stdioTok)).body).tools as {
       name: string;
       description?: string;
@@ -258,7 +259,7 @@ describe('parity with /v1/tools and /v1/tools/invoke', () => {
     }
   });
 
-  itImpl('tools/call result equals /v1/tools/invoke result', async () => {
+  it('tools/call result equals /v1/tools/invoke result', async () => {
     const g = await oneShot(alice, cA.clientId);
     const args = { x: 1, nested: { y: [1, 2] } };
     const r = await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: args });
@@ -267,6 +268,104 @@ describe('parity with /v1/tools and /v1/tools/invoke', () => {
     const stdioText = (JSON.parse(st.body).result as { text: string }[])[0]!.text;
     expect(callText(r)).toBe(stdioText);
     expect(JSON.parse(callText(r)).args).toEqual(args);
+  });
+});
+
+describe('kill switches: stdio path (/v1/tools/invoke) and /mcp', () => {
+  const stdioKilled = async () => {
+    const r = await stdioInvoke(s, stdioTok, 'echo', {});
+    return { status: r.statusCode, body: r.body };
+  };
+
+  for (const target of ['mcp:fk-a', 'client:cA'] as const) {
+    it(`${target} → /v1/tools/invoke is 403; lifting restores 200`, async () => {
+      const key = target === 'client:cA' ? `client:${cA.clientId}` : target;
+      expect((await stdioKilled()).status).toBe(200);
+      expect((await kill(key, true)).statusCode).toBe(200);
+      try {
+        const r = await stdioKilled();
+        expect(r.status).toBe(403);
+        expect(r.body).toMatch(/kill/i);
+      } finally {
+        await kill(key, false);
+      }
+      expect((await stdioKilled()).status).toBe(200);
+    });
+  }
+
+  it('client:<bound client> kill → /mcp tools/call is an isError with the stdio message; lifting restores', async () => {
+    const g = await oneShot(alice, cA.clientId);
+    expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} }))).toBe(
+      false
+    );
+    expect((await kill(`client:${cA.clientId}`, true)).statusCode).toBe(200);
+    try {
+      const r = await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} });
+      expect(r.status).toBe(200); // token still valid; the call is denied
+      expect(r.json?.result?.isError).toBe(true);
+      expect(callText(r)).toMatch(/kill/i);
+    } finally {
+      await kill(`client:${cA.clientId}`, false);
+    }
+    expect(isDenied(await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} }))).toBe(
+      false
+    );
+  });
+
+  // the fixture always lists a built-in __env tool; ignore it
+  const visibleTools = async (tok: string): Promise<string[]> =>
+    (await mcpToolNames(s, tok)).filter(n => n !== '__env');
+  itImpl('killed tools are hidden from /v1/tools and from /mcp tools/list', async () => {
+    const g = await oneShot(alice, cA.clientId);
+    expect((await visibleTools(g.token)).sort()).toEqual(['echo', 'other']);
+    await kill('mcp:fk-a', true);
+    try {
+      expect(await visibleTools(g.token)).toEqual([]);
+      const stdio = JSON.parse((await stdioTools(s, stdioTok)).body).tools as { name: string }[];
+      expect(stdio.map(t => t.name)).not.toContain('echo');
+    } finally {
+      await kill('mcp:fk-a', false);
+    }
+    expect((await visibleTools(g.token)).sort()).toEqual(['echo', 'other']);
+  });
+
+  itImpl.each(['fk-a', 'tool:echo', 'foo:bar', 'client:', ''])(
+    'kill target %j that is not client:<id> or mcp:<name> → 400',
+    async target => {
+      const r = await kill(target || 'x', true);
+      expect(r.statusCode).toBe(400);
+    }
+  );
+
+  itImpl('GET /v1/admin/kill-switches lists only the active switches', async () => {
+    const list = () =>
+      s.admin.inject({
+        method: 'GET',
+        url: '/v1/admin/kill-switches',
+        headers: { 'X-Admin-Key': s.adminKey },
+      });
+    expect((await list()).statusCode).toBe(200);
+    expect(JSON.stringify(JSON.parse((await list()).body))).not.toContain('mcp:fk-b');
+    await kill('mcp:fk-b', true);
+    try {
+      expect((await list()).body).toContain('mcp:fk-b');
+    } finally {
+      await kill('mcp:fk-b', false);
+    }
+    expect((await list()).body).not.toContain('mcp:fk-b');
+  });
+});
+
+describe('/mcp is POST-only (stateless)', () => {
+  it.each(['GET', 'DELETE'] as const)('authenticated %s → 405 with Allow: POST', async method => {
+    const g = await oneShot(alice, cA.clientId);
+    const res = await s.api.inject({
+      method,
+      url: AGENT_MCP_ROUTE,
+      headers: { accept: MCP_HEADERS.accept, authorization: `Bearer ${g.token}` },
+    });
+    expect(res.statusCode).toBe(405);
+    expect(String(res.headers['allow'])).toMatch(/POST/);
   });
 });
 
@@ -291,7 +390,7 @@ describe('audit', () => {
       expect(String(r.headers['www-authenticate'] ?? '')).toMatch(/Bearer/i);
     };
 
-    itImpl('revoked', async () => {
+    it('revoked', async () => {
       const g = await oneShot(alice, cA.clientId);
       expect(isDenied(await rpc(s, g.token, 'tools/list', {}))).toBe(false);
       await alice.request({ method: 'DELETE', url: `${AGENT_GRANTS_ROUTE}/${g.grantId}` });
@@ -299,7 +398,7 @@ describe('audit', () => {
       await expectAudited(g.token, 'revoked');
     });
 
-    itImpl('expired (Date only; ttl 60s then +2h)', async () => {
+    it('expired (Date only; ttl 60s then +2h)', async () => {
       const g = await oneShot(alice, cA.clientId, { ttl_seconds: 60 });
       vi.useFakeTimers({ toFake: ['Date'] });
       let r;
@@ -313,7 +412,7 @@ describe('audit', () => {
       await expectAudited(g.token, 'expired');
     });
 
-    itImpl('bad_audience (grant resource ≠ canonical /mcp)', async () => {
+    it('bad_audience (grant resource ≠ canonical /mcp)', async () => {
       const g = await oneShot(alice, cA.clientId);
       await (s.db as any)
         .update(agent_grants)
@@ -323,11 +422,35 @@ describe('audit', () => {
       await expectAudited(g.token, 'bad_audience');
     });
 
-    itImpl('insufficient_scope (tool outside token scope)', async () => {
+    it('insufficient_scope (tool outside token scope)', async () => {
       const g = await oneShot(alice, cAB.clientId, { scopes: ['mcp:fk-b'] });
       const r = await rpc(s, g.token, 'tools/call', { name: 'echo', arguments: {} });
-      expect(isDenied(r)).toBe(true);
+      // MCP auth spec / ADR-020: scope shortfall is HTTP 403 + WWW-Authenticate, not a tool error
+      expect(r.status).toBe(403);
+      const www = String(r.headers['www-authenticate'] ?? '');
+      expect(www).toContain('error="insufficient_scope"');
+      expect(www).toContain('scope="mcp:fk-a"');
+      expect(r.body).not.toContain(g.token);
       await expectAudited(g.token, 'insufficient_scope');
     });
+  });
+});
+
+// Last on purpose: restarting replaces `s`, so earlier sessions/tokens stop being valid.
+describe('persistence across restart', () => {
+  itImpl('kill switches survive a server restart (same DB, new instance)', async () => {
+    expect((await kill('mcp:fk-b', true)).statusCode).toBe(200);
+    const before = s;
+    try {
+      s = await restartAgentTestServer(before, agentEndpointOpts());
+      const g = await oneShot(await loginSession(s, aliceCreds), cAB.clientId, {
+        scopes: ['mcp:*'],
+      });
+      const r = await rpc(s, g.token, 'tools/call', { name: 'btool', arguments: {} });
+      expect(isDenied(r)).toBe(true);
+      expect(callText(r)).toMatch(/kill/i);
+    } finally {
+      await kill('mcp:fk-b', false);
+    }
   });
 });
