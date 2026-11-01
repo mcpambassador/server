@@ -33,7 +33,12 @@ export function KillSwitches() {
   const killSwitch = useKillSwitch();
 
   // Kill-switch state comes ONLY from the server's active list; client/MCP status is unrelated.
-  const activeKeys = new Set((switchesData ?? []).filter(s => s.active).map(s => s.key));
+  const activeByTarget = new Map((switchesData ?? []).map(s => [s.target, s]));
+  const activeKeys = { has: (t: string) => activeByTarget.has(t) };
+  const killedInfo = (t: string) => {
+    const s = activeByTarget.get(t);
+    return s ? `Activated ${new Date(s.activated_at).toLocaleString()} by ${s.activated_by}` : '';
+  };
   const switchStateKnown = !switchesLoading && !switchesError;
 
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -131,7 +136,12 @@ export function KillSwitches() {
                       {client.status}
                     </Badge>
                     {activeKeys.has(`client:${client.client_id}`) && (
-                      <Badge color="red">Kill switch active</Badge>
+                      <>
+                        <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
+                          {killedInfo(`client:${client.client_id}`)}
+                        </span>
+                        <Badge color="red">Kill switch active</Badge>
+                      </>
                     )}
                     <Button
                       color={activeKeys.has(`client:${client.client_id}`) ? 'green' : 'red'}
@@ -209,7 +219,12 @@ export function KillSwitches() {
                       {mcp.status}
                     </Badge>
                     {activeKeys.has(`mcp:${mcp.name}`) && (
-                      <Badge color="red">Kill switch active</Badge>
+                      <>
+                        <span className="hidden text-xs text-zinc-500 dark:text-zinc-400 sm:inline">
+                          {killedInfo(`mcp:${mcp.name}`)}
+                        </span>
+                        <Badge color="red">Kill switch active</Badge>
+                      </>
                     )}
                     <Button
                       color={activeKeys.has(`mcp:${mcp.name}`) ? 'green' : 'red'}

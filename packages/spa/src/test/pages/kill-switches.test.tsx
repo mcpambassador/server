@@ -80,15 +80,26 @@ describe('KillSwitches', () => {
     const posts: Array<{ url: string; body: unknown }> = [];
     setup(
       [
-        { key: 'mcp:slack', active: true }, // draft MCP, killed
-        { key: 'client:c2', active: true }, // suspended client, killed
-        { key: 'client:c1', active: false },
+        // active switches only; draft MCP and suspended client are killed
+        {
+          target: 'mcp:slack',
+          type: 'mcp',
+          activated_at: '2026-10-01T00:00:00Z',
+          activated_by: 'admin',
+        },
+        {
+          target: 'client:c2',
+          type: 'client',
+          activated_at: '2026-10-02T00:00:00Z',
+          activated_by: 'ops',
+        },
       ],
       posts
     );
     const restore = await screen.findAllByRole('button', { name: 'Restore' });
     expect(restore).toHaveLength(2);
     expect(screen.getAllByText('Kill switch active')).toHaveLength(2);
+    expect(screen.getByText(/by ops$/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Kill' })).toHaveLength(2);
 
     await userEvent.click(restore[0]!); // client:c2 renders first

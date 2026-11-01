@@ -297,10 +297,15 @@ export interface DownstreamStatus {
   }>;
 }
 
-/** One entry from GET /v1/admin/kill-switches (KillSwitchManager.getAll). Key is `client:<id>` or `mcp:<name>`. */
+/**
+ * One ACTIVE kill switch from GET /v1/admin/kill-switches (a target is active iff listed).
+ * TODO: replace with KillSwitchSummary from @mcpambassador/contracts once platform's SHA lands.
+ */
 export interface KillSwitchEntry {
-  key: string;
-  active: boolean;
+  target: string; // `client:<id>` | `mcp:<name>`
+  type: 'client' | 'mcp';
+  activated_at: string;
+  activated_by: string;
 }
 
 export interface KillSwitchResponse {
