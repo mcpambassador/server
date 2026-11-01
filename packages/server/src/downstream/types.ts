@@ -215,6 +215,8 @@ export function validateToolName(name: string): boolean {
  */
 export interface AggregatedTool extends ToolDescriptor {
   source_mcp: string; // Which downstream MCP provides this tool
+  /** Catalog id of that MCP, stamped by the ToolRouter catalog builder (tool kill switch key, ADR-025) */
+  mcp_id?: string;
   /** ADR-021: set when the definition is the admin-approved pinned one (hash of the served canonical form) */
   pinned_hash?: string;
 }

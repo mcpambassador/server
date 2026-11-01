@@ -491,6 +491,7 @@ export class AmbassadorServer {
     }
     this.userPool.setMcpConfigFingerprints(perUserFingerprints);
     this.toolRouter = new ToolRouter(this.mcpManager, this.userPool);
+    this.toolRouter.setKillSwitch(this.killSwitchManager);
 
     // ADR-021: tool definition pinning. Pins load before any catalog is served; hashes-only audit.
     {
