@@ -13,9 +13,11 @@ import type {
   OAuthClientSummary,
   AgentEndpointSettings,
   UserAgentEndpointInfo,
+  DisclosureMode,
 } from '@mcpambassador/contracts';
 
 export type {
+  DisclosureMode,
   UserAgentEndpointInfo,
   ConsentDetails,
   ConsentClientOption,
@@ -51,6 +53,23 @@ export function parseToolAllowlist(text: string): string[] | undefined {
     )
   );
   return tools.length > 0 ? tools : undefined;
+}
+
+/**
+ * ADR-022 disclosure modes. Typed against the contracts' DisclosureMode (type-only import keeps zod
+ * out of the bundle); the Record makes a new contract mode a compile error here.
+ */
+const DISCLOSURE_MODE_LABELS: Record<DisclosureMode, string> = {
+  full: 'Full',
+  progressive: 'Progressive',
+};
+export const DISCLOSURE_MODE_OPTIONS: { value: DisclosureMode; label: string }[] = (
+  Object.keys(DISCLOSURE_MODE_LABELS) as DisclosureMode[]
+).map(value => ({ value, label: DISCLOSURE_MODE_LABELS[value] }));
+export const DISCLOSURE_MODE_HELP =
+  'Progressive: the agent sees 3 tools (search, describe, call) instead of the full list; same permissions.';
+export function disclosureModeLabel(mode: DisclosureMode): string {
+  return DISCLOSURE_MODE_LABELS[mode];
 }
 
 export const TTL_PRESETS: { seconds: number; label: string }[] = [
