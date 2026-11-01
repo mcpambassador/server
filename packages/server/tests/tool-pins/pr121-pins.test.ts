@@ -68,7 +68,7 @@ async function mkMcp(
   name: string,
   tools: string[],
   desc: string,
-  policy: 'review' | 'auto' = 'review'
+  policy: 'review' | 'auto'
 ): Promise<M> {
   const log = path.join(dir, `${name}.log`);
   const descFile = path.join(dir, `${name}.desc`);
@@ -185,8 +185,8 @@ describe('D2 name shadowing', () => {
       `${approved}.foo approved, ${pendingName}.foo pending: foo routes to ${approved} and only its text is served`,
       async () => {
         const tag = `${approved.toLowerCase()}${Date.now() % 100000}`;
-        const A = await mkMcp(`sha-a-${tag}`, ['foo'], 'TEXT-FROM-A');
-        const B = await mkMcp(`sha-b-${tag}`, ['foo'], 'TEXT-FROM-B');
+        const A = await mkMcp(`sha-a-${tag}`, ['foo'], 'TEXT-FROM-A', 'review');
+        const B = await mkMcp(`sha-b-${tag}`, ['foo'], 'TEXT-FROM-B', 'review');
         const [ok, no] = approved === 'A' ? [A, B] : [B, A];
         const { stdio, token } = await agentFor([A, B]);
         await observe(stdio);
@@ -224,8 +224,8 @@ describe('D3 hidden on every path', () => {
     'a pending-only tool is invisible and uncallable on /v1/tools, /mcp, invoke, and the scope pre-check',
     async () => {
       const tag = String(Date.now() % 100000);
-      const P = await mkMcp(`sha-p-${tag}`, ['sneaky'], 'PENDING-TEXT');
-      const other = await mkMcp(`sha-o-${tag}`, ['plain'], 'other');
+      const P = await mkMcp(`sha-p-${tag}`, ['sneaky'], 'PENDING-TEXT', 'review');
+      const other = await mkMcp(`sha-o-${tag}`, ['plain'], 'other', 'review');
       const full = await agentFor([P, other]);
       const narrow = await agentFor([P, other], [`mcp:${other.name}`]); // scope excludes P
       await observe(full.stdio);
@@ -287,7 +287,7 @@ describe('D3 hidden on every path', () => {
     'a changed tool keeps serving its approved text while the new text is pending, never the live one',
     async () => {
       const tag = String(Date.now() % 100000);
-      const M1 = await mkMcp(`sha-c-${tag}`, ['chg'], 'GOOD-TEXT');
+      const M1 = await mkMcp(`sha-c-${tag}`, ['chg'], 'GOOD-TEXT', 'review');
       const { stdio, token } = await agentFor([M1]);
       await observe(stdio);
       await approve(M1, 'chg');
@@ -321,8 +321,8 @@ describe('D6 baseline', () => {
     'runs once: clean -> approved by system:migration, drifted -> pending; never re-arms',
     async () => {
       const tag = String(Date.now() % 100000);
-      const clean = await mkMcp(`sha-bc-${tag}`, ['stable'], 'STABLE-TEXT', 'auto');
-      const drift = await mkMcp(`sha-bd-${tag}`, ['moved'], 'V1-TEXT', 'auto');
+      const clean = await mkMcp(`sha-bc-${tag}`, ['stable'], 'STABLE-TEXT', 'review');
+      const drift = await mkMcp(`sha-bd-${tag}`, ['moved'], 'V1-TEXT', 'review');
       await agentFor([clean, drift]);
 
       // Simulate the pre-upgrade world: no pins, baseline not done; the drifted MCP changed since publish.
@@ -394,7 +394,7 @@ describe('D6 baseline', () => {
 
   itPins('a human confirming a baseline pin clears it from the unreviewed list', async () => {
     const tag = String(Date.now() % 100000);
-    const m = await mkMcp(`sha-bf-${tag}`, ['conf'], 'CONF-TEXT', 'auto');
+    const m = await mkMcp(`sha-bf-${tag}`, ['conf'], 'CONF-TEXT', 'review');
     const raw = (s.db as any).session.client;
     raw.prepare('DELETE FROM tool_pins').run();
     raw.prepare('DELETE FROM server_settings WHERE key = ?').run(TOOL_PIN_BASELINE_SETTING_KEY);
