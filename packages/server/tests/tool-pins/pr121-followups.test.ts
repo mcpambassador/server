@@ -278,6 +278,14 @@ describe('G1 revoke', () => {
       expected_hash: global.approved_hash,
     });
     expect(rv.statusCode, rv.body.slice(0, 300)).toBe(200);
+    // R2: the response lists every pin revoked for this mcp/tool/hash (global + per-user)
+    const sameHash = all
+      .filter(x => x.tool_name === 'pu' && x.approved_hash === global.approved_hash)
+      .map(x => x.pin_id);
+    expect(sameHash.length, 'global and per-user pins both approved').toBeGreaterThanOrEqual(2);
+    const revokedIds: string[] = J(rv).data.revoked_pin_ids;
+    expect(revokedIds).toContain(global.pin_id);
+    for (const id of sameHash) expect(revokedIds).toContain(id);
     await observe(stdio);
     expect((await stdioTools(s, stdio)).body).not.toContain('PU-TEXT');
     expect((await v1Tools(stdio)).map(t => t.name)).not.toContain('pu');
