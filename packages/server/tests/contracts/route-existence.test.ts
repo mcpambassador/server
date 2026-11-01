@@ -4,6 +4,14 @@ import path from 'path';
 // simple recursive file collector (avoids external glob dependency)
 import { startTestServer, stopTestServer } from '../admin-api/helpers';
 
+const FLAG_GATED_PREFIXES = [
+  '/v1/users/me/agent-grants',
+  '/v1/admin/oauth-clients',
+  '/v1/admin/agent-grants',
+  '/v1/admin/agent-endpoint',
+  '/v1/oauth/consent',
+];
+
 const DUMMY_ID = '00000000-0000-0000-0000-000000000000';
 
 function normalizePathLiteral(raw: string) {
@@ -104,6 +112,9 @@ describe('Contract: SPA route existence checker', () => {
     const missing: Array<{ method: string; path: string; status: number; body: any }> = [];
 
     for (const r of spaRoutes) {
+      // ADR-020: registered only when agent_endpoint.enabled (off in this fixture).
+      // Their disabled/enabled behaviour is covered by tests/agent-endpoint/.
+      if (FLAG_GATED_PREFIXES.some(pre => r.path.startsWith(pre))) continue;
       const url = pathToInjectUrl(r.path);
       const opts: any = { method: r.method, url };
 
