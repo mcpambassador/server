@@ -289,7 +289,12 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
     });
     if (!r.ok) return sendDecisionError(reply, r);
     onChanged?.();
-    return reply.send(wrapSuccess(await detailOf(r.pin)));
+    return reply.send(
+      wrapSuccess({
+        ...(await detailOf(r.pin)),
+        revoked_pin_ids: r.revokedPinIds ?? [r.pin.pin_id],
+      })
+    );
   });
 
   // POST /v1/admin/tool-pins/:pinId/confirm-baseline

@@ -127,6 +127,27 @@ export async function updateToolPin(
   await compatUpdate(db, tool_pins).set(patch).where(eq(tool_pins.pin_id, pinId));
 }
 
+/** Apply several pin patches in ONE transaction (all or none). */
+export async function updateToolPinsAtomic(
+  db: DatabaseClient,
+  updates: Array<{ pinId: string; patch: Parameters<typeof updateToolPin>[2] }>
+): Promise<void> {
+  if (updates.length === 0) return;
+  const d = db as any;
+  if ('execute' in d && typeof d.execute === 'function') {
+    await d.transaction(async (tx: any) => {
+      for (const u of updates)
+        await tx.update(tool_pins).set(u.patch).where(eq(tool_pins.pin_id, u.pinId));
+    });
+  } else {
+    // better-sqlite3 transactions are synchronous
+    d.transaction((tx: any) => {
+      for (const u of updates)
+        tx.update(tool_pins).set(u.patch).where(eq(tool_pins.pin_id, u.pinId)).run();
+    });
+  }
+}
+
 /** Number of pending_review pins for one (mcp, scope): flood-cap input (D4b). */
 export async function countPendingToolPins(
   db: DatabaseClient,
