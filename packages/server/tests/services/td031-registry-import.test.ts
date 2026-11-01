@@ -35,6 +35,15 @@ const mcps = [
     auth_type: 'oauth2',
     oauth_config: { token_url: 'https://github.com/login/oauth/access_token' },
   }),
+  // Real supabase shape from registry.yaml: empty scopes, no env names
+  base('supabase-shape', {
+    auth_type: 'oauth2',
+    oauth_config: {
+      auth_url: 'https://mcp.supabase.com/oauth/authorize',
+      token_url: 'https://mcp.supabase.com/oauth/token',
+      scopes: '',
+    },
+  }),
   base('Bad_Name'),
   base('bad-transport', { transport_type: 'ftp' }),
   base('bad-config', { config: 'not-an-object' }),
@@ -77,7 +86,7 @@ describe('registry import validation (TD-031)', () => {
   it('keeps conforming entries and drops the rest', async () => {
     const s = await loaded();
     const names = (await s.getEntries()).map(e => e.name).sort();
-    expect(names).toEqual(['good-oauth', 'good-partial-oauth', 'good-plain']);
+    expect(names).toEqual(['good-oauth', 'good-partial-oauth', 'good-plain', 'supabase-shape']);
   });
 
   it('records skipped entries with name and reason only', async () => {
@@ -97,6 +106,13 @@ describe('registry import validation (TD-031)', () => {
       expect(x.reason.length).toBeGreaterThan(0);
       expect(x.reason.length).toBeLessThanOrEqual(200);
     }
+  });
+
+  it('supabase-shaped entry (scopes empty) loads and installs without scopes', async () => {
+    const s = await loaded();
+    expect(s.getSkippedEntries().map(x => x.name)).not.toContain('supabase-shape');
+    const r = await s.installEntry('supabase-shape');
+    expect(r.success).toBe(true);
   });
 
   it('a dropped entry cannot be installed', async () => {

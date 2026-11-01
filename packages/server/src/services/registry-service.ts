@@ -8,6 +8,18 @@ const registryEntrySchema = createMcpSchema.extend({
   oauth_config: oauthConfigSchema.partial().optional(),
 });
 
+/**
+ * Registry-import only: an empty or whitespace `scopes` means "none declared" (e.g. Supabase ships
+ * `scopes: ''`). Drop it so the partial oauth parse accepts it; createMcpSchema itself is unchanged.
+ */
+function normalizeRegistryOauth(oc: unknown): unknown {
+  if (oc && typeof oc === 'object' && typeof (oc as { scopes?: unknown }).scopes === 'string') {
+    const { scopes, ...rest } = oc as Record<string, unknown> & { scopes: string };
+    return scopes.trim() === '' ? rest : oc;
+  }
+  return oc;
+}
+
 export interface SkippedRegistryEntry {
   name: string;
   reason: string;
@@ -214,7 +226,12 @@ export class RegistryService {
    */
   private checkEntry(entry: unknown): string | null {
     if (!entry || typeof entry !== 'object') return 'entry is not an object';
-    const r = registryEntrySchema.safeParse(entry);
+    const e = entry as Record<string, unknown>;
+    const r = registryEntrySchema.safeParse(
+      e.oauth_config === undefined
+        ? e
+        : { ...e, oauth_config: normalizeRegistryOauth(e.oauth_config) }
+    );
     if (!r.success) {
       const issue = r.error.issues[0];
       return cleanForLog(
@@ -363,7 +380,9 @@ export class RegistryService {
       try {
         // partial: registry entries may omit fields (e.g. Supabase has no client_id/secret), but any
         // field present must satisfy the admin rules (https URLs, *_CLIENT_ID).
-        const parsed = oauthConfigSchema.partial().safeParse(registryEntry.oauth_config ?? {});
+        const parsed = oauthConfigSchema
+          .partial()
+          .safeParse(normalizeRegistryOauth(registryEntry.oauth_config ?? {}));
         if (!parsed.success) {
           const issue = parsed.error.issues[0];
           throw new OAuthConfigError(
