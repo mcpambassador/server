@@ -22,6 +22,7 @@ async function startWithFakeChild(env: Record<string, string>, extraArgs: string
   const stderr = new EventEmitter();
   vi.mocked(spawn).mockImplementation(() => {
     const stdin = {
+      on: () => stdin, // TD-045: the connection registers a stdin 'error' handler
       write: (chunk: string) => {
         try {
           const msg = JSON.parse(chunk.toString()) as { method?: string; id?: number };
