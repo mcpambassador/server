@@ -75,7 +75,11 @@ describe('TD-045 stdio size limits and respawn', () => {
     for (const [t, body] of Object.entries(results)) {
       const f = path.join(dir, `${t}.json`);
       fs.writeFileSync(f, body);
-      const m = await createFakeMcp(s, { name: `v-${t}`, tools: [t], env: { FAKE_MCP_RESULT_FILE: f } });
+      const m = await createFakeMcp(s, {
+        name: `v-${t}`,
+        tools: [t],
+        env: { FAKE_MCP_RESULT_FILE: f },
+      });
       await grantUserAccess(s, au.userId, m.mcpId);
       ids.push(m.mcpId);
     }
@@ -142,7 +146,8 @@ describe('TD-045 stdio size limits and respawn', () => {
     for (;;) {
       last = JSON.stringify((await call('big12')).json);
       if (last.includes('Response too large')) break;
-      if (Date.now() > deadline) throw new Error(`still unavailable after 30s: ${last.slice(0, 200)}`);
+      if (Date.now() > deadline)
+        throw new Error(`still unavailable after 30s: ${last.slice(0, 200)}`);
       await sleep(1000);
     }
     expect(JSON.stringify((await call('after')).json)).toContain('still-alive');
