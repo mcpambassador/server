@@ -193,7 +193,11 @@ export const callToolInputSchema = z.object({
 });
 export type CallToolInput = z.infer<typeof callToolInputSchema>;
 
-/** `search_tools` result entry; `summary` is the first sentence of the approved description (<= 200 chars), sanitized */
+/**
+ * `search_tools` result entry; `summary` is the first sentence of the approved description
+ * (<= 200 chars), sanitized. Derived from T(approved_definition): the description is first truncated
+ * to TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS (ADR-021 D1'), the same as tools/list.
+ */
 export interface ToolSearchHit {
   name: string;
   mcp: string;
@@ -203,7 +207,10 @@ export interface SearchToolsResult {
   tools: ToolSearchHit[];
 }
 
-/** `describe_tool` result: the approved (pinned) definition, never the live one */
+/**
+ * `describe_tool` result: the approved (pinned) definition, never the live one. `description` is
+ * truncated to TOOL_SERVE_DESCRIPTION_MAX_CODE_POINTS (ADR-021 D1'); schemas are served in full.
+ */
 export interface DescribeToolResult {
   name: string;
   mcp: string;
