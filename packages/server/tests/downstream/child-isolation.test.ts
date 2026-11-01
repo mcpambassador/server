@@ -21,6 +21,9 @@ vi.mock('child_process', async orig => {
   };
 });
 
+import { mkdtempSync, symlinkSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   resolveChildIsolation,
   parseCapEff,
@@ -63,12 +66,38 @@ describe('resolveChildIsolation', () => {
     expect(() => resolveChildIsolation({ MCP_AMBASSADOR_CHILD_UID: '1000' }, 1000)).toThrow(
       /equals the server uid/
     );
+    for (const h of [
+      'rel',
+      '/data',
+      '/tmp',
+      '/tmp/a/b',
+      '/tmp/..',
+      '/tmp/.',
+      '/tmp/../data',
+      '/tmp/a b',
+    ]) {
+      expect(() =>
+        resolveChildIsolation(
+          { MCP_AMBASSADOR_CHILD_UID: '1001', MCP_AMBASSADOR_CHILD_HOME: h },
+          1000
+        )
+      ).toThrow(/single path component/);
+    }
+    // gid 1000 == server gid, and gid 0
     expect(() =>
       resolveChildIsolation(
-        { MCP_AMBASSADOR_CHILD_UID: '1001', MCP_AMBASSADOR_CHILD_HOME: 'rel' },
+        { MCP_AMBASSADOR_CHILD_UID: '1001', MCP_AMBASSADOR_CHILD_GID: '1000' },
+        1000,
         1000
       )
-    ).toThrow(/absolute/);
+    ).toThrow(/server gid/);
+    expect(() =>
+      resolveChildIsolation(
+        { MCP_AMBASSADOR_CHILD_UID: '1001', MCP_AMBASSADOR_CHILD_GID: '0' },
+        1000,
+        1000
+      )
+    ).toThrow();
   });
 });
 
@@ -84,6 +113,21 @@ describe('checkIsolationAvailable', () => {
     expect(checkIsolationAvailable(iso, { ...ok, capEff: 0x80n })).toMatch(/missing cap/);
     expect(checkIsolationAvailable(iso, { ...ok, capEff: null })).toMatch(/could not read/);
   });
+  it('rejects a symlinked or missing child home (lstat, never followed)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iso-'));
+    mkdirSync(join(dir, 'real'));
+    symlinkSync(join(dir, 'real'), join(dir, 'link'));
+    const uid = process.getuid!();
+    const base = { capEff: CAPS_OK, setprivOk: true };
+    expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'real') }, base)).toBeNull();
+    expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'link') }, base)).toMatch(
+      /not a symlink/
+    );
+    expect(checkIsolationAvailable({ ...iso, uid, home: join(dir, 'nope') }, base)).toMatch(
+      /child home/
+    );
+  });
+
   it('reports missing setpriv and home', () => {
     expect(checkIsolationAvailable(iso, { ...ok, setprivOk: false })).toMatch(/setpriv/);
     expect(checkIsolationAvailable(iso, { ...ok, homeOk: false })).toMatch(/child home/);
@@ -135,6 +179,7 @@ describe('spawn wrapping', () => {
     expect(env['HOME']).toBe('/tmp/mcp-home');
     expect(env['NPM_CONFIG_CACHE']).toBe('/tmp/mcp-home/.npm-cache');
     expect(env['UV_CACHE_DIR']).toBe('/tmp/mcp-home/.uv-cache');
+    expect(env['TMPDIR']).toBe('/tmp/mcp-home');
     expect(env['K']).toBe('v');
     expect(env['MCP_AMBASSADOR_DATA_DIR']).toBeUndefined();
     expect(env['GITHUB_OAUTH_CLIENT_SECRET']).toBeUndefined();

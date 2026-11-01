@@ -112,6 +112,7 @@ services:
       - SETGID
       - KILL
       - CHOWN
+      - SETPCAP # entrypoint only: shrinks the bounding set before dropping root
     
     # Read-only root filesystem (except bind-mounted volumes)
     read_only: true

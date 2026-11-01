@@ -11,7 +11,7 @@
  * Opt-in: unset MCP_AMBASSADOR_CHILD_UID keeps the legacy behavior (children share the server uid).
  * If it is set but cannot be honored, the child is NOT started (fail closed).
  */
-import { accessSync, constants, readFileSync, statSync } from 'node:fs';
+import { accessSync, constants, lstatSync, readFileSync } from 'node:fs';
 
 export const SETPRIV_PATH = '/usr/bin/setpriv';
 export const DEFAULT_CHILD_HOME = '/tmp/mcp-home';
@@ -43,7 +43,8 @@ function parseId(name: string, raw: string): number {
  */
 export function resolveChildIsolation(
   source: NodeJS.ProcessEnv = process.env,
-  serverUid: number | undefined = process.getuid?.()
+  serverUid: number | undefined = process.getuid?.(),
+  serverGid: number | undefined = process.getgid?.()
 ): ChildIsolation | null {
   const rawUid = source['MCP_AMBASSADOR_CHILD_UID']?.trim();
   if (!rawUid) return null;
@@ -51,13 +52,20 @@ export function resolveChildIsolation(
   const rawGid = source['MCP_AMBASSADOR_CHILD_GID']?.trim();
   const gid = rawGid ? parseId('MCP_AMBASSADOR_CHILD_GID', rawGid) : uid;
   const home = source['MCP_AMBASSADOR_CHILD_HOME']?.trim() || DEFAULT_CHILD_HOME;
-  if (!home.startsWith('/')) {
-    throw new Error(`MCP_AMBASSADOR_CHILD_HOME must be an absolute path, got "${home}"`);
+  // One plain component directly under /tmp (the persistent host cache bind), so no intermediate
+  // component can be a symlink planted by an earlier child.
+  if (!/^\/tmp\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(home)) {
+    throw new Error(
+      `MCP_AMBASSADOR_CHILD_HOME must be a single path component under /tmp, got "${home}"`
+    );
   }
   if (serverUid !== undefined && uid === serverUid) {
     throw new Error(
       `MCP_AMBASSADOR_CHILD_UID (${uid}) equals the server uid; children would not be isolated`
     );
+  }
+  if (serverGid !== undefined && gid === serverGid) {
+    throw new Error(`MCP_AMBASSADOR_CHILD_GID (${gid}) equals the server gid`);
   }
   return { uid, gid, home };
 }
@@ -104,8 +112,9 @@ export function checkIsolationAvailable(
     deps.homeOk ??
     (() => {
       try {
-        const st = statSync(iso.home);
-        return st.isDirectory() && st.uid === iso.uid;
+        // lstat: a symlink (e.g. planted by an earlier child) must never pass
+        const st = lstatSync(iso.home);
+        return st.isDirectory() && !st.isSymbolicLink() && st.uid === iso.uid;
       } catch {
         return false;
       }
@@ -125,7 +134,7 @@ export function checkIsolationAvailable(
     return `child isolation (uid ${iso.uid}) requires CAP_SETUID, CAP_SETGID and CAP_KILL; missing cap number(s) ${missing.join(',')}. ${hint}`;
   }
   if (!homeOk) {
-    return `child isolation: child home ${iso.home} must exist and be owned by uid ${iso.uid} (created by docker/entrypoint.sh). ${hint}`;
+    return `child isolation: child home ${iso.home} must be a real directory (not a symlink) owned by uid ${iso.uid} (created by docker/entrypoint.sh). ${hint}`;
   }
   return null;
 }
