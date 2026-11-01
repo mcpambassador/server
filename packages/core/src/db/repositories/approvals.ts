@@ -10,9 +10,16 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
-import { and, eq, gt, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
-import { agent_grants, approval_requests, mcp_catalog, tool_policies } from '../../schema/index.js';
+import {
+  agent_grants,
+  approval_requests,
+  clients,
+  mcp_catalog,
+  tool_policies,
+  users,
+} from '../../schema/index.js';
 import { compatInsert, compatSelect, compatUpdate } from '../compat.js';
 
 export type ApproverValue = 'owner' | 'admin';
@@ -234,8 +241,8 @@ export interface DecideInput {
 
 /**
  * pending -> approved | denied. Matches only while the request is still pending, unexpired, the hash
- * is the one the approver saw, and the grant is still live (not revoked, not expired) in the same
- * statement. Returns the updated row, or null when another transition won (answer 409).
+ * is the one the approver saw, and the grant, the requesting user and the bound client are all still
+ * live (not revoked/expired/disabled/suspended) in the same statement. Returns the updated row, or null when another transition won (answer 409).
  */
 export async function decideApproval(
   db: DatabaseClient,
@@ -254,6 +261,11 @@ export async function decideApproval(
   if (approve) set.expires_at = i.approvedExpiresAt;
   else set.preview = null;
   const grantLive: SQL = sql`EXISTS (SELECT 1 FROM ${agent_grants} WHERE ${agent_grants.grant_id} = ${approval_requests.grant_id} AND ${agent_grants.revoked_at} IS NULL AND ${agent_grants.expires_at} > ${i.now})`;
+  // B2c: the principals the request is bound to must all still be active in this same statement:
+  // the requesting user, and the bound client (a NULL bound client never matches, so it cannot be
+  // approved).
+  const userActive: SQL = sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.user_id} = ${approval_requests.user_id} AND ${users.status} = 'active')`;
+  const clientActive: SQL = sql`EXISTS (SELECT 1 FROM ${clients} WHERE ${clients.client_id} = ${approval_requests.bound_client_id} AND ${clients.status} = 'active')`;
   const rows = (await compatUpdate(db, approval_requests)
     .set(set)
     .where(
@@ -265,7 +277,9 @@ export async function decideApproval(
         // an owner can only decide requests stored as owner-approvable; the caller enforces the
         // effective (stricter of stored and current policy) class before calling
         i.actorRole === 'owner' ? eq(approval_requests.required_approver, 'owner') : sql`1 = 1`,
-        grantLive
+        grantLive,
+        userActive,
+        clientActive
       )
     )
     .returning()) as any[];
@@ -436,4 +450,89 @@ export async function recentDenialTimes(
     .filter(Boolean)
     .sort()
     .reverse();
+}
+
+// ===== Queue reads (admin/user approvals API) =====
+
+export interface ApprovalListFilter {
+  /** Restrict to one user's requests (the user API); omitted for the admin API. */
+  userId?: string;
+  status?: ApprovalStatusValue;
+  mcpId?: string;
+  /** Keyset cursor: rows strictly after this (created_at, approval_id) in newest-first order. */
+  after?: { createdAt: string; approvalId: string } | null;
+  limit: number;
+}
+
+/** Newest first. Never selects more than `limit` rows; callers ask for limit+1 to detect a next page. */
+export async function listApprovalRequests(
+  db: DatabaseClient,
+  f: ApprovalListFilter
+): Promise<ApprovalRequestRecord[]> {
+  const cond: SQL[] = [];
+  if (f.userId) cond.push(eq(approval_requests.user_id, f.userId));
+  if (f.status) cond.push(eq(approval_requests.status, f.status));
+  if (f.mcpId) cond.push(eq(approval_requests.mcp_id, f.mcpId));
+  if (f.after) {
+    const c = or(
+      lt(approval_requests.created_at, f.after.createdAt),
+      and(
+        eq(approval_requests.created_at, f.after.createdAt),
+        lt(approval_requests.approval_id, f.after.approvalId)
+      )
+    );
+    if (c) cond.push(c);
+  }
+  const q = compatSelect(db).from(approval_requests);
+  const rows = (await (cond.length ? q.where(and(...cond)) : q)
+    .orderBy(desc(approval_requests.created_at), desc(approval_requests.approval_id))
+    .limit(f.limit)) as any[];
+  return rows.map(toRequest);
+}
+
+/** Pending requests that can still be decided (not yet past their deadline). Drives the SPA badge. */
+export async function countPendingApprovals(
+  db: DatabaseClient,
+  now: string,
+  userId?: string
+): Promise<number> {
+  const cond: SQL[] = [
+    eq(approval_requests.status, 'pending'),
+    gt(approval_requests.expires_at, now),
+  ];
+  if (userId) cond.push(eq(approval_requests.user_id, userId));
+  const [r] = (await compatSelect(db, { n: sql<number>`count(*)` })
+    .from(approval_requests)
+    .where(and(...cond))) as any[];
+  return Number(r?.n ?? 0);
+}
+
+/** Display names for list rows: MCP name and grant label by id (missing ids map to ''). */
+export async function getApprovalDisplayNames(
+  db: DatabaseClient,
+  rows: ApprovalRequestRecord[]
+): Promise<{ mcpNames: Map<string, string>; grantLabels: Map<string, string> }> {
+  const mcpIds = [...new Set(rows.map(r => r.mcp_id))];
+  const grantIds = [...new Set(rows.map(r => r.grant_id))];
+  const mcpNames = new Map<string, string>();
+  const grantLabels = new Map<string, string>();
+  if (mcpIds.length) {
+    const m = (await compatSelect(db, {
+      id: mcp_catalog.mcp_id,
+      name: mcp_catalog.name,
+    })
+      .from(mcp_catalog)
+      .where(inArray(mcp_catalog.mcp_id, mcpIds))) as Array<{ id: string; name: string }>;
+    for (const x of m) mcpNames.set(x.id, x.name);
+  }
+  if (grantIds.length) {
+    const g = (await compatSelect(db, {
+      id: agent_grants.grant_id,
+      label: agent_grants.label,
+    })
+      .from(agent_grants)
+      .where(inArray(agent_grants.grant_id, grantIds))) as Array<{ id: string; label: string }>;
+    for (const x of g) grantLabels.set(x.id, x.label);
+  }
+  return { mcpNames, grantLabels };
 }

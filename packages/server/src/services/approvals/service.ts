@@ -307,6 +307,26 @@ export class ApprovalService {
 
   // ===== Decide =====
 
+  /** The class that may decide a request: the stricter of what it stored and the current policy. */
+  async effectiveApprover(
+    req: Pick<ApprovalRequestRecord, 'mcp_id' | 'tool_name' | 'required_approver'>
+  ): Promise<Approver> {
+    const policy = await this.evaluate(req.mcp_id, req.tool_name);
+    return policy.requires_approval
+      ? stricterApprover(req.required_approver, policy.approver)
+      : req.required_approver;
+  }
+
+  /** Current time per the service clock (routes use it so tests control expiry). */
+  now(): Date {
+    return this.clock();
+  }
+
+  /** Audit passthrough for the API layer (credential refusals, failed reauth). Ids/hashes only. */
+  emit(action: string, meta: Record<string, unknown>): void {
+    this.audit(action, meta);
+  }
+
   /**
    * Approve or deny. The caller has already established the credential (SPA session + CSRF), the
    * visibility of the request and, for admin-required requests, step-up. This enforces the required
@@ -325,10 +345,7 @@ export class ApprovalService {
     const cur = await getApprovalRequest(this.db, i.approvalId);
     if (!cur) return { kind: 'not_found' };
 
-    const policy = await this.evaluate(cur.mcp_id, cur.tool_name);
-    const effective = policy.requires_approval
-      ? stricterApprover(cur.required_approver, policy.approver)
-      : cur.required_approver;
+    const effective = await this.effectiveApprover(cur);
     if (i.actorRole !== effective) return { kind: 'forbidden_role' };
 
     const selfApproved = i.actorRole === 'admin' && i.actorUserId === cur.user_id;
@@ -413,7 +430,7 @@ export class ApprovalService {
       !i.callerBoundClientId ||
       row.bound_client_id !== i.callerBoundClientId
     ) {
-      return reject('wrong_grant', 'client_suspended');
+      return reject('wrong_grant', 'client_mismatch');
     }
     if (row.pin_hash !== i.currentPinHash)
       return reject('definition_changed', 'definition_changed');

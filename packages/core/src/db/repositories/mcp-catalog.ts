@@ -194,7 +194,7 @@ export async function updateMcpEntry(
  */
 export async function deleteMcpEntry(db: DatabaseClient, mcp_id: string): Promise<void> {
   // ADR-023: void (and let the server audit) open approval requests before the cascade removes them
-  await voidApprovalsForLifecycle(db, { mcpId: mcp_id }, 'policy_removed');
+  await voidApprovalsForLifecycle(db, { mcpId: mcp_id }, 'mcp_deleted');
   await compatDelete(db, mcp_catalog).where(eq(mcp_catalog.mcp_id, mcp_id));
   log.info({ mcp_id }, 'MCP entry deleted');
 }
