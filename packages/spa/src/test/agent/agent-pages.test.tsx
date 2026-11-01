@@ -9,7 +9,7 @@ import { server } from '../mocks/server';
 import { OAuthConsent } from '../../pages/OAuthConsent';
 import { AgentAccess } from '../../pages/AgentAccess';
 import { AgentEndpoint } from '../../pages/admin/AgentEndpoint';
-import { returnToPath } from '../../lib/return-to';
+import { returnToPath, safeRedirectUrl } from '../../lib/return-to';
 import { grantStatus, parseToolAllowlist, ttlOptions } from '../../api/agent-types';
 
 function renderAt(ui: React.ReactElement, route: string) {
@@ -58,6 +58,16 @@ describe('helpers', () => {
     expect(returnToPath({ from: { pathname: '//evil.com' } })).toBe('/app/dashboard');
     expect(returnToPath({ from: { pathname: '/login' } })).toBe('/app/dashboard');
     expect(returnToPath(null)).toBe('/app/dashboard');
+  });
+  it('safeRedirectUrl allows https and loopback http only', () => {
+    expect(safeRedirectUrl('https://agent.example/cb?code=1')).not.toBeNull();
+    expect(safeRedirectUrl('http://127.0.0.1:8123/cb')).not.toBeNull();
+    expect(safeRedirectUrl('http://localhost:9/cb')).not.toBeNull();
+    expect(safeRedirectUrl('http://[::1]:9/cb')).not.toBeNull();
+    expect(safeRedirectUrl('http://evil.example/cb')).toBeNull();
+    expect(safeRedirectUrl('javascript:alert(1)')).toBeNull();
+    expect(safeRedirectUrl('myapp://cb')).toBeNull();
+    expect(safeRedirectUrl('not a url')).toBeNull();
   });
   it('parses allowlists, statuses and ttl options', () => {
     expect(parseToolAllowlist(' a.b,\n c.d\na.b ')).toEqual(['a.b', 'c.d']);
@@ -146,6 +156,23 @@ describe('OAuthConsent', () => {
       '/app/clients'
     );
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+
+  it('refuses to navigate to a disallowed redirect_url and shows the host', async () => {
+    server.use(
+      http.get('/v1/oauth/consent/r1', () =>
+        ok({ ...details, redirect_uri_host: 'agent.example' })
+      ),
+      http.post('/v1/oauth/consent/r1', () => ok({ redirect_url: 'javascript:alert(1)' }))
+    );
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    expect(await screen.findByText('agent.example')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText(/redirect address that is not allowed/)).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it('deny sends no scopes', async () => {

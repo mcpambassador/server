@@ -11,6 +11,7 @@ import { Select } from '@/components/catalyst/select';
 import { Input } from '@/components/catalyst/input';
 import { Textarea } from '@/components/catalyst/textarea';
 import { Logomark } from '@/components/brand/Logomark';
+import { safeRedirectUrl } from '@/lib/return-to';
 import { ApiError } from '@/api/client';
 import { useConsentDetails, useSubmitConsent } from '@/api/hooks/use-agent';
 import { parseToolAllowlist, ttlOptions, formatDuration } from '@/api/agent-types';
@@ -84,8 +85,15 @@ export function OAuthConsent() {
         ttl_seconds: Math.min(Math.max(effectiveTtl, 60), details.max_ttl_seconds),
         label: decision === 'approve' && label.trim() ? label.trim() : undefined,
       });
+      const target = safeRedirectUrl(res.redirect_url);
+      if (!target) {
+        setSubmitError(
+          'The agent supplied a redirect address that is not allowed, so you were not sent back. Your choice was recorded; return to the agent manually.'
+        );
+        return;
+      }
       setRedirecting(true);
-      window.location.assign(res.redirect_url);
+      window.location.assign(target.toString());
     } catch (err) {
       setSubmitError(errorMessage(err));
     }
@@ -103,6 +111,7 @@ export function OAuthConsent() {
   } else if (error || !details) {
     body = <Text role="alert">{errorMessage(error)}</Text>;
   } else {
+    const redirectHost = (details as { redirect_uri_host?: string }).redirect_uri_host;
     const noClients = clients.length === 0;
     const noSubs = availableSubs.length === 0;
     body = (
@@ -120,6 +129,12 @@ export function OAuthConsent() {
             )}
           </div>
         </div>
+
+        {redirectHost && (
+          <Text>
+            After you decide, you will be sent back to <strong>{redirectHost}</strong>.
+          </Text>
+        )}
 
         {!details.client_verified && (
           <div

@@ -8,3 +8,21 @@ export function returnToPath(state: unknown): string {
   }
   return '/app/dashboard';
 }
+
+/**
+ * Defense in depth before navigating to an OAuth redirect_url: only https:, or http: on a
+ * loopback host (native/CLI agents). Returns the parsed URL, or null if it must not be followed.
+ */
+export function safeRedirectUrl(raw: string): URL | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol === 'https:') return url;
+  if (url.protocol === 'http:' && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname)) {
+    return url;
+  }
+  return null;
+}

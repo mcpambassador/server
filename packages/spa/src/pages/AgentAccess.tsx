@@ -156,8 +156,9 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <>
             <DialogTitle>Create one-shot grant</DialogTitle>
             <DialogDescription>
-              For CI and headless agents that cannot complete a browser sign-in. No refresh token is
-              issued.
+              For CI and headless agents that cannot complete a browser sign-in. The token works
+              until the lifetime you choose below and is not renewable: no refresh token is issued,
+              so create a new grant when it expires.
             </DialogDescription>
             {!clientsLoading && clients.length === 0 ? (
               <div role="alert" className="mt-4 space-y-2">
