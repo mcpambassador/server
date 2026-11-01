@@ -11,7 +11,12 @@ import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
-import { useAdminClients, useAdminMcps, useKillSwitch } from '@/api/hooks/use-admin';
+import {
+  useAdminClients,
+  useAdminMcps,
+  useKillSwitch,
+  useKillSwitches,
+} from '@/api/hooks/use-admin';
 import type { AdminClient } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -20,15 +25,25 @@ export function KillSwitches() {
   usePageTitle('Admin - Kill Switches');
   const { data: clientsData, isLoading: clientsLoading } = useAdminClients();
   const { data: mcpsData, isLoading: mcpsLoading } = useAdminMcps();
+  const {
+    data: switchesData,
+    isLoading: switchesLoading,
+    isError: switchesError,
+  } = useKillSwitches();
   const killSwitch = useKillSwitch();
 
+  // Kill-switch state comes ONLY from the server's active list; client/MCP status is unrelated.
+  const activeKeys = new Set((switchesData ?? []).filter(s => s.active).map(s => s.key));
+  const switchStateKnown = !switchesLoading && !switchesError;
+
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  // enabled === true means "activate the kill switch" (block); false means "restore access".
   const [selectedTarget, setSelectedTarget] = useState<{ target: string; enabled: boolean } | null>(
     null
   );
 
-  const handleToggle = (target: string, currentlyEnabled: boolean) => {
-    setSelectedTarget({ target, enabled: !currentlyEnabled });
+  const handleToggle = (target: string, currentlyKilled: boolean) => {
+    setSelectedTarget({ target, enabled: !currentlyKilled });
     setConfirmDialogOpen(true);
   };
 
@@ -56,6 +71,15 @@ export function KillSwitches() {
         <Text>Emergency controls to disable clients or MCPs</Text>
       </div>
 
+      {switchesError && (
+        <div
+          role="alert"
+          className="rounded-lg bg-amber-50 dark:bg-amber-950/50 p-4 text-sm/6 text-amber-800 dark:text-amber-200 ring-1 ring-amber-200 dark:ring-amber-800"
+        >
+          Could not load kill-switch state, so controls are disabled. Reload to retry.
+        </div>
+      )}
+
       {/* Warning Banner */}
       <div className="rounded-lg bg-red-50 dark:bg-red-950/50 p-4 ring-1 ring-red-200 dark:ring-red-800">
         <div className="flex items-center gap-2">
@@ -64,7 +88,7 @@ export function KillSwitches() {
         </div>
         <p className="mt-1 text-sm/6 text-red-700 dark:text-red-300">
           Kill switches immediately disable access. Use with caution. Disabled entities will not be
-          able to make requests until re-enabled.
+          able to make requests until restored.
         </p>
       </div>
 
@@ -106,14 +130,21 @@ export function KillSwitches() {
                     <Badge color={client.status === 'active' ? 'green' : 'zinc'}>
                       {client.status}
                     </Badge>
+                    {activeKeys.has(`client:${client.client_id}`) && (
+                      <Badge color="red">Kill switch active</Badge>
+                    )}
                     <Button
-                      color={client.status === 'active' ? 'red' : 'green'}
+                      color={activeKeys.has(`client:${client.client_id}`) ? 'green' : 'red'}
+                      disabled={!switchStateKnown}
                       onClick={() =>
-                        handleToggle(`client:${client.client_id}`, client.status === 'active')
+                        handleToggle(
+                          `client:${client.client_id}`,
+                          activeKeys.has(`client:${client.client_id}`)
+                        )
                       }
                     >
                       <PowerIcon data-slot="icon" />
-                      {client.status === 'active' ? 'Disable' : 'Enable'}
+                      {activeKeys.has(`client:${client.client_id}`) ? 'Restore' : 'Kill'}
                     </Button>
                   </div>
                 </div>
@@ -177,13 +208,18 @@ export function KillSwitches() {
                     >
                       {mcp.status}
                     </Badge>
+                    {activeKeys.has(`mcp:${mcp.name}`) && (
+                      <Badge color="red">Kill switch active</Badge>
+                    )}
                     <Button
-                      color={mcp.status === 'published' ? 'red' : 'green'}
-                      onClick={() => handleToggle(`mcp:${mcp.name}`, mcp.status === 'published')}
-                      disabled={mcp.status === 'archived'}
+                      color={activeKeys.has(`mcp:${mcp.name}`) ? 'green' : 'red'}
+                      onClick={() =>
+                        handleToggle(`mcp:${mcp.name}`, activeKeys.has(`mcp:${mcp.name}`))
+                      }
+                      disabled={!switchStateKnown}
                     >
                       <PowerIcon data-slot="icon" />
-                      {mcp.status === 'published' ? 'Disable' : 'Enable'}
+                      {activeKeys.has(`mcp:${mcp.name}`) ? 'Restore' : 'Kill'}
                     </Button>
                   </div>
                 </div>
@@ -202,12 +238,13 @@ export function KillSwitches() {
       {/* Confirmation Dialog */}
       <Alert open={confirmDialogOpen} onClose={setConfirmDialogOpen}>
         <AlertTitle>
-          {selectedTarget?.enabled ? 'Disable' : 'Enable'} {selectedTarget?.target}?
+          {selectedTarget?.enabled ? 'Activate kill switch for' : 'Restore access for'}{' '}
+          {selectedTarget?.target}?
         </AlertTitle>
         <AlertDescription>
           {selectedTarget?.enabled
             ? 'This will immediately block all requests from this entity. Active connections may be terminated.'
-            : 'This will re-enable access for this entity.'}
+            : 'This will deactivate the kill switch and restore access for this entity.'}
         </AlertDescription>
         <AlertActions>
           <Button
@@ -220,7 +257,7 @@ export function KillSwitches() {
             Cancel
           </Button>
           <Button color={selectedTarget?.enabled ? 'red' : 'green'} onClick={handleConfirm}>
-            {selectedTarget?.enabled ? 'Disable' : 'Enable'}
+            {selectedTarget?.enabled ? 'Activate kill switch' : 'Restore access'}
           </Button>
         </AlertActions>
       </Alert>

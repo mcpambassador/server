@@ -297,6 +297,12 @@ export interface DownstreamStatus {
   }>;
 }
 
+/** One entry from GET /v1/admin/kill-switches (KillSwitchManager.getAll). Key is `client:<id>` or `mcp:<name>`. */
+export interface KillSwitchEntry {
+  key: string;
+  active: boolean;
+}
+
 export interface KillSwitchResponse {
   target: string;
   enabled: boolean;
