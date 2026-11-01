@@ -59,8 +59,8 @@ export function KillSwitches() {
         target: selectedTarget.target,
         enabled: selectedTarget.enabled,
       });
+      // Keep selectedTarget so the dialog text doesn't blank while it fades out
       setConfirmDialogOpen(false);
-      setSelectedTarget(null);
     } catch (error) {
       toast.error('Kill switch failed', {
         description: (error as Error)?.message ?? String(error),
@@ -303,7 +303,6 @@ export function KillSwitches() {
             plain
             onClick={() => {
               setConfirmDialogOpen(false);
-              setSelectedTarget(null);
             }}
           >
             Cancel
