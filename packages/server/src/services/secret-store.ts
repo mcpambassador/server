@@ -65,12 +65,19 @@ export class SecretStore {
    */
   assertOAuthConfig(oauth: {
     client_secret_env: string;
+    client_id_env?: string;
     token_url: string;
     auth_url?: string;
     revocation_url?: string;
   }): void {
     if (oauth.auth_url !== undefined && !/^https:\/\//i.test(oauth.auth_url)) {
       throw new OAuthConfigError('auth_url must use https');
+    }
+    if (
+      oauth.client_id_env !== undefined &&
+      !/^[A-Z][A-Z0-9_]*_CLIENT_ID$/.test(oauth.client_id_env)
+    ) {
+      throw new OAuthConfigError('client_id_env must end with _CLIENT_ID');
     }
     this.assertBinding(oauth.client_secret_env, oauth.token_url);
     if (oauth.revocation_url) this.assertBinding(oauth.client_secret_env, oauth.revocation_url);
