@@ -672,6 +672,113 @@ export const oauth_states = sqliteTable(
 );
 
 /**
+ * ADR-020 remote agent endpoint tables. Tokens/codes stored as SHA-256 hashes only.
+ */
+export const oauth_clients = sqliteTable('oauth_clients', {
+  client_id: text('client_id').primaryKey().notNull(),
+  client_name: text('client_name').notNull(),
+  /** JSON array of exact-match redirect URIs */
+  redirect_uris: text('redirect_uris').notNull(),
+  registered_via: text('registered_via', { enum: ['admin', 'dcr'] }).notNull(),
+  created_at: text('created_at').notNull(),
+  last_used_at: text('last_used_at'),
+  disabled: integer('disabled', { mode: 'boolean' }).notNull().default(false),
+});
+
+export const oauth_pending_requests = sqliteTable(
+  'oauth_pending_requests',
+  {
+    request_id: text('request_id').primaryKey().notNull(),
+    user_id: text('user_id').references(() => users.user_id, { onDelete: 'cascade' }),
+    client_id: text('client_id')
+      .notNull()
+      .references(() => oauth_clients.client_id, { onDelete: 'cascade' }),
+    redirect_uri: text('redirect_uri').notNull(),
+    code_challenge: text('code_challenge').notNull(),
+    requested_scopes: text('requested_scopes').notNull(),
+    resource: text('resource').notNull(),
+    state: text('state'),
+    expires_at: text('expires_at').notNull(),
+    used_at: text('used_at'),
+  },
+  table => ({
+    expiresIdx: index('idx_oauth_pending_expires_at').on(table.expires_at),
+  })
+);
+
+export const oauth_auth_codes = sqliteTable(
+  'oauth_auth_codes',
+  {
+    code_hash: text('code_hash').primaryKey().notNull(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade' }),
+    client_id: text('client_id')
+      .notNull()
+      .references(() => oauth_clients.client_id, { onDelete: 'cascade' }),
+    redirect_uri: text('redirect_uri').notNull(),
+    code_challenge: text('code_challenge').notNull(),
+    scopes: text('scopes').notNull(),
+    tool_allowlist: text('tool_allowlist'),
+    resource: text('resource').notNull(),
+    label: text('label'),
+    ttl_seconds: integer('ttl_seconds'),
+    expires_at: text('expires_at').notNull(),
+    used_at: text('used_at'),
+  },
+  table => ({
+    expiresIdx: index('idx_oauth_auth_codes_expires_at').on(table.expires_at),
+  })
+);
+
+export const agent_grants = sqliteTable(
+  'agent_grants',
+  {
+    grant_id: text('grant_id').primaryKey().notNull(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.user_id, { onDelete: 'cascade' }),
+    client_id: text('client_id').references(() => oauth_clients.client_id, {
+      onDelete: 'set null',
+    }),
+    label: text('label').notNull(),
+    scopes: text('scopes').notNull(),
+    tool_allowlist: text('tool_allowlist'),
+    resource: text('resource').notNull(),
+    created_at: text('created_at').notNull(),
+    expires_at: text('expires_at').notNull(),
+    last_used_at: text('last_used_at'),
+    revoked_at: text('revoked_at'),
+    revoked_by: text('revoked_by'),
+  },
+  table => ({
+    userIdx: index('idx_agent_grants_user_id').on(table.user_id),
+    expiresIdx: index('idx_agent_grants_expires_at').on(table.expires_at),
+  })
+);
+
+export const agent_tokens = sqliteTable(
+  'agent_tokens',
+  {
+    token_hash: text('token_hash').primaryKey().notNull(),
+    kind: text('kind', { enum: ['access', 'refresh'] }).notNull(),
+    grant_id: text('grant_id')
+      .notNull()
+      .references(() => agent_grants.grant_id, { onDelete: 'cascade' }),
+    family_id: text('family_id'),
+    expires_at: text('expires_at').notNull(),
+    used_at: text('used_at'),
+    revoked_at: text('revoked_at'),
+    created_at: text('created_at').notNull(),
+  },
+  table => ({
+    grantIdx: index('idx_agent_tokens_grant_id').on(table.grant_id),
+    familyIdx: index('idx_agent_tokens_family_id').on(table.family_id),
+    expiresIdx: index('idx_agent_tokens_expires_at').on(table.expires_at),
+  })
+);
+
+/**
  * Drizzle relations (for ORM query joins)
  */
 export const usersRelations = relations(users, ({ many }) => ({
