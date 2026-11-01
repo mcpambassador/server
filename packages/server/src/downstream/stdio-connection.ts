@@ -31,6 +31,13 @@ export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 
  * - Injects credentials from resolved secrets
  * - Handles process lifecycle (spawn, health check, cleanup)
  */
+// A flag whose name looks secret (`--api-key VALUE`) carries the secret in the NEXT argv element
+const SECRET_FLAG_RE = /^--?[\w-]*(key|token|secret|password|passwd|auth|credential)[\w-]*$/i;
+
+function redactSecretFlagValues(args: string[]): string[] {
+  return args.map((a, i) => (i > 0 && SECRET_FLAG_RE.test(args[i - 1]!) ? '***' : a));
+}
+
 export class StdioMcpConnection extends EventEmitter {
   // F-SEC-M6-003: Buffer size limits to prevent OOM
   private static readonly MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
@@ -97,7 +104,7 @@ export class StdioMcpConnection extends EventEmitter {
     // F-SEC-M6-001: Log spawned command for auditability
     logger.warn(
       redactSecretsInString(
-        `[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`,
+        `[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${redactSecretFlagValues(args).join(' ')}`,
         this.secretValues
       )
     );

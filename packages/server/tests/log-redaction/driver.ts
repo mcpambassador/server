@@ -106,20 +106,32 @@ async function stdioScenarios(): Promise<void> {
 const H = ${JSON.stringify(hostile('se'))};
 console.error(H);
 console.error('line two ' + H);
-// very long line with a credential deep inside
-console.error('x'.repeat(90000) + ' amb_pk_${N}longcore ' + 'y'.repeat(20000));
-// secrets split across stderr chunks (written after the long line so the halves stay on one line) (write boundary inside the credential)
+// secrets split across stderr chunks (write boundary inside the credential)
 process.stderr.write('before amb_pk_${N}splitA');
 setTimeout(() => process.stderr.write('splitB${N}splittail end\\n'), 150);
 setTimeout(() => process.stderr.write('Bearer ${N}bsplitA'), 300);
 setTimeout(() => process.stderr.write('bsplitB${N}bsplittail\\n'), 450);
+// PEM block split across chunks
+process.stderr.write('-----BEGIN PRIVATE KEY-----\n${N}pemA');
+setTimeout(() => process.stderr.write('${N}pemB\nMIIE${N}pemline2\n-----END PRIVATE KEY-----\n'), 200);
+// malformed JSON on stdout carrying credentials (parse-error logging)
+process.stdout.write('{"result": {bad json amb_pk_${N}jsoncore Bearer ${N}jsonbearer\n');
+// very long line with a credential deep inside
+console.error('x'.repeat(90000) + ' amb_pk_${N}longcore ' + 'y'.repeat(20000));
 setTimeout(() => process.exit(3), 800);
 `
   );
   const c = new StdioMcpConnection({
     name: 'stdio-noisy',
     transport: 'stdio',
-    command: ['node', script],
+    command: [
+      'node',
+      script,
+      `--token=${N}argtoken`,
+      '--api-key',
+      `${N}argkey`,
+      `--url=https://u:${N}argurlpass@h.example/x`,
+    ],
     timeout_ms: 2500,
   } as never);
   connections.set('stdio-noisy', c);

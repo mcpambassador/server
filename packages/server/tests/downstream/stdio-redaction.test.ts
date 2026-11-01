@@ -13,7 +13,7 @@ vi.mock('child_process', async orig => ({
 afterEach(() => vi.restoreAllMocks());
 
 /** Start a connection against a fake child that answers the handshake; returns handles */
-async function startWithFakeChild(env: Record<string, string>) {
+async function startWithFakeChild(env: Record<string, string>, extraArgs: string[] = []) {
   const stdout = new EventEmitter();
   const stderr = new EventEmitter();
   vi.mocked(spawn).mockImplementation(() => {
@@ -60,7 +60,7 @@ async function startWithFakeChild(env: Record<string, string>) {
     makeMcpConfig({
       transport: 'stdio',
       env,
-      command: ['node', 'srv.js', '--key', env['API_KEY']!],
+      command: ['node', 'srv.js', '--key', env['API_KEY']!, ...extraArgs],
     }) as never
   );
   await conn.start();
@@ -72,6 +72,20 @@ describe('StdioMcpConnection output redaction (TD-028)', () => {
   it('spawn log line scrubs config.env values appearing in the command', async () => {
     const { conn, logs } = await startWithFakeChild({ API_KEY: 'canary-vault-secret-001' });
     expect(logs.join('\n')).not.toContain('canary-vault-secret-001');
+    await conn.stop();
+  });
+
+  it('spawn log masks the value after a secret-looking flag, even if not in config.env', async () => {
+    const { conn, logs } = await startWithFakeChild({ API_KEY: 'canary-vault-secret-001' }, [
+      '--api-key',
+      'literal-flag-secret-xyz789',
+      '--verbose',
+      '--region',
+      'eu-west-1',
+    ]);
+    const out = logs.join('\n');
+    expect(out).not.toContain('literal-flag-secret-xyz789');
+    expect(out).toContain('eu-west-1');
     await conn.stop();
   });
 
