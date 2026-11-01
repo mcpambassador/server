@@ -101,7 +101,7 @@ describe('audit lifecycle events + no token leakage', () => {
     }
     s = await startAgentTestServer(agentEndpointOpts());
     alice = await loginSession(s, await createUser(s, 'alice'));
-    clientId = await registerAdminClient(s).catch(() => '');
+    clientId = await registerAdminClient(s);
   });
   afterAll(async () => {
     await stopAgentTestServer(s);
@@ -122,14 +122,14 @@ describe('audit lifecycle events + no token leakage', () => {
     return { access: b.access_token, refreshTok: b.refresh_token };
   }
 
-  itImpl('client registration, grant + token issue are audited', async () => {
+  it('client registration, grant + token issue are audited', async () => {
     await issue();
     await waitForAudit(s, 'oauth_client_registered');
     await waitForAudit(s, 'agent_grant_created');
     await waitForAudit(s, 'agent_token_issued');
   });
 
-  itImpl('refresh and revoke are audited', async () => {
+  it('refresh and revoke are audited', async () => {
     const t = await issue();
     const r = JSON.parse(
       (await refresh(s, { client_id: clientId, refresh_token: t.refreshTok })).body
@@ -140,14 +140,14 @@ describe('audit lifecycle events + no token leakage', () => {
     await waitForAudit(s, 'agent_token_revoked');
   });
 
-  itImpl('refresh-token reuse is audited as agent_refresh_reuse_detected', async () => {
+  it('refresh-token reuse is audited as agent_refresh_reuse_detected', async () => {
     const t = await issue();
     await refresh(s, { client_id: clientId, refresh_token: t.refreshTok });
     await refresh(s, { client_id: clientId, refresh_token: t.refreshTok });
     await waitForAudit(s, 'agent_refresh_reuse_detected');
   });
 
-  itImpl('grant revoke and client disable are audited', async () => {
+  it('grant revoke and client disable are audited', async () => {
     const created = await alice.request({
       method: 'POST',
       url: AGENT_GRANTS_ROUTE,

@@ -33,7 +33,7 @@ beforeAll(async () => {
   s = await startAgentTestServer(agentEndpointOpts());
   alice = await loginSession(s, await createUser(s, 'alice'));
   bob = await loginSession(s, await createUser(s, 'bob'));
-  oauthClient = await registerAdminClient(s).catch(() => '');
+  oauthClient = await registerAdminClient(s);
 });
 afterAll(async () => {
   await stopAgentTestServer(s);
@@ -71,7 +71,7 @@ const mcpCall = (token: string) =>
   });
 
 describe('consent: bound_client_id', () => {
-  itImpl('GET consent lists only the user’s own ACTIVE clients', async () => {
+  it('GET consent lists only the user’s own ACTIVE clients', async () => {
     const mine = await createAmbClient(alice, 'mine');
     const suspended = await createAmbClient(alice, 'suspended');
     await alice.request({
@@ -90,12 +90,12 @@ describe('consent: bound_client_id', () => {
     expect(ids).not.toContain(theirs);
   });
 
-  itImpl('approve without bound_client_id → 400', async () => {
+  it('approve without bound_client_id → 400', async () => {
     const { requestId } = await pending(alice);
     expect((await approve(alice, requestId, {})).statusCode).toBe(400);
   });
 
-  itImpl("approve with another user's client → 400/403, request not consumed", async () => {
+  it("approve with another user's client → 400/403, request not consumed", async () => {
     const theirs = await createAmbClient(bob, 'bobs');
     const { requestId } = await pending(alice);
     const res = await approve(alice, requestId, { bound_client_id: theirs });
@@ -105,7 +105,7 @@ describe('consent: bound_client_id', () => {
     expect((await approve(alice, requestId, { bound_client_id: mine })).statusCode).toBe(200);
   });
 
-  itImpl('approve with a suspended or nonexistent client → 400/403', async () => {
+  it('approve with a suspended or nonexistent client → 400/403', async () => {
     const c = await createAmbClient(alice, 'to-suspend');
     await alice.request({
       method: 'PATCH',
@@ -122,7 +122,7 @@ describe('consent: bound_client_id', () => {
     );
   });
 
-  itImpl('scope outside the bound client’s subscriptions → 400', async () => {
+  it('scope outside the bound client’s subscriptions → 400', async () => {
     const c = await createAmbClient(alice, 'no-subs');
     const { requestId } = await pending(alice);
     const res = await approve(alice, requestId, {
@@ -132,7 +132,7 @@ describe('consent: bound_client_id', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl('deny does not require bound_client_id', async () => {
+  it('deny does not require bound_client_id', async () => {
     const { requestId } = await pending(alice);
     const res = await decide(alice, requestId, { decision: 'deny', scopes: [], ttl_seconds: 60 });
     expect(res.statusCode).toBe(200);
@@ -223,7 +223,7 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
     expect(g!.revoked_at).toBeTruthy();
   });
 
-  itImpl('refresh for a grant whose client was suspended fails', async () => {
+  it('refresh for a grant whose client was suspended fails', async () => {
     const c = await createAmbClient(alice, 'refresh-susp');
     const { requestId, verifier } = await pending(alice);
     const { code } = await approveAndGetCode(alice, requestId, { bound_client_id: c });

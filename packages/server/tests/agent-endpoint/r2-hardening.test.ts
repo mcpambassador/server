@@ -70,38 +70,35 @@ describe('redirect_uri validation', () => {
       payload: { client_name: 'r', redirect_uris: [uri] },
     });
 
-  itImpl.each(BAD_URIS)('DCR rejects %s', async (_n, uri) => {
+  it.each(BAD_URIS)('DCR rejects %s', async (_n, uri) => {
     const res = await dcr(uri);
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toBe('invalid_redirect_uri');
   });
 
-  itImpl.each(BAD_URIS)('admin client-create rejects %s', async (_n, uri) => {
+  it.each(BAD_URIS)('admin client-create rejects %s', async (_n, uri) => {
     await expect(registerAdminClient(s, { redirect_uris: [uri] })).rejects.toThrow(/ 400 /);
   });
 
-  itImpl.each(GOOD_URIS.map(u => [u]))('admin client-create accepts %s', async uri => {
+  it.each(GOOD_URIS.map(u => [u]))('admin client-create accepts %s', async uri => {
     await expect(registerAdminClient(s, { redirect_uris: [uri] })).resolves.toBeTruthy();
   });
 
-  itImpl(
-    'authorize matches redirect_uri by exact string (no trailing slash / query / case drift)',
-    async () => {
-      const sess = await loginSession(s, await createUser(s, 'u1'));
-      const cid = await registerAdminClient(s);
-      const { challenge } = pkce();
-      for (const uri of [REDIRECT_URI + '/', REDIRECT_URI + '?x=1', REDIRECT_URI.toUpperCase()]) {
-        const res = await s.admin.inject({
-          method: 'GET',
-          url: authorizeUrl({ client_id: cid, code_challenge: challenge, redirect_uri: uri }),
-          headers: sess.headers(),
-        });
-        expect(res.statusCode, uri).toBeGreaterThanOrEqual(400);
-        expect(res.statusCode, uri).toBeLessThan(500);
-        expect(res.headers['location'], uri).toBeUndefined();
-      }
+  it('authorize matches redirect_uri by exact string (no trailing slash / query / case drift)', async () => {
+    const sess = await loginSession(s, await createUser(s, 'u1'));
+    const cid = await registerAdminClient(s);
+    const { challenge } = pkce();
+    for (const uri of [REDIRECT_URI + '/', REDIRECT_URI + '?x=1', REDIRECT_URI.toUpperCase()]) {
+      const res = await s.admin.inject({
+        method: 'GET',
+        url: authorizeUrl({ client_id: cid, code_challenge: challenge, redirect_uri: uri }),
+        headers: sess.headers(),
+      });
+      expect(res.statusCode, uri).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode, uri).toBeLessThan(500);
+      expect(res.headers['location'], uri).toBeUndefined();
     }
-  );
+  });
 });
 
 describe('races, cookie isolation, consent edge cases', () => {
@@ -111,40 +108,34 @@ describe('races, cookie isolation, consent edge cases', () => {
   beforeAll(async () => {
     s = await startAgentTestServer(agentEndpointOpts());
     alice = await loginSession(s, await createUser(s, 'alice'));
-    clientId = await registerAdminClient(s).catch(() => '');
+    clientId = await registerAdminClient(s);
   });
   afterAll(async () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl(
-    'concurrent double exchange of one code: exactly one 200, one invalid_grant, no 5xx',
-    async () => {
-      const { verifier, challenge } = pkce();
-      const { requestId } = await startAuthorize(s, alice, {
-        client_id: clientId,
-        code_challenge: challenge,
-      });
-      const { code } = await approveAndGetCode(alice, requestId);
-      const rs = await Promise.all(
-        [1, 2].map(() => exchangeCode(s, { client_id: clientId, code, verifier }))
-      );
-      expect(rs.map(r => r.statusCode).sort()).toEqual([200, 400]);
-      expect(JSON.parse(rs.find(r => r.statusCode === 400)!.body).error).toBe('invalid_grant');
-    }
-  );
+  it('concurrent double exchange of one code: exactly one 200, one invalid_grant, no 5xx', async () => {
+    const { verifier, challenge } = pkce();
+    const { requestId } = await startAuthorize(s, alice, {
+      client_id: clientId,
+      code_challenge: challenge,
+    });
+    const { code } = await approveAndGetCode(alice, requestId);
+    const rs = await Promise.all(
+      [1, 2].map(() => exchangeCode(s, { client_id: clientId, code, verifier }))
+    );
+    expect(rs.map(r => r.statusCode).sort()).toEqual([200, 400]);
+    expect(JSON.parse(rs.find(r => r.statusCode === 400)!.body).error).toBe('invalid_grant');
+  });
 
-  itImpl(
-    'concurrent double refresh of one token: exactly one 200, one invalid_grant, no 5xx',
-    async () => {
-      const t = await fullFlow(s, alice, clientId);
-      const rs = await Promise.all(
-        [1, 2].map(() => refresh(s, { client_id: clientId, refresh_token: t.refresh_token! }))
-      );
-      expect(rs.map(r => r.statusCode).sort()).toEqual([200, 400]);
-      expect(JSON.parse(rs.find(r => r.statusCode === 400)!.body).error).toBe('invalid_grant');
-    }
-  );
+  it('concurrent double refresh of one token: exactly one 200, one invalid_grant, no 5xx', async () => {
+    const t = await fullFlow(s, alice, clientId);
+    const rs = await Promise.all(
+      [1, 2].map(() => refresh(s, { client_id: clientId, refresh_token: t.refresh_token! }))
+    );
+    expect(rs.map(r => r.statusCode).sort()).toEqual([200, 400]);
+    expect(JSON.parse(rs.find(r => r.statusCode === 400)!.body).error).toBe('invalid_grant');
+  });
 
   itImpl(
     'a valid SPA session cookie grants nothing on /mcp, /oauth/*, /.well-known/oauth-*',
@@ -182,7 +173,7 @@ describe('races, cookie isolation, consent edge cases', () => {
     }
   );
 
-  itImpl('consent approve with zero scopes → 400', async () => {
+  it('consent approve with zero scopes → 400', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -197,7 +188,7 @@ describe('races, cookie isolation, consent edge cases', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl('ConsentDetails includes redirect_uri_host', async () => {
+  it('ConsentDetails includes redirect_uri_host', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
