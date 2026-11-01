@@ -270,6 +270,26 @@ describe('ToolReview truncation', () => {
     await waitFor(() => expect(posts).toHaveLength(1));
   });
 
+  it('does not deadlock on a 601-2000 character line: it is shown in full and Approve is enabled', async () => {
+    const user = userEvent.setup();
+    const posts = setup({
+      pending: [pin()],
+      detail: {
+        ...pin(),
+        approved_definition: null,
+        pending_definition: { name: 'create_issue', description: 'q'.repeat(800) },
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    await screen.findByTestId('pin-diff');
+    expect(screen.getByTestId('pin-diff').textContent).toContain('[line truncated');
+    expect(screen.getByTestId('pin-full').textContent).toContain('q'.repeat(800));
+    expect(screen.queryByRole('button', { name: /Show all/ })).toBeNull();
+    expect(screen.queryByTestId('truncation-warning')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+  });
+
   it('marks a diff cut at 400 lines', async () => {
     const user = userEvent.setup();
     const schema = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`k${i}`, i]));

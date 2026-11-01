@@ -215,7 +215,9 @@ function ReviewDialog({
     !oversize &&
     ((mode === 'pending' && (diff.hiddenLines > 0 || hasLongLine(diff.ops))) ||
       codePointLength(reviewText) > MAX_BLOCK_CHARS);
-  const needsFull = truncated && !fullSeen;
+  // The full text below the diff is only collapsed (and "Show all" only offered) above MAX_BLOCK_CHARS;
+  // a shorter text is already shown in full there, so nothing is left to expand.
+  const needsFull = truncated && codePointLength(reviewText) > MAX_BLOCK_CHARS && !fullSeen;
   const busy = approve.isPending || reject.isPending || confirm.isPending;
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
