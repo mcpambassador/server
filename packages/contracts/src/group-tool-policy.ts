@@ -35,7 +35,7 @@ const toolsField = z
 
 type PolicyShape = { tool_mode: GroupToolMode; tools: string[] };
 
-/** `all` carries no names; `allow` needs at least one (an empty allow list would hide the whole MCP). */
+/** `all` carries no names; `allow` and `deny` need at least one (empty allow hides the MCP; empty deny is just `all`). */
 function checkModeAndTools(v: PolicyShape, ctx: z.RefinementCtx): void {
   if (v.tool_mode === 'all' && v.tools.length > 0) {
     ctx.addIssue({
@@ -49,6 +49,14 @@ function checkModeAndTools(v: PolicyShape, ctx: z.RefinementCtx): void {
       code: 'custom',
       path: ['tools'],
       message: "tools must not be empty when tool_mode is 'allow'",
+    });
+  }
+  if (v.tool_mode === 'deny' && v.tools.length === 0) {
+    // deny{} grants every tool, which is exactly 'all'; one spelling keeps the policy unambiguous.
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tools'],
+      message: "use tool_mode 'all' to grant every tool",
     });
   }
 }

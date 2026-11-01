@@ -1,4 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ADMIN_GROUP_MCP_TOOLS_ROUTE,
+  ADMIN_MCP_KNOWN_TOOLS_ROUTE,
+  type GroupToolPolicy,
+  type GroupToolPolicyRequest,
+  type KnownMcpToolsResponse,
+} from '@mcpambassador/contracts';
 import { apiClient } from '../client';
 import type {
   AdminUser,
@@ -223,6 +230,51 @@ export function useAssignGroupMcp() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'groups', variables.groupId, 'mcps'] });
     },
+  });
+}
+
+/** ADR-025: replaces a grant's tool policy atomically. */
+export function usePutGroupToolPolicy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      mcpId,
+      policy,
+    }: {
+      groupId: string;
+      mcpId: string;
+      policy: GroupToolPolicyRequest;
+    }) =>
+      apiClient.put<GroupToolPolicy>(
+        ADMIN_GROUP_MCP_TOOLS_ROUTE.replace(':groupId', encodeURIComponent(groupId)).replace(
+          ':mcpId',
+          encodeURIComponent(mcpId)
+        ),
+        policy
+      ),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'groups', variables.groupId, 'mcps'] });
+      queryClient.invalidateQueries({
+        queryKey: ['admin', 'mcps', variables.mcpId, 'known-tools'],
+      });
+    },
+  });
+}
+
+/** Picker data for the policy editor: known tool names plus orphan rule names. Always fresh. */
+export function useKnownMcpTools(mcpId: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'mcps', mcpId, 'known-tools'],
+    queryFn: () =>
+      apiClient.get<KnownMcpToolsResponse>(
+        ADMIN_MCP_KNOWN_TOOLS_ROUTE.replace(':mcpId', encodeURIComponent(mcpId!))
+      ),
+    enabled: !!mcpId,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
   });
 }
 
