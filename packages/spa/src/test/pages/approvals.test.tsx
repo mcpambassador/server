@@ -596,10 +596,10 @@ describe('tool policy panel (admin)', () => {
   it('the MCP default also needs an explicit approver', async () => {
     const puts = setup();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Require approval for new tools' }));
-    const confirm = screen.getByRole('button', { name: 'Require for new tools' });
+    await user.click(await screen.findByRole('button', { name: 'Require approval by default' }));
+    const confirm = screen.getByRole('button', { name: 'Require by default' });
     expect(confirm).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText(/who approves new tools/i), 'owner');
+    await user.selectOptions(screen.getByLabelText(/who approves by default/i), 'owner');
     await user.click(confirm);
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]).toEqual({
