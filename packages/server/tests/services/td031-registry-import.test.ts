@@ -104,6 +104,20 @@ describe('registry import validation (TD-031)', () => {
     expect(r.success).toBe(false);
   });
 
+  it('reasons never echo received values or env var names', async () => {
+    const skipped = (await loaded()).getSkippedEntries();
+    const byName = Object.fromEntries(skipped.map(x => [x.name, x.reason]));
+    expect(byName['bad-transport']).toBe('transport_type: Invalid value');
+    expect(byName['bad-transport']).not.toContain('ftp');
+    for (const n of ['bad-host', 'bad-secret']) {
+      expect(byName[n]).toBe('oauth_config: secret binding rejected');
+    }
+    const all = JSON.stringify(skipped);
+    for (const leak of ['REGISTRY_TOKEN', 'GITHUB_OAUTH_CLIENT_SECRET', 'evil.example']) {
+      expect(all).not.toContain(leak);
+    }
+  });
+
   it('control characters in names are neutralised in the skip record', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

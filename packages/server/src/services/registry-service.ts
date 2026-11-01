@@ -13,6 +13,13 @@ export interface SkippedRegistryEntry {
   reason: string;
 }
 
+/** Same rule as the admin routes' safeIssueMessage: zod enum/literal messages echo the received value. */
+function safeIssueMessage(i: { code: string; message: string }): string {
+  return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
+    ? 'Invalid value'
+    : i.message;
+}
+
 /** Entry names and reasons come from remote input: strip control chars and bound the length. */
 function cleanForLog(v: unknown, max: number): string {
   return (
@@ -211,7 +218,7 @@ export class RegistryService {
     if (!r.success) {
       const issue = r.error.issues[0];
       return cleanForLog(
-        `${issue?.path.join('.') || 'entry'}: ${issue?.message ?? 'invalid'}`,
+        `${issue?.path.join('.') || 'entry'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`,
         200
       );
     }
@@ -226,7 +233,10 @@ export class RegistryService {
           revocation_url: oc.revocation_url,
         });
       } catch (e) {
-        return cleanForLog(`oauth_config: ${e instanceof Error ? e.message : 'rejected'}`, 200);
+        // No env var names or hosts in the reason (OAuthConfigError messages can name them)
+        return e instanceof OAuthConfigError
+          ? 'oauth_config: secret binding rejected'
+          : 'oauth_config: rejected';
       }
     }
     return null;
