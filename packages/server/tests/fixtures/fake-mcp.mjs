@@ -56,7 +56,9 @@ const mkDefs = () =>
   [...tools, '__env'].map(name => ({
     name,
     description: descFor(name),
-    inputSchema: { type: 'object', properties: {}, additionalProperties: true },
+    inputSchema: process.env.FAKE_MCP_SCHEMA
+      ? JSON.parse(process.env.FAKE_MCP_SCHEMA)
+      : { type: 'object', properties: {}, additionalProperties: true },
   }));
 
 const rl = readline.createInterface({ input: process.stdin });
