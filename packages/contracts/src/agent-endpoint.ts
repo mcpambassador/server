@@ -79,10 +79,34 @@ export interface AuthorizationServerMetadata {
 // stores a pending request and 302s to `${SPA_CONSENT_ROUTE}?request_id=…` (requires SPA login;
 // the SPA login flow returns to the same URL). Invalid client/redirect_uri => HTML/JSON error, NO redirect.
 
+/**
+ * redirect_uri policy (ADR-020 §5b, v1): https, or http on a loopback host (127.0.0.1, [::1],
+ * localhost; any port). No fragments. javascript:/data:/file:/custom (private-use) schemes are
+ * rejected. Matched by exact string at /oauth/authorize and /oauth/token.
+ */
+export function isAllowedRedirectUri(value: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(value);
+  } catch {
+    return false;
+  }
+  if (u.hash || value.includes('#')) return false;
+  if (u.username || u.password) return false;
+  if (u.protocol === 'https:') return true;
+  if (u.protocol === 'http:') {
+    return u.hostname === '127.0.0.1' || u.hostname === '[::1]' || u.hostname === 'localhost';
+  }
+  return false;
+}
+export const redirectUriSchema = z.string().max(2048).refine(isAllowedRedirectUri, {
+  message: 'redirect_uri must be https or http on a loopback host, without a fragment',
+});
+
 export const authorizeQuerySchema = z.object({
   response_type: z.literal('code'),
   client_id: z.string().min(1).max(128),
-  redirect_uri: z.string().url().max(2048),
+  redirect_uri: redirectUriSchema,
   code_challenge: z.string().min(43).max(128),
   code_challenge_method: z.literal('S256'),
   resource: z.string().url(),
@@ -104,6 +128,8 @@ export interface ConsentDetails {
   client_name: string;
   /** true only for admin-registered clients; false for DCR clients (SPA shows "unverified" warning) */
   client_verified: boolean;
+  /** Host (incl. port) the authorization code will be sent to; show it on the consent screen */
+  redirect_uri_host: string;
   requested_scopes: string[];
   /**
    * The user's ACTIVE Ambassador clients. A grant binds to exactly one of them (bound-client
@@ -133,6 +159,10 @@ export const consentDecisionSchema = z
   .refine(d => d.decision === 'deny' || !!d.bound_client_id, {
     message: 'bound_client_id is required when approving',
     path: ['bound_client_id'],
+  })
+  .refine(d => d.decision === 'deny' || d.scopes.length >= 1, {
+    message: 'At least one scope is required when approving',
+    path: ['scopes'],
   });
 export type ConsentDecision = z.infer<typeof consentDecisionSchema>;
 
@@ -148,7 +178,7 @@ export const tokenRequestSchema = z.discriminatedUnion('grant_type', [
   z.object({
     grant_type: z.literal('authorization_code'),
     code: z.string().min(1),
-    redirect_uri: z.string().url(),
+    redirect_uri: redirectUriSchema,
     client_id: z.string().min(1),
     code_verifier: z.string().min(43).max(128),
     resource: z.string().url(),
@@ -193,7 +223,7 @@ export interface OAuthErrorResponse {
 
 export const clientRegistrationRequestSchema = z.object({
   client_name: z.string().min(1).max(128),
-  redirect_uris: z.array(z.string().url().max(2048)).min(1).max(10),
+  redirect_uris: z.array(redirectUriSchema).min(1).max(10),
   grant_types: z.array(z.enum(['authorization_code', 'refresh_token'])).optional(),
   response_types: z.array(z.literal('code')).optional(),
   token_endpoint_auth_method: z.literal('none').optional(),
@@ -223,7 +253,11 @@ export type RevokeRequest = z.infer<typeof revokeRequestSchema>;
 
 // ===== Agent grants (user API; envelope) =====
 
-/** POST /v1/users/me/agent-grants — one-shot grant for headless/CI; no refresh token */
+/**
+ * POST /v1/users/me/agent-grants — one-shot grant for headless/CI; no refresh token.
+ * The access token lifetime equals the grant TTL (default agent_endpoint.default_grant_ttl_seconds,
+ * max agent_endpoint.max_grant_ttl_seconds); there is no renewal, create a new grant instead.
+ */
 export const createGrantRequestSchema = z.object({
   /** The user's own ACTIVE Ambassador client this grant binds to */
   bound_client_id: z.string().min(1),
@@ -250,9 +284,12 @@ export interface AgentGrantSummary {
   /** OAuth client; null for one-shot grants */
   client_id: string | null;
   client_name: string | null;
-  /** Ambassador client the grant is bound to; grant is dead if that client is no longer active */
-  bound_client_id: string;
-  bound_client_name: string;
+  /**
+   * Ambassador client the grant is bound to; grant is dead if that client is no longer active.
+   * null once the client was deleted (revoke-and-retain: the grant row is kept, revoked).
+   */
+  bound_client_id: string | null;
+  bound_client_name: string | null;
   scopes: string[];
   tool_allowlist: string[] | null;
   resource: string;
@@ -342,3 +379,16 @@ export const AGENT_AUTH_FAILURE_REASONS = [
   'token_in_query',
 ] as const;
 export type AgentAuthFailureReason = (typeof AGENT_AUTH_FAILURE_REASONS)[number];
+
+// ===== Agent endpoint availability (user API; envelope) =====
+
+/**
+ * GET /v1/users/me/agent-endpoint (user session) → envelope data. Registered even when the
+ * endpoint is disabled (then `{enabled:false, ...}`), so the SPA can hide the Agent access page.
+ */
+export interface UserAgentEndpointInfo {
+  enabled: boolean;
+  default_grant_ttl_seconds: number;
+  max_grant_ttl_seconds: number;
+  refresh_tokens_enabled: boolean;
+}
