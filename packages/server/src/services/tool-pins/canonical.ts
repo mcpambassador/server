@@ -80,6 +80,11 @@ const CONTROL_CHARS =
   // eslint-disable-next-line no-control-regex
   /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u00ad\u180e]/g;
 
+/** ADR-022: text shown to agents (search summaries): control, zero-width and bidi characters stripped. */
+export function stripControlAndInvisible(text: string): string {
+  return text.replace(CONTROL_CHARS, '');
+}
+
 /** D5: tool names in audit metadata and logs: control, zero-width and bidi characters stripped, length-capped. */
 export function sanitizeToolNameForLog(name: unknown): string {
   const s = typeof name === 'string' ? name : String(name);

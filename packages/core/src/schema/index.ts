@@ -727,6 +727,10 @@ export const oauth_auth_codes = sqliteTable(
     code_challenge: text('code_challenge').notNull(),
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
+    /** ADR-022: carried from consent to the grant minted at token exchange */
+    disclosure_mode: text('disclosure_mode', { enum: ['full', 'progressive'] })
+      .notNull()
+      .default('full'),
     resource: text('resource').notNull(),
     bound_client_id: text('bound_client_id')
       .notNull()
@@ -766,6 +770,10 @@ export const agent_grants = sqliteTable(
       .default('oauth'),
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
+    /** ADR-022: how /mcp tools/list presents tools for this grant (CHECK in migration 0005) */
+    disclosure_mode: text('disclosure_mode', { enum: ['full', 'progressive'] })
+      .notNull()
+      .default('full'),
     resource: text('resource').notNull(),
     created_at: text('created_at').notNull(),
     expires_at: text('expires_at').notNull(),

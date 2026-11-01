@@ -19,6 +19,7 @@ import {
   ValidationError,
 } from '@mcpambassador/core';
 import { validateAgainstApprovedSchema } from './tool-pins/args-validator.js';
+import { truncateDescriptionForServe } from './tool-pins/flags.js';
 import type { ToolDescriptor, ToolInvocationResponse } from '@mcpambassador/protocol';
 import type { SharedMcpManager, ToolRouter, UserMcpPool } from '../downstream/index.js';
 
@@ -110,7 +111,7 @@ export async function listPermittedTools(
     if (decision.decision === 'permit') {
       allowed.push({
         name: tool.name,
-        description: tool.description || '',
+        description: truncateDescriptionForServe(tool.description || ''),
         input_schema: tool.inputSchema,
         metadata: { mcp_server: tool.source_mcp },
       });
@@ -131,7 +132,9 @@ export function buildInvocationRouter(
   /** Extra per-call restriction (agent scopes/allowlist); false = not permitted */
   extraFilter?: (tool: { name: string; source_mcp?: string }) => boolean,
   /** Receives the KillSwitchError when the router blocks a call (the pipeline swallows routing errors) */
-  killHit?: { err?: KillSwitchError }
+  killHit?: { err?: KillSwitchError },
+  /** ADR-022 P3: call exactly this MCP's tool (resolved by the caller); keeps same-named tools apart */
+  sourceMcp?: string
 ) {
   return async (
     toolName: string,
@@ -149,9 +152,12 @@ export function buildInvocationRouter(
     const allowedTools = await deps.toolRouter.getIsolationAwareToolCatalog(
       deps.db,
       userId,
-      clientId
+      clientId,
+      { keepShadowed: sourceMcp !== undefined }
     );
-    const allowedTool = allowedTools.find(tool => tool.name === toolName);
+    const allowedTool = allowedTools.find(
+      tool => tool.name === toolName && (sourceMcp === undefined || tool.source_mcp === sourceMcp)
+    );
     if (!allowedTool || (extraFilter && !extraFilter(allowedTool))) {
       throw new AuthorizationError('Tool not subscribed for this client');
     }
@@ -254,13 +260,16 @@ export function agentMayUseTool(
 export async function listAgentTools(
   deps: ToolServiceDeps,
   agent: AgentSession,
-  restriction: AgentToolRestriction
+  restriction: AgentToolRestriction,
+  /** keepShadowed: same-named tools of different MCPs stay separate (ADR-022 P3 resolver) */
+  opts: { keepShadowed?: boolean } = {}
 ): Promise<ToolDescriptor[]> {
   const session = buildAgentSessionContext(agent);
   const aggregated = await deps.toolRouter.getIsolationAwareToolCatalog(
     deps.db,
     agent.user_id,
-    agent.bound_client_id
+    agent.bound_client_id,
+    opts
   );
   const allowed: ToolDescriptor[] = [];
   for (const tool of aggregated) {
@@ -273,7 +282,7 @@ export async function listAgentTools(
     if (decision.decision === 'permit') {
       allowed.push({
         name: tool.name,
-        description: tool.description || '',
+        description: truncateDescriptionForServe(tool.description || ''),
         input_schema: tool.inputSchema,
         metadata: { mcp_server: tool.source_mcp },
       });
@@ -292,7 +301,9 @@ export async function invokeAgentTool(
   agent: AgentSession,
   restriction: AgentToolRestriction,
   call: { tool: string; arguments: Record<string, unknown> },
-  sourceIp: string
+  sourceIp: string,
+  /** ADR-022: exact MCP (P3) and extra audit metadata (`via`, `disclosure_mode`) */
+  extra: { sourceMcp?: string; auditMetadata?: Record<string, unknown> } = {}
 ): Promise<ToolInvocationResponse> {
   const killHit: { err?: KillSwitchError } = {};
   const router = buildInvocationRouter(
@@ -300,7 +311,8 @@ export async function invokeAgentTool(
     agent.user_id,
     agent.bound_client_id,
     t => agentMayUseTool(restriction, t),
-    killHit
+    killHit,
+    extra.sourceMcp
   );
   const result = await deps.pipeline.invoke(
     { tool_name: call.tool, client_id: agent.bound_client_id, arguments: call.arguments },
@@ -308,7 +320,10 @@ export async function invokeAgentTool(
     router,
     undefined,
     undefined,
-    { preAuthenticatedSession: agent }
+    {
+      preAuthenticatedSession: agent,
+      ...(extra.auditMetadata ? { auditMetadata: extra.auditMetadata } : {}),
+    }
   );
   if (killHit.err) throw killHit.err;
   return result;

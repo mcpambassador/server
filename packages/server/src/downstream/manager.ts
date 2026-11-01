@@ -230,16 +230,11 @@ export class SharedMcpManager {
           continue;
         }
 
-        // SEC-M9-05: Truncate description to 500 chars
-        let description = tool.description;
-        if (description && description.length > 500) {
-          description = description.substring(0, 500);
-        }
-
+        // SEC-M9-05: the description is NOT cut here. Serving cuts it to 500 code points
+        // (truncateDescriptionForServe, ADR-021 D1'); a UTF-16 cut at discovery could split a surrogate pair.
         // Add to aggregated catalog
         this.aggregatedTools.push({
           ...tool,
-          description,
           source_mcp: mcpName,
         });
 

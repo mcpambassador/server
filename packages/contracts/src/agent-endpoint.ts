@@ -460,6 +460,8 @@ export const AGENT_AUDIT_ACTIONS = [
   'oauth_client_deleted',
   'agent_endpoint_settings_updated',
   'agent_auth_failure',
+  /** ADR-022: ambassador__search_tools / ambassador__describe_tool (query length + hash only) */
+  'agent_tool_discovery',
 ] as const;
 export type AgentAuditAction = (typeof AGENT_AUDIT_ACTIONS)[number];
 

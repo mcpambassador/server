@@ -65,6 +65,7 @@ import {
   type ClientRegistrationResponse,
   type RevokeRequest,
   type CreateGrantRequest,
+  type DisclosureMode,
   type CreateGrantResponse,
   type AgentGrantSummary,
   type AdminAgentGrantSummary,
@@ -166,6 +167,8 @@ export interface AgentPrincipal {
   oauth_client_id: string | null;
   scopes: string[];
   tool_allowlist: string[] | null;
+  /** ADR-022: read from the grant row on every request, never from the token */
+  disclosure_mode: DisclosureMode;
   expires_at: string;
 }
 
@@ -265,7 +268,7 @@ function toGrantSummary(
     bound_client_name: g.bound_client_id ? (boundNames.get(g.bound_client_id) ?? null) : null,
     scopes: g.scopes,
     tool_allowlist: g.tool_allowlist,
-    disclosure_mode: 'full', // placeholder until 3b server PR (ADR-022 P4)
+    disclosure_mode: g.disclosure_mode,
     resource: g.resource,
     created_at: g.created_at,
     expires_at: g.expires_at,
@@ -374,6 +377,7 @@ export async function validateAgentToken(
       oauth_client_id: grant.client_id,
       scopes: grant.scopes,
       tool_allowlist: grant.tool_allowlist,
+      disclosure_mode: grant.disclosure_mode,
       expires_at: grant.expires_at,
     },
   };
@@ -541,6 +545,7 @@ export async function decideConsent(
     code_challenge: pending.code_challenge,
     scopes: v.scopes,
     tool_allowlist: req.tool_allowlist?.length ? req.tool_allowlist : null,
+    disclosure_mode: req.disclosure_mode ?? 'full',
     resource: pending.resource,
     bound_client_id: bound.client_id,
     label: req.label ?? oc.client_name,
@@ -650,6 +655,7 @@ async function exchangeCode(
     label: code.label ?? client.client_name,
     scopes: code.scopes,
     tool_allowlist: code.tool_allowlist,
+    disclosure_mode: code.disclosure_mode,
     resource: code.resource,
     expires_at: isoIn(ttl),
   });
@@ -667,6 +673,7 @@ async function exchangeCode(
       agent_grant_id: grant.grant_id,
       oauth_client_id: client.client_id,
       scopes: grant.scopes,
+      disclosure_mode: grant.disclosure_mode,
       expires_at: grant.expires_at,
       refresh: !!rt,
     },
@@ -876,6 +883,7 @@ export async function createGrant(
     label: req.label ?? `One-shot grant ${new Date().toISOString().slice(0, 10)}`,
     scopes: v.scopes,
     tool_allowlist: req.tool_allowlist?.length ? req.tool_allowlist : null,
+    disclosure_mode: req.disclosure_mode ?? 'full',
     resource: deps.config.resource,
     expires_at: isoIn(clampTtl(deps, req.ttl_seconds)),
   });
@@ -896,6 +904,7 @@ export async function createGrant(
       agent_grant_id: grant.grant_id,
       one_shot: true,
       scopes: grant.scopes,
+      disclosure_mode: grant.disclosure_mode,
       expires_at: grant.expires_at,
     },
   });

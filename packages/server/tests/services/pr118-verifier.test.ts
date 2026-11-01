@@ -199,6 +199,9 @@ describe('service level', () => {
       raw(db).exec(`DROP TABLE tool_pins`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN pin_policy`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN origin`);
+      // ...and 0005 (ADR-022): same reason.
+      raw(db).exec(`ALTER TABLE agent_grants DROP COLUMN disclosure_mode`);
+      raw(db).exec(`ALTER TABLE oauth_auth_codes DROP COLUMN disclosure_mode`);
       raw(db).exec(`DROP TABLE schema_migrations`);
     } catch (err) {
       // Only an SQLite without DROP COLUMN support may skip; any other failure

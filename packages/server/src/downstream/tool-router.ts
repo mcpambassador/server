@@ -307,7 +307,9 @@ export class ToolRouter {
   async getIsolationAwareToolCatalog(
     db: DatabaseClient,
     userId: string,
-    clientId: string
+    clientId: string,
+    /** keepShadowed: keep same-named tools of different MCPs (ADR-022 P3 resolver); default first-wins */
+    opts: { keepShadowed?: boolean } = {}
   ): Promise<AggregatedTool[]> {
     // Get client's subscriptions
     const { listClientSubscriptions } = await import('../services/subscription-service.js');
@@ -353,7 +355,7 @@ export class ToolRouter {
 
       // Add tools to result (deduplicate by name, first wins)
       for (const tool of mcpTools) {
-        if (!seenToolNames.has(tool.name)) {
+        if (opts.keepShadowed || !seenToolNames.has(tool.name)) {
           tools.push(tool);
           seenToolNames.add(tool.name);
         } else {
