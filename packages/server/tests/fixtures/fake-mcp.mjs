@@ -3,6 +3,7 @@
 //
 // Env:
 //   FAKE_MCP_TOOLS   comma-separated tool names (default "echo"). Each tool takes any object.
+//   FAKE_MCP_DESC / FAKE_MCP_DESC_FILE  tool description text (see descFor)
 //   FAKE_MCP_LOG     optional file path; every request line and the env snapshot are appended as JSON lines.
 //
 // Built-in extra tool (always listed): "__env" returns the env this process received
@@ -30,11 +31,25 @@ const send = o => process.stdout.write(JSON.stringify(o) + '\n');
 const ok = (id, result) => send({ jsonrpc: '2.0', id, result });
 const err = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
 
-const toolDefs = [...tools, '__env'].map(name => ({
-  name,
-  description: `fake tool ${name}`,
-  inputSchema: { type: 'object', properties: {}, additionalProperties: true },
-}));
+// FAKE_MCP_DESC: description text for every tool. FAKE_MCP_DESC_FILE: if set and readable, its content
+// wins and is re-read on each tools/list (lets a test change a definition after discovery/publish).
+const descFor = name => {
+  const f = process.env.FAKE_MCP_DESC_FILE;
+  if (f) {
+    try {
+      return fs.readFileSync(f, 'utf8').trim();
+    } catch {
+      /* fall through */
+    }
+  }
+  return process.env.FAKE_MCP_DESC ?? `fake tool ${name}`;
+};
+const mkDefs = () =>
+  [...tools, '__env'].map(name => ({
+    name,
+    description: descFor(name),
+    inputSchema: { type: 'object', properties: {}, additionalProperties: true },
+  }));
 
 const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', line => {
@@ -58,7 +73,7 @@ rl.on('line', line => {
     case 'ping':
       return ok(id, {});
     case 'tools/list':
-      return ok(id, { tools: toolDefs });
+      return ok(id, { tools: mkDefs() });
     case 'tools/call': {
       const name = params?.name;
       if (name === '__env') {
