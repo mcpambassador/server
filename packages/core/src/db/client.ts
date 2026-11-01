@@ -309,7 +309,10 @@ export async function runMigrations(
 
   if (!tracked) {
     const bootstrapFiles = files.filter(f => f <= MIGRATION_BOOTSTRAP_LAST);
-    logger.info({ files: bootstrapFiles.length }, '[db] Bootstrapping migration tracking');
+    logger.warn(
+      { files: bootstrapFiles.map(f => ({ file: f, sha256: read(f).hash })) },
+      '[db] Bootstrapping migration tracking: recording these migrations as applied'
+    );
     await runner.transaction(async tx => {
       for (const file of bootstrapFiles) {
         const { content } = read(file);
@@ -345,6 +348,17 @@ export async function runMigrations(
     if (hash !== recordedHash) {
       logger.error({ file }, '[db] Applied migration file was modified');
       throw new MigrationIntegrityError(file, recordedHash, hash);
+    }
+  }
+
+  // Each migration runs inside a transaction, where PRAGMA foreign_keys is a silent no-op: a table
+  // rebuild (DROP + recreate) would then cascade-delete child rows. Refuse such files up front.
+  for (const file of files) {
+    if (recorded.has(file)) continue;
+    if (/PRAGMA\s+foreign_keys/i.test(read(file).content)) {
+      throw new Error(
+        `[db] Migration ${file} contains PRAGMA foreign_keys, which cannot take effect inside the migration transaction (a table rebuild would cascade-delete child rows). Remove it and rebuild tables without dropping referenced parents.`
+      );
     }
   }
 

@@ -118,4 +118,30 @@ describe('migration tracking (TD-032)', () => {
     expect(rows("SELECT name FROM sqlite_master WHERE name='half_done'")).toHaveLength(0);
     await expect(runMigrations(db, { migrationsDir: dir })).rejects.toThrow();
   });
+
+  it('CRLF and LF checkouts hash the same (no false integrity failure)', async () => {
+    const dir = copyMigrations();
+    await runMigrations(db, { migrationsDir: dir });
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.sql'))) {
+      const p = path.join(dir, f);
+      fs.writeFileSync(
+        p,
+        fs.readFileSync(p, 'utf-8').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
+      );
+    }
+    await expect(runMigrations(db, { migrationsDir: dir })).resolves.toBeUndefined();
+  });
+
+  it('refuses a new migration containing PRAGMA foreign_keys, applying nothing', async () => {
+    const dir = copyMigrations();
+    await runMigrations(db, { migrationsDir: dir });
+    fs.writeFileSync(path.join(dir, '0004_ok.sql'), 'CREATE TABLE ok_t (x integer);\n');
+    fs.writeFileSync(
+      path.join(dir, '0005_rebuild.sql'),
+      'pragma  foreign_keys = OFF;\nDROP TABLE ok_t;\n'
+    );
+    await expect(runMigrations(db, { migrationsDir: dir })).rejects.toThrow(/PRAGMA foreign_keys/);
+    expect(recorded()).not.toContain('0004_ok.sql');
+    expect(rows("SELECT name FROM sqlite_master WHERE name='ok_t'")).toHaveLength(0);
+  });
 });
