@@ -89,7 +89,7 @@ export class ToolPinBaseline {
     }
     const addScope = (mcpId: string, userId: string | null) => {
       if (userId === null || !scopes[mcpId]) return;
-      if (!scopes[mcpId]!.includes(userId)) scopes[mcpId]!.push(userId);
+      if (!scopes[mcpId].includes(userId)) scopes[mcpId].push(userId);
     };
     for (const c of await listMcpCredentialUsers(this.db)) addScope(c.mcp_id, c.user_id);
     for (const r of this.pins.allRecords()) addScope(r.mcp_id, r.scope_user_id);
