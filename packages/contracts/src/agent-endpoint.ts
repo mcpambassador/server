@@ -91,29 +91,49 @@ export const authorizeQuerySchema = z.object({
 });
 export type AuthorizeQuery = z.infer<typeof authorizeQuerySchema>;
 
+export interface ConsentClientOption {
+  /** Ambassador client id (NOT the OAuth client) */
+  client_id: string;
+  client_name: string;
+  profile_name: string | null;
+  subscriptions: { name: string; scope: string; description?: string }[];
+}
+
 /** GET /v1/oauth/consent/:requestId (user session) — envelope data */
 export interface ConsentDetails {
   client_name: string;
   /** true only for admin-registered clients; false for DCR clients (SPA shows "unverified" warning) */
   client_verified: boolean;
   requested_scopes: string[];
-  /** The user's active subscriptions, as selectable scopes */
-  available_subscriptions: { name: string; scope: string; description?: string }[];
+  /**
+   * The user's ACTIVE Ambassador clients. A grant binds to exactly one of them (bound-client
+   * model): effective permissions = that client's subscriptions ∩ its profile's authz ∩ scopes
+   * ∩ allowlist, evaluated on every call. Scopes are `mcp:<subscription name>` / `mcp:*`,
+   * resolved against the chosen client's subscriptions. Empty array ⇒ user cannot consent.
+   */
+  clients: ConsentClientOption[];
   default_ttl_seconds: number;
   max_ttl_seconds: number;
 }
 
 /** POST /v1/oauth/consent/:requestId (user session + CSRF) */
-export const consentDecisionSchema = z.object({
-  decision: z.enum(['approve', 'deny']),
-  /** Granted scopes — must be ⊆ requested ∩ user's subscriptions (server re-checks) */
-  scopes: z.array(scopeSchema).max(100),
-  /** Optional tool allowlist (fully qualified tool names) */
-  tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
-  /** Clamped to max_ttl_seconds */
-  ttl_seconds: z.number().int().min(60),
-  label: z.string().min(1).max(128).optional(),
-});
+export const consentDecisionSchema = z
+  .object({
+    decision: z.enum(['approve', 'deny']),
+    /** The user's own ACTIVE Ambassador client this grant binds to (required when approving) */
+    bound_client_id: z.string().min(1).optional(),
+    /** Granted scopes — must be ⊆ requested ∩ user's subscriptions (server re-checks) */
+    scopes: z.array(scopeSchema).max(100),
+    /** Optional tool allowlist (fully qualified tool names) */
+    tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
+    /** Clamped to max_ttl_seconds */
+    ttl_seconds: z.number().int().min(60),
+    label: z.string().min(1).max(128).optional(),
+  })
+  .refine(d => d.decision === 'deny' || !!d.bound_client_id, {
+    message: 'bound_client_id is required when approving',
+    path: ['bound_client_id'],
+  });
 export type ConsentDecision = z.infer<typeof consentDecisionSchema>;
 
 /** Response (envelope data); SPA navigates the browser to redirect_url (code+state, or access_denied) */
@@ -205,6 +225,8 @@ export type RevokeRequest = z.infer<typeof revokeRequestSchema>;
 
 /** POST /v1/users/me/agent-grants — one-shot grant for headless/CI; no refresh token */
 export const createGrantRequestSchema = z.object({
+  /** The user's own ACTIVE Ambassador client this grant binds to */
+  bound_client_id: z.string().min(1),
   label: z.string().min(1).max(128),
   scopes: z.array(scopeSchema).min(1).max(100),
   tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
@@ -225,9 +247,12 @@ export interface CreateGrantResponse {
 export interface AgentGrantSummary {
   grant_id: string;
   label: string;
-  /** null for one-shot grants */
+  /** OAuth client; null for one-shot grants */
   client_id: string | null;
   client_name: string | null;
+  /** Ambassador client the grant is bound to; grant is dead if that client is no longer active */
+  bound_client_id: string;
+  bound_client_name: string;
   scopes: string[];
   tool_allowlist: string[] | null;
   resource: string;

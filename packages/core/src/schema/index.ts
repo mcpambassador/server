@@ -721,6 +721,9 @@ export const oauth_auth_codes = sqliteTable(
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
     resource: text('resource').notNull(),
+    bound_client_id: text('bound_client_id')
+      .notNull()
+      .references(() => clients.client_id, { onDelete: 'cascade' }),
     label: text('label'),
     ttl_seconds: integer('ttl_seconds'),
     expires_at: text('expires_at').notNull(),
@@ -741,6 +744,10 @@ export const agent_grants = sqliteTable(
     client_id: text('client_id').references(() => oauth_clients.client_id, {
       onDelete: 'set null',
     }),
+    /** Ambassador client this grant is bound to (ADR-020 bound-client model) */
+    bound_client_id: text('bound_client_id')
+      .notNull()
+      .references(() => clients.client_id, { onDelete: 'cascade' }),
     label: text('label').notNull(),
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
@@ -753,6 +760,7 @@ export const agent_grants = sqliteTable(
   },
   table => ({
     userIdx: index('idx_agent_grants_user_id').on(table.user_id),
+    boundClientIdx: index('idx_agent_grants_bound_client_id').on(table.bound_client_id),
     expiresIdx: index('idx_agent_grants_expires_at').on(table.expires_at),
   })
 );

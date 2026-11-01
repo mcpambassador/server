@@ -21,6 +21,15 @@ const past = (s: number): string => new Date(Date.now() - s * 1000).toISOString(
 let dir: string;
 let db: DatabaseClient;
 
+function addClient(id: string, userId: string): void {
+  const ts = new Date().toISOString();
+  raw(db)
+    .prepare(
+      `INSERT INTO clients (client_id, client_name, key_prefix, key_hash, user_id, status, created_at) VALUES (?,?,?,?,?,?,?)`
+    )
+    .run(id, id, 'p', 'h', userId, 'active', ts);
+}
+
 function addUser(id: string): void {
   const ts = new Date().toISOString();
   raw(db)
@@ -36,6 +45,8 @@ beforeEach(async () => {
   await runMigrations(db);
   addUser('u1');
   addUser('u2');
+  addClient('k1', 'u1');
+  addClient('k2', 'u2');
 });
 afterEach(async () => {
   await closeDatabase(db);
@@ -157,6 +168,7 @@ describe('auth codes', () => {
     scopes: ['mcp:a'],
     tool_allowlist: ['a.x'],
     resource: 'https://h/mcp',
+    bound_client_id: 'k1',
     label: 'L',
     ttl_seconds: 3600,
     expires_at: exp,
@@ -180,6 +192,7 @@ describe('grants and tokens', () => {
       grant_id: id,
       user_id: user,
       client_id: null,
+      bound_client_id: user === 'u2' ? 'k2' : 'k1',
       label: id,
       scopes: ['mcp:*'],
       tool_allowlist: null,
@@ -230,6 +243,15 @@ describe('grants and tokens', () => {
     expect(await repo.markRefreshTokenUsed(db, 'r2')).toBe(false);
   });
 
+  it('binds to an Ambassador client and cascades when that client is deleted', async () => {
+    await grant('g1');
+    await tok('a1', 'g1', 'access');
+    expect((await repo.getAgentGrant(db, 'g1'))?.bound_client_id).toBe('k1');
+    raw(db).prepare(`DELETE FROM clients WHERE client_id='k1'`).run();
+    expect(await repo.getAgentGrant(db, 'g1')).toBeNull();
+    expect(await repo.getAgentTokenByHash(db, 'a1')).toBeNull();
+  });
+
   it('touch + deleteAgentToken + user delete cascades', async () => {
     await grant('g1');
     await tok('a1', 'g1', 'access');
@@ -254,6 +276,7 @@ describe('grants and tokens', () => {
       scopes: [],
       tool_allowlist: null,
       resource: 'r',
+      bound_client_id: 'k1',
       label: null,
       ttl_seconds: null,
       expires_at: past(10),

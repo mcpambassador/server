@@ -39,8 +39,10 @@ export interface OAuthClientRecord {
 export interface AgentGrantRecord {
   grant_id: string;
   user_id: string;
-  /** null = one-shot grant */
+  /** OAuth client; null = one-shot grant */
   client_id: string | null;
+  /** Ambassador client the grant is bound to (permissions come from it) */
+  bound_client_id: string;
   label: string;
   scopes: string[];
   tool_allowlist: string[] | null;
@@ -76,6 +78,7 @@ export interface AuthCodeRecord {
   scopes: string[];
   tool_allowlist: string[] | null;
   resource: string;
+  bound_client_id: string;
   label: string | null;
   ttl_seconds: number | null;
   expires_at: string;
@@ -104,6 +107,7 @@ function toGrant(r: any): AgentGrantRecord {
     grant_id: r.grant_id,
     user_id: r.user_id,
     client_id: r.client_id ?? null,
+    bound_client_id: r.bound_client_id,
     label: r.label,
     scopes: JSON.parse(r.scopes) as string[],
     tool_allowlist: parseArr(r.tool_allowlist),
@@ -139,6 +143,7 @@ function toCode(r: any): AuthCodeRecord {
     scopes: JSON.parse(r.scopes) as string[],
     tool_allowlist: parseArr(r.tool_allowlist),
     resource: r.resource,
+    bound_client_id: r.bound_client_id,
     label: r.label ?? null,
     ttl_seconds: r.ttl_seconds ?? null,
     expires_at: r.expires_at,

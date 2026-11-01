@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS `oauth_auth_codes` (
 	`scopes` text NOT NULL,
 	`tool_allowlist` text,
 	`resource` text NOT NULL,
+	`bound_client_id` text NOT NULL REFERENCES `clients`(`client_id`) ON DELETE CASCADE,
 	`label` text,
 	`ttl_seconds` integer,
 	`expires_at` text NOT NULL,
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS `agent_grants` (
 	`grant_id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL REFERENCES `users`(`user_id`) ON DELETE CASCADE,
 	`client_id` text REFERENCES `oauth_clients`(`client_id`) ON DELETE SET NULL,
+	`bound_client_id` text NOT NULL REFERENCES `clients`(`client_id`) ON DELETE CASCADE,
 	`label` text NOT NULL,
 	`scopes` text NOT NULL,
 	`tool_allowlist` text,
@@ -60,6 +62,8 @@ CREATE TABLE IF NOT EXISTS `agent_grants` (
 	`revoked_at` text,
 	`revoked_by` text
 );
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_agent_grants_bound_client_id` ON `agent_grants` (`bound_client_id`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_agent_grants_user_id` ON `agent_grants` (`user_id`);
 --> statement-breakpoint
