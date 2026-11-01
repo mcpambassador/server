@@ -20,7 +20,7 @@ Hardening release.
 
 ### Changed
 - All `console.*` replaced by the pino structured logger in production code
-- Session cookie `maxAge` derives from `session.ttl_seconds` instead of a hardcoded 8h (TD-014)
+- Browser session cookie `maxAge` (9443 SPA/admin session) and an absolute server-side TTL now derive from new `session.ui_ttl_seconds` (default 28800); the 8443 client-session `session.ttl_seconds` is unchanged (TD-014)
 - `@mcpambassador/protocol` now documents the client-port (8443) wire format: registration types match `POST /v1/sessions/register` (`preshared_key` request; `session_id`/`session_token`/`expires_at`/`profile_id`/`connection_id` response), `ErrorResponse` is the flat `{ error, message }`, added `HeartbeatResponse` and `DisconnectResponse`; `ClientStatus` deprecated. `@mcpambassador/contracts` documents the 9443 admin envelope.
 
 ### Fixed

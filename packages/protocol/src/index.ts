@@ -30,6 +30,8 @@ export type HostTool =
   | 'claude-code'
   | 'opencode'
   | 'gemini-cli'
+  | 'jetbrains'
+  | 'cli'
   | 'chatgpt'
   | 'custom';
 
@@ -162,7 +164,7 @@ export interface ToolInvocationRequest {
   tool: string;
   /** Tool arguments (validated against input_schema) */
   arguments: Record<string, unknown>;
-  /** Optional client-provided trace ID for correlation */
+  /** Reserved: accepted but currently ignored by the server (not propagated or logged) */
   trace_id?: string;
 }
 

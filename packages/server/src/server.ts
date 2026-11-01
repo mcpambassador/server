@@ -73,7 +73,7 @@ import type {
   DisconnectResponse,
   ErrorResponse,
 } from '@mcpambassador/protocol';
-import { BoundedSessionStore } from './admin/session.js';
+import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
@@ -487,12 +487,16 @@ export class AmbassadorServer {
 
     // M21: Initialize user session store and register on main server
     logger.info('[Server] Registering user session management...');
-    this.userSessionStore = new UserSessionStore(1000);
+    // Browser-session TTL (session.ui_ttl_seconds, S1) is separate from the 8443 client-session ttl_seconds.
+    // NOTE: this 8443 session is kept (not dead): the self-service/auth routes are also registered on the
+    // main listener (see registerAuthRoutes(this.fastify) below) and need request.session.
+    const uiTtlSeconds = this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800;
+    this.userSessionStore = new UserSessionStore(1000, uiTtlSeconds);
     const { registerUserSession } = await import('./auth/user-session.js');
     await registerUserSession(this.fastify, {
       dataDir: this.config.dataDir,
       store: this.userSessionStore,
-      ttlSeconds: this.config.ambassadorConfig?.session?.ttl_seconds,
+      ttlSeconds: uiTtlSeconds,
     });
     logger.info('[Server] User session management registered');
 
@@ -545,7 +549,10 @@ export class AmbassadorServer {
 
     // Create session store instance if not already created (F-SEC-M10-005)
     if (!this.sessionStore) {
-      this.sessionStore = new BoundedSessionStore(100);
+      this.sessionStore = new BoundedSessionStore(
+        100,
+        this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800
+      );
     }
 
     // Create admin Fastify instance with same TLS config
@@ -588,9 +595,22 @@ export class AmbassadorServer {
         httpOnly: true,
         sameSite: 'strict',
         path: '/', // M29.5: Changed from '/admin' to '/' to support SPA routes
+        // B1/S1: browser session lifetime (absolute, enforced server-side by BoundedSessionStore)
+        maxAge: (this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800) * 1000,
       },
+      rolling: false, // absolute TTL: activity must not extend the cookie
       store: this.sessionStore,
       saveUninitialized: false, // SEC-M10-07: Don't create session on anonymous requests
+    });
+
+    // B1: expose the absolute lifetime as Max-Age on the session cookie too
+    this.adminServer.addHook('onSend', async (_request, reply, payload) => {
+      const fixed = addSessionMaxAge(reply.getHeader('set-cookie'));
+      if (fixed) {
+        void reply.removeHeader('set-cookie');
+        void reply.header('set-cookie', fixed);
+      }
+      return payload;
     });
 
     // A.2: Register CSRF protection plugin.

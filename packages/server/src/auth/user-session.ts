@@ -7,11 +7,10 @@
  * @see M21.3: User Session Middleware
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply, Session } from 'fastify';
-import type { SessionStore } from '@fastify/session';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
-import { getOrCreateSessionSecret } from '../admin/session.js';
+import { BoundedSessionStore, getOrCreateSessionSecret } from '../admin/session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 
 // Augment Fastify Session interface with user fields
@@ -25,62 +24,12 @@ declare module 'fastify' {
 }
 
 /**
- * Bounded session store for user sessions
- *
- * Prevents memory exhaustion by limiting total session count.
- * Identical implementation to admin session store.
+ * Bounded session store for user sessions (same implementation as the admin store,
+ * including the absolute TTL).
  */
-export class UserSessionStore implements SessionStore {
-  private store = new Map<string, Session>();
-  private maxEntries: number;
-
-  constructor(maxEntries = 1000) {
-    this.maxEntries = maxEntries;
-  }
-
-  set(sessionId: string, session: Session, callback: (err?: unknown) => void): void {
-    try {
-      if (this.store.size >= this.maxEntries) {
-        const firstKey = this.store.keys().next().value;
-        if (firstKey) {
-          this.store.delete(firstKey);
-        }
-      }
-      this.store.set(sessionId, session);
-      callback();
-    } catch (err) {
-      callback(err);
-    }
-  }
-
-  get(sessionId: string, callback: (err: unknown, session?: Session | null) => void): void {
-    try {
-      const session = this.store.get(sessionId) ?? null;
-      if (session) {
-        // AUTH-001: LRU eviction - re-insert to move to end of Map iteration order
-        this.store.delete(sessionId);
-        this.store.set(sessionId, session);
-      }
-      callback(null, session);
-    } catch (err) {
-      callback(err);
-    }
-  }
-
-  destroy(sessionId: string, callback: (err?: unknown) => void): void {
-    try {
-      this.store.delete(sessionId);
-      callback();
-    } catch (err) {
-      callback(err);
-    }
-  }
-
-  /**
-   * Clear all sessions
-   */
-  clear(): void {
-    this.store.clear();
+export class UserSessionStore extends BoundedSessionStore {
+  constructor(maxEntries = 1000, ttlSeconds?: number | null, clock?: () => number) {
+    super(maxEntries, ttlSeconds, clock);
   }
 }
 
@@ -115,7 +64,7 @@ export async function registerUserSession(
   config: {
     dataDir: string;
     store: UserSessionStore;
-    /** Cookie lifetime in seconds; derived from config session.ttl_seconds (default 8h) */
+    /** Cookie lifetime in seconds; derived from config session.ui_ttl_seconds (default 8h) */
     ttlSeconds?: number;
   }
 ): Promise<void> {
@@ -132,6 +81,7 @@ export async function registerUserSession(
       path: '/',
       maxAge: (config.ttlSeconds ?? DEFAULT_SESSION_TTL_SECONDS) * 1000,
     },
+    rolling: false, // absolute TTL: activity must not extend the cookie
     store: config.store,
     saveUninitialized: false, // Don't create session for unauthenticated requests
   });
