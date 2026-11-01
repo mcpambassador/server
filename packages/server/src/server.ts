@@ -76,6 +76,8 @@ import type {
   ErrorResponse,
 } from '@mcpambassador/protocol';
 import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
+import { verifyAdminKeyHeader } from './admin/middleware.js';
+import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
@@ -645,8 +647,15 @@ export class AmbassadorServer {
       // ADR-020: /oauth/*, /mcp are bearer/client-authenticated (never cookie), so a
       // disabled endpoint answers a JSON 404 rather than a CSRF 403.
       if (isAgentEndpointPath(request.url)) return;
-      // API key clients are not cookie-authenticated — no CSRF risk
-      if (request.headers['x-admin-key']) return;
+      // S2: CSRF is skipped ONLY when the admin key VALIDATES. A present-but-invalid key is a
+      // 401 here — it never falls through to the cookie session.
+      const keyState = await verifyAdminKeyHeader(this.db!, request);
+      if (keyState === 'valid') return;
+      if (keyState === 'invalid') {
+        return reply
+          .status(401)
+          .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
+      }
       // Delegate to the csrfProtection handler registered by the plugin.
       // csrfProtection is a callback-style middleware (req, reply, next) —
       // wrap it in a Promise so the async hook awaits the outcome correctly.

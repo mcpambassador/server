@@ -40,7 +40,7 @@ import {
 import { logger, sweepExpiredAgentRecords } from '@mcpambassador/core';
 import { wrapSuccess, wrapPaginated, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import { requireUserSession } from '../auth/user-session.js';
-import { authenticateAdminOrSession } from '../admin/middleware.js';
+import { authenticateAdminOrSession, adminKeyActor } from '../admin/middleware.js';
 import {
   type AgentEndpointDeps,
   OAuthError,
@@ -322,7 +322,9 @@ export async function registerAgentOAuthRoutes(
   // ---- Admin ----
   // Admin API key (X-Admin-Key) or an admin session, like every other /v1/admin route
   const adminOnly = [authenticateAdminOrSession(deps.db)];
-  const actorOf = (req: FastifyRequest): string => req.session?.userId ?? 'admin-api-key';
+  // S4: key identity wins when the key authenticated; sessions only identify when no key was used
+  const actorOf = (req: FastifyRequest): string =>
+    adminKeyActor(req) ?? req.session?.userId ?? 'admin-unknown';
 
   app.get(ADMIN_OAUTH_CLIENTS_ROUTE, { preHandler: adminOnly }, async (_req, reply) => {
     try {
