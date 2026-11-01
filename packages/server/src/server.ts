@@ -75,7 +75,6 @@ import type {
   ErrorResponse,
 } from '@mcpambassador/protocol';
 import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
-import { UserSessionStore } from './auth/user-session.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -170,7 +169,6 @@ export class AmbassadorServer {
   private pipeline: Pipeline | null = null;
   private killSwitchManager: KillSwitchManager; // CR-M10-001
   private sessionStore: BoundedSessionStore | null = null; // F-SEC-M10-005: Admin session store
-  private userSessionStore: UserSessionStore | null = null; // M21: User session store
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
@@ -485,21 +483,6 @@ export class AmbassadorServer {
     // Start rate limit cleanup timer (Sprint 3.3)
     startRateLimitCleanup();
     logger.info('[Server] Rate limit cleanup timer started');
-
-    // M21: Initialize user session store and register on main server
-    logger.info('[Server] Registering user session management...');
-    // Browser-session TTL (session.ui_ttl_seconds, S1) is separate from the 8443 client-session ttl_seconds.
-    // NOTE: this 8443 session is kept (not dead): the self-service/auth routes are also registered on the
-    // main listener (see registerAuthRoutes(this.fastify) below) and need request.session.
-    const uiTtlSeconds = this.config.ambassadorConfig?.session?.ui_ttl_seconds ?? 28800;
-    this.userSessionStore = new UserSessionStore(1000, uiTtlSeconds);
-    const { registerUserSession } = await import('./auth/user-session.js');
-    await registerUserSession(this.fastify, {
-      dataDir: this.config.dataDir,
-      store: this.userSessionStore,
-      ttlSeconds: uiTtlSeconds,
-    });
-    logger.info('[Server] User session management registered');
 
     // Health check endpoint (no auth required)
     // F-SEC-M6-005: Only return aggregate status, no internal topology
@@ -1623,55 +1606,16 @@ export class AmbassadorServer {
       }
     });
 
-    // ==========================================================================
-    // USER AUTHENTICATION ROUTES (M21)
-    // ==========================================================================
-
-    // Register user authentication routes
-    const { registerAuthRoutes } = await import('./auth/routes.js');
-    await registerAuthRoutes(this.fastify, {
-      db: this.db!,
-    });
-
-    // Setup routes (first-run setup wizard)
-    const { registerSetupRoutes } = await import('./auth/setup-routes.js');
-    await registerSetupRoutes(this.fastify, { db: this.db! as DatabaseClient, audit: this.audit! });
-
-    // Register user self-service routes
-    const { registerSelfServiceRoutes } = await import('./auth/self-service-routes.js');
-    await registerSelfServiceRoutes(this.fastify, {
-      db: this.db!,
-    });
-
-    // M25: Register client and subscription routes
-    const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.fastify, { db: this.db!, audit: this.audit! });
-
-    const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
-    await registerSubscriptionRoutes(this.fastify, { db: this.db! });
-
-    // M26.8: Register credential routes
-    const { registerCredentialRoutes } = await import('./routes/credentials.js');
-    if (!this.credentialVault) {
-      throw new Error('Credential vault not initialized');
-    }
-    await registerCredentialRoutes(this.fastify, {
-      db: this.db!,
-      vault: this.credentialVault,
-      userPool: this.userPool,
-    });
+    // F1: the browser (cookie-session) API — auth, setup, self-service, clients, subscriptions,
+    // credentials, marketplace — lives ONLY on the admin/SPA listener (9443), which has the CSRF hook.
+    // The 8443 listener serves the stdio client (/v1/sessions, /v1/tools*), the admin-key API, and /mcp,
+    // and carries no cookie session.
 
     // ADR-020: MCP resource server (off by default)
     if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
       const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
       await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps());
     }
-
-    // M23.4: Register marketplace routes
-    const { registerMarketplaceRoutes } = await import('./routes/marketplace.js');
-    await registerMarketplaceRoutes(this.fastify, {
-      db: this.db!,
-    });
 
     // M24.10: Register SPA handler (must be last to avoid intercepting API routes)
     const { registerSpaHandler } = await import('./spa-handler.js');
