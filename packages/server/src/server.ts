@@ -113,14 +113,15 @@ export interface ServerConfig {
   /** Database file path (defaults to dataDir/ambassador.db) */
   dbPath?: string;
   /**
-   * Trust X-Forwarded-For header for source IP (F-SEC-M6-020 remediation)
-   * - false (default): Ignore X-Forwarded-For, use direct connection IP
-   * - true: Trust first IP in X-Forwarded-For (use only if behind trusted proxy)
-   * - string[]: Trust X-Forwarded-For only if request comes from these CIDR ranges
+   * Fastify trustProxy for BOTH listeners (config key server.trust_proxy, env MCP_AMBASSADOR_TRUST_PROXY)
+   * - false (default): ignore X-Forwarded-For, use the direct connection IP
+   * - number: trust that many proxy hops
+   * - string | string[]: trust only these proxy IPs/CIDRs
+   * - true: trust every hop (spoofable)
    *
    * WARNING: Trusting X-Forwarded-For without proxy validation allows IP spoofing
    */
-  trustProxy?: boolean | string[];
+  trustProxy?: boolean | number | string | string[];
   /** Admin UI port (defaults to 9443, 0 for ephemeral) */
   adminPort?: number;
   /** Enable admin UI (defaults to true) */
@@ -230,6 +231,7 @@ export class AmbassadorServer {
 
     // Create Fastify instance with HTTPS + TLS
     this.fastify = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
       },
@@ -561,6 +563,7 @@ export class AmbassadorServer {
 
     // Create admin Fastify instance with same TLS config
     this.adminServer = Fastify({
+      trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
       },
@@ -849,30 +852,12 @@ export class AmbassadorServer {
   }
 
   /**
-   * Extract source IP from request, respecting trustProxy configuration
-   *
-   * Security: F-SEC-M6-020 remediation + F-SEC-P1-001 fix
-   * - If trustProxy is false (default): Use only request.ip (direct connection)
-   * - If trustProxy is true: Trust first IP in X-Forwarded-For header
-   * - Always falls back to '0.0.0.0' if no IP available
-   *
-   * @param request - Fastify request object
-   * @returns Source IP address as string
+   * Source IP of the request. Fastify resolves X-Forwarded-For itself according to the
+   * `trustProxy` option (S3), so this is just request.ip: with trust_proxy=false (default) a
+   * spoofed header is ignored; with a hop count / CIDR list only trusted proxies are believed.
    */
   private getSourceIp(request: FastifyRequest): string {
-    if (this.config.trustProxy) {
-      // Trust X-Forwarded-For (first IP in comma-separated list)
-      const forwardedHeader = request.headers['x-forwarded-for'];
-      const forwardedFor =
-        (Array.isArray(forwardedHeader) ? forwardedHeader[0] : forwardedHeader) ||
-        request.ip ||
-        '0.0.0.0';
-      return forwardedFor.split(',')[0]?.trim() || '0.0.0.0';
-      // TODO: If trustProxy is string[], validate request.ip is in trusted CIDR ranges
-    } else {
-      // Default: Ignore X-Forwarded-For, use direct connection IP
-      return request.ip ?? '0.0.0.0';
-    }
+    return request.ip ?? '0.0.0.0';
   }
 
   /**

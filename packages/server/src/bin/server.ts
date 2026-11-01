@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/explicit-function-return-type */
 
+import { parseTrustProxyEnv } from '../trust-proxy.js';
 import { AmbassadorServer } from '../server.js';
 import path from 'path';
 import fs from 'fs';
@@ -271,6 +272,9 @@ async function main() {
       (process.env.MCP_AMBASSADOR_PORT ? parseInt(process.env.MCP_AMBASSADOR_PORT, 10) : undefined),
     host: args.host || ambassadorConfig?.server.host || process.env.MCP_AMBASSADOR_HOST,
     dataDir,
+    trustProxy:
+      parseTrustProxyEnv(process.env.MCP_AMBASSADOR_TRUST_PROXY) ??
+      ambassadorConfig?.server.trust_proxy,
     serverName: args.serverName || process.env.MCP_AMBASSADOR_SERVER_NAME,
     logLevel: (args.logLevel || process.env.MCP_AMBASSADOR_LOG_LEVEL) as CliArgs['logLevel'],
     downstreamMcps,
