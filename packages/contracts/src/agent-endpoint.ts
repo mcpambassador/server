@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { TOOL_PIN_RESERVED_NAME_PREFIX } from './tool-pins.js';
 
 // ===== Route constants =====
 
@@ -157,7 +158,7 @@ export const disclosureModeSchema = z.enum(DISCLOSURE_MODES);
 export type DisclosureMode = z.infer<typeof disclosureModeSchema>;
 
 /** ADR-022 P1: downstream tools whose name starts with this prefix are hidden and flagged */
-export const RESERVED_TOOL_PREFIX = 'ambassador__';
+export const RESERVED_TOOL_PREFIX = TOOL_PIN_RESERVED_NAME_PREFIX;
 export const META_TOOL_NAMES = [
   'ambassador__search_tools',
   'ambassador__describe_tool',
@@ -168,6 +169,15 @@ export type MetaToolName = (typeof META_TOOL_NAMES)[number];
 export const SEARCH_TOOLS_DEFAULT_LIMIT = 20;
 export const SEARCH_TOOLS_MAX_LIMIT = 50;
 export const SEARCH_TOOLS_MAX_QUERY_LENGTH = 200;
+
+/** P2 no recursion: a meta-tool (or any `ambassador__` name) is never a valid target of describe/call */
+const notReservedName = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine(n => !n.startsWith(RESERVED_TOOL_PREFIX), {
+    message: `name must not start with ${RESERVED_TOOL_PREFIX}`,
+  });
 
 /** `search_tools` arguments. Matches name and description of tools the grant may call. */
 export const searchToolsInputSchema = z.object({
@@ -180,14 +190,14 @@ export type SearchToolsInput = z.infer<typeof searchToolsInputSchema>;
 
 /** `describe_tool` arguments. `mcp` disambiguates a name served by several MCPs (ADR-022 P3). */
 export const describeToolInputSchema = z.object({
-  name: z.string().min(1).max(256),
+  name: notReservedName,
   mcp: z.string().min(1).max(128).optional(),
 });
 export type DescribeToolInput = z.infer<typeof describeToolInputSchema>;
 
 /** `call_tool` arguments. `arguments` is validated server-side against the tool's approved schema. */
 export const callToolInputSchema = z.object({
-  name: z.string().min(1).max(256),
+  name: notReservedName,
   mcp: z.string().min(1).max(128).optional(),
   arguments: z.record(z.unknown()).optional(),
 });
