@@ -200,9 +200,6 @@ describe('service level', () => {
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN pin_policy`);
       raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN origin`);
       raw(db).exec(`DROP TABLE schema_migrations`);
-      // ...and predates every later migration (0004 tool pins), which would otherwise re-run on top.
-      raw(db).exec(`DROP TABLE tool_pins`);
-      raw(db).exec(`ALTER TABLE mcp_catalog DROP COLUMN pin_policy`);
     } catch {
       return; // SQLite too old for DROP COLUMN: nothing to simulate
     }
