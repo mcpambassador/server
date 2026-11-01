@@ -283,110 +283,131 @@ export async function registerAgentMcpRoutes(
   }
 
   // ----- POST /mcp -----
-  app.post(AGENT_MCP_ROUTE, async (req, reply) => {
-    const p = await authenticate(req, reply);
-    if (!p) return reply;
-    await touchGrant(deps, p.grant_id);
+  // Auth runs in onRequest (before content-type negotiation and body parsing) so an unauthenticated
+  // POST without/with a bad content-type gets 401 and an auth-failure audit, not 415/400.
+  const authenticated = new WeakMap<FastifyRequest, AgentPrincipal>();
+  app.post(
+    AGENT_MCP_ROUTE,
+    {
+      onRequest: async (req, reply) => {
+        const principal = await authenticate(req, reply);
+        if (!principal) return reply;
+        authenticated.set(req, principal);
+        return undefined;
+      },
+    },
+    async (req, reply) => {
+      const p = authenticated.get(req);
+      if (!p) return reply.status(401).send(jsonRpcError(-32001, 'Unauthorized'));
+      await touchGrant(deps, p.grant_id);
 
-    // A tool outside the token's scopes is an auth failure (403 insufficient_scope), not a tool error.
-    // Allowlist and kill-switch denials stay JSON-RPC tool results (same text as /v1/tools/invoke).
-    const callNames = toolCallNames(req.body);
-    if (callNames.length > 0) {
-      await prepareUser(p);
-      const catalog = await host.toolDeps.toolRouter.getIsolationAwareToolCatalog(
-        host.toolDeps.db,
-        p.user_id,
-        p.bound_client_id
-      );
-      for (const name of callNames) {
-        const tool = catalog.find(t => t.name === name);
-        if (tool && !agentScopeAllows(p.scopes, tool)) {
-          return fail(req, reply, 'insufficient_scope', {
-            principal: p,
-            token: bearerFrom(req),
-            scope: `mcp:${tool.source_mcp}`,
-          });
+      // A tool outside the token's scopes is an auth failure (403 insufficient_scope), not a tool error.
+      // Allowlist and kill-switch denials stay JSON-RPC tool results (same text as /v1/tools/invoke).
+      const callNames = toolCallNames(req.body);
+      if (callNames.length > 0) {
+        await prepareUser(p);
+        const catalog = await host.toolDeps.toolRouter.getIsolationAwareToolCatalog(
+          host.toolDeps.db,
+          p.user_id,
+          p.bound_client_id
+        );
+        for (const name of callNames) {
+          const tool = catalog.find(t => t.name === name);
+          if (tool && !agentScopeAllows(p.scopes, tool)) {
+            return fail(req, reply, 'insufficient_scope', {
+              principal: p,
+              token: bearerFrom(req),
+              scope: `mcp:${tool.source_mcp}`,
+            });
+          }
         }
       }
-    }
 
-    // Rate limit tools/call per grant and per user (before doing any work)
-    const calls = rpcMethods(req.body).filter(m => m === 'tools/call').length;
-    for (let i = 0; i < calls; i++) {
-      const ok =
-        deps.limiter.allow(
-          `mcp_call_grant:${p.grant_id}`,
-          rl.tool_calls_per_minute_per_grant,
-          60_000
-        ) &&
-        deps.limiter.allow(`mcp_call_user:${p.user_id}`, rl.tool_calls_per_minute_per_user, 60_000);
-      if (!ok) {
+      // Rate limit tools/call per grant and per user (before doing any work)
+      const calls = rpcMethods(req.body).filter(m => m === 'tools/call').length;
+      for (let i = 0; i < calls; i++) {
+        const ok =
+          deps.limiter.allow(
+            `mcp_call_grant:${p.grant_id}`,
+            rl.tool_calls_per_minute_per_grant,
+            60_000
+          ) &&
+          deps.limiter.allow(
+            `mcp_call_user:${p.user_id}`,
+            rl.tool_calls_per_minute_per_user,
+            60_000
+          );
+        if (!ok) {
+          return reply
+            .status(429)
+            .header('Retry-After', '60')
+            .send(jsonRpcError(-32000, 'Rate limit exceeded'));
+        }
+      }
+
+      // Concurrency cap per grant (max_streams_per_grant); revocation aborts in-flight requests
+      const raw = reply.raw;
+      const release = deps.streams.acquire(p.grant_id, config.max_streams_per_grant, () => {
+        raw.destroy();
+      });
+      if (!release) {
         return reply
           .status(429)
-          .header('Retry-After', '60')
-          .send(jsonRpcError(-32000, 'Rate limit exceeded'));
+          .header('Retry-After', '1')
+          .send(jsonRpcError(-32000, 'Too many concurrent requests for this grant'));
       }
-    }
 
-    // Concurrency cap per grant (max_streams_per_grant); revocation aborts in-flight requests
-    const raw = reply.raw;
-    const release = deps.streams.acquire(p.grant_id, config.max_streams_per_grant, () => {
-      raw.destroy();
-    });
-    if (!release) {
-      return reply
-        .status(429)
-        .header('Retry-After', '1')
-        .send(jsonRpcError(-32000, 'Too many concurrent requests for this grant'));
-    }
+      const server = buildServer(p, req.ip);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless
+        enableJsonResponse: true,
+      });
+      let cleaned = false;
+      const cleanup = (): void => {
+        if (cleaned) return;
+        cleaned = true;
+        release();
+        void transport.close().catch(() => undefined);
+        void server.close().catch(() => undefined);
+      };
+      raw.on('close', cleanup);
 
-    const server = buildServer(p, req.ip);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless
-      enableJsonResponse: true,
-    });
-    let cleaned = false;
-    const cleanup = (): void => {
-      if (cleaned) return;
-      cleaned = true;
-      release();
-      void transport.close().catch(() => undefined);
-      void server.close().catch(() => undefined);
-    };
-    raw.on('close', cleanup);
-
-    try {
-      await server.connect(transport);
-      reply.hijack();
-      raw.setHeader('Cache-Control', 'no-store');
-      await transport.handleRequest(req.raw, raw, req.body);
-    } catch (e) {
-      logger.error(`[agent-mcp] request failed: ${String(e)}`);
-      if (!raw.headersSent) {
-        raw.statusCode = 500;
-        raw.setHeader('Content-Type', 'application/json');
-        raw.end(JSON.stringify(jsonRpcError(-32603, 'Internal error')));
-      } else {
-        raw.destroy();
+      try {
+        await server.connect(transport);
+        reply.hijack();
+        raw.setHeader('Cache-Control', 'no-store');
+        await transport.handleRequest(req.raw, raw, req.body);
+      } catch (e) {
+        logger.error(`[agent-mcp] request failed: ${String(e)}`);
+        if (!raw.headersSent) {
+          raw.statusCode = 500;
+          raw.setHeader('Content-Type', 'application/json');
+          raw.end(JSON.stringify(jsonRpcError(-32603, 'Internal error')));
+        } else {
+          raw.destroy();
+        }
+      } finally {
+        cleanup();
       }
-    } finally {
-      cleanup();
+      return reply;
     }
-    return reply;
-  });
+  );
 
   // ----- GET / DELETE /mcp: stateless server — no standalone SSE stream, no sessions -----
   // Auth runs in onRequest so an unauthenticated DELETE/GET gets 401 before body parsing (an empty
   // JSON body would otherwise 400 first).
+  // Authenticated GET/DELETE answer 405 straight from onRequest, before body parsing (a JSON
+  // content-type with an empty body would otherwise 400 first).
   const authOnRequest = async (req: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const p = await authenticate(req, reply);
-    return p ? undefined : reply;
-  };
-  const notAllowed = async (_req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
-    reply
+    if (!p) return reply;
+    return reply
       .status(405)
       .header('Allow', 'POST')
       .send(jsonRpcError(-32000, 'Method not allowed: this MCP endpoint is stateless (POST only)'));
-  app.get(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
-  app.delete(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, notAllowed);
+  };
+  const unreachable = async (_req: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> =>
+    reply;
+  app.get(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, unreachable);
+  app.delete(AGENT_MCP_ROUTE, { onRequest: authOnRequest }, unreachable);
 }

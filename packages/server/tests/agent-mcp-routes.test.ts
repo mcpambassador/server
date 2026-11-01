@@ -294,6 +294,22 @@ describe('/mcp', () => {
     expect((await post('amb_at_x', rpc('ping'))).statusCode).toBe(429);
   });
 
+  it('POST without content-type is 401 + audited (auth before parsing); authed DELETE with empty JSON body is 405', async () => {
+    await build();
+    const g = await grant();
+    events.length = 0;
+    const noCt = await app.inject({ method: 'POST', url: '/mcp' });
+    expect(noCt.statusCode).toBe(401);
+    expect(events.some(e => e.action === 'agent_auth_failure')).toBe(true);
+    const del = await app.inject({
+      method: 'DELETE',
+      url: '/mcp',
+      headers: { authorization: `Bearer ${g.access_token}`, 'content-type': 'application/json' },
+    });
+    expect(del.statusCode).toBe(405);
+    expect(del.headers.allow).toBe('POST');
+  });
+
   it('revocation aborts in-flight requests of the grant', async () => {
     await build();
     const g = await grant();
