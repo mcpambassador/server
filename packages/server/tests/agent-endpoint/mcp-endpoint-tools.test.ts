@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { createHash } from 'crypto';
 import { eq } from 'drizzle-orm';
-import { describe, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AGENT_GRANTS_ROUTE } from '@mcpambassador/contracts';
 import { agent_grants } from '@mcpambassador/core';
 import {
@@ -271,7 +271,7 @@ describe('parity with /v1/tools and /v1/tools/invoke', () => {
 });
 
 describe('audit', () => {
-  itImpl('deleting the bound client audits the revoked grant', async () => {
+  it('deleting the bound client audits the revoked grant', async () => {
     const c = await createClientWithKey(alice, 'to-delete-audit');
     const g = await oneShot(alice, c.clientId);
     const del = await alice.request({
