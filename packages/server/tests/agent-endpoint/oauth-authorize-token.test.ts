@@ -51,13 +51,13 @@ describe('authorize + consent (pending request model)', () => {
     s = await startAgentTestServer(agentEndpointOpts());
     alice = await loginSession(s, await createUser(s, 'alice'));
     bob = await loginSession(s, await createUser(s, 'bob'));
-    clientId = await registerAdminClient(s).catch(() => '');
+    clientId = await registerAdminClient(s);
   });
   afterAll(async () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl('authorize 302s to /app/oauth/consent?request_id=…', async () => {
+  it('authorize 302s to /app/oauth/consent?request_id=…', async () => {
     const { challenge } = pkce();
     const { location, requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -99,7 +99,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(String(res.headers['location'] ?? '')).not.toContain('request_id=');
   });
 
-  itImpl('GET consent returns client + available subscriptions + TTL bounds', async () => {
+  it('GET consent returns client + available subscriptions + TTL bounds', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -114,7 +114,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(d.max_ttl_seconds).toBeGreaterThanOrEqual(d.default_ttl_seconds);
   });
 
-  itImpl("another user's request_id → 403 (bound to first opener)", async () => {
+  it("another user's request_id → 403 (bound to first opener)", async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -139,7 +139,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  itImpl('reused request_id → 404 (single use)', async () => {
+  it('reused request_id → 404 (single use)', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -155,7 +155,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(again.statusCode).toBe(404);
   });
 
-  itImpl('scope outside requested ∩ available → 400', async () => {
+  it('scope outside requested ∩ available → 400', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -171,7 +171,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl('client_id / redirect_uri cannot be changed through the POST', async () => {
+  it('client_id / redirect_uri cannot be changed through the POST', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -193,7 +193,7 @@ describe('authorize + consent (pending request model)', () => {
     }
   });
 
-  itImpl('deny → redirect with error=access_denied and state, no code', async () => {
+  it('deny → redirect with error=access_denied and state, no code', async () => {
     const { challenge } = pkce();
     const { requestId } = await startAuthorize(s, alice, {
       client_id: clientId,
@@ -208,7 +208,7 @@ describe('authorize + consent (pending request model)', () => {
     expect(u.searchParams.get('code')).toBeNull();
   });
 
-  itImpl('TTL above max_grant_ttl_seconds is clamped', async () => {
+  it('TTL above max_grant_ttl_seconds is clamped', async () => {
     const out = await fullFlow(s, alice, clientId, { ttl_seconds: 10 * 86400 });
     expect(out.access_token.startsWith(ACCESS_TOKEN_PREFIX)).toBe(true);
     const g = await alice.request({ method: 'GET', url: AGENT_GRANTS_ROUTE });
@@ -227,7 +227,7 @@ describe('token endpoint', () => {
   beforeAll(async () => {
     s = await startAgentTestServer(agentEndpointOpts());
     alice = await loginSession(s, await createUser(s, 'alice'));
-    clientId = await registerAdminClient(s).catch(() => '');
+    clientId = await registerAdminClient(s);
   });
   afterAll(async () => {
     await stopAgentTestServer(s);
@@ -243,7 +243,7 @@ describe('token endpoint', () => {
     return { code, verifier };
   }
 
-  itImpl('happy path returns Bearer amb_at_ + amb_rt_, scope, expires_in 900', async () => {
+  it('happy path returns Bearer amb_at_ + amb_rt_, scope, expires_in 900', async () => {
     const { code, verifier } = await freshCode();
     const res = await exchangeCode(s, { client_id: clientId, code, verifier });
     expect(res.statusCode).toBe(200);
@@ -256,26 +256,23 @@ describe('token endpoint', () => {
     expect(b.scope).toContain('mcp:*');
   });
 
-  itImpl('wrong code_verifier → invalid_grant', async () => {
+  it('wrong code_verifier → invalid_grant', async () => {
     const { code } = await freshCode();
     const res = await exchangeCode(s, { client_id: clientId, code, verifier: pkce().verifier });
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toBe('invalid_grant');
   });
 
-  itImpl(
-    'code is single-use; replay → invalid_grant (and revokes tokens issued from it)',
-    async () => {
-      const { code, verifier } = await freshCode();
-      const first = await exchangeCode(s, { client_id: clientId, code, verifier });
-      expect(first.statusCode).toBe(200);
-      const second = await exchangeCode(s, { client_id: clientId, code, verifier });
-      expect(second.statusCode).toBe(400);
-      expect(JSON.parse(second.body).error).toBe('invalid_grant');
-    }
-  );
+  it('code is single-use; replay → invalid_grant (and revokes tokens issued from it)', async () => {
+    const { code, verifier } = await freshCode();
+    const first = await exchangeCode(s, { client_id: clientId, code, verifier });
+    expect(first.statusCode).toBe(200);
+    const second = await exchangeCode(s, { client_id: clientId, code, verifier });
+    expect(second.statusCode).toBe(400);
+    expect(JSON.parse(second.body).error).toBe('invalid_grant');
+  });
 
-  itImpl('redirect_uri mismatch → invalid_grant', async () => {
+  it('redirect_uri mismatch → invalid_grant', async () => {
     const { code, verifier } = await freshCode();
     const res = await exchangeCode(s, {
       client_id: clientId,
@@ -286,7 +283,7 @@ describe('token endpoint', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl('resource ≠ canonical → invalid_target', async () => {
+  it('resource ≠ canonical → invalid_target', async () => {
     const { code, verifier } = await freshCode();
     const res = await exchangeCode(s, {
       client_id: clientId,
@@ -298,36 +295,32 @@ describe('token endpoint', () => {
     expect(JSON.parse(res.body).error).toBe('invalid_target');
   });
 
-  itImpl('different client_id cannot redeem the code', async () => {
+  it('different client_id cannot redeem the code', async () => {
     const other = await registerAdminClient(s, { client_name: 'other' });
     const { code, verifier } = await freshCode();
     const res = await exchangeCode(s, { client_id: other, code, verifier });
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl(
-    'expired code → invalid_grant',
-    async () => {
-      const short = await startAgentTestServer(agentEndpointOpts({ auth_code_ttl_seconds: 10 }));
-      try {
-        const sess = await loginSession(short, await createUser(short, 'exp'));
-        const cid = await registerAdminClient(short);
-        const { verifier, challenge } = pkce();
-        const { requestId } = await startAuthorize(short, sess, {
-          client_id: cid,
-          code_challenge: challenge,
-        });
-        const { code } = await approveAndGetCode(sess, requestId);
-        vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 11_000 });
-        const res = await exchangeCode(short, { client_id: cid, code, verifier });
-        expect(res.statusCode).toBe(400);
-        expect(JSON.parse(res.body).error).toBe('invalid_grant');
-      } finally {
-        await stopAgentTestServer(short);
-      }
-    },
-    30_000
-  );
+  it('expired code → invalid_grant', async () => {
+    const short = await startAgentTestServer(agentEndpointOpts({ auth_code_ttl_seconds: 10 }));
+    try {
+      const sess = await loginSession(short, await createUser(short, 'exp'));
+      const cid = await registerAdminClient(short);
+      const { verifier, challenge } = pkce();
+      const { requestId } = await startAuthorize(short, sess, {
+        client_id: cid,
+        code_challenge: challenge,
+      });
+      const { code } = await approveAndGetCode(sess, requestId);
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 11_000 });
+      const res = await exchangeCode(short, { client_id: cid, code, verifier });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error).toBe('invalid_grant');
+    } finally {
+      await stopAgentTestServer(short);
+    }
+  }, 30_000);
 
   it('unsupported grant_type (password / client_credentials) → unsupported_grant_type', async () => {
     for (const grant_type of ['password', 'client_credentials']) {
@@ -337,7 +330,7 @@ describe('token endpoint', () => {
     }
   });
 
-  itImpl('rate limit: more than token_per_minute requests → 429', async () => {
+  it('rate limit: more than token_per_minute requests → 429', async () => {
     const limited = await startAgentTestServer(
       agentEndpointOpts({ rate_limits: { token_per_minute: 3 } })
     );
@@ -346,9 +339,9 @@ describe('token endpoint', () => {
       for (let i = 0; i < 6; i++) {
         last = (
           await tokenRequest(limited, {
-            grant_type: 'authorization_code',
+            grant_type: 'refresh_token',
             client_id: 'x',
-            code: 'x',
+            refresh_token: 'x',
           })
         ).statusCode;
       }
@@ -367,13 +360,13 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
   beforeAll(async () => {
     s = await startAgentTestServer(agentEndpointOpts());
     alice = await loginSession(s, await createUser(s, 'alice'));
-    clientId = await registerAdminClient(s).catch(() => '');
+    clientId = await registerAdminClient(s);
   });
   afterAll(async () => {
     await stopAgentTestServer(s);
   });
 
-  itImpl('refresh rotates: new pair issued, old refresh token invalid', async () => {
+  it('refresh rotates: new pair issued, old refresh token invalid', async () => {
     const t = await fullFlow(s, alice, clientId);
     const r1 = await refresh(s, { client_id: clientId, refresh_token: t.refresh_token! });
     expect(r1.statusCode).toBe(200);
@@ -384,7 +377,7 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
     expect(r2.statusCode).toBe(200);
   });
 
-  itImpl('reusing a rotated refresh token revokes the whole family', async () => {
+  it('reusing a rotated refresh token revokes the whole family', async () => {
     const t = await fullFlow(s, alice, clientId);
     const r1 = JSON.parse(
       (await refresh(s, { client_id: clientId, refresh_token: t.refresh_token! })).body
@@ -398,25 +391,21 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
     // …and so is the access token minted from it (checked at /mcp in mcp-endpoint-tools tests).
   });
 
-  itImpl('refresh by a different client_id fails', async () => {
+  it('refresh by a different client_id fails', async () => {
     const other = await registerAdminClient(s, { client_name: 'other' });
     const t = await fullFlow(s, alice, clientId);
     const res = await refresh(s, { client_id: other, refresh_token: t.refresh_token! });
     expect(res.statusCode).toBe(400);
   });
 
-  itImpl(
-    'refresh lifetime is capped by the grant expiry',
-    async () => {
-      const t = await fullFlow(s, alice, clientId, { ttl_seconds: 60 });
-      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 61_000 });
-      const res = await refresh(s, { client_id: clientId, refresh_token: t.refresh_token! });
-      expect(res.statusCode).toBe(400);
-    },
-    90_000
-  );
+  it('refresh lifetime is capped by the grant expiry', async () => {
+    const t = await fullFlow(s, alice, clientId, { ttl_seconds: 60 });
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 61_000 });
+    const res = await refresh(s, { client_id: clientId, refresh_token: t.refresh_token! });
+    expect(res.statusCode).toBe(400);
+  }, 90_000);
 
-  itImpl('refresh_tokens_enabled=false → no refresh_token issued', async () => {
+  it('refresh_tokens_enabled=false → no refresh_token issued', async () => {
     const off = await startAgentTestServer(agentEndpointOpts({ refresh_tokens_enabled: false }));
     try {
       const sess = await loginSession(off, await createUser(off, 'norefresh'));
@@ -428,7 +417,7 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
     }
   });
 
-  itImpl('revoke (RFC 7009): 200 empty body; refresh token no longer usable', async () => {
+  it('revoke (RFC 7009): 200 empty body; refresh token no longer usable', async () => {
     const t = await fullFlow(s, alice, clientId);
     const res = await revoke(s, {
       client_id: clientId,
@@ -441,12 +430,12 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
     expect(after.statusCode).toBe(400);
   });
 
-  itImpl('revoke of an unknown token still returns 200 (no oracle)', async () => {
+  it('revoke of an unknown token still returns 200 (no oracle)', async () => {
     const res = await revoke(s, { client_id: clientId, token: 'amb_rt_' + 'q'.repeat(43) });
     expect(res.statusCode).toBe(200);
   });
 
-  itImpl("revoke cannot kill another client's token", async () => {
+  it("revoke cannot kill another client's token", async () => {
     const other = await registerAdminClient(s, { client_name: 'other' });
     const t = await fullFlow(s, alice, clientId);
     await revoke(s, { client_id: other, token: t.refresh_token! });
