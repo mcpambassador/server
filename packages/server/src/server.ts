@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
+import { requestLogSerializers } from './log-serializers.js';
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import crypto from 'crypto';
@@ -234,6 +235,7 @@ export class AmbassadorServer {
       trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576, // 1MB max request body (F-SEC-M6 condition)
       https: {
@@ -566,6 +568,7 @@ export class AmbassadorServer {
       trustProxy: this.config.trustProxy ?? false,
       logger: {
         level: this.config.logLevel,
+        serializers: requestLogSerializers,
       },
       bodyLimit: 1048576,
       https: {

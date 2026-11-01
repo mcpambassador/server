@@ -672,3 +672,51 @@ describe('S5 revoke grants on client suspend/revoke', () => {
     ).toBe(0);
   });
 });
+
+describe('auth code replay + DCR cap scope', () => {
+  it('replaying a used code revokes the grant it produced', async () => {
+    const id = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    expect((await verifyAccessToken(deps, tok.access_token)).ok).toBe(true);
+    events.length = 0;
+    await expect(
+      exchangeToken(deps, tokenReq(id, code, verifier), '6.6.6.6')
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    expect(await verifyAccessToken(deps, tok.access_token)).toEqual({
+      ok: false,
+      reason: 'revoked',
+    });
+    const ev = events.find(e => e.action === 'agent_grant_revoked');
+    expect(ev.metadata).toMatchObject({
+      reason: 'auth_code_reuse',
+      revoked_by: 'system:auth_code_reuse',
+    });
+  });
+
+  it('a different client replaying the code does not revoke the grant', async () => {
+    const id = await newClient();
+    const other = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    await expect(
+      exchangeToken(deps, tokenReq(other, code, verifier), '6.6.6.6')
+    ).rejects.toMatchObject({ error: 'invalid_grant' });
+    expect((await verifyAccessToken(deps, tok.access_token)).ok).toBe(true);
+  });
+
+  it('max_oauth_clients counts DCR clients only (admin-registered do not consume the cap)', async () => {
+    deps.config.max_oauth_clients = 1;
+    await newClient();
+    await newClient();
+    await expect(
+      registerClient(deps, { client_name: 'd1', redirect_uris: [REDIRECT] }, '3.3.3.1')
+    ).resolves.toBeTruthy();
+    await expect(
+      registerClient(deps, { client_name: 'd2', redirect_uris: [REDIRECT] }, '3.3.3.2')
+    ).rejects.toMatchObject({ status: 503 });
+    await expect(newClient()).resolves.toBeTruthy();
+  });
+});

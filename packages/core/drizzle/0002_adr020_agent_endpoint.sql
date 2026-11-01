@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS `oauth_auth_codes` (
 	`label` text,
 	`ttl_seconds` integer,
 	`expires_at` text NOT NULL,
-	`used_at` text
+	`used_at` text,
+	`grant_id` text
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_oauth_auth_codes_expires_at` ON `oauth_auth_codes` (`expires_at`);
