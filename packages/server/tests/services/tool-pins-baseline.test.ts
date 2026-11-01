@@ -10,6 +10,7 @@ import {
   runMigrations,
   type DatabaseClient,
 } from '@mcpambassador/core';
+import { seedUserGrants } from '../helpers/grants.js';
 import { ToolRouter } from '../../src/downstream/tool-router.js';
 import { ToolPinService } from '../../src/services/tool-pins/pin-service.js';
 import { BASELINE_DONE_KEY, ToolPinBaseline } from '../../src/services/tool-pins/baseline.js';
@@ -106,6 +107,7 @@ describe('ToolPinBaseline (D6)', () => {
     const router = new ToolRouter(shared as never, { getToolCatalog: () => [] } as never);
     router.setPinService(pins, (m, s) => baseline.baselineFor(m, s));
     subs = [{ mcp_id: id, status: 'active' }];
+    await seedUserGrants(db, 'u1', [id]);
 
     const cat = await router.getIsolationAwareToolCatalog(db, 'u1', 'c1');
     expect(cat.map(x => x.name)).toEqual(['same']);

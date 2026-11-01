@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `server.trust_proxy` / `MCP_AMBASSADOR_TRUST_PROXY` no longer accept hop counts (Fastify 5.12 disables them because they let direct clients spoof `X-Forwarded-*`). Use `true`, `false`, or an IP/CIDR list; a bare number in the env var is rejected at startup.
 
 ### Added
-
+- `scripts/group-grant-loss-report.mjs`: read-only pre-upgrade report of active subscriptions that will stop being served once grants are checked at call time (run it on a copy of the DB).
 - Progressive tool disclosure (ADR-022): a remote agent grant has a `disclosure_mode` (`full`, the default, or `progressive`) chosen by the user at consent or one-shot creation. In `progressive` mode `/mcp` `tools/list` returns only `ambassador__search_tools`, `ambassador__describe_tool` and `ambassador__call_tool`; they run through the same scope, allowlist, pin, authorization, kill-switch and audit path as a direct call, and a hidden, pending, revoked, reserved-name or out-of-scope tool answers "Unknown tool" like a nonexistent one. Same-named tools of different MCPs are told apart by an optional `mcp` argument (ambiguous names are refused with the candidates). Calls made through `call_tool` are audited with `via` and `disclosure_mode`; discovery is audited as `agent_tool_discovery` with query length and hash only. Search/describe draw from their own rate bucket at twice the per-grant call limit. Migration `0005_agent_grant_disclosure_mode.sql` adds the column to `agent_grants` and `oauth_auth_codes`; existing grants stay `full`.
 
 ### Changed
@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `/mcp` insufficient-scope pre-check resolves a tool against the full catalog (same-named tools of different MCPs kept apart) and looks through one level of `ambassador__call_tool`.
 
 ### Fixed
+- **TD-037 / ADR-025 M2+M4:** group grants are now evaluated at call time for every MCP (list, search, describe and invoke), via one shared helper also used at subscribe. A user whose group no longer grants an MCP stops being served it even if the subscription row still exists; the row is kept (filter, never mutate), so re-granting restores access. Group `suspended` status is deliberately not consulted. The subscription list endpoints gain `access: 'granted' | 'revoked'`.
 
 - `POST /v1/admin/users` now adds the new user to `all-users` like every other creation path (without it the user got 403 on subscribe).
 - Publishing or archiving an MCP now hot-applies the catalog, so a published shared MCP serves tools without a manual `POST /v1/admin/catalog/apply` or a restart. Failures stay pending and the SPA banner still offers Apply. Behaviour change: publish now goes live immediately; the review pause returns with ADR-021 tool-definition pinning. One `CatalogReloader` now serves both listeners, so concurrent applies conflict (409) instead of running in parallel.

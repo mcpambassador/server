@@ -315,11 +315,19 @@ export class ToolRouter {
     const { listClientSubscriptions } = await import('../services/subscription-service.js');
     const subscriptions = await listClientSubscriptions(db, { userId, clientId });
 
+    // ADR-025 M2/M4: group grants are evaluated at call time for every MCP. Filter, never mutate:
+    // the subscription row stays, so re-granting restores access.
+    const { grantedMcpIdsForUser } = await import('../services/mcp-access.js');
+    const granted = await grantedMcpIdsForUser(db, userId);
+
     const tools: AggregatedTool[] = [];
     const seenToolNames = new Set<string>();
 
     for (const sub of subscriptions) {
       if (sub.status !== 'active') {
+        continue;
+      }
+      if (!granted.has(sub.mcp_id)) {
         continue;
       }
 

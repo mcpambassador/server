@@ -15,6 +15,7 @@ import {
   addUserToGroup,
   createMcpEntry,
   grantGroupAccess,
+  revokeGroupAccess,
 } from '@mcpambassador/core';
 
 describe('Subscription Routes', () => {
@@ -289,6 +290,35 @@ describe('Subscription Routes', () => {
       const sub = body.data[0];
       expect(sub.id).toBeDefined();
       expect(sub.mcpName).toBeDefined();
+      expect(sub.access).toBe('granted');
+    });
+
+    it('marks a subscription whose grant was revoked as access=revoked (row kept; re-grant restores)', async () => {
+      await revokeGroupAccess(server.db, testMcpId, testGroupId);
+      try {
+        const res = await server.admin.inject({
+          method: 'GET',
+          url: `/v1/users/me/clients/${testClientId}/subscriptions`,
+          headers: { cookie: sessionCookie },
+        });
+        const row = JSON.parse(res.body).data.find((x: { mcpId: string }) => x.mcpId === testMcpId);
+        expect(row.access).toBe('revoked');
+        expect(row.status).toBe('active');
+      } finally {
+        await grantGroupAccess(server.db, {
+          mcp_id: testMcpId,
+          group_id: testGroupId,
+          assigned_by: 'system',
+        });
+      }
+      const again = await server.admin.inject({
+        method: 'GET',
+        url: `/v1/users/me/clients/${testClientId}/subscriptions`,
+        headers: { cookie: sessionCookie },
+      });
+      expect(
+        JSON.parse(again.body).data.find((x: { mcpId: string }) => x.mcpId === testMcpId).access
+      ).toBe('granted');
     });
 
     it('should reject for other user client', async () => {
