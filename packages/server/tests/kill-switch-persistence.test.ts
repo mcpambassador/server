@@ -6,7 +6,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { initializeDatabase, runMigrations, closeDatabase } from '@mcpambassador/core';
+import {
+  closeDatabase,
+  createMcpEntry,
+  initializeDatabase,
+  runMigrations,
+} from '@mcpambassador/core';
 import {
   isValidPolicyToolName,
   parseKillSwitchTarget,
@@ -258,7 +263,14 @@ describe('kill switch API (GET + KS-3)', () => {
   });
 
   it('accepts a tool target (odd name, URL-encoded), lists it as type tool, rejects bidi/NUL names', async () => {
-    const id = '33333333-3333-4333-8333-333333333333';
+    const id = (
+      await createMcpEntry(s.db, {
+        name: `ks-api-${Date.now()}`,
+        display_name: 'ks',
+        transport_type: 'stdio',
+        isolation_mode: 'shared',
+      } as never)
+    ).mcp_id;
     const name = 'Fetch URL/v2 ünï';
     const target = `tool:${id}:${name}`;
     const post = (t: string, enabled: boolean) =>
@@ -287,6 +299,26 @@ describe('kill switch API (GET + KS-3)', () => {
       headers: h(),
     });
     expect(after.json().data.find((x: { target: string }) => x.target === target)).toBeUndefined();
+  });
+
+  it('enabling a tool switch needs a real catalog mcp_id (404 unknown, 400 name/non-UUID); disabling stays permissive', async () => {
+    const post = (t: string, enabled: boolean) =>
+      s.api.inject({
+        method: 'POST',
+        url: `/v1/admin/kill-switch/${encodeURIComponent(t)}`,
+        headers: h(),
+        payload: { enabled },
+      });
+    expect((await post('tool:44444444-4444-4444-8444-444444444444:x', true)).statusCode).toBe(404);
+    expect((await post('tool:github:x', true)).statusCode).toBe(400);
+    const list = await s.api.inject({
+      method: 'GET',
+      url: '/v1/admin/kill-switches',
+      headers: h(),
+    });
+    expect(list.json().data).toEqual([]); // neither was stored
+    expect((await post('tool:44444444-4444-4444-8444-444444444444:x', false)).statusCode).toBe(200);
+    expect((await post('tool:github:x', false)).statusCode).toBe(200);
   });
 
   it('activate → listed (active only) with actor; deactivate → gone; GET needs auth', async () => {
