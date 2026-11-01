@@ -29,6 +29,7 @@ import {
   listAllToolPins,
   logger,
   updateToolPin,
+  updateToolPinsAtomic,
   type DatabaseClient,
   type ToolPinRecord,
 } from '@mcpambassador/core';
@@ -384,21 +385,40 @@ export class ToolPinService {
     if (!pin.approved_hash) return { ok: false, code: 'not_approved' };
     if (pin.approved_hash !== o.expectedHash) return { ok: false, code: 'stale' };
     const ts = nowIso();
-    const revoked = parseRevoked(pin.revoked_hashes);
-    if (!revoked.includes(pin.approved_hash)) revoked.push(pin.approved_hash);
-    // A queued pending item is kept (status stays pending_review); otherwise the pin is rejected.
-    // rejected_hash is left alone: the revoked hash goes to revoked_hashes.
-    const patch: Partial<ToolPinRecord> = {
-      status: pin.pending_hash ? 'pending_review' : 'rejected',
-      approved_hash: null,
-      approved_definition: null,
-      revoked_hashes: JSON.stringify(revoked),
-      updated_at: ts,
-    };
-    await updateToolPin(this.db, pin.pin_id, patch);
-    this.index({ ...pin, ...patch } as ToolPinRecord);
+    // R2: the hash is withdrawn EVERYWHERE: every pin of this (mcp, tool) in any scope serving the same hash.
+    const targets = [...this.pins.values()]
+      .map(l => l.rec)
+      .filter(
+        r =>
+          r.pin_id === pin.pin_id ||
+          (r.mcp_id === pin.mcp_id &&
+            r.tool_name === pin.tool_name &&
+            r.approved_hash === pin.approved_hash)
+      );
+    const updates = targets.map(r => {
+      const revoked = parseRevoked(r.revoked_hashes);
+      if (!revoked.includes(pin.approved_hash!)) revoked.push(pin.approved_hash!);
+      // A queued pending item is kept (status stays pending_review); otherwise the pin is rejected.
+      // rejected_hash is left alone: the revoked hash goes to revoked_hashes.
+      const patch: Partial<ToolPinRecord> = {
+        status: r.pending_hash ? 'pending_review' : 'rejected',
+        approved_hash: null,
+        approved_definition: null,
+        revoked_hashes: JSON.stringify(revoked),
+        updated_at: ts,
+      };
+      return { rec: r, patch };
+    });
+    await updateToolPinsAtomic(
+      this.db,
+      updates.map(u => ({ pinId: u.rec.pin_id, patch: u.patch }))
+    );
+    for (const u of updates) this.index({ ...u.rec, ...u.patch } as ToolPinRecord);
+    const pinIds = updates.map(u => u.rec.pin_id);
     this.audit('tool_pin_revoked', {
       pin_id: pin.pin_id,
+      pin_ids: pinIds,
+      count: pinIds.length,
       mcp_id: pin.mcp_id,
       scope_user_id: pin.scope_user_id,
       tool: sanitizeToolNameForLog(pin.tool_name),
@@ -407,7 +427,7 @@ export class ToolPinService {
       actor: o.actor,
       reason_given: Boolean(o.reason),
     });
-    return { ok: true, pin: this.getById(pin.pin_id)! };
+    return { ok: true, pin: this.getById(pin.pin_id)!, revokedPinIds: pinIds };
   }
 
   /** (c) True if this exact definition was rejected or revoked for the same (mcp, tool) in ANY scope. */
@@ -785,7 +805,7 @@ interface Assessed {
 }
 
 export type DecisionResult =
-  | { ok: true; pin: ToolPinRecord }
+  | { ok: true; pin: ToolPinRecord; revokedPinIds?: string[] }
   | {
       ok: false;
       code:

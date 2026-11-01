@@ -454,6 +454,62 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
       expect(after.json().data).toHaveLength(0);
     });
 
+    describe('R2 revoke withdraws the hash everywhere', () => {
+      const setup = async () => {
+        const id = await mk('m');
+        // user-scope copies exist before the shared pin (a shared pin alone does not create them)
+        for (const [u, d] of [
+          ['u1', 'A'],
+          ['u2', 'OTHER'],
+        ] as const) {
+          await pins.observe({
+            mcpId: id,
+            scopeUserId: u,
+            liveTools: [t('a', d)],
+            policy: 'review',
+          });
+          const p = pins.getPin(id, u, 'a')!;
+          await pins.approve(p.pin_id, { expectedHash: p.pending_hash!, actor: 'x' } as never);
+        }
+        const shared = await approvedShared(id);
+        return { id, shared, u1: pins.getPin(id, 'u1', 'a')!, u2: pins.getPin(id, 'u2', 'a')! };
+      };
+
+      it('revoking the NULL-scope pin hides it and the user-scope copy; a different hash is untouched', async () => {
+        const { id, shared, u1, u2 } = await setup();
+        expect(u1.approved_hash).toBe(shared.approved_hash);
+        expect(u2.approved_hash).not.toBe(shared.approved_hash);
+        const r = await pins.revoke(shared.pin_id, {
+          expectedHash: shared.approved_hash!,
+          actor: 'x',
+        });
+        expect(r.ok && r.revokedPinIds!.sort()).toEqual([shared.pin_id, u1.pin_id].sort());
+        expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+        expect(pins.resolveApproved(id, 'u1', 'a')).toBeUndefined();
+        expect(pins.resolveApproved(id, 'u2', 'a')).toBeDefined();
+        expect(pins.getPin(id, 'u2', 'a')!.approved_hash).toBe(u2.approved_hash);
+        const evs = audits.filter(a => a.action === 'tool_pin_revoked');
+        expect(evs).toHaveLength(1);
+        expect(evs[0]!.meta).toMatchObject({ count: 2 });
+      });
+
+      it('revoking the user-scope copy also clears the NULL-scope pin', async () => {
+        const { id, shared, u1 } = await setup();
+        const r = await pins.revoke(u1.pin_id, { expectedHash: u1.approved_hash!, actor: 'x' });
+        expect(r.ok).toBe(true);
+        expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+        expect(pins.getPin(id, null, 'a')!.pin_id).toBe(shared.pin_id);
+        expect(pins.getPin(id, null, 'a')!.revoked_hashes).toContain(shared.approved_hash!);
+      });
+
+      it('stale is judged on the target pin only', async () => {
+        const { shared, u2 } = await setup();
+        expect(
+          await pins.revoke(u2.pin_id, { expectedHash: shared.approved_hash!, actor: 'x' })
+        ).toMatchObject({ ok: false, code: 'stale' });
+      });
+    });
+
     it('POST /revoke: 200 on match, 409 on stale/not approved, 404 unknown', async () => {
       const id = await mk('m');
       const pin = await approvedShared(id);

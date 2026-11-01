@@ -7,7 +7,7 @@
  * GET  /v1/admin/tool-pins/summary          → ToolPinQueueSummary (SPA badge)
  * POST /v1/admin/tool-pins/:pinId/approve   → body ToolPinDecisionRequest → ToolPinDetail
  * POST /v1/admin/tool-pins/:pinId/reject    → body ToolPinDecisionRequest → ToolPinDetail
- * POST /v1/admin/tool-pins/:pinId/revoke   → body ToolPinRevokeRequest → ToolPinDetail (D7: withdraw an APPROVED definition; tool hidden at once)
+ * POST /v1/admin/tool-pins/:pinId/revoke   → body ToolPinRevokeRequest → ToolPinRevokeResponse (D7: withdraw an APPROVED hash from EVERY scope of this mcp+tool; tool hidden at once)
  * POST /v1/admin/tool-pins/:pinId/confirm-baseline body ToolPinConfirmBaselineRequest → ToolPinDetail (D6: human confirms a system:migration pin)
  * PATCH /v1/admin/mcps/:mcpId/pin-policy    → body { pin_policy } ; `auto` rejected (400) for registry/imported MCPs
  *
@@ -228,6 +228,11 @@ export const toolPinRevokeRequestSchema = z.object({
   expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
   reason: z.string().max(500).optional(),
 });
+/** Revoke withdraws the hash from every scope: the target's detail plus all pin ids that were revoked. */
+export const toolPinRevokeResponseSchema = toolPinDetailSchema.extend({
+  revoked_pin_ids: z.array(z.string()),
+});
+export type ToolPinRevokeResponse = z.infer<typeof toolPinRevokeResponseSchema>;
 export type ToolPinRevokeRequest = z.infer<typeof toolPinRevokeRequestSchema>;
 
 export const setPinPolicyRequestSchema = z.object({ pin_policy: pinPolicySchema });
