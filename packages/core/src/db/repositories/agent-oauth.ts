@@ -11,6 +11,7 @@
 
 import { eq, and, lt, gt, isNull, inArray } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
+import { voidApprovalsForLifecycle } from './approvals.js';
 import {
   oauth_clients,
   oauth_pending_requests,
@@ -425,6 +426,8 @@ export async function revokeAgentGrant(
     await compatUpdate(db, agent_tokens)
       .set({ revoked_at: ts })
       .where(and(eq(agent_tokens.grant_id, grantId), isNull(agent_tokens.revoked_at)));
+    // ADR-023: a revoked grant's open approval requests are voided (audited by the server observer)
+    await voidApprovalsForLifecycle(db, { grantId }, 'grant_revoked');
   });
 }
 /** Returns number of grants revoked */
@@ -448,6 +451,7 @@ export async function revokeAllAgentGrantsForUser(
     await compatUpdate(db, agent_tokens)
       .set({ revoked_at: ts })
       .where(and(inArray(agent_tokens.grant_id, ids), isNull(agent_tokens.revoked_at)));
+    await voidApprovalsForLifecycle(db, { grantIds: ids }, 'grant_revoked');
     return ids.length;
   });
 }
@@ -605,6 +609,11 @@ export async function revokeGrantsForBoundClient(
         .set({ revoked_at: at })
         .where(and(eq(agent_tokens.grant_id, g.grant_id), isNull(agent_tokens.revoked_at)));
     }
+    await voidApprovalsForLifecycle(
+      db,
+      { grantIds: live.map((g: any) => g.grant_id as string) },
+      'client_suspended'
+    );
     return live.map(toGrant);
   }
 }
@@ -632,6 +641,11 @@ export async function revokeGrantsForOAuthClient(
       .set({ revoked_at: at })
       .where(and(eq(agent_tokens.grant_id, g.grant_id), isNull(agent_tokens.revoked_at)));
   }
+  await voidApprovalsForLifecycle(
+    db,
+    { grantIds: live.map((g: any) => g.grant_id as string) },
+    'grant_revoked'
+  );
   return live.map(toGrant);
 }
 
