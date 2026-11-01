@@ -453,6 +453,12 @@ export function ToolReview() {
   const [revoking, setRevoking] = useState<ToolPinSummary | null>(null);
   const revoke = useRevokePin();
   const [revokeReason, setRevokeReason] = useState('');
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const closeRevoke = () => {
+    setRevoking(null);
+    setRevokeReason('');
+    setRevokeError(null);
+  };
   const summary = useToolPinSummary();
   const pending = useToolPins({ status: 'pending_review' });
   const baseline = useToolPins({ baseline: 'unreviewed' });
@@ -506,20 +512,34 @@ export function ToolReview() {
       )}
       <ConfirmDialog
         open={!!revoking}
-        onClose={() => {
-          setRevoking(null);
-          setRevokeReason('');
-        }}
+        onClose={closeRevoke}
         title={`Revoke ${visibleText(revoking?.tool_name ?? '')}?`}
         description={
           <div className="space-y-3">
+            {revoking?.approved_hash && (
+              <p data-testid="revoke-version">
+                Withdraws the approved version{' '}
+                <span className="font-mono">{revoking.approved_hash.slice(0, 12)}</span>
+                {revoking.approved_by || revoking.approved_at
+                  ? ` (approved${revoking.approved_by ? ` by ${visibleText(revoking.approved_by)}` : ''}${
+                      revoking.approved_at ? ` on ${visibleText(revoking.approved_at)}` : ''
+                    })`
+                  : ''}
+                .
+              </p>
+            )}
             <p>
               Agents lose this tool immediately in this scope
               {revoking && !revoking.scope_user_id
-                ? ' and in every per-user scope that relies on it'
+                ? ', and in every per-user scope that relies on it'
                 : ''}
               . It stays hidden until a new definition is approved.
             </p>
+            {revokeError && (
+              <p role="alert" className="text-red-600">
+                {revokeError}
+              </p>
+            )}
             <Textarea
               aria-label="Reason (optional)"
               placeholder="Reason (optional)"
@@ -541,11 +561,18 @@ export function ToolReview() {
               expected_hash: revoking.approved_hash,
               ...(revokeReason.trim() ? { reason: revokeReason.trim() } : {}),
             });
-            setRevokeReason('');
             toast.success('Tool revoked');
-            setRevoking(null);
+            closeRevoke();
           } catch (e) {
-            toast.error('Action failed', { description: (e as Error)?.message ?? String(e) });
+            const st = (e as { status?: number })?.status;
+            const msg = (e as Error)?.message ?? String(e);
+            setRevokeError(
+              st === 409
+                ? `This pin changed or is no longer approved; the list was refreshed. ${msg}`
+                : st === 404
+                  ? `This pin no longer exists; the list was refreshed. ${msg}`
+                  : msg
+            );
           }
         }}
       />

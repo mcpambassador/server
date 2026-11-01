@@ -46,6 +46,7 @@ function setup(opts: {
   listCalls?: string[];
   detail?: Record<string, unknown>;
   posts?: Array<{ url: string; body: unknown }>;
+  postStatus?: number;
 }) {
   const posts = opts.posts ?? [];
   server.use(
@@ -75,6 +76,11 @@ function setup(opts: {
     ),
     http.post('/v1/admin/tool-pins/:id/:action', async ({ request }) => {
       posts.push({ url: new URL(request.url).pathname, body: await request.json() });
+      if (opts.postStatus)
+        return HttpResponse.json(
+          { ok: false, error: 'conflict', message: 'stale' },
+          { status: opts.postStatus }
+        );
       return HttpResponse.json({ ok: true, data: {} });
     })
   );
@@ -264,7 +270,7 @@ describe('ToolReview revoke (G1)', () => {
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     expect(
       await screen.findByText(
-        /Agents lose this tool immediately in this scope and in every per-user scope that relies on it/
+        /Agents lose this tool immediately in this scope, and in every per-user scope that relies on it/
       )
     ).toBeInTheDocument();
     expect(posts).toHaveLength(0);
@@ -287,6 +293,36 @@ describe('ToolReview revoke (G1)', () => {
     const d = await screen.findByRole('dialog');
     expect(d.textContent).toContain('Agents lose this tool immediately in this scope');
     expect(d.textContent).not.toContain('per-user scope');
+  });
+
+  it('names the version being withdrawn: hash prefix, approver, time', async () => {
+    const user = userEvent.setup();
+    setup({
+      approved: [approvedPin({ approved_by: 'alice', approved_at: '2026-02-03T04:05:06Z' })],
+    });
+    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    const v = await screen.findByTestId('revoke-version');
+    expect(v.textContent).toContain(H1.slice(0, 12));
+    expect(v.textContent).not.toContain(H1.slice(0, 13));
+    expect(v.textContent).toContain('alice');
+    expect(v.textContent).toContain('2026-02-03T04:05:06Z');
+    expect(screen.queryByText(/replace/i)).toBeNull();
+  });
+
+  it.each([409, 404])('shows a %i inline in the dialog and refetches the lists', async status => {
+    const user = userEvent.setup();
+    const listCalls: string[] = [];
+    setup({ approved: [approvedPin()], listCalls, postStatus: status });
+    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    const before = listCalls.length;
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    const alert = await within(screen.getByRole('dialog')).findByRole('alert');
+    expect(alert.textContent).toMatch(
+      status === 409 ? /changed or is no longer approved/ : /no longer exists/
+    );
+    await waitFor(() => expect(listCalls.length).toBeGreaterThan(before));
   });
 
   it('offers Revoke on a baseline item and nothing on a pending one', async () => {

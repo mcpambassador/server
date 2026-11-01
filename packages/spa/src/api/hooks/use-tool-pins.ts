@@ -82,6 +82,7 @@ export function useRevokePin() {
         body
       ),
     onSuccess: invalidate,
+    onError: invalidate, // stale (409) or gone (404): show what the server has now
   });
 }
 
