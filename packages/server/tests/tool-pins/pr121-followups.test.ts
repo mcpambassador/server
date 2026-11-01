@@ -205,6 +205,14 @@ const addCred = (userId: string, mcpId: string): void => {
     )
     .run(`cred-${Math.random().toString(36).slice(2)}`, userId, mcpId, 'x', 'x', 'static', ts, ts);
 };
+/** Per-user catalogs build lazily and can take >300 ms under load: re-observe until the pin exists. */
+const observeUntilPin = async (stdio: string, m: M, tool: string): Promise<void> => {
+  for (let i = 0; i < 8; i++) {
+    await observe(stdio);
+    if ((await pins(`mcp_id=${m.mcpId}`)).some(x => x.tool_name === tool)) return;
+    await settle(500);
+  }
+};
 const nm = () => String(Date.now() % 100000) + Math.floor(Math.random() * 1000);
 
 describe('G1 revoke', () => {
@@ -257,16 +265,10 @@ describe('G1 revoke', () => {
   });
 
   it('revoking a NULL-scope (all users) approval hides the tool for per-user scopes', async () => {
+    await freshUser(`ru${nm()}`); // alice's catalog was already built by earlier tests
     const U = await mkMcp(`sha-ru-${nm()}`, ['pu'], 'PU-TEXT', 'review', { isolation: 'per_user' });
     const { stdio } = await agentFor([U]);
-    await observe(stdio);
-    console.log(
-      'DBG',
-      JSON.stringify(
-        (await pins(`mcp_id=${U.mcpId}`)).map(x => [x.tool_name, x.scope_user_id, x.status])
-      ),
-      JSON.stringify((await v1Tools(stdio)).map(x => x.name))
-    );
+    await observeUntilPin(stdio, U, 'pu');
     await approve(U, 'pu', 'all_users');
     expect((await stdioTools(s, stdio)).body).toContain('pu');
     const all = await pins(`mcp_id=${U.mcpId}`);
@@ -524,6 +526,7 @@ describe('R1 revoke on any pin with approved_hash', () => {
 
     rawDb().prepare('DELETE FROM server_settings WHERE key = ?').run(TOOL_PIN_BASELINE_SETTING_KEY);
     s = await restartAgentTestServer(s, opts); // re-arm: must not baseline-approve the revoked hash
+    await freshUser(`rvbX${nm()}`);
     const ag = await agentFor([R]);
     await observe(ag.stdio);
     const end = await pinOf(R, 'rvb');
@@ -539,6 +542,7 @@ describe('Ajv backreference (no native RegExp fallback)', () => {
       properties: { x: { type: 'string', pattern: '^(a+)+\\1$' } },
       additionalProperties: true,
     };
+    await freshUser(`bk${nm()}`); // earlier tests restarted the server
     const R = await mkMcp(`sha-bk-${nm()}`, ['bkr'], 'BK-TEXT', 'review', { schema });
     const { stdio } = await agentFor([R]);
     await observe(stdio);
