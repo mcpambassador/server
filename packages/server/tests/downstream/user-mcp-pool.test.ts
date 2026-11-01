@@ -11,8 +11,11 @@ class MockConnection extends EventEmitter {
   private tools: any[];
   private connected = false;
 
+  static seen: any[] = [];
+
   constructor(config: any) {
     super();
+    MockConnection.seen.push(config);
     this.config = config;
     this.tools = [];
   }
@@ -590,6 +593,55 @@ describe('UserMcpPool - TD-040 change detection', () => {
 
     await pool.terminateForUser('user1');
     expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(false);
+    await pool.shutdown();
+  });
+});
+
+describe('UserMcpPool - credential env merge (TD-048/TD-049)', () => {
+  const spawnWith = async (fixedEnv: Record<string, string>, envVars: Record<string, string>) => {
+    MockConnection.seen = [];
+    const pool = new UserMcpPool({
+      mcpConfigs: [makeMcpConfig({ name: 'alpaca', transport: 'stdio', env: fixedEnv })],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+    await pool.spawnForUser('user1', new Map([['alpaca', { envVars, headers: {} }]]), ALL);
+    await pool.shutdown();
+    return MockConnection.seen[0].env as Record<string, string>;
+  };
+
+  it('injects credential env at spawn', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    const env = await spawnWith({ ALPACA_PAPER_TRADE: 'true' }, { ALPACA_API_KEY: 'k' });
+    expect(env).toEqual({ ALPACA_PAPER_TRADE: 'true', ALPACA_API_KEY: 'k' });
+  });
+
+  it('a credential cannot override fixed env (ALPACA_PAPER_TRADE stays true)', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    const env = await spawnWith(
+      { ALPACA_PAPER_TRADE: 'true' },
+      { ALPACA_PAPER_TRADE: 'false', ALPACA_API_KEY: 'k' }
+    );
+    expect(env.ALPACA_PAPER_TRADE).toBe('true');
+    expect(env.ALPACA_API_KEY).toBe('k');
+  });
+
+  it('a denylisted credential env name is rejected and the MCP is not started', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    MockConnection.seen = [];
+    const pool = new UserMcpPool({
+      mcpConfigs: [makeMcpConfig({ name: 'alpaca', transport: 'stdio' })],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+    await pool.spawnForUser(
+      'user1',
+      new Map([['alpaca', { envVars: { LD_PRELOAD: 'x' }, headers: {} }]]),
+      ALL
+    );
+    expect(MockConnection.seen).toHaveLength(0);
     await pool.shutdown();
   });
 });
