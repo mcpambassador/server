@@ -281,6 +281,19 @@ describe('decision dialog', () => {
     expect(marks.map(m => m.textContent)).toEqual(['[REDACTED]']);
   });
 
+  it('also marks the ***REDACTED*** tokens from pattern redaction', async () => {
+    adminDetail(
+      detail({
+        preview: '{"h":"Bearer ***REDACTED***","k":"sk-***REDACTED***","x":"[REDACTED:fake]"}',
+      })
+    );
+    renderAt('/app/approvals/ap1');
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId('expand-preview'));
+    const marks = await screen.findAllByTestId('redaction-marker');
+    expect(marks.map(m => m.textContent)).toEqual(['***REDACTED***', '***REDACTED***']);
+  });
+
   it('shows the agent label and the hash prefix', async () => {
     adminDetail(detail());
     renderAt('/app/approvals/ap1');

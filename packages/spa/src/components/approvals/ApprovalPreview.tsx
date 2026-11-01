@@ -6,8 +6,8 @@ import { visibleText, codePointLength, splitAtCodePoints } from '@/lib/pin-text'
 /** Collapsed view shows this many code points; the full preview must be opened and read to the end. */
 const PREVIEW_COLLAPSED_CODEPOINTS = 300;
 
-/** The server marks redacted values with a bracketed REDACTED token; we make them stand out. */
-const REDACTION = /(\[REDACTED\])/g;
+/** The server's exact redaction tokens (`[REDACTED]`, `***REDACTED***`); we make them stand out. */
+const REDACTION = /(\[REDACTED\]|\*\*\*REDACTED(?: PRIVATE KEY)?\*\*\*)/g;
 
 /** Plain text only: invisible characters become ⟨U+XXXX⟩ and nothing is ever parsed as markup. */
 function renderPreviewText(text: string) {
