@@ -33,6 +33,7 @@ import {
 } from '../services/mcp-catalog-service.js';
 import { validateMcpConfig } from '../services/mcp-validator.js';
 import { checkCatalogEntry } from '../services/runner-guard.js';
+import { commandNotPermittedReason } from '../downstream/types.js';
 import { discoverTools } from '../services/tool-discovery-engine.js';
 
 /**
@@ -85,17 +86,20 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   // TD-039: runner-changing options and reserved env names are rejected at the door (generic reason).
   const checkRunnerGuard = (
     body: {
+      transport_type?: string;
       config?: Record<string, unknown>;
       credential_schema?: Record<string, unknown>;
       oauth_config?: { access_token_env_var?: string };
     },
     reply: FastifyReply
   ): boolean => {
-    const reason = checkCatalogEntry({
-      config: body.config,
-      credential_schema: body.credential_schema,
-      oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
-    });
+    const reason =
+      commandNotPermittedReason(body.config, body.transport_type) ??
+      checkCatalogEntry({
+        config: body.config,
+        credential_schema: body.credential_schema,
+        oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
+      });
     if (!reason) return true;
     reply.status(400).send(wrapError(ErrorCodes.VALIDATION_ERROR, reason));
     return false;

@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Creating or updating an MCP (admin API) or installing one from the registry now returns a 400 ("command not permitted on this server; see MCP_ALLOWED_COMMANDS") when `command[0]` is not on the same allowlist spawn enforces (TD-044). Before, e.g. a `docker` draft returned 201 but could never run. The check uses the same `getAllowedCommands()` as spawn, so it is never stricter; the reason does not echo the value.
+
 - Admin API, registry install, catalog reload and tool-discovery error responses no longer echo raw `err.message` for database errors (TD-036): they pass through `publicErrorMessage`, so on Postgres a failed query answers "Database error" instead of the SQL and bound parameters. A regression test fails on any new raw `err instanceof Error ? err.message` in `admin/`, `routes/`, `services/` or `downstream/` unless it carries a `td036-allow` reason. A registry install rejected for its `oauth_config` now says "secret binding rejected" instead of the validator text.
 
 - zod 3.25 → 4.6 in core, contracts and server (TD-020, clears GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized constrained collections). Wire contracts are unchanged (pinned by a before/after accept/reject + output snapshot of every exported contracts schema). Visible differences: zod's own validation message text changed (e.g. `Required` → `Invalid input: expected string, received undefined`) in admin 400 `details`, config errors and registry-skip log lines; the config error for an invalid enum value now names the issue code `invalid_value` instead of `invalid_enum_value`. Enum/literal values are still never echoed (all three redaction copies handle zod 4's `invalid_value`).
@@ -43,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-tool group policy is enforced at list and call time with union semantics across a user's active groups: a tool is available if any active group permits it (an unrestricted grant permits all). Order per MCP: kill switch, group policy, the subscription's `selected_tools`. A denied tool answers exactly like a nonexistent one ("Tool not subscribed for this client"). The marketplace list and detail show only the tools the user's groups permit. Changing a policy does not void existing tool approvals: the use-time recheck is what enforces it.
 
 ### Fixed
+
+- A downstream tool result containing an embedded `resource`, `resource_link` or `audio` content block no longer breaks `/mcp` (-32602 "Invalid tools/call result") or is rejected (TD-041). The response schema now models every MCP content block type and keeps each block's payload plus its `annotations` and non-`ambassador/*` `_meta`; unknown fields are still dropped and each block is size-bounded (10MB payload, ~10.25MB per block).
 
 - **TD-037 / ADR-025 M2+M4:** group grants are now evaluated at call time for every MCP (list, search, describe and invoke), via one shared helper also used at subscribe. A user whose group no longer grants an MCP stops being served it even if the subscription row still exists; the row is kept (filter, never mutate), so re-granting restores access. A suspended group grants nothing (ADR-025 §3.5), and the loss-report script labels each affected subscription `no_grant` or `only_suspended`. The subscription list endpoints gain `access: 'granted' | 'revoked'`.
 
