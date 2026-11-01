@@ -37,11 +37,15 @@ export interface OAuthClientRecord {
   disabled: boolean;
 }
 
+export type AgentGrantKind = 'oauth' | 'one_shot';
+
 export interface AgentGrantRecord {
   grant_id: string;
   user_id: string;
-  /** OAuth client; null = one-shot grant */
+  /** OAuth client; null for one-shot grants and for grants whose OAuth client was deleted */
   client_id: string | null;
+  /** 'one_shot' is the only kind allowed to have a null client_id */
+  kind: AgentGrantKind;
   /** Ambassador client the grant is bound to (permissions come from it) */
   bound_client_id: string | null;
   label: string;
@@ -109,6 +113,7 @@ function toGrant(r: any): AgentGrantRecord {
     grant_id: r.grant_id,
     user_id: r.user_id,
     client_id: r.client_id ?? null,
+    kind: r.kind === 'one_shot' ? 'one_shot' : 'oauth',
     bound_client_id: r.bound_client_id ?? null,
     label: r.label,
     scopes: JSON.parse(r.scopes) as string[],
@@ -354,16 +359,23 @@ export async function consumeAuthCode(
 // ---- agent_grants ----
 export async function createAgentGrant(
   db: DatabaseClient,
-  data: Omit<AgentGrantRecord, 'created_at' | 'last_used_at' | 'revoked_at' | 'revoked_by'>
+  data: Omit<
+    AgentGrantRecord,
+    'created_at' | 'last_used_at' | 'revoked_at' | 'revoked_by' | 'kind'
+  > & {
+    kind?: AgentGrantKind;
+  }
 ): Promise<AgentGrantRecord> {
   const created_at = now();
+  const kind: AgentGrantKind = data.kind ?? 'oauth';
   await compatInsert(db, agent_grants).values({
     ...data,
+    kind,
     scopes: j(data.scopes),
     tool_allowlist: data.tool_allowlist == null ? null : j(data.tool_allowlist),
     created_at,
   });
-  return { ...data, created_at, last_used_at: null, revoked_at: null, revoked_by: null };
+  return { ...data, kind, created_at, last_used_at: null, revoked_at: null, revoked_by: null };
 }
 export async function getAgentGrant(
   db: DatabaseClient,
@@ -578,6 +590,43 @@ export async function revokeGrantsForBoundClient(
     }
     return live.map(toGrant);
   }
+}
+
+/**
+ * Revokes (and retains) every live grant issued to an OAuth client, with its tokens.
+ * Not self-transactional: callers wrap it together with the client delete.
+ */
+export async function revokeGrantsForOAuthClient(
+  db: DatabaseClient,
+  oauthClientId: string,
+  revokedBy: string
+): Promise<AgentGrantRecord[]> {
+  const live = (await compatSelect(db)
+    .from(agent_grants)
+    .where(
+      and(eq(agent_grants.client_id, oauthClientId), isNull(agent_grants.revoked_at))
+    )) as any[];
+  const at = now();
+  for (const g of live) {
+    await compatUpdate(db, agent_grants)
+      .set({ revoked_at: at, revoked_by: revokedBy })
+      .where(eq(agent_grants.grant_id, g.grant_id));
+    await compatUpdate(db, agent_tokens)
+      .set({ revoked_at: at })
+      .where(and(eq(agent_tokens.grant_id, g.grant_id), isNull(agent_tokens.revoked_at)));
+  }
+  return live.map(toGrant);
+}
+
+/** Lists the ids of every grant (live or not) issued to an OAuth client */
+export async function listGrantIdsForOAuthClient(
+  db: DatabaseClient,
+  oauthClientId: string
+): Promise<string[]> {
+  const rows = (await compatSelect(db)
+    .from(agent_grants)
+    .where(eq(agent_grants.client_id, oauthClientId))) as any[];
+  return rows.map(r => r.grant_id as string);
 }
 
 // ---- server_settings ----

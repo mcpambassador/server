@@ -412,6 +412,7 @@ describe('S5 cookie-free guard + info route', () => {
       default_grant_ttl_seconds: 3600,
       max_grant_ttl_seconds: 86400,
       refresh_tokens_enabled: true,
+      resource_url: 'https://amb.test:8443/mcp',
     });
     await a.ready();
     expect((await a.inject({ url: '/v1/users/me/agent-endpoint' })).statusCode).toBe(401);

@@ -174,17 +174,31 @@ export async function runMigrations(db: DatabaseClient): Promise<void> {
     logger.info({ file }, '[db] Running migration');
 
     try {
-      // Execute raw SQL content (migrations contain full DDL statements)
-      // Note: For production, consider using drizzle-kit migrate() instead
-      if ((db as any).session?.client?.exec) {
-        // SQLite: use underlying better-sqlite3 exec() via session.client
-        (db as any).session.client.exec(sqlContent);
-      } else if ((db as any).session?.client?.unsafe) {
-        // PostgreSQL: use postgres.js unsafe() for raw SQL
-        await (db as any).session.client.unsafe(sqlContent);
-      } else {
-        // Fallback
-        await (db as any).execute(sqlContent);
+      // Execute statement by statement (drizzle-style breakpoints). Migrations are re-run at every
+      // start, so ALTER TABLE ... ADD COLUMN must tolerate "duplicate column name".
+      const statements = sqlContent
+        .split(/-->\s*statement-breakpoint/)
+        .map((st: string) => st.trim())
+        .filter((st: string) => st.length > 0);
+      for (const statement of statements) {
+        try {
+          if ((db as any).session?.client?.exec) {
+            // SQLite: use underlying better-sqlite3 exec() via session.client
+            (db as any).session.client.exec(statement);
+          } else if ((db as any).session?.client?.unsafe) {
+            // PostgreSQL: use postgres.js unsafe() for raw SQL
+            await (db as any).session.client.unsafe(statement);
+          } else {
+            // Fallback
+            await (db as any).execute(statement);
+          }
+        } catch (stmtErr) {
+          const msg = stmtErr instanceof Error ? stmtErr.message : String(stmtErr);
+          if (/duplicate column name|already exists/i.test(msg) && /ADD COLUMN/i.test(statement)) {
+            continue;
+          }
+          throw stmtErr;
+        }
       }
       logger.info({ file }, '[db] Migration complete');
     } catch (err) {
