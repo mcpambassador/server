@@ -108,7 +108,7 @@ describe('migration 0002 (agent endpoint)', () => {
     expect(codes).toContain('code_hash');
   });
 
-  it('foreign keys cascade: deleting the user OR the bound Ambassador client removes grants and tokens', () => {
+  it('foreign keys: deleting the user cascades grants+tokens; deleting the bound client keeps them (bound_client_id → NULL)', () => {
     for (const victim of ['user', 'client'] as const) {
       const db = old();
       db.exec(sql('0002_adr020_agent_endpoint.sql'));
@@ -126,19 +126,29 @@ describe('migration 0002 (agent endpoint)', () => {
       ).run();
       if (victim === 'user') db.prepare('DELETE FROM users WHERE user_id=?').run(uid);
       else db.prepare('DELETE FROM clients WHERE client_id=?').run(cid);
-      expect(db.prepare('SELECT count(*) c FROM agent_grants').get(), victim).toEqual({ c: 0 });
-      expect(db.prepare('SELECT count(*) c FROM agent_tokens').get(), victim).toEqual({ c: 0 });
+      // user delete cascades; client delete is revoke-and-retain (audit trail survives)
+      const kept = victim === 'user' ? 0 : 1;
+      expect(db.prepare('SELECT count(*) c FROM agent_grants').get(), victim).toEqual({ c: kept });
+      expect(db.prepare('SELECT count(*) c FROM agent_tokens').get(), victim).toEqual({ c: kept });
+      if (victim === 'client') {
+        expect(
+          db.prepare("SELECT bound_client_id b FROM agent_grants WHERE grant_id='g'").get()
+        ).toEqual({ b: null });
+      }
     }
   });
 
-  it('bound_client_id is NOT NULL on grants and auth codes', () => {
+  it('bound_client_id: NOT NULL on auth codes, nullable (SET NULL) on grants', () => {
     const db = old();
     db.exec(sql('0002_adr020_agent_endpoint.sql'));
-    for (const tbl of ['agent_grants', 'oauth_auth_codes']) {
+    for (const [tbl, notnull] of [
+      ['oauth_auth_codes', 1],
+      ['agent_grants', 0],
+    ] as const) {
       const col = (
         db.prepare(`PRAGMA table_info(${tbl})`).all() as { name: string; notnull: number }[]
       ).find(c => c.name === 'bound_client_id');
-      expect(col?.notnull, tbl).toBe(1);
+      expect(col?.notnull, tbl).toBe(notnull);
     }
   });
 });
