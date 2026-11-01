@@ -29,9 +29,22 @@ const details = {
   client_name: 'Acme Agent',
   client_verified: false,
   requested_scopes: ['mcp:github'],
-  available_subscriptions: [
-    { name: 'github', scope: 'mcp:github' },
-    { name: 'slack', scope: 'mcp:slack' },
+  clients: [
+    {
+      client_id: 'c1',
+      client_name: 'Laptop',
+      profile_name: null,
+      subscriptions: [
+        { name: 'github', scope: 'mcp:github' },
+        { name: 'slack', scope: 'mcp:slack' },
+      ],
+    },
+    {
+      client_id: 'c2',
+      client_name: 'CI box',
+      profile_name: 'ci',
+      subscriptions: [{ name: 'jira', scope: 'mcp:jira' }],
+    },
   ],
   default_ttl_seconds: 3600,
   max_ttl_seconds: 86400,
@@ -87,8 +100,52 @@ describe('OAuthConsent', () => {
       expect(assign).toHaveBeenCalledWith('http://localhost:9/cb?code=c&state=s')
     );
     expect(csrf).toBe('test-csrf-token');
-    expect(body).toMatchObject({ decision: 'approve', scopes: ['mcp:github'], ttl_seconds: 3600 });
+    expect(body).toMatchObject({
+      decision: 'approve',
+      bound_client_id: 'c1',
+      scopes: ['mcp:github'],
+      ttl_seconds: 3600,
+    });
     vi.unstubAllGlobals();
+  });
+
+  it('switching client swaps the scope list and binds the chosen client', async () => {
+    let body: unknown;
+    server.use(
+      http.post('/v1/oauth/consent/r1', async ({ request }) => {
+        body = await request.json();
+        return ok({ redirect_url: 'http://localhost:9/cb?code=c' });
+      })
+    );
+    vi.stubGlobal('location', { ...window.location, assign: vi.fn() });
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    const user = userEvent.setup();
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: /Ambassador client/ }),
+      'c2'
+    );
+    expect(screen.queryByRole('checkbox', { name: 'github' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('checkbox', { name: 'jira' }));
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        decision: 'approve',
+        bound_client_id: 'c2',
+        scopes: ['mcp:jira'],
+      })
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a zero-state with a link when the user has no clients', async () => {
+    server.use(http.get('/v1/oauth/consent/r1', () => ok({ ...details, clients: [] })));
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    expect(await screen.findByText(/no active Ambassador clients/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create a client' })).toHaveAttribute(
+      'href',
+      '/app/clients'
+    );
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
   });
 
   it('deny sends no scopes', async () => {
@@ -126,6 +183,8 @@ describe('AgentAccess', () => {
     label: 'CI bot',
     client_id: null,
     client_name: null,
+    bound_client_id: 'c1',
+    bound_client_name: 'Laptop',
     scopes: ['mcp:github'],
     tool_allowlist: null,
     resource: 'https://h/mcp',
@@ -153,6 +212,8 @@ describe('AgentAccess', () => {
     );
     renderAt(<AgentAccess />, '/app/agent-access');
     expect(await screen.findByText('CI bot')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
+    expect(screen.getByText('Laptop')).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Revoke CI bot' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
@@ -201,11 +262,22 @@ describe('AgentAccess', () => {
       http.get('/v1/users/me/agent-grants', () =>
         HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
       ),
-      http.get('/v1/users/me/subscriptions', () =>
-        ok([{ id: 's1', clientId: 'c1', mcpName: 'github' }])
+      http.get('/v1/users/me/clients', () =>
+        ok([
+          { id: 'c1', clientName: 'Laptop', status: 'active' },
+          { id: 'c9', clientName: 'Old', status: 'revoked' },
+        ])
+      ),
+      http.get('/v1/users/me/clients/c1/subscriptions', () =>
+        ok([{ id: 's1', clientId: 'c1', mcpName: 'github', status: 'active' }])
       ),
       http.post('/v1/users/me/agent-grants', async ({ request }) => {
-        const b = (await request.json()) as { label: string; scopes: string[] };
+        const b = (await request.json()) as {
+          label: string;
+          scopes: string[];
+          bound_client_id: string;
+        };
+        expect(b.bound_client_id).toBe('c1');
         expect(b.scopes).toEqual(['mcp:github']);
         return ok({
           grant_id: 'g2',

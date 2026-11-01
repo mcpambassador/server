@@ -33,7 +33,8 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useAgentGrants, useRevokeGrant, useCreateGrant } from '@/api/hooks/use-agent';
-import { useUserSubscriptions } from '@/api/hooks/use-clients';
+import { Link } from 'react-router-dom';
+import { useClients, useClientSubscriptions } from '@/api/hooks/use-clients';
 import {
   grantStatus,
   parseToolAllowlist,
@@ -53,7 +54,11 @@ function fmt(ts: string | null): string {
 }
 
 function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data: subs } = useUserSubscriptions();
+  const { data: allClients, isLoading: clientsLoading } = useClients();
+  const clients = (allClients ?? []).filter(c => c.status === 'active');
+  const [clientId, setClientId] = useState<string | null>(null);
+  const boundClient = clients.find(c => c.id === clientId) ?? clients[0];
+  const { data: subs } = useClientSubscriptions(boundClient?.id ?? '');
   const create = useCreateGrant();
   const [label, setLabel] = useState('');
   const [scopes, setScopes] = useState<Set<string>>(new Set());
@@ -62,11 +67,14 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [result, setResult] = useState<CreateGrantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const mcpNames = Array.from(new Set((subs ?? []).map(s => s.mcpName))).sort();
+  const mcpNames = Array.from(
+    new Set((subs ?? []).filter(s => s.status === 'active').map(s => s.mcpName))
+  ).sort();
   const options = ttlOptions(ONE_SHOT_DEFAULT_TTL, ONE_SHOT_MAX_TTL);
 
   const reset = () => {
     setLabel('');
+    setClientId(null);
     setScopes(new Set());
     setToolsText('');
     setTtl(ONE_SHOT_DEFAULT_TTL);
@@ -89,6 +97,7 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
     setError(null);
     try {
       const res = await create.mutateAsync({
+        bound_client_id: boundClient!.id,
         label: label.trim(),
         scopes: Array.from(scopes),
         tool_allowlist: parseToolAllowlist(toolsText),
@@ -150,57 +159,96 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
               For CI and headless agents that cannot complete a browser sign-in. No refresh token is
               issued.
             </DialogDescription>
-            <FieldGroup className="mt-4">
-              <Field>
-                <Label>Label</Label>
-                <Input
-                  name="label"
-                  maxLength={128}
-                  value={label}
-                  onChange={e => setLabel(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <Label>Allowed MCPs</Label>
-                <CheckboxGroup className="mt-2">
-                  <CheckboxField>
-                    <Checkbox
-                      name="scope"
-                      value="mcp:*"
-                      checked={scopes.has('mcp:*')}
-                      onChange={on => toggle('mcp:*', on)}
-                    />
-                    <Label>All current subscriptions (mcp:*)</Label>
-                  </CheckboxField>
-                  {mcpNames.map(name => (
-                    <CheckboxField key={name}>
+            {!clientsLoading && clients.length === 0 ? (
+              <div role="alert" className="mt-4 space-y-2">
+                <Text>
+                  You have no active Ambassador clients. A grant binds to one of your clients, so
+                  create one first.
+                </Text>
+                <Link
+                  to="/app/clients"
+                  className="text-sm font-medium text-blue-600 underline dark:text-blue-400"
+                >
+                  Create a client
+                </Link>
+              </div>
+            ) : (
+              <FieldGroup className="mt-4">
+                <Field>
+                  <Label>Ambassador client</Label>
+                  <Description>
+                    The grant can only use what this client is subscribed to.
+                  </Description>
+                  <Select
+                    name="bound_client_id"
+                    value={boundClient?.id ?? ''}
+                    onChange={e => {
+                      setClientId(e.target.value);
+                      setScopes(new Set());
+                    }}
+                  >
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.clientName}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field>
+                  <Label>Label</Label>
+                  <Input
+                    name="label"
+                    maxLength={128}
+                    value={label}
+                    onChange={e => setLabel(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <Label>Allowed MCPs</Label>
+                  <CheckboxGroup className="mt-2">
+                    <CheckboxField>
                       <Checkbox
                         name="scope"
-                        value={`mcp:${name}`}
-                        checked={scopes.has(`mcp:${name}`)}
-                        onChange={on => toggle(`mcp:${name}`, on)}
+                        value="mcp:*"
+                        checked={scopes.has('mcp:*')}
+                        onChange={on => toggle('mcp:*', on)}
                       />
-                      <Label>{name}</Label>
+                      <Label>All current subscriptions (mcp:*)</Label>
                     </CheckboxField>
-                  ))}
-                </CheckboxGroup>
-              </Field>
-              <Field>
-                <Label>Tool allowlist (optional)</Label>
-                <Description>One fully qualified tool name per line.</Description>
-                <Textarea rows={3} value={toolsText} onChange={e => setToolsText(e.target.value)} />
-              </Field>
-              <Field>
-                <Label>Expires after</Label>
-                <Select name="ttl" value={ttl} onChange={e => setTtl(Number(e.target.value))}>
-                  {options.map(o => (
-                    <option key={o.seconds} value={o.seconds}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </FieldGroup>
+                    {mcpNames.map(name => (
+                      <CheckboxField key={name}>
+                        <Checkbox
+                          name="scope"
+                          value={`mcp:${name}`}
+                          checked={scopes.has(`mcp:${name}`)}
+                          onChange={on => toggle(`mcp:${name}`, on)}
+                        />
+                        <Label>{name}</Label>
+                      </CheckboxField>
+                    ))}
+                  </CheckboxGroup>
+                </Field>
+                <Field>
+                  <Label>Tool allowlist (optional)</Label>
+                  <Description>One fully qualified tool name per line.</Description>
+                  <Textarea
+                    rows={3}
+                    value={toolsText}
+                    onChange={e => setToolsText(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <Label>Expires after</Label>
+                  <Select name="ttl" value={ttl} onChange={e => setTtl(Number(e.target.value))}>
+                    {options.map(o => (
+                      <option key={o.seconds} value={o.seconds}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </FieldGroup>
+            )}
             {error && (
               <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">
                 {error}
@@ -212,7 +260,7 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
               </Button>
               <Button
                 onClick={submit}
-                disabled={create.isPending || !label.trim() || scopes.size === 0}
+                disabled={create.isPending || !boundClient || !label.trim() || scopes.size === 0}
               >
                 {create.isPending ? 'Creating...' : 'Create grant'}
               </Button>
@@ -293,6 +341,7 @@ export function AgentAccess() {
           <TableHead>
             <TableRow>
               <TableHeader>Label</TableHeader>
+              <TableHeader>Agent</TableHeader>
               <TableHeader>Client</TableHeader>
               <TableHeader>Scopes</TableHeader>
               <TableHeader>Expires</TableHeader>
@@ -312,6 +361,7 @@ export function AgentAccess() {
                   <TableCell>
                     {g.client_name ?? <span className="text-zinc-500">One-shot</span>}
                   </TableCell>
+                  <TableCell>{g.bound_client_name}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {g.scopes.map(s => (

@@ -4,6 +4,7 @@
  */
 import type {
   ConsentDetails,
+  ConsentClientOption,
   ConsentDecision,
   ConsentDecisionResponse,
   AgentGrantSummary,
@@ -15,6 +16,7 @@ import type {
 
 export type {
   ConsentDetails,
+  ConsentClientOption,
   ConsentDecision,
   ConsentDecisionResponse,
   AgentGrantSummary,
@@ -24,7 +26,7 @@ export type {
   AgentEndpointSettings,
 };
 
-export type ConsentSubscription = ConsentDetails['available_subscriptions'][number];
+export type ConsentSubscription = ConsentClientOption['subscriptions'][number];
 
 export type GrantStatus = 'active' | 'expired' | 'revoked';
 

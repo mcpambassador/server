@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ExclamationTriangleIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
@@ -35,6 +35,7 @@ export function OAuthConsent() {
   const { data: details, isLoading, error } = useConsentDetails(requestId);
   const submit = useSubmitConsent(requestId ?? '');
 
+  const [clientId, setClientId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [toolsText, setToolsText] = useState('');
   const [ttl, setTtl] = useState<number | null>(null);
@@ -42,15 +43,18 @@ export function OAuthConsent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
 
+  // A grant binds to exactly one of the user's Ambassador clients; scopes come from that client.
+  const clients = details?.clients ?? [];
+  const boundClient = clients.find(c => c.client_id === clientId) ?? clients[0];
+  const availableSubs = useMemo(() => boundClient?.subscriptions ?? [], [boundClient]);
+
   // Preselect requested scopes (least privilege: nothing is selected when none were requested).
   const initialSelected = useMemo(() => {
     if (!details) return new Set<string>();
     const requested = new Set(details.requested_scopes);
     const all = requested.has('mcp:*');
-    return new Set(
-      details.available_subscriptions.filter(s => all || requested.has(s.scope)).map(s => s.scope)
-    );
-  }, [details]);
+    return new Set(availableSubs.filter(s => all || requested.has(s.scope)).map(s => s.scope));
+  }, [details, availableSubs]);
 
   const scopes = selected ?? initialSelected;
   const options = details ? ttlOptions(details.default_ttl_seconds, details.max_ttl_seconds) : [];
@@ -63,12 +67,18 @@ export function OAuthConsent() {
     setSelected(next);
   };
 
+  const pickClient = (id: string) => {
+    setClientId(id);
+    setSelected(null); // scopes belong to the selected client
+  };
+
   const decide = async (decision: 'approve' | 'deny') => {
     if (!details) return;
     setSubmitError(null);
     try {
       const res = await submit.mutateAsync({
         decision,
+        bound_client_id: decision === 'approve' ? boundClient?.client_id : undefined,
         scopes: decision === 'approve' ? Array.from(scopes) : [],
         tool_allowlist: decision === 'approve' ? parseToolAllowlist(toolsText) : undefined,
         ttl_seconds: Math.min(Math.max(effectiveTtl, 60), details.max_ttl_seconds),
@@ -93,7 +103,8 @@ export function OAuthConsent() {
   } else if (error || !details) {
     body = <Text role="alert">{errorMessage(error)}</Text>;
   } else {
-    const noSubs = details.available_subscriptions.length === 0;
+    const noClients = clients.length === 0;
+    const noSubs = availableSubs.length === 0;
     body = (
       <div className="space-y-6">
         <div>
@@ -124,71 +135,109 @@ export function OAuthConsent() {
           </div>
         )}
 
-        <FieldGroup>
-          <Field>
-            <Label>Allowed MCPs</Label>
-            <Description>Choose which of your subscriptions this agent may use.</Description>
-            {noSubs ? (
-              <Text className="mt-3">You have no active subscriptions to grant.</Text>
-            ) : (
-              <CheckboxGroup className="mt-3">
-                {details.available_subscriptions.map(sub => (
-                  <CheckboxField key={sub.scope}>
-                    <Checkbox
-                      name="scope"
-                      value={sub.scope}
-                      checked={scopes.has(sub.scope)}
-                      onChange={on => toggle(sub.scope, on)}
-                    />
-                    <Label>{sub.name}</Label>
-                    {sub.description && <Description>{sub.description}</Description>}
-                  </CheckboxField>
+        {noClients ? (
+          <div role="alert" className="space-y-2">
+            <Text>
+              You have no active Ambassador clients, so there is nothing to grant access to. Create
+              a client first, then start the connection again from your agent.
+            </Text>
+            <Link
+              to="/app/clients"
+              className="text-sm font-medium text-blue-600 underline dark:text-blue-400"
+            >
+              Create a client
+            </Link>
+          </div>
+        ) : (
+          <FieldGroup>
+            <Field>
+              <Label>Ambassador client</Label>
+              <Description>
+                The agent acts as this client: it can only use what this client is subscribed to.
+              </Description>
+              <Select
+                name="bound_client_id"
+                value={boundClient?.client_id ?? ''}
+                onChange={e => pickClient(e.target.value)}
+              >
+                {clients.map(c => (
+                  <option key={c.client_id} value={c.client_id}>
+                    {c.client_name}
+                    {c.profile_name ? ` (${c.profile_name})` : ''}
+                  </option>
                 ))}
-              </CheckboxGroup>
-            )}
-          </Field>
+              </Select>
+            </Field>
 
-          <Field>
-            <Label>Tool allowlist (optional)</Label>
-            <Description>
-              Restrict the agent to specific tools, one fully qualified name per line. Leave empty
-              to allow every tool in the selected MCPs.
-            </Description>
-            <Textarea
-              name="tool_allowlist"
-              rows={3}
-              value={toolsText}
-              onChange={e => setToolsText(e.target.value)}
-              placeholder="github.search_code"
-            />
-          </Field>
+            <Field>
+              <Label>Allowed MCPs</Label>
+              <Description>Choose which of your subscriptions this agent may use.</Description>
+              {noSubs ? (
+                <Text className="mt-3">This client has no active subscriptions to grant.</Text>
+              ) : (
+                <CheckboxGroup className="mt-3">
+                  {availableSubs.map(sub => (
+                    <CheckboxField key={sub.scope}>
+                      <Checkbox
+                        name="scope"
+                        value={sub.scope}
+                        checked={scopes.has(sub.scope)}
+                        onChange={on => toggle(sub.scope, on)}
+                      />
+                      <Label>{sub.name}</Label>
+                      {sub.description && <Description>{sub.description}</Description>}
+                    </CheckboxField>
+                  ))}
+                </CheckboxGroup>
+              )}
+            </Field>
 
-          <Field>
-            <Label>Access lasts</Label>
-            <Description>
-              Maximum {formatDuration(details.max_ttl_seconds)}. You can revoke access at any time
-              under Agent access.
-            </Description>
-            <Select name="ttl" value={effectiveTtl} onChange={e => setTtl(Number(e.target.value))}>
-              {options.map(o => (
-                <option key={o.seconds} value={o.seconds}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
+            <Field>
+              <Label>Tool allowlist (optional)</Label>
+              <Description>
+                Restrict the agent to specific tools, one fully qualified name per line. Leave empty
+                to allow every tool in the selected MCPs.
+              </Description>
+              <Textarea
+                name="tool_allowlist"
+                rows={3}
+                value={toolsText}
+                onChange={e => setToolsText(e.target.value)}
+                placeholder="github.search_code"
+              />
+            </Field>
 
-          <Field>
-            <Label>Label (optional)</Label>
-            <Input
-              name="label"
-              maxLength={128}
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              placeholder={details.client_name}
-            />
-          </Field>
-        </FieldGroup>
+            <Field>
+              <Label>Access lasts</Label>
+              <Description>
+                Maximum {formatDuration(details.max_ttl_seconds)}. You can revoke access at any time
+                under Agent access.
+              </Description>
+              <Select
+                name="ttl"
+                value={effectiveTtl}
+                onChange={e => setTtl(Number(e.target.value))}
+              >
+                {options.map(o => (
+                  <option key={o.seconds} value={o.seconds}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field>
+              <Label>Label (optional)</Label>
+              <Input
+                name="label"
+                maxLength={128}
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                placeholder={details.client_name}
+              />
+            </Field>
+          </FieldGroup>
+        )}
 
         {submitError && (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
@@ -207,7 +256,7 @@ export function OAuthConsent() {
           <Button
             color="green"
             onClick={() => decide('approve')}
-            disabled={submit.isPending || redirecting || scopes.size === 0}
+            disabled={submit.isPending || redirecting || noClients || scopes.size === 0}
           >
             {submit.isPending || redirecting ? 'Working...' : 'Approve'}
           </Button>
