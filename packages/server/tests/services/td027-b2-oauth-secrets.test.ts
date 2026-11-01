@@ -8,9 +8,14 @@ import { randomUUID } from 'crypto';
 import { createMcpEntry, createOAuthState } from '@mcpambassador/core';
 import { startTestServer, stopTestServer, type TestServerHandle } from '../admin-api/helpers.js';
 import { createUser } from '../../src/auth/user-auth.js';
+import { SecretStore } from '../../src/services/secret-store.js';
 import { OAuthTokenManager } from '../../src/services/oauth-token-manager.js';
 
 const GH_SECRET = 'b2-github-secret-canary';
+
+const SECRETS = {
+  GITHUB_OAUTH_CLIENT_SECRET: { value: GH_SECRET, allowedTokenHosts: ['github.com'] },
+};
 
 const oauth = (over: Record<string, string> = {}): Record<string, string> => ({
   auth_url: 'https://github.com/login/oauth/authorize',
@@ -25,7 +30,7 @@ const oauth = (over: Record<string, string> = {}): Record<string, string> => ({
 describe('B2 create-time validation (admin API)', () => {
   let server: TestServerHandle;
   beforeAll(async () => {
-    server = await startTestServer();
+    server = await startTestServer({ oauthClientSecrets: SECRETS });
   });
   afterAll(async () => {
     await stopTestServer(server);
@@ -113,9 +118,7 @@ describe('B2 runtime: bad config seeded in the DB sends nothing', () => {
       db: server.db,
       vault: {} as never,
       callbackBaseUrl: 'https://x',
-      clientSecrets: {
-        GITHUB_OAUTH_CLIENT_SECRET: { value: GH_SECRET, allowedTokenHosts: ['github.com'] },
-      },
+      secretStore: new SecretStore(SECRETS),
     });
 
   async function seed(cfg: Record<string, string>): Promise<string> {

@@ -70,7 +70,9 @@ export interface TestServerHandle {
   stop: () => Promise<void>;
 }
 
-export async function startTestServer(): Promise<TestServerHandle> {
+export async function startTestServer(
+  extra: Record<string, unknown> = {}
+): Promise<TestServerHandle> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-'));
 
   // Initialize database and create admin key BEFORE starting server
@@ -87,7 +89,12 @@ export async function startTestServer(): Promise<TestServerHandle> {
   await closeDatabase(db as DatabaseClient);
 
   // Now initialize the server - it will open its own DB connection
-  const server = new AmbassadorServer({ dataDir: tmp, port: 0, host: '127.0.0.1' });
+  const server = new AmbassadorServer({
+    dataDir: tmp,
+    port: 0,
+    host: '127.0.0.1',
+    ...extra,
+  } as never);
   await server.initialize();
 
   return {
