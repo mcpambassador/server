@@ -2,7 +2,7 @@
  * Kill switch persistence (TD-022). Row present = active.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 
 import { eq } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';

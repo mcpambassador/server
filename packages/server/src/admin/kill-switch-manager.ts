@@ -44,16 +44,16 @@ export class KillSwitchManager {
    */
   async set(target: string, enabled: boolean, actor: string): Promise<void> {
     if (enabled) {
-      if (!this.state.has(target)) {
-        const rec: ActiveKillSwitch = {
-          target,
-          type: target.startsWith('client:') ? 'client' : 'mcp',
-          activated_at: new Date().toISOString(),
-          activated_by: actor,
-        };
-        this.state.set(target, rec);
-        if (this.db) await upsertKillSwitch(this.db, rec);
-      }
+      // Always upsert (insert-or-ignore) even if already active in memory, so a second Kill repairs
+      // an earlier failed persist. The original activation record is kept in both places.
+      const rec: ActiveKillSwitch = this.state.get(target) ?? {
+        target,
+        type: target.startsWith('client:') ? 'client' : 'mcp',
+        activated_at: new Date().toISOString(),
+        activated_by: actor,
+      };
+      this.state.set(target, rec);
+      if (this.db) await upsertKillSwitch(this.db, rec);
     } else {
       // Persist the removal first so a failed delete doesn't report a switch as cleared.
       if (this.db) await deleteKillSwitch(this.db, target);

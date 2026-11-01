@@ -26,7 +26,6 @@ import {
   consumePendingAuthRequest,
   createAuthCode,
   consumeAuthCode,
-  setAuthCodeGrant,
   getAuthCodeAnyState,
   createAgentGrant,
   getAgentGrant,
@@ -590,7 +589,8 @@ async function exchangeCode(
   client: OAuthClientRecord,
   sourceIp: string
 ): Promise<TokenResponse> {
-  const code = await consumeAuthCode(deps.db, hashToken(req.code));
+  const grantId = randomUUID();
+  const code = await consumeAuthCode(deps.db, hashToken(req.code), grantId);
   const bad = (why: string): OAuthError => {
     void emitAgentAudit(deps, 'agent_auth_failure', {
       source_ip: sourceIp,
@@ -635,7 +635,7 @@ async function exchangeCode(
     deps.config.max_grant_ttl_seconds
   );
   const grant = await createAgentGrant(deps.db, {
-    grant_id: randomUUID(),
+    grant_id: grantId,
     user_id: code.user_id,
     client_id: client.client_id,
     bound_client_id: code.bound_client_id,
@@ -645,7 +645,6 @@ async function exchangeCode(
     resource: code.resource,
     expires_at: isoIn(ttl),
   });
-  await setAuthCodeGrant(deps.db, code.code_hash, grant.grant_id);
   const family = randomUUID();
   const at = await issueAccessToken(deps, grant, family);
   const rt = deps.config.refresh_tokens_enabled

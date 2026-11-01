@@ -72,24 +72,31 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
 
     // Persisted + in-memory (TD-022). If persistence fails the switch (when activating) still holds in
     // this process, but the caller gets a 500 so they know it won't survive a restart.
-    await killSwitchManager.set(target, body.enabled, actor);
+    const emitAudit = (persisted: boolean) =>
+      audit.emit({
+        event_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        event_type: 'admin_action',
+        severity: 'warn',
+        client_id: undefined,
+        user_id: undefined,
+        source_ip: request.ip ?? '127.0.0.1',
+        action: body.enabled ? 'kill_switch_activate' : 'kill_switch_deactivate',
+        metadata: {
+          target,
+          enabled: body.enabled,
+          actor,
+          persisted,
+        },
+      });
 
-    // Emit audit event
-    await audit.emit({
-      event_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      event_type: 'admin_action',
-      severity: 'warn',
-      client_id: undefined,
-      user_id: undefined,
-      source_ip: request.ip ?? '127.0.0.1',
-      action: body.enabled ? 'kill_switch_activate' : 'kill_switch_deactivate',
-      metadata: {
-        target,
-        enabled: body.enabled,
-        actor,
-      },
-    });
+    try {
+      await killSwitchManager.set(target, body.enabled, actor);
+    } catch (err) {
+      await emitAudit(false);
+      throw err;
+    }
+    await emitAudit(true);
 
     return reply.send(
       wrapSuccess({

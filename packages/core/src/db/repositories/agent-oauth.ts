@@ -332,13 +332,14 @@ export async function getAuthCodeAnyState(
     .limit(1);
   return r ? toCode(r) : null;
 }
-/** Single-use consume (one conditional UPDATE … RETURNING); null if missing, expired or already used */
+/** Single-use consume (one conditional UPDATE … RETURNING); null if missing, expired or already used. `grantId` (pre-generated) is recorded in the same statement so a replay can always find the grant. */
 export async function consumeAuthCode(
   db: DatabaseClient,
-  codeHash: string
+  codeHash: string,
+  grantId?: string
 ): Promise<AuthCodeRecord | null> {
   const rows = await compatUpdate(db, oauth_auth_codes)
-    .set({ used_at: now() })
+    .set(grantId ? { used_at: now(), grant_id: grantId } : { used_at: now() })
     .where(
       and(
         eq(oauth_auth_codes.code_hash, codeHash),

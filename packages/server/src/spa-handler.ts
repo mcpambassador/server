@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { logger } from '@mcpambassador/core';
 import type { DatabaseClient } from '@mcpambassador/core';
 import fs from 'fs';
+import { redactQueryUrl } from './log-serializers.js';
 
 /**
  * ADR-020: paths owned by the agent endpoint (/mcp, /.well-known/oauth-*, /oauth/*).
@@ -50,6 +51,14 @@ export async function registerSpaHandler(
     logger.info('[SPA] Found SPA dist at:', prodPath);
   } else {
     logger.info('[SPA] No SPA dist found, skipping SPA handler');
+    // Still replace Fastify's default 404 so the query string (e.g. ?access_token=) is not echoed.
+    fastify.setNotFoundHandler(async (request, reply) =>
+      reply.status(404).send({
+        error: 'Not Found',
+        message: `Route ${request.method}:${redactQueryUrl(request.url) ?? ''} not found`,
+        statusCode: 404,
+      })
+    );
     return;
   }
 
@@ -135,7 +144,7 @@ export async function registerSpaHandler(
     // Return proper 404 for API routes and non-GET requests
     return reply.status(404).send({
       error: 'Not Found',
-      message: `Route ${request.method}:${request.url} not found`,
+      message: `Route ${request.method}:${redactQueryUrl(request.url) ?? ''} not found`,
       statusCode: 404,
     });
   });
