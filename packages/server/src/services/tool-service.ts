@@ -8,6 +8,8 @@
 
 import {
   AuthorizationError,
+  buildAgentSessionContext,
+  type AgentSession,
   type AuthorizationProvider,
   type AuthRequest,
   type DatabaseClient,
@@ -97,7 +99,13 @@ export async function listPermittedTools(
  * routes to the exact MCP source that was allowed (prevents name-collision bypass between
  * a shared and a per-user MCP exposing the same tool name).
  */
-export function buildInvocationRouter(deps: ToolServiceDeps, userId: string, clientId: string) {
+export function buildInvocationRouter(
+  deps: ToolServiceDeps,
+  userId: string,
+  clientId: string,
+  /** Extra per-call restriction (agent scopes/allowlist); false = not permitted */
+  extraFilter?: (tool: { name: string; source_mcp?: string }) => boolean
+) {
   return async (
     toolName: string,
     args: Record<string, unknown>
@@ -110,7 +118,7 @@ export function buildInvocationRouter(deps: ToolServiceDeps, userId: string, cli
       clientId
     );
     const allowedTool = allowedTools.find(tool => tool.name === toolName);
-    if (!allowedTool) {
+    if (!allowedTool || (extraFilter && !extraFilter(allowedTool))) {
       throw new AuthorizationError('Tool not subscribed for this client');
     }
 
@@ -153,4 +161,84 @@ export async function invokeTool(
   };
   const router = buildInvocationRouter(deps, userId, clientId);
   return deps.pipeline.invoke(pipelineRequest, authRequest, router);
+}
+
+// ===== Remote agent variants (ADR-020) =====
+
+/** Restriction applied on top of the bound client's permissions for an agent grant */
+export interface AgentToolRestriction {
+  scopes: string[];
+  /** Exact tool names; null = no allowlist */
+  tool_allowlist: string[] | null;
+}
+
+/** scope `mcp:*` or `mcp:<source_mcp>`, then the optional tool allowlist */
+export function agentMayUseTool(
+  r: AgentToolRestriction,
+  tool: { name: string; source_mcp?: string }
+): boolean {
+  const scopeOk =
+    r.scopes.includes('mcp:*') ||
+    (tool.source_mcp !== undefined && r.scopes.includes(`mcp:${tool.source_mcp}`));
+  if (!scopeOk) return false;
+  return r.tool_allowlist === null || r.tool_allowlist.includes(tool.name);
+}
+
+/**
+ * Tools an agent grant may see = scopes ∩ bound client's live permissions (catalog + authz) ∩
+ * allowlist. The catalog is recomputed on every call; nothing is cached.
+ */
+export async function listAgentTools(
+  deps: ToolServiceDeps,
+  agent: AgentSession,
+  restriction: AgentToolRestriction
+): Promise<ToolDescriptor[]> {
+  const session = buildAgentSessionContext(agent);
+  const aggregated = await deps.toolRouter.getIsolationAwareToolCatalog(
+    deps.db,
+    agent.user_id,
+    agent.bound_client_id
+  );
+  const allowed: ToolDescriptor[] = [];
+  for (const tool of aggregated) {
+    if (!agentMayUseTool(restriction, tool)) continue;
+    const decision = await deps.authz.authorize(session, {
+      tool_name: tool.name,
+      tool_arguments: {},
+    });
+    if (decision.decision === 'permit') {
+      allowed.push({
+        name: tool.name,
+        description: tool.description || '',
+        input_schema: tool.inputSchema,
+        metadata: { mcp_server: tool.source_mcp },
+      });
+    }
+  }
+  return allowed;
+}
+
+/**
+ * Invoke a tool for an agent grant. Goes through the same pipeline (authz, validation, routing,
+ * audit) with the pre-authenticated agent session; scopes/allowlist are re-checked at routing time.
+ * `agent` must come from validateAgentToken, never from request data.
+ */
+export async function invokeAgentTool(
+  deps: ToolServiceDeps,
+  agent: AgentSession,
+  restriction: AgentToolRestriction,
+  call: { tool: string; arguments: Record<string, unknown> },
+  sourceIp: string
+): Promise<ToolInvocationResponse> {
+  const router = buildInvocationRouter(deps, agent.user_id, agent.bound_client_id, t =>
+    agentMayUseTool(restriction, t)
+  );
+  return deps.pipeline.invoke(
+    { tool_name: call.tool, client_id: agent.bound_client_id, arguments: call.arguments },
+    { headers: {}, sourceIp } satisfies AuthRequest,
+    router,
+    undefined,
+    undefined,
+    { preAuthenticatedSession: agent }
+  );
 }

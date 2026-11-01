@@ -31,6 +31,8 @@ export interface ClientRoutesConfig {
   db: DatabaseClient;
   /** Audit sink; used to record agent grants revoked by a client delete */
   audit?: AuditProvider;
+  /** Called with the ids of agent grants revoked by a client delete (aborts in-flight /mcp requests) */
+  onGrantsRevoked?: (grantIds: string[]) => void;
 }
 
 /**
@@ -40,7 +42,7 @@ export async function registerClientRoutes(
   fastify: FastifyInstance,
   config: ClientRoutesConfig
 ): Promise<void> {
-  const { db, audit } = config;
+  const { db, audit, onGrantsRevoked } = config;
 
   // ==========================================================================
   // GET /v1/users/me/clients - List user's clients
@@ -261,6 +263,7 @@ export async function registerClientRoutes(
 
       try {
         const revoked = await revokeUserClient(db, userId, params.clientId, isAdmin);
+        onGrantsRevoked?.(revoked.map(g => g.grant_id));
         if (audit) {
           for (const g of revoked) {
             await emitAgentAudit({ audit }, 'agent_grant_revoked', {
