@@ -11,7 +11,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import yaml from 'yaml';
+import yaml, { YAMLError } from 'yaml';
 import { ZodError } from 'zod';
 import {
   AmbassadorConfigSchema,
@@ -102,6 +102,14 @@ export async function loadConfig(
   } catch (error) {
     if (error instanceof AmbassadorError) {
       throw error;
+    }
+    if (error instanceof YAMLError) {
+      // yaml's message embeds a code frame of the source line, which may hold an inline secret.
+      const line = error.linePos?.[0]?.line;
+      throw new AmbassadorError(
+        `Config YAML invalid: ${error.code}${line !== undefined ? ` at line ${line}` : ''}`,
+        'configuration_error'
+      );
     }
     if (error instanceof ZodError) {
       throw new AmbassadorError(
@@ -195,7 +203,7 @@ async function resolveSecrets(
           // F-SEC-M3-008: Verify it's a valid resolver, not just ${anything}
           const isValidResolver = value.match(/^\$\{(ENV:[A-Z_][A-Z0-9_]*|file:.+)\}$/);
           if (!isValidResolver) {
-            const message = `Credential field '${key}' has unresolved reference: ${value}`;
+            const message = `Credential field '${key}' has an unresolved reference`;
             if (enforcement === 'block') {
               throw new AmbassadorError(message, 'unresolved_credential');
             } else {

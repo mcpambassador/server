@@ -255,4 +255,30 @@ authentication:
 
     await expect(loadConfig(configPath, { scrub_env_vars: false })).rejects.toThrow();
   });
+
+  it('should not leak source text (inline secrets) from YAML syntax errors', async () => {
+    const secret = 'amb_pk_FAKESECRET1234567890';
+    await fs.writeFile(
+      configPath,
+      `server:\n  host: 0.0.0.0\nauthentication:\n  api_key: ${secret} : [broken\n  other: "unterminated\n`
+    );
+    let message = '';
+    try {
+      await loadConfig(configPath);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/^Config YAML invalid: [A-Z_]+/);
+    expect(message).not.toContain(secret);
+  });
+
+  it('should not echo the value of an unresolved credential reference', async () => {
+    await fs.writeFile(
+      configPath,
+      'authentication:\n  provider: api_key\n  config:\n    api_key: "${bogus-FAKESECRET}"\n'
+    );
+    await expect(loadConfig(configPath)).rejects.toSatisfy(
+      (e: Error) => e.message.includes('api_key') && !e.message.includes('FAKESECRET')
+    );
+  });
 });
