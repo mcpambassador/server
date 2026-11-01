@@ -20,3 +20,16 @@ describe('index.html', () => {
     expect(existsSync(resolve(__dirname, '../../public/theme-init.js'))).toBe(true);
   });
 });
+
+// Vite rewrites public/ URLs with base '/app/'. If it did not, the server's SPA fallback would
+// answer /theme-init.js with index.html (nosniff blocks it) and the theme flash would return.
+// Runs after `pnpm -r build` (CI order); skipped when dist/ has not been built.
+const distHtml = resolve(__dirname, '../../dist/index.html');
+describe.skipIf(!existsSync(distHtml))('built dist/index.html', () => {
+  it('points the theme script at the /app/ base and ships the file', () => {
+    const html = readFileSync(distHtml, 'utf8');
+    expect(html).toContain('src="/app/theme-init.js"');
+    expect(html).not.toContain('src="/theme-init.js"');
+    expect(existsSync(resolve(__dirname, '../../dist/theme-init.js'))).toBe(true);
+  });
+});
