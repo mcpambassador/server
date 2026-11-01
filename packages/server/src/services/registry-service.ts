@@ -45,16 +45,24 @@ void _registryKeysExhaustive;
 
 const DEPRECATION_NOTE_MAX = 500;
 
-/** Admin-facing free text: strip control, bidi and zero-width characters, trim, cap length. */
+/** Control, bidi-override/isolate, zero-width and BOM code points. */
+function isHiddenChar(c: number): boolean {
+  return (
+    c <= 0x1f ||
+    (c >= 0x7f && c <= 0x9f) ||
+    (c >= 0x200b && c <= 0x200f) ||
+    (c >= 0x202a && c <= 0x202e) ||
+    (c >= 0x2060 && c <= 0x2064) ||
+    (c >= 0x2066 && c <= 0x2069) ||
+    c === 0xfeff
+  );
+}
+
+/** Admin-facing free text: replace hidden characters with a space, collapse whitespace, trim, cap length. */
 function sanitizeNote(v: string): string {
-  return v
-    .replace(
-      /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g,
-      ' '
-    )
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, DEPRECATION_NOTE_MAX);
+  let out = '';
+  for (const ch of v) out += isHiddenChar(ch.codePointAt(0) ?? 0) ? ' ' : ch;
+  return out.replace(/\s+/g, ' ').trim().slice(0, DEPRECATION_NOTE_MAX);
 }
 
 export function pickRegistryEntry(entry: RegistryMcpEntry): RegistryMcpEntry {
