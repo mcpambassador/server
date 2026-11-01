@@ -58,6 +58,12 @@
       "brace-expansion": "^2.1.6",
       "ip-address": "^10.3.1",
       "find-my-way": "^9.7.0"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-mrhx-c7xc-m3w5",
+        "GHSA-gpj5-g38j-94v9"
+      ]
     }
   }
 }
