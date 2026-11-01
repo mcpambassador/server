@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -154,7 +154,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         .send(
           wrapError(
             ErrorCodes.CONFLICT,
-            error instanceof Error ? error.message : 'Resource conflict'
+            error instanceof Error ? publicErrorMessage(error) : 'Resource conflict'
           )
         );
     }
@@ -165,7 +165,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         .send(
           wrapError(
             ErrorCodes.BAD_REQUEST,
-            error instanceof Error ? error.message : 'Invalid request'
+            error instanceof Error ? publicErrorMessage(error) : 'Invalid request'
           )
         );
     }

@@ -426,6 +426,7 @@ export class StdioMcpConnection extends EventEmitter {
         transport: 'stdio',
         status: 'unhealthy',
         last_check: new Date(),
+        // td036-allow: downstream connection error, not a DB error; admin health needs the raw text
         error: err instanceof Error ? err.message : String(err),
       };
     }
