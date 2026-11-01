@@ -88,4 +88,90 @@ describe('F1: no cookie-session API on 8443', () => {
       expect(res.headers['set-cookie'], `${method} ${url}`).toBeUndefined();
     }
   });
+
+  it('a valid 9443 ADMIN session cookie sent to /v1/admin/* on 8443 gets 401', async () => {
+    await createUser(s.db, {
+      username: 'f1admin',
+      password: 'f1admin1234',
+      display_name: 'F1 Admin',
+      is_admin: true,
+    });
+    const login = await s.admin.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { username: 'f1admin', password: 'f1admin1234' },
+    });
+    expect(login.statusCode).toBe(200);
+    const raw = login.headers['set-cookie'];
+    const cookie = (Array.isArray(raw) ? raw : [String(raw)]).map(c => c.split(';')[0]).join('; ');
+    // sanity: the same cookie is accepted on 9443
+    const ok = await s.admin.inject({
+      method: 'GET',
+      url: '/v1/admin/clients',
+      headers: { cookie },
+    });
+    expect(ok.statusCode).toBeLessThan(300);
+    for (const url of ['/v1/admin/clients', '/v1/admin/kill-switches']) {
+      const res = await s.fastify.inject({ method: 'GET', url, headers: { cookie } });
+      expect(res.statusCode, url).toBe(401);
+      expect(res.headers['set-cookie'], url).toBeUndefined();
+    }
+  });
+});
+
+describe('percent-encoded paths cannot dodge the CSRF skip or the cookie-free guard', () => {
+  const sessionCookie = async (): Promise<string> => {
+    const login = await s.admin.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { username: 'f1user', password: 'f1pass1234' },
+    });
+    const raw = login.headers['set-cookie'];
+    return (Array.isArray(raw) ? raw : [String(raw)]).map(c => c.split(';')[0]).join('; ');
+  };
+
+  it.each(['/%6Fauth/token', '/%6Dcp', '/oauth/%74oken', '/%4Dcp'])(
+    '%s on 8443 behaves like the decoded path and never sets a cookie',
+    async url => {
+      for (const method of ['GET', 'POST'] as const) {
+        const res = await s.fastify.inject({
+          method,
+          url,
+          payload: method === 'POST' ? {} : undefined,
+        });
+        expect(res.headers['set-cookie'], `${method} ${url}`).toBeUndefined();
+        expect(res.statusCode, `${method} ${url}`).not.toBeGreaterThanOrEqual(500);
+      }
+    }
+  );
+
+  it.each([
+    '/v1/users/me/%63lients',
+    '/v1/%75sers/me/clients',
+    '/v1/users/me/clients/',
+    '/%76%31/users/me/clients',
+  ])(
+    'state-changing cookie-authenticated POST %s on 9443 without CSRF is still refused',
+    async url => {
+      const cookie = await sessionCookie();
+      const res = await s.admin.inject({
+        method: 'POST',
+        url,
+        headers: { cookie },
+        payload: { name: 'csrf-probe' },
+      });
+      expect(res.statusCode, url).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode, url).not.toBe(201);
+    }
+  );
+
+  it.each(['/%6Fauth/token', '/%6Dcp', '/oauth/%74oken'])(
+    '%s on 9443 with a session cookie: no CSRF bypass for cookie-authed requests',
+    async url => {
+      const cookie = await sessionCookie();
+      const res = await s.admin.inject({ method: 'POST', url, headers: { cookie }, payload: {} });
+      // whatever it is, it must not be treated as an authenticated 2xx via the cookie
+      expect(res.statusCode, url).not.toBeLessThan(300);
+    }
+  );
 });

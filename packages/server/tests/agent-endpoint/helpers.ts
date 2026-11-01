@@ -10,6 +10,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { AmbassadorServer } from '@mcpambassador/server';
 import {
@@ -17,8 +18,38 @@ import {
   closeDatabase,
   runMigrations,
   createAdminKey,
+  AgentEndpointConfigSchema,
   type DatabaseClient,
 } from '@mcpambassador/core';
+
+/**
+ * Build ServerConfig options that enable the agent endpoint (ADR-020).
+ * `agent` overrides agent_endpoint.* keys (e.g. { dynamic_client_registration: true }).
+ * URLs are pinned so tests can assert issuer/resource never follow the Host header.
+ */
+export const TEST_ISSUER = 'https://issuer.test.example:9443';
+export const TEST_RESOURCE_BASE = 'https://resource.test.example:8443';
+export const TEST_RESOURCE = `${TEST_RESOURCE_BASE}/mcp`;
+
+export function agentEndpointOpts(agent: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ambassadorConfig: {
+      agent_endpoint: AgentEndpointConfigSchema.parse({
+        enabled: true,
+        issuer_url: TEST_ISSUER,
+        resource_base_url: TEST_RESOURCE_BASE,
+        ...agent,
+      }),
+    } as never,
+  };
+}
+
+/**
+ * Use for tests whose feature is still a 501 stub on the current branch. `it.fails` passes
+ * while the test body fails and turns RED once the feature works, forcing removal of this
+ * marker (replace `itImpl` with `it`). Set AGENT_IMPL=1 to run them as normal tests.
+ */
+export const itImpl: typeof it = (process.env['AGENT_IMPL'] === '1' ? it : it.fails) as typeof it;
 
 export interface AgentTestServer {
   /** Client-facing listener (8443 equivalent): /mcp, /.well-known, /v1/tools */
@@ -58,6 +89,38 @@ export async function startAgentTestServer(
     admin: server.getAdminServer(),
     adminKey: admin_key,
     dataDir,
+    db: (server as unknown as { db: DatabaseClient }).db,
+    stop: async () => {
+      try {
+        await server.stop();
+      } catch {
+        /* ignore */
+      }
+    },
+  };
+}
+
+/**
+ * Stop `prev` and start a NEW server instance on the SAME data dir / DB (admin key kept).
+ * Used to prove state survives a restart. Pass the same opts as the first start.
+ */
+export async function restartAgentTestServer(
+  prev: AgentTestServer,
+  opts: Record<string, unknown> = {}
+): Promise<AgentTestServer> {
+  await prev.stop();
+  const server = new AmbassadorServer({
+    dataDir: prev.dataDir,
+    port: 0,
+    host: '127.0.0.1',
+    ...opts,
+  } as ConstructorParameters<typeof AmbassadorServer>[0]);
+  await server.initialize();
+  return {
+    api: server.getServer(),
+    admin: server.getAdminServer(),
+    adminKey: prev.adminKey,
+    dataDir: prev.dataDir,
     db: (server as unknown as { db: DatabaseClient }).db,
     stop: async () => {
       try {
