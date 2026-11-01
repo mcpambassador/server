@@ -15,6 +15,7 @@ import {
   QueueListIcon,
   ServerStackIcon,
   GlobeAltIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/20/solid';
 import {
   UserCircleIcon as UserCircleIcon16,
@@ -58,6 +59,7 @@ const userNavItems: NavItem[] = [
   { title: 'My Clients', href: '/app/clients', icon: UserCircleIcon },
   { title: 'Subscriptions', href: '/app/subscriptions', icon: QueueListIcon },
   { title: 'Credentials', href: '/app/credentials', icon: KeyIcon },
+  { title: 'Agent Access', href: '/app/agent-access', icon: ShieldCheckIcon },
 ];
 
 const adminNavItems: NavItem[] = [
@@ -69,6 +71,7 @@ const adminNavItems: NavItem[] = [
   { title: 'User Instances', href: '/app/admin/user-instances', icon: ServerStackIcon },
   { title: 'Audit Logs', href: '/app/admin/audit', icon: DocumentTextIcon },
   { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: PowerIcon },
+  { title: 'Agent Endpoint', href: '/app/admin/agent-endpoint', icon: ShieldCheckIcon },
   { title: 'Settings', href: '/app/admin/settings', icon: Cog6ToothIcon },
 ];
 

@@ -26,6 +26,9 @@ import { AuditLogsAdmin } from '@/pages/admin/AuditLogs';
 import { KillSwitches } from '@/pages/admin/KillSwitches';
 import { Settings } from '@/pages/admin/Settings';
 import { Registry } from '@/pages/admin/Registry';
+import { OAuthConsent } from '@/pages/OAuthConsent';
+import { AgentAccess } from '@/pages/AgentAccess';
+import { AgentEndpoint } from '@/pages/admin/AgentEndpoint';
 
 // Redirect component for OAuth callback
 function ConnectionsRedirect() {
@@ -89,6 +92,14 @@ export const router = createBrowserRouter([
       {
         path: 'subscriptions',
         element: <Subscriptions />,
+      },
+      {
+        path: 'agent-access',
+        element: <AgentAccess />,
+      },
+      {
+        path: 'oauth/consent',
+        element: <OAuthConsent />,
       },
       {
         path: 'admin/dashboard',
@@ -183,6 +194,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <Registry />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: 'admin/agent-endpoint',
+        element: (
+          <AdminRoute>
+            <AgentEndpoint />
           </AdminRoute>
         ),
       },
