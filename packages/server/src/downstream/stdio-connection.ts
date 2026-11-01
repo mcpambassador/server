@@ -21,6 +21,19 @@ import { logger, redactSecretsInString, StreamRedactor } from '@mcpambassador/co
 export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 'USER', 'SHELL'];
 
 /**
+ * Server-controlled runtime settings forwarded from the server's own environment (set in the image
+ * Dockerfile) so that uvx-launched MCPs use the system python and the persistent cache. They are
+ * applied AFTER config.env, so a catalog/config value can never override them (the runner guard also
+ * denies uv_* names in config.env).
+ */
+export const SERVER_CONTROLLED_ENV_VARS = [
+  'UV_PYTHON_DOWNLOADS',
+  'UV_PYTHON',
+  'UV_CACHE_DIR',
+  'UV_TOOL_DIR',
+];
+
+/**
  * Stdio-based MCP connection
  *
  * M6.3: Manages a child process running an MCP server over stdio
@@ -141,6 +154,11 @@ export class StdioMcpConnection extends EventEmitter {
     // Add MCP-specific env vars from config
     if (this.config.env) {
       Object.assign(safeEnv, this.config.env);
+    }
+    for (const key of SERVER_CONTROLLED_ENV_VARS) {
+      if (process.env[key]) {
+        safeEnv[key] = process.env[key]!;
+      }
     }
 
     this.process = spawn(cmd, args, {
