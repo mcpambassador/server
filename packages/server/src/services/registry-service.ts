@@ -40,7 +40,9 @@ export interface SkippedRegistryEntry {
  * messages echo the received value, so they are replaced.
  */
 function safeIssueMessage(i: { code: string; message: string }): string {
-  return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
+  return i.code === 'invalid_enum_value' ||
+    i.code === 'invalid_literal' ||
+    i.code === 'invalid_value'
     ? 'Invalid value'
     : i.message;
 }
@@ -458,7 +460,7 @@ export class RegistryService {
         if (!parsed.success) {
           const issue = parsed.error.issues[0];
           throw new OAuthConfigError(
-            `${issue?.path.join('.') || 'oauth_config'}: ${issue?.message ?? 'invalid'}`
+            `${issue?.path.join('.') || 'oauth_config'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`
           );
         }
         const oc = parsed.data;
