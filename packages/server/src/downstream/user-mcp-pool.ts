@@ -27,6 +27,11 @@ export interface UserMcpPoolConfig {
   healthCheckIntervalMs: number;
 }
 
+/** Stable key for an allowed-mcp-id set (tolerates non-iterable set-likes, which never match). */
+function allowedSetKey(ids: ReadonlySet<string>): string {
+  return Symbol.iterator in ids ? [...ids].sort().join(',') : '*';
+}
+
 /**
  * Per-user MCP instance set
  * Tracks all MCP connections and tools for a single user
@@ -37,6 +42,8 @@ interface UserInstanceSet {
   toolToMcpMap: Map<string, string>; // tool_name → mcp_name
   aggregatedTools: AggregatedTool[];
   spawnedAt: Date;
+  /** TD-040: sorted allowed mcp_ids this set was spawned with (change detection). */
+  allowedKey: string;
   status: 'spawning' | 'ready' | 'terminating' | 'terminated';
 }
 
@@ -157,6 +164,7 @@ export class UserMcpPool {
         toolToMcpMap: new Map(),
         aggregatedTools: [],
         spawnedAt: new Date(),
+        allowedKey: allowedSetKey(allowedMcpIds),
         status: 'spawning',
       };
 
@@ -383,6 +391,12 @@ export class UserMcpPool {
     logger.info(
       `[UserMcpPool] User ${userId} aggregated ${instanceSet.aggregatedTools.length} tools from ${instanceSet.connections.size} MCPs`
     );
+  }
+
+  /** TD-040: true when the user's live instance set was spawned with exactly this allowed set. */
+  spawnedWithAllowedSet(userId: string, allowedMcpIds: ReadonlySet<string>): boolean {
+    const set = this.userInstances.get(userId);
+    return !!set && set.status === 'ready' && set.allowedKey === allowedSetKey(allowedMcpIds);
   }
 
   /**

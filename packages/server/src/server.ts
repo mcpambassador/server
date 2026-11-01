@@ -879,7 +879,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
-      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -946,6 +946,7 @@ export class AmbassadorServer {
     await registerClientRoutes(this.adminServer, {
       db: this.db!,
       audit: this.audit!,
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -955,7 +956,7 @@ export class AmbassadorServer {
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
     await registerSubscriptionRoutes(this.adminServer, {
       db: this.db!,
-      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
     });
 
     // Credential routes
@@ -1146,9 +1147,27 @@ export class AmbassadorServer {
    * live stdio session is respawned immediately; agent-endpoint users re-ensure on connect.
    * Non-fatal: failures are logged and audited, never thrown into the admin/user request.
    */
+  private resyncChain: Promise<void> = Promise.resolve();
+
+  /** Queue a resync (serialized, detached) so admin/user requests never wait on MCP spawns. */
+  private scheduleResync(userIds: string[], reason: string): Promise<void> {
+    this.resyncChain = this.resyncChain.then(() => this.resyncUserMcps(userIds, reason));
+    this.resyncChain.catch(() => undefined);
+    return Promise.resolve();
+  }
+
   private async resyncUserMcps(userIds: string[], reason: string): Promise<void> {
     for (const userId of new Set(userIds)) {
       try {
+        // Unchanged spawnable set since the last spawn: nothing to do.
+        if (
+          this.userPool.spawnedWithAllowedSet(
+            userId,
+            await spawnableMcpIdsForUser(this.db!, userId)
+          )
+        ) {
+          continue;
+        }
         await this.userPool.terminateForUser(userId);
         const live = await this.db!.query.user_sessions.findFirst({
           where: (s, { and, eq, or }) =>
@@ -1885,7 +1904,7 @@ export class AmbassadorServer {
       getToolPins: () => this.getToolPins(), // ADR-021
       getApprovals: () => this.approvals, // ADR-023
       onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
-      onUserAccessChanged: (ids, reason) => this.resyncUserMcps(ids, reason),
+      onUserAccessChanged: (ids, reason) => this.scheduleResync(ids, reason),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },

@@ -571,3 +571,25 @@ describe('UserMcpPool - Tool Invocation', () => {
     await pool.shutdown();
   });
 });
+
+describe('UserMcpPool - TD-040 change detection', () => {
+  it('spawnedWithAllowedSet() matches only the exact set the instances were spawned with', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+
+    const pool = new UserMcpPool({
+      mcpConfigs: [makeMcpConfig({ name: 'mcp1', transport: 'stdio' })],
+      maxInstancesPerUser: 10,
+      maxTotalInstances: 100,
+      healthCheckIntervalMs: 0,
+    });
+
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(false); // nothing spawned
+    await pool.spawnForUser('user1', undefined, ALL);
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(true);
+    expect(pool.spawnedWithAllowedSet('user1', new Set())).toBe(false);
+
+    await pool.terminateForUser('user1');
+    expect(pool.spawnedWithAllowedSet('user1', ALL)).toBe(false);
+    await pool.shutdown();
+  });
+});

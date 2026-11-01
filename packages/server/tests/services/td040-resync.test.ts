@@ -214,4 +214,34 @@ describe('S1: re-sync hook', () => {
     expect(r.statusCode).toBe(201);
     await bad.close();
   });
+
+  it('user-facing client suspend, reactivate and delete fire the hook', async () => {
+    const { registerClientRoutes } = await import('../../src/routes/clients.js');
+    const u = Fastify();
+    u.decorateRequest('session', null as never);
+    u.addHook('onRequest', async req => {
+      (req as any).session = { userId: U1, isAdmin: false };
+    });
+    await registerClientRoutes(u, {
+      db,
+      audit,
+      onUserAccessChanged: async (ids, reason) => {
+        calls.push({ ids, reason });
+      },
+    });
+    await u.ready();
+    for (const status of ['suspended', 'active']) {
+      const r = await u.inject({
+        method: 'PATCH',
+        url: `/v1/users/me/clients/${C1}`,
+        payload: { status },
+      });
+      expect(r.statusCode).toBe(200);
+      expect(calls.at(-1)).toEqual({ ids: [U1], reason: 'client_status_changed' });
+    }
+    const d = await u.inject({ method: 'DELETE', url: `/v1/users/me/clients/${C1}` });
+    expect(d.statusCode).toBe(204);
+    expect(calls.at(-1)).toEqual({ ids: [U1], reason: 'client_deleted' });
+    await u.close();
+  });
 });
