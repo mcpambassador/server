@@ -143,6 +143,7 @@ function cleanForLog(v: unknown, max: number): string {
 import { SecretStore, OAuthConfigError, isSupportedSecretBinding } from './secret-store.js';
 import { createMcpSchema, oauthConfigSchema } from '../admin/mcp-schemas.js';
 import { checkCatalogEntry } from './runner-guard.js';
+import { commandNotPermittedReason } from '../downstream/types.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
@@ -566,11 +567,13 @@ export class RegistryService {
 
     // TD-039: same runner-flag / reserved-env rule as an admin create (a registry entry may look
     // pinned yet fetch from elsewhere). Generic reason, no values.
-    const guardReason = checkCatalogEntry({
-      config: registryEntry.config,
-      credential_schema: registryEntry.credential_schema,
-      oauth_access_token_env_var: safeOauthConfig?.['access_token_env_var'],
-    });
+    const guardReason =
+      commandNotPermittedReason(registryEntry.config, registryEntry.transport_type) ??
+      checkCatalogEntry({
+        config: registryEntry.config,
+        credential_schema: registryEntry.credential_schema,
+        oauth_access_token_env_var: safeOauthConfig?.['access_token_env_var'],
+      });
     if (guardReason) {
       return { success: false, message: `MCP '${name}' was rejected: ${guardReason}` };
     }
