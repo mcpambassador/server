@@ -108,13 +108,13 @@ export function ToolPolicyPanel({
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">Human approval</h3>
         {defaultRequires && (
           <Badge color="amber" data-testid="approval-default-badge">
-            new tools need {defaultApprover}
+            by default: {defaultApprover}
           </Badge>
         )}
       </div>
       <p className="mt-1 text-sm/6 text-zinc-500 dark:text-zinc-400">
         A tool that needs approval is held until a person says yes to each call. The MCP default
-        applies to tools first seen after you set it.
+        applies, at call time, to every tool that has no setting of its own.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         {defaultRequires ? (
@@ -123,12 +123,12 @@ export function ToolPolicyPanel({
             disabled={setDefault.isPending}
             onClick={() => void apply({ default_requires_approval: false })}
           >
-            Stop requiring approval for new tools
+            Stop requiring approval by default
           </Button>
         ) : choosing ? (
           <>
             <Select
-              aria-label="Who approves new tools"
+              aria-label="Who approves by default"
               value={approver}
               onChange={e => setApprover(e.target.value)}
               className="max-w-40"
@@ -146,7 +146,7 @@ export function ToolPolicyPanel({
                 })
               }
             >
-              Require for new tools
+              Require by default
             </Button>
             <Button plain onClick={() => setChoosing(false)}>
               Cancel
@@ -154,7 +154,7 @@ export function ToolPolicyPanel({
           </>
         ) : (
           <Button outline onClick={() => setChoosing(true)}>
-            Require approval for new tools
+            Require approval by default
           </Button>
         )}
       </div>
