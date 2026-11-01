@@ -242,11 +242,22 @@ export class CatalogReloader {
 
     this.reloading = true;
     try {
-      return await this._doReload();
+      const result = await this._doReload();
+      if (this.onApplied) {
+        try {
+          await this.onApplied();
+        } catch (err) {
+          logger.warn({ err }, '[CatalogReloader] post-apply hook failed');
+        }
+      }
+      return result;
     } finally {
       this.reloading = false;
     }
   }
+
+  /** Optional hook run after a successful apply (ADR-021: record tool pins for newly connected MCPs). */
+  onApplied?: () => Promise<void>;
 
   /**
    * Internal reload implementation

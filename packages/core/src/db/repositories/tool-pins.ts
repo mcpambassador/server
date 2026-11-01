@@ -7,7 +7,7 @@
 
 import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
-import { tool_pins, mcp_catalog } from '../../schema/index.js';
+import { tool_pins, mcp_catalog, user_mcp_credentials } from '../../schema/index.js';
 import { compatInsert, compatSelect, compatUpdate } from '../compat.js';
 
 export type ToolPinStatusValue = 'approved' | 'pending_review' | 'rejected';
@@ -111,7 +111,8 @@ export async function getToolPinByKey(
 }
 
 export async function insertToolPin(db: DatabaseClient, rec: ToolPinRecord): Promise<void> {
-  await compatInsert(db, tool_pins).values(rec);
+  // B2: belt and braces against a concurrent observe; the caller re-reads to see who won.
+  await compatInsert(db, tool_pins).values(rec).onConflictDoNothing();
 }
 
 /** Replace the mutable fields of a pin (identity fields stay). */
@@ -171,4 +172,12 @@ export async function listMcpToolSnapshots(
     mcp_id: r.mcp_id as string,
     tool_catalog: (r.tool_catalog as string) ?? '[]',
   }));
+}
+
+/** ADR-021 D6'': (mcp, user) pairs that had a per-user instance when the baseline was armed. */
+export async function listMcpCredentialUsers(
+  db: DatabaseClient
+): Promise<Array<{ mcp_id: string; user_id: string }>> {
+  const rows = (await compatSelect(db).from(user_mcp_credentials)) as any[];
+  return rows.map(r => ({ mcp_id: r.mcp_id as string, user_id: r.user_id as string }));
 }

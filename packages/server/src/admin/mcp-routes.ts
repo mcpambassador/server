@@ -11,6 +11,8 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback, FastifyReply } from 'fastify';
 import { SecretStore, OAuthConfigError } from '../services/secret-store.js';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
+import { logger } from '@mcpambassador/core';
+import { CatalogReloadConflictError, type CatalogReloader } from '../services/catalog-reloader.js';
 import { updateValidationStatus, updateToolCatalog } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapError, ErrorCodes } from './reply-envelope.js';
@@ -39,6 +41,8 @@ export interface AdminMcpRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
   secretStore?: SecretStore;
+  /** Shared reloader: publish/archive apply the catalog so the change takes effect without a restart. */
+  catalogReloader?: CatalogReloader;
 }
 
 /**
@@ -49,7 +53,33 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
   opts: AdminMcpRoutesConfig,
   done
 ) => {
-  const { db, audit, secretStore } = opts;
+  const { db, audit, secretStore, catalogReloader } = opts;
+
+  /**
+   * Best-effort hot reload after a catalog state change. Never fails the request: on error the
+   * change stays pending and the SPA shows it (GET /v1/admin/catalog/status) with an Apply button.
+   */
+  const applyCatalogBestEffort = async (trigger: string): Promise<void> => {
+    if (!catalogReloader) return;
+    try {
+      const result = await catalogReloader.applyChanges();
+      if (result.summary.failed > 0) {
+        logger.warn(
+          {
+            trigger,
+            failed: result.summary.failed,
+            errors: result.shared.errors.map(e => ({ name: e.name, action: e.action })),
+          },
+          '[AdminMcpRoutes] Catalog auto-apply partially failed; failed changes stay pending'
+        );
+      }
+    } catch (err) {
+      logger.warn({ trigger }, '[AdminMcpRoutes] Catalog auto-apply failed; change is pending');
+      if (!(err instanceof CatalogReloadConflictError)) {
+        logger.error({ err }, '[AdminMcpRoutes] Catalog auto-apply error');
+      }
+    }
+  };
 
   // TD-027: a client_secret_env must name a store secret permitted for the token_url host.
   const checkOAuthBinding = (
@@ -438,6 +468,8 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
           },
         });
 
+        await applyCatalogBestEffort('publish');
+
         // Fetch updated entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);
         return reply.send({ ok: true, data: entry });
@@ -482,6 +514,8 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
             mcp_id: params.mcpId,
           },
         });
+
+        await applyCatalogBestEffort('archive');
 
         // Fetch updated entry
         const entry = await getMcpCatalogEntry(db, params.mcpId);

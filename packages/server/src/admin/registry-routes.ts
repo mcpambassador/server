@@ -269,7 +269,7 @@ export const registerAdminRegistryRoutes: FastifyPluginCallback<AdminRegistryRou
       const message = error instanceof Error ? error.message : String(error);
 
       // Log error but return 502 for network failures
-      logger.error('[registry-routes] Failed to refresh registry:', message);
+      logger.error({ err: error }, '[registry-routes] Failed to refresh registry');
 
       await audit.emit({
         event_id: crypto.randomUUID(),

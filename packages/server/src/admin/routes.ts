@@ -32,6 +32,7 @@ import { registerAdminToolPinRoutes } from './tool-pin-routes.js';
 import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
+import { CatalogReloader } from '../services/catalog-reloader.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
 import { registerAdminRegistryRoutes } from './registry-routes.js';
 import type { RegistryService } from '../services/registry-service.js';
@@ -67,6 +68,8 @@ export interface AdminRoutesConfig {
   getToolPins?: () => import('../services/tool-pins/pin-service.js').ToolPinService | null;
   /** Called after a pin decision / policy change so cached catalog observations are re-evaluated */
   onToolPinsChanged?: () => void;
+  /** One instance per server so the reload mutex spans both listeners (8443 and 9443). */
+  catalogReloader?: CatalogReloader;
 }
 
 /**
@@ -88,6 +91,8 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     registryService,
     secretStore,
   } = opts;
+  const catalogReloader =
+    opts.catalogReloader ?? (userPool ? new CatalogReloader(db, mcpManager, userPool) : undefined);
 
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
@@ -124,7 +129,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     }
 
     // Log full error server-side
-    logger.error('[admin-api] Error:', error);
+    logger.error({ err: error }, '[admin-api] Error:');
 
     // Return sanitized error to client
     const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
@@ -225,7 +230,8 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   });
 
   // MCP catalog management (7 endpoints)
-  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
+  // Shared reloader so the reload mutex covers publish/archive auto-apply and manual apply.
+  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore, catalogReloader });
 
   // Community registry (4 endpoints)
   if (registryService) {
@@ -237,6 +243,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     db,
     mcpManager,
     userPool,
+    reloader: catalogReloader,
   });
 
   done();

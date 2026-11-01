@@ -230,7 +230,7 @@ export class UserMcpPool {
           }
         } catch (err) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-          logger.error(`[UserMcpPool] User ${userId} failed to start ${config.name}:`, err);
+          logger.error({ err }, `[UserMcpPool] User ${userId} failed to start ${config.name}:`);
           // Continue with other MCPs even if one fails
         }
       });
@@ -259,8 +259,8 @@ export class UserMcpPool {
           } catch (stopErr) {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             logger.error(
-              `[UserMcpPool] Failed to stop connection ${mcpName} for user ${userId}:`,
-              stopErr
+              { err: stopErr },
+              `[UserMcpPool] Failed to stop connection ${mcpName} for user ${userId}:`
             );
             // Continue cleanup even if individual stops fail
           }
@@ -409,7 +409,7 @@ export class UserMcpPool {
     const stopPromises = Array.from(instanceSet.connections.values()).map(conn =>
       conn.stop().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        logger.error(`[UserMcpPool] User ${userId} error stopping connection:`, err);
+        logger.error({ err }, `[UserMcpPool] User ${userId} error stopping connection:`);
       })
     );
 
@@ -639,7 +639,7 @@ export class UserMcpPool {
 
     connection.on('error', err => {
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      logger.error(`[UserMcpPool] User ${userId} MCP ${mcpName} error:`, err);
+      logger.error({ err }, `[UserMcpPool] User ${userId} MCP ${mcpName} error:`);
     });
   }
 

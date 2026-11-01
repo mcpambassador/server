@@ -97,7 +97,7 @@ export class AuditBuffer {
 
     this.flushTimer = setInterval(() => {
       this.flush().catch(err => {
-        logger.error('[audit-buffer] Auto-flush error:', err);
+        logger.error({ err }, '[audit-buffer] Auto-flush error:');
       });
     }, this.config.flush_interval_ms);
 
@@ -222,7 +222,7 @@ export class AuditBuffer {
       await this.spillFileHandle.write(line);
       this.spillFileSize += bytesWritten;
     } catch (error) {
-      logger.error('[audit-buffer] Failed to spill event to disk:', error);
+      logger.error({ err: error }, '[audit-buffer] Failed to spill event to disk:');
       this.stats.total_dropped++;
     }
   }

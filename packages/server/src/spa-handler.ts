@@ -45,10 +45,10 @@ export async function registerSpaHandler(
 
   if (fs.existsSync(devPath)) {
     spaDistPath = devPath;
-    logger.info('[SPA] Found SPA dist at:', devPath);
+    logger.info({ path: devPath }, '[SPA] Found SPA dist at');
   } else if (fs.existsSync(prodPath)) {
     spaDistPath = prodPath;
-    logger.info('[SPA] Found SPA dist at:', prodPath);
+    logger.info({ path: prodPath }, '[SPA] Found SPA dist at');
   } else {
     logger.info('[SPA] No SPA dist found, skipping SPA handler');
     // Still replace Fastify's default 404 so the query string (e.g. ?access_token=) is not echoed.

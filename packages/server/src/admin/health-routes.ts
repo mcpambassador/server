@@ -102,7 +102,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
       return reply.send(wrapSuccess(response));
     } catch (err) {
-      logger.error('[admin-health] Error fetching MCP health summary:', err);
+      logger.error({ err }, '[admin-health] Error fetching MCP health summary:');
       return reply
         .status(500)
         .send(
@@ -174,7 +174,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-health] Error fetching MCP instances:', err);
+        logger.error({ err }, '[admin-health] Error fetching MCP instances:');
         return reply
           .status(500)
           .send(
@@ -220,7 +220,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-health] Error restarting MCP:', err);
+        logger.error({ err }, '[admin-health] Error restarting MCP:');
 
         // Check if it's a "not found" error
         if (err instanceof Error && err.message.includes('not found')) {
@@ -273,7 +273,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-health] Error fetching MCP logs:', err);
+        logger.error({ err }, '[admin-health] Error fetching MCP logs:');
         return reply
           .status(500)
           .send(
@@ -313,7 +313,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         return reply.send(wrapSuccess(response));
       } catch (err) {
-        logger.error('[admin-health] Error clearing MCP logs:', err);
+        logger.error({ err }, '[admin-health] Error clearing MCP logs:');
         return reply
           .status(500)
           .send(

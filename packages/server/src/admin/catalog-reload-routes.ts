@@ -22,6 +22,8 @@ export interface AdminCatalogReloadRoutesConfig {
   db: DatabaseClient;
   mcpManager: SharedMcpManager;
   userPool: UserMcpPool | null;
+  /** Shared instance (so its mutex covers auto-apply from publish/archive). */
+  reloader?: CatalogReloader;
 }
 
 /**
@@ -38,7 +40,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
   }
 
   // Create reloader service
-  const reloader = new CatalogReloader(db, mcpManager, userPool);
+  const reloader = opts.reloader ?? new CatalogReloader(db, mcpManager, userPool);
 
   // ==========================================================================
   // GET /v1/admin/catalog/status
@@ -49,7 +51,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
       const pendingChanges = await reloader.previewChanges();
       return reply.send(wrapSuccess(pendingChanges));
     } catch (err) {
-      logger.error('[AdminCatalogReload] Error previewing changes:', err);
+      logger.error({ err }, '[AdminCatalogReload] Error previewing changes:');
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to preview catalog changes'));
@@ -72,7 +74,7 @@ export const registerAdminCatalogReloadRoutes: FastifyPluginCallback<
           .send(wrapError(ErrorCodes.CONFLICT, 'Catalog reload already in progress'));
       }
 
-      logger.error('[AdminCatalogReload] Error applying changes:', err);
+      logger.error({ err }, '[AdminCatalogReload] Error applying changes:');
       return reply
         .status(500)
         .send(wrapError(ErrorCodes.INTERNAL_ERROR, 'Failed to apply catalog changes'));

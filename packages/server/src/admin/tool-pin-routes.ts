@@ -17,12 +17,14 @@ import {
   ADMIN_TOOL_PIN_APPROVE_ROUTE,
   ADMIN_TOOL_PIN_CONFIRM_BASELINE_ROUTE,
   ADMIN_TOOL_PIN_REJECT_ROUTE,
+  ADMIN_TOOL_PIN_REVOKE_ROUTE,
   ADMIN_TOOL_PIN_ROUTE,
   SYSTEM_MIGRATION_ACTOR,
   setPinPolicyRequestSchema,
   toolPinConfirmBaselineRequestSchema,
   toolPinDecisionRequestSchema,
   toolPinListQuerySchema,
+  toolPinRevokeRequestSchema,
   type ToolPinAuditAction,
 } from '@mcpambassador/contracts';
 import { adminKeyActor } from './middleware.js';
@@ -88,7 +90,7 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
       pending_hash: r.pending_hash,
       flags: parseFlags(r.flags),
       absent: r.absent,
-      baseline_unreviewed: r.approved_by === SYSTEM_MIGRATION_ACTOR,
+      baseline_unreviewed: r.approved_by === SYSTEM_MIGRATION_ACTOR && r.approved_hash !== null,
       first_seen_at: r.first_seen_at,
       approved_at: r.approved_at,
       approved_by: r.approved_by,
@@ -157,6 +159,19 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
         return reply
           .status(409)
           .send(wrapError(ErrorCodes.CONFLICT, 'Stored definition failed its integrity check'));
+      case 'not_approved':
+        return reply
+          .status(409)
+          .send(wrapError(ErrorCodes.CONFLICT, 'Tool pin has no approved definition to revoke'));
+      case 'baseline_conflict':
+        return reply
+          .status(409)
+          .send(
+            wrapError(
+              ErrorCodes.CONFLICT,
+              'The all-users pin for this tool has a different pending definition; resolve that first'
+            )
+          );
       case 'not_baseline':
         return reply
           .status(409)
@@ -191,7 +206,11 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
             : true
       )
       .filter(r => (q.scope_user_id ? r.scope_user_id === q.scope_user_id : true))
-      .filter(r => (q.baseline === 'unreviewed' ? r.approved_by === SYSTEM_MIGRATION_ACTOR : true))
+      .filter(r =>
+        q.baseline === 'unreviewed'
+          ? r.approved_by === SYSTEM_MIGRATION_ACTOR && r.approved_hash !== null
+          : true
+      )
       // pending first, then newest activity
       .sort((a, b) =>
         a.status === b.status
@@ -247,6 +266,22 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
     const { pinId } = request.params as { pinId: string };
     const body = toolPinDecisionRequestSchema.parse(request.body);
     const r = await pins.reject(pinId, {
+      expectedHash: body.expected_hash,
+      reason: body.reason,
+      actor: actorOf(request),
+    });
+    if (!r.ok) return sendDecisionError(reply, r);
+    onChanged?.();
+    return reply.send(wrapSuccess(await detailOf(r.pin)));
+  });
+
+  // POST /v1/admin/tool-pins/:pinId/revoke
+  fastify.post(ADMIN_TOOL_PIN_REVOKE_ROUTE, async (request, reply) => {
+    const pins = getPins();
+    if (!pins) return unavailable(reply);
+    const { pinId } = request.params as { pinId: string };
+    const body = toolPinRevokeRequestSchema.parse(request.body);
+    const r = await pins.revoke(pinId, {
       expectedHash: body.expected_hash,
       reason: body.reason,
       actor: actorOf(request),

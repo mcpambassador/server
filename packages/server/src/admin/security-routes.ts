@@ -166,7 +166,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
       });
 
       // Log the real error for debugging (do not expose internal details to clients)
-      logger.error('[Admin] HMAC rotation failed:', err instanceof Error ? err.message : err);
+      logger.error({ err }, '[Admin] HMAC rotation failed:');
 
       return reply
         .status(500)
@@ -279,7 +279,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         })
       );
     } catch (err) {
-      logger.error('[Admin] Credential key rotation failed:', err);
+      logger.error({ err }, '[Admin] Credential key rotation failed:');
       // If transaction failed and temp file exists, delete it
       if (tmpKeyPath) {
         try {

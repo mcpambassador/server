@@ -90,6 +90,12 @@ export class ToolPinRediscovery {
     }
   }
 
+  /** Observe every connected shared MCP now (used after a catalog apply so new MCPs get pins at publish). */
+  async observeAllShared(opts: { refresh?: boolean } = {}): Promise<void> {
+    if (opts.refresh) await this.o.mcpManager.refreshAll();
+    await this.observeShared(this.o.mcpManager.getConnectionNames());
+  }
+
   private async observeShared(names: string[]): Promise<void> {
     for (const name of names) {
       const entry = await getMcpEntryByName(this.o.db, name);

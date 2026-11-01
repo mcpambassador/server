@@ -38,3 +38,4 @@ export type {
 // Utilities
 export * from './utils/errors.js';
 export * from './utils/logger.js';
+export * from './utils/redact.js';

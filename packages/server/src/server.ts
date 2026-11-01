@@ -81,6 +81,7 @@ import { BoundedSessionStore, addSessionMaxAge } from './admin/session.js';
 import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
+import { CatalogReloader } from './services/catalog-reloader.js';
 import type { CredentialVault } from './services/credential-vault.js';
 import { SecretStore } from './services/secret-store.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
@@ -150,6 +151,7 @@ export class AmbassadorServer {
   private fastify: FastifyInstance | null = null;
   private adminServer: FastifyInstance | null = null;
   private mcpManager: SharedMcpManager;
+  private catalogReloader!: CatalogReloader; // one instance for both listeners (shared reload mutex)
   private userPool!: UserMcpPool; // M17: Per-user MCP pools (initialized in initialize())
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
   private config: Omit<
@@ -381,10 +383,7 @@ export class AmbassadorServer {
         await this.registryService.fetchRegistry();
         logger.info('[Server] Community registry loaded');
       } catch (error) {
-        logger.warn(
-          '[Server] Failed to load community registry on startup:',
-          error instanceof Error ? error.message : String(error)
-        );
+        logger.warn({ err: error }, '[Server] Failed to load community registry on startup:');
         logger.warn('[Server] Registry will be available after manual refresh');
       }
     } else {
@@ -527,6 +526,20 @@ export class AmbassadorServer {
         intervalHours: rediscoveryHoursFromEnv(),
       });
       this.toolPinRediscovery.start();
+    }
+    this.catalogReloader = new CatalogReloader(
+      this.db as DatabaseClient,
+      this.mcpManager,
+      this.userPool
+    );
+    const rediscovery = this.toolPinRediscovery;
+    if (rediscovery) {
+      // A catalog apply is an explicit reload: re-fetch tool lists and record pins for new/changed tools now.
+      this.catalogReloader.onApplied = () => rediscovery.observeAllShared({ refresh: true });
+      // Boot: pins (and the one-shot baseline) are recorded without waiting for the first agent listing.
+      void rediscovery
+        .observeAllShared()
+        .catch(err => logger.warn({ err }, '[tool-pins] boot observation failed'));
     }
     logger.info('[Server] Per-user MCP pool initialized');
 
@@ -739,6 +752,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
@@ -1082,8 +1096,8 @@ export class AmbassadorServer {
                 logger.info(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
               } catch (refreshErr) {
                 logger.error(
-                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`,
-                  refreshErr
+                  { err: refreshErr },
+                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`
                 );
 
                 // Check if token was revoked (401/invalid_grant)
@@ -1151,14 +1165,14 @@ export class AmbassadorServer {
             }
           }
         } catch (err) {
-          logger.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
+          logger.error({ err }, `[Server] Failed to process credential for MCP ${cred.mcp_id}:`);
           // Continue processing other credentials
         }
       }
 
       return credMap;
     } catch (err) {
-      logger.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
+      logger.error({ err }, `[Server] Failed to load user credentials for user ${userId}:`);
       return new Map();
     }
   }
@@ -1525,7 +1539,7 @@ export class AmbassadorServer {
             message: 'Session state inconsistent',
           });
         } else {
-          logger.error('[/v1/tools] Error:', err);
+          logger.error({ err }, '[/v1/tools] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Failed to retrieve tool catalog',
@@ -1633,7 +1647,7 @@ export class AmbassadorServer {
             message: 'Session missing client binding',
           });
         } else {
-          logger.error('[/v1/tools/invoke] Error:', err);
+          logger.error({ err }, '[/v1/tools/invoke] Error:');
           // F-SEC-M5-009: Generic error message (don't expose internals)
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1656,6 +1670,7 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       dataDir: this.config.dataDir,
       killSwitchManager: this.killSwitchManager, // CR-M10-001
+      catalogReloader: this.catalogReloader,
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
@@ -1685,7 +1700,7 @@ export class AmbassadorServer {
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
-          logger.error('[/v1/admin/health] Error:', err);
+          logger.error({ err }, '[/v1/admin/health] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Health check failed',
@@ -1785,7 +1800,7 @@ export class AmbassadorServer {
         );
       }
     } catch (err) {
-      logger.error('[Server] Failed to start:', err);
+      logger.error({ err }, '[Server] Failed to start:');
       throw err;
     }
   }
