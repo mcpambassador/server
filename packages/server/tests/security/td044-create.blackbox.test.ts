@@ -92,6 +92,16 @@ describe('default allowlist', () => {
     });
     expect(r.statusCode, r.body).toBe(201);
   });
+
+  it('http-transport entry with a stray non-allowlisted command is not refused (never stricter than spawn)', async () => {
+    const r = await post({
+      name: `td044c-httpcmd-${Date.now() % 100000}`,
+      display_name: 'h',
+      transport_type: 'http',
+      config: { url: 'https://mcp.example/mcp', command: ['docker', 'run', 'img'] },
+    });
+    expect(r.statusCode, r.body).toBe(201);
+  });
 });
 
 describe('opt-in via MCP_ALLOWED_COMMANDS', () => {
