@@ -81,7 +81,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   let userCookieHeader = '';
   beforeAll(async () => {
     // Attempt login with seeded admin (test environment provides admin user)
-    const loginRes = await handle.fastify.inject({
+    const loginRes = await handle.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: { username: 'admin', password: 'admin123' },
@@ -94,7 +94,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Auth routes
   describe('Auth routes', () => {
     it('POST /v1/auth/login returns an envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: { username: 'admin', password: 'admin123' },
@@ -109,7 +109,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('GET /v1/auth/session returns envelope (auth required)', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/auth/session',
         headers: { cookie: userCookieHeader },
@@ -123,7 +123,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('POST /v1/auth/logout returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/auth/logout',
         headers: { cookie: userCookieHeader },
@@ -136,7 +136,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
       }
 
       // Re-login to get a fresh session cookie for subsequent tests
-      const loginRes = await handle.fastify.inject({
+      const loginRes = await handle.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: { username: 'admin', password: 'admin123' },
@@ -150,7 +150,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Self-service
   describe('Self-service routes', () => {
     it('GET /v1/users/me returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/users/me',
         headers: { cookie: userCookieHeader },
@@ -164,7 +164,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('PATCH /v1/users/me/password returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         headers: { cookie: userCookieHeader, 'Content-Type': 'application/json' },
@@ -184,7 +184,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     let createdProfileId: string | null = null;
 
     it('GET /v1/admin/profiles returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/profiles',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -203,7 +203,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
 
     it('POST /v1/admin/profiles - create profile (happy path)', async () => {
       const payload = { name: 'test-profile-' + Date.now(), allowed_tools: [] };
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/profiles',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -223,7 +223,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     it('GET /v1/admin/profiles/:id - not found and/or happy-path', async () => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
       // first try non-existent id
-      const res404 = await handle.fastify.inject({
+      const res404 = await handle.admin.inject({
         method: 'GET',
         url: `/v1/admin/profiles/${fakeId}`,
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -237,7 +237,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
       }
 
       if (createdProfileId) {
-        const res = await handle.fastify.inject({
+        const res = await handle.admin.inject({
           method: 'GET',
           url: `/v1/admin/profiles/${createdProfileId}`,
           headers: { 'X-Admin-Key': handle.adminKey },
@@ -253,7 +253,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
 
     it('PATCH /v1/admin/profiles/:id returns envelope', async () => {
       const id = createdProfileId ?? '00000000-0000-0000-0000-000000000000';
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'PATCH',
         url: `/v1/admin/profiles/${id}`,
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -269,7 +269,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
 
     it('DELETE /v1/admin/profiles/:id returns envelope', async () => {
       const id = createdProfileId ?? '00000000-0000-0000-0000-000000000000';
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'DELETE',
         url: `/v1/admin/profiles/${id}`,
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -283,7 +283,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('Admin endpoints without X-Admin-Key return error envelope', async () => {
-      const res = await handle.fastify.inject({ method: 'GET', url: '/v1/admin/profiles' });
+      const res = await handle.admin.inject({ method: 'GET', url: '/v1/admin/profiles' });
       const body = parseBody(res);
       try {
         assertErrorEnvelope(body, ErrorCodes.UNAUTHORIZED);
@@ -296,7 +296,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Clients (list, create, delete)
   describe('Admin: Clients', () => {
     it('GET /v1/admin/clients returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/clients',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -318,7 +318,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
         name: 'test-client-' + Date.now(),
         profile_id: '00000000-0000-0000-0000-000000000000',
       };
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/clients',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -336,7 +336,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Sessions
   describe('Admin: Sessions', () => {
     it('GET /v1/admin/sessions returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/sessions',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -354,7 +354,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('DELETE /v1/admin/sessions/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'DELETE',
         url: '/v1/admin/sessions/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -371,7 +371,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Security
   describe('Admin: Security', () => {
     it('POST /v1/admin/kill-switch/:target returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/kill-switch/client-authentication',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -386,7 +386,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('POST /v1/admin/rotate-hmac-secret returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/rotate-hmac-secret',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -400,7 +400,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('POST /v1/admin/rotate-credential-key returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/rotate-credential-key',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -417,7 +417,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Audit
   describe('Admin: Audit', () => {
     it('GET /v1/audit/events returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/audit/events',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -435,7 +435,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('GET /v1/admin/downstream returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/downstream',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -452,7 +452,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Users
   describe('Admin: Users', () => {
     it('GET /v1/admin/users returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/users',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -470,7 +470,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('GET /v1/admin/users/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/users/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -489,7 +489,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
         password: 'P@ssw0rd',
         display_name: 'Test User',
       };
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/users',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -504,7 +504,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('PATCH /v1/admin/users/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'PATCH',
         url: '/v1/admin/users/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -519,7 +519,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('DELETE /v1/admin/users/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'DELETE',
         url: '/v1/admin/users/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -536,7 +536,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: Groups (we'll exercise a subset)
   describe('Admin: Groups', () => {
     it('GET /v1/admin/groups returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/groups',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -554,7 +554,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('GET /v1/admin/groups/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/groups/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -569,7 +569,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
 
     it('POST /v1/admin/groups returns envelope', async () => {
       const payload = { name: 'g-' + Date.now() };
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/admin/groups',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -584,7 +584,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('PATCH /v1/admin/groups/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'PATCH',
         url: '/v1/admin/groups/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey, 'Content-Type': 'application/json' },
@@ -599,7 +599,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('DELETE /v1/admin/groups/:id returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'DELETE',
         url: '/v1/admin/groups/00000000-0000-0000-0000-000000000000',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -618,7 +618,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
         '/v1/admin/groups/00000000-0000-0000-0000-000000000000/mcps',
       ];
       for (const url of urls) {
-        const res = await handle.fastify.inject({
+        const res = await handle.admin.inject({
           method: 'GET',
           url,
           headers: { 'X-Admin-Key': handle.adminKey },
@@ -640,7 +640,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Admin: MCPs
   describe('Admin: MCPs', () => {
     it('GET /v1/admin/mcps returns paginated envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/admin/mcps',
         headers: { 'X-Admin-Key': handle.adminKey },
@@ -678,7 +678,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
           opts.payload = JSON.stringify(e.payload);
           opts.headers['Content-Type'] = 'application/json';
         }
-        const res = await handle.fastify.inject(opts);
+        const res = await handle.admin.inject(opts);
         const body = parseBody(res);
         try {
           assertSuccessEnvelope(body);
@@ -696,7 +696,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // User-facing: Clients
   describe('User-facing: Clients', () => {
     it('GET /v1/users/me/clients returns envelope (session auth)', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/users/me/clients',
         headers: { cookie: userCookieHeader },
@@ -710,7 +710,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('POST /v1/users/me/clients returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: { cookie: userCookieHeader, 'Content-Type': 'application/json' },
@@ -740,7 +740,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
           opts.payload = JSON.stringify(u.payload);
           opts.headers['Content-Type'] = 'application/json';
         }
-        const res = await handle.fastify.inject(opts);
+        const res = await handle.admin.inject(opts);
         const body = parseBody(res);
         try {
           assertSuccessEnvelope(body);
@@ -754,7 +754,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Subscriptions (scoped under clients)
   describe('User-facing: Subscriptions', () => {
     it('GET /v1/users/me/clients/:clientId/subscriptions returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/users/me/clients/00000000-0000-0000-0000-000000000000/subscriptions',
         headers: { cookie: userCookieHeader },
@@ -768,7 +768,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('POST /v1/users/me/clients/:clientId/subscriptions returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients/00000000-0000-0000-0000-000000000000/subscriptions',
         headers: { cookie: userCookieHeader, 'Content-Type': 'application/json' },
@@ -786,7 +786,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Marketplace (requires auth)
   describe('Marketplace', () => {
     it('GET /v1/marketplace returns paginated or success envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/marketplace',
         headers: { cookie: userCookieHeader },
@@ -807,7 +807,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
   // Credentials
   describe('Credentials', () => {
     it('PUT /v1/users/me/credentials/:mcpId returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'PUT',
         url: '/v1/users/me/credentials/00000000-0000-0000-0000-000000000000',
         headers: { cookie: userCookieHeader, 'Content-Type': 'application/json' },
@@ -822,7 +822,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('GET /v1/users/me/credentials returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'GET',
         url: '/v1/users/me/credentials',
         headers: { cookie: userCookieHeader },
@@ -836,7 +836,7 @@ describe('Contract: Response envelope shape for all endpoints', () => {
     });
 
     it('DELETE /v1/users/me/credentials/:mcpId returns envelope', async () => {
-      const res = await handle.fastify.inject({
+      const res = await handle.admin.inject({
         method: 'DELETE',
         url: '/v1/users/me/credentials/00000000-0000-0000-0000-000000000000',
         headers: { cookie: userCookieHeader },

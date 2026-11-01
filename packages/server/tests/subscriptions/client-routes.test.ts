@@ -39,7 +39,7 @@ describe('Client Routes', () => {
     testProfileId = profile.profile_id;
 
     // Login to get session cookie
-    const loginResponse = await server.fastify.inject({
+    const loginResponse = await server.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: {
@@ -62,7 +62,7 @@ describe('Client Routes', () => {
 
   describe('POST /v1/users/me/clients', () => {
     it('should create a client with authenticated user', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -85,7 +85,7 @@ describe('Client Routes', () => {
     });
 
     it('should reject without session', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         payload: {
@@ -98,7 +98,7 @@ describe('Client Routes', () => {
     });
 
     it('should reject with invalid profile', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -114,7 +114,7 @@ describe('Client Routes', () => {
     });
 
     it('should reject with extra fields (strict schema)', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -136,7 +136,7 @@ describe('Client Routes', () => {
 
     beforeAll(async () => {
       // Create a test client
-      const createResponse = await server.fastify.inject({
+      const createResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -153,7 +153,7 @@ describe('Client Routes', () => {
     });
 
     it('should list user clients', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/clients',
         headers: {
@@ -173,7 +173,7 @@ describe('Client Routes', () => {
     });
 
     it('should reject without session', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/clients',
       });
@@ -187,7 +187,7 @@ describe('Client Routes', () => {
 
     beforeAll(async () => {
       // Create a test client
-      const createResponse = await server.fastify.inject({
+      const createResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -204,7 +204,7 @@ describe('Client Routes', () => {
     });
 
     it('should get client detail', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}`,
         headers: {
@@ -220,7 +220,7 @@ describe('Client Routes', () => {
     });
 
     it('should reject for non-existent client', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/clients/00000000-0000-0000-0000-000000000000',
         headers: {
@@ -237,7 +237,7 @@ describe('Client Routes', () => {
 
     beforeAll(async () => {
       // Create a test client
-      const createResponse = await server.fastify.inject({
+      const createResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -256,7 +256,7 @@ describe('Client Routes', () => {
     it('should update client name', async () => {
       const newName = 'updated-client-name-' + Date.now();
 
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/users/me/clients/${testClientId}`,
         headers: {
@@ -273,7 +273,7 @@ describe('Client Routes', () => {
     });
 
     it('should suspend client', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: `/v1/users/me/clients/${testClientId}`,
         headers: {
@@ -295,7 +295,7 @@ describe('Client Routes', () => {
 
     beforeAll(async () => {
       // Create a test client
-      const createResponse = await server.fastify.inject({
+      const createResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/users/me/clients',
         headers: {
@@ -312,7 +312,7 @@ describe('Client Routes', () => {
     });
 
     it('should revoke client', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/users/me/clients/${testClientId}`,
         headers: {
@@ -323,7 +323,7 @@ describe('Client Routes', () => {
       expect(response.statusCode).toBe(204);
 
       // Verify client is hard deleted (should return 404)
-      const getResponse = await server.fastify.inject({
+      const getResponse = await server.admin.inject({
         method: 'GET',
         url: `/v1/users/me/clients/${testClientId}`,
         headers: {

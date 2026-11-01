@@ -82,7 +82,7 @@ let userCookieHeader = '';
 beforeAll(async () => {
   handle = await startTestServer();
   // attempt login to obtain a user session cookie for non-admin routes
-  const loginRes = await handle.fastify.inject({
+  const loginRes = await handle.admin.inject({
     method: 'POST',
     url: '/v1/auth/login',
     payload: { username: 'admin', password: 'admin123' },
@@ -118,7 +118,7 @@ describe('Contract: SPA route existence checker', () => {
         if (userCookieHeader) opts.headers = { cookie: userCookieHeader };
       }
 
-      const res = await handle.fastify.inject(opts);
+      const res = await handle.admin.inject(opts);
       let body: any = {};
       try {
         body = JSON.parse(res.body || '{}');
