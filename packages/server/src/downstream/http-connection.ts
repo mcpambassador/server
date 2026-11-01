@@ -70,16 +70,21 @@ export class HttpMcpConnection extends EventEmitter {
     // Replace ${ENV_VAR} patterns from config.env ONLY (per-user credential injection).
     // TD-027: no process.env fallback. A catalog-supplied URL must never be able to read server
     // secrets (e.g. ${REGISTRY_TOKEN}) from the server's own environment.
+    const unresolved: string[] = [];
     const envVarPattern = /\$\{([A-Z0-9_]+)\}/g;
     url = url.replace(envVarPattern, (match, varName) => {
       if (this.config.env && Object.prototype.hasOwnProperty.call(this.config.env, varName)) {
         return this.config.env[varName] ?? '';
       }
-      logger.warn(
-        `[MCP:${this.config.name}] Variable ${varName} not found in config.env, using placeholder`
-      );
+      unresolved.push(varName);
       return match;
     });
+    if (unresolved.length > 0) {
+      // Fail closed: never send a request with a literal placeholder, never fall back to process.env.
+      throw new Error(
+        `[${this.config.name}] http url references unresolved variable(s): ${unresolved.join(', ')}`
+      );
+    }
 
     return url;
   }

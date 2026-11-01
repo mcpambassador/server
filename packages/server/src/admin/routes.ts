@@ -28,6 +28,7 @@ import { registerAdminAuditRoutes } from './audit-routes.js';
 import { registerAdminHealthRoutes } from './health-routes.js';
 import { registerAdminUserRoutes } from './user-routes.js';
 import { registerAdminGroupRoutes } from './group-routes.js';
+import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
@@ -47,6 +48,7 @@ export interface AdminRoutesConfig {
   onGrantsRevoked?: (grantIds: string[]) => void;
   rotateHmacSecret: () => Promise<number>;
   registryService: RegistryService | null;
+  secretStore?: SecretStore;
 }
 
 /**
@@ -66,6 +68,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     userPool,
     rotateHmacSecret,
     registryService,
+    secretStore,
   } = opts;
 
   // ==========================================================================
@@ -185,7 +188,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminGroupRoutes, { db, audit });
 
   // MCP catalog management (7 endpoints)
-  fastify.register(registerAdminMcpRoutes, { db, audit });
+  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
 
   // Community registry (4 endpoints)
   if (registryService) {

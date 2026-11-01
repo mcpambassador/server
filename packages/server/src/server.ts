@@ -81,6 +81,7 @@ import { verifyAdminKeyHeader } from './admin/middleware.js';
 import { wrapError, ErrorCodes } from './admin/reply-envelope.js';
 import { KillSwitchManager } from './admin/kill-switch-manager.js';
 import type { CredentialVault } from './services/credential-vault.js';
+import { SecretStore } from './services/secret-store.js';
 import type { OAuthTokenManager } from './services/oauth-token-manager.js';
 import type { RegistryService } from './services/registry-service.js';
 
@@ -168,6 +169,7 @@ export class AmbassadorServer {
     ambassadorConfig?: AmbassadorConfig;
     oauthClientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
   };
+  private secretStore: SecretStore; // TD-027
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
   private authz: AuthorizationProvider | null = null;
@@ -208,6 +210,7 @@ export class AmbassadorServer {
       oauthClientSecrets: config.oauthClientSecrets,
     };
 
+    this.secretStore = new SecretStore(config.oauthClientSecrets);
     this.mcpManager = new SharedMcpManager();
     this.killSwitchManager = new KillSwitchManager(); // CR-M10-001: Initialize shared manager
     // CR-M17-001: UserMcpPool and ToolRouter are now initialized in initialize() where MCP configs are available
@@ -354,7 +357,7 @@ export class AmbassadorServer {
       db: this.db,
       vault: this.credentialVault,
       callbackBaseUrl,
-      clientSecrets: this.config.oauthClientSecrets,
+      secretStore: this.secretStore,
     });
     logger.info('[Server] OAuth token manager initialized');
 
@@ -691,6 +694,7 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      secretStore: this.secretStore, // TD-027
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1601,6 +1605,7 @@ export class AmbassadorServer {
       userPool: this.userPool, // M18: Per-user MCP pool
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
+      secretStore: this.secretStore, // TD-027
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
