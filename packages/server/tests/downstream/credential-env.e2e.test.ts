@@ -40,13 +40,13 @@ const collidingSchema = {
 const MCP_ID = 'mcp-alpaca-probe';
 const USER = 'user-1';
 
-function config(): DownstreamMcpConfig {
+function config(env: Record<string, string> = { ALPACA_PAPER_TRADE: 'true' }): DownstreamMcpConfig {
   return {
     name: 'alpaca',
     mcp_id: MCP_ID,
     transport: 'stdio',
     command: ['node', FIXTURE],
-    env: { ALPACA_PAPER_TRADE: 'true' },
+    env,
     cwd: process.cwd(),
     timeout_ms: 15000,
   };
@@ -63,14 +63,15 @@ afterEach(async () => {
 async function spawnAndProbe(
   decrypted: Record<string, string>,
   expect_: Record<string, string>,
-  schema: unknown = credentialSchema
+  schema: unknown = credentialSchema,
+  fixedEnv?: Record<string, string>
 ): Promise<{ report: Record<string, { present: boolean; matches: boolean }>; raw: string }> {
   // Same mapping the server uses when loading user credentials.
   const envVars = mapStaticCredentialEnv(schema, decrypted);
   const creds = new Map<string, UserMcpCredentials>([['alpaca', { envVars, headers: {} }]]);
 
   pool = new UserMcpPool({
-    mcpConfigs: [config()],
+    mcpConfigs: [config(fixedEnv)],
     maxInstancesPerUser: 5,
     maxTotalInstances: 10,
     healthCheckIntervalMs: 0,
@@ -125,5 +126,57 @@ describe('credential env injection at spawn (TD-048, TD-049)', () => {
     expect(report['ALPACA_PAPER_TRADE']).toEqual({ present: true, matches: true });
     // the lowercase credential was dropped, not set alongside
     expect(report['alpaca_paper_trade']).toEqual({ present: false, matches: false });
+  });
+
+  describe('registry placeholder slots (${NAME})', () => {
+    const slotEnv = {
+      ALPACA_PAPER_TRADE: 'true',
+      ALPACA_API_KEY: '${ALPACA_API_KEY}',
+      ALPACA_SECRET_KEY: '${ALPACA_SECRET_KEY}',
+    };
+
+    it('fills ${NAME} slots with the real credential (schema property, no env_var)', async () => {
+      const { report, raw } = await spawnAndProbe(
+        { ALPACA_API_KEY: API_KEY, ALPACA_SECRET_KEY: SECRET },
+        {
+          ALPACA_API_KEY: API_KEY,
+          ALPACA_SECRET_KEY: SECRET,
+          ALPACA_PAPER_TRADE: 'true',
+        },
+        credentialSchema,
+        slotEnv
+      );
+      expect(report['ALPACA_API_KEY']).toEqual({ present: true, matches: true });
+      expect(report['ALPACA_SECRET_KEY']).toEqual({ present: true, matches: true });
+      expect(report['ALPACA_PAPER_TRADE']).toEqual({ present: true, matches: true });
+      expect(raw).not.toContain(API_KEY);
+      expect(raw).not.toContain(SECRET);
+    });
+
+    it('removes unfilled slots: the child never sees the literal ${NAME}', async () => {
+      const { report } = await spawnAndProbe(
+        { ALPACA_API_KEY: API_KEY }, // secret not supplied
+        {
+          ALPACA_API_KEY: API_KEY,
+          ALPACA_SECRET_KEY: '${ALPACA_SECRET_KEY}',
+        },
+        credentialSchema,
+        slotEnv
+      );
+      expect(report['ALPACA_API_KEY']).toEqual({ present: true, matches: true });
+      // not present at all, and in particular not the literal placeholder
+      expect(report['ALPACA_SECRET_KEY']).toEqual({ present: false, matches: false });
+    });
+
+    it('keeps a slot for a different name locked (literal stays, credential dropped)', async () => {
+      const { report } = await spawnAndProbe(
+        { ALPACA_API_KEY: API_KEY, ALPACA_SECRET_KEY: SECRET },
+        { ALPACA_API_KEY: '${ALPACA_SECRET_KEY}', ALPACA_SECRET_KEY: SECRET },
+        credentialSchema,
+        { ALPACA_API_KEY: '${ALPACA_SECRET_KEY}' }
+      );
+      expect(report['ALPACA_API_KEY']).toEqual({ present: true, matches: true });
+      expect(report['ALPACA_SECRET_KEY']).toEqual({ present: true, matches: true });
+    });
   });
 });
