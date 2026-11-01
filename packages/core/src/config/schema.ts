@@ -100,6 +100,8 @@ const SessionConfigSchema = z
     spindown_delay_seconds: z.number().int().min(5).max(86400).default(300),
     /** Session TTL in seconds (8h default, max 24h) — SEC-V2-009 */
     ttl_seconds: z.number().int().min(60).max(86400).default(28800),
+    /** Browser (SPA/admin UI) session absolute TTL in seconds (8h default, max 24h) — TD-014/B1 */
+    ui_ttl_seconds: z.number().int().min(1).max(86400).default(28800),
     /** Expected heartbeat interval in seconds (2 min default) */
     heartbeat_expected_interval_seconds: z.number().int().min(15).max(3600).default(120),
     /** Sweep interval in seconds (30 min default) */

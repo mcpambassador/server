@@ -34,19 +34,43 @@ declare module 'fastify' {
  */
 export class BoundedSessionStore implements SessionStore {
   private store = new Map<string, Session>();
+  /** Creation time per session id; the TTL is absolute (never extended by activity) */
+  private createdAt = new Map<string, number>();
   private maxEntries: number;
+  private ttlMs: number | null;
+  private clock: () => number;
 
-  constructor(maxEntries = 100) {
+  /**
+   * @param maxEntries - max live sessions (oldest evicted)
+   * @param ttlSeconds - absolute session lifetime; null/undefined = no server-side expiry
+   * @param clock - injectable time source (defaults to Date.now)
+   */
+  constructor(maxEntries = 100, ttlSeconds?: number | null, clock: () => number = Date.now) {
     this.maxEntries = maxEntries;
+    this.ttlMs = ttlSeconds ? ttlSeconds * 1000 : null;
+    this.clock = clock;
+  }
+
+  private expired(sessionId: string): boolean {
+    if (this.ttlMs === null) return false;
+    const created = this.createdAt.get(sessionId);
+    return created === undefined || this.clock() - created >= this.ttlMs;
+  }
+
+  private remove(sessionId: string): void {
+    this.store.delete(sessionId);
+    this.createdAt.delete(sessionId);
   }
 
   set(sessionId: string, session: Session, callback: (err?: unknown) => void): void {
     try {
-      if (this.store.size >= this.maxEntries) {
-        const firstKey = this.store.keys().next().value;
-        if (firstKey) {
-          this.store.delete(firstKey);
+      if (!this.store.has(sessionId)) {
+        this.sweep();
+        if (this.store.size >= this.maxEntries) {
+          const firstKey = this.store.keys().next().value;
+          if (firstKey) this.remove(firstKey);
         }
+        this.createdAt.set(sessionId, this.clock());
       }
       this.store.set(sessionId, session);
       callback();
@@ -58,6 +82,11 @@ export class BoundedSessionStore implements SessionStore {
   get(sessionId: string, callback: (err: unknown, session?: Session | null) => void): void {
     try {
       const session = this.store.get(sessionId) ?? null;
+      if (session && this.expired(sessionId)) {
+        this.remove(sessionId);
+        callback(null, null);
+        return;
+      }
       if (session) {
         // AUTH-001: LRU eviction - re-insert to move to end of Map iteration order
         this.store.delete(sessionId);
@@ -71,10 +100,18 @@ export class BoundedSessionStore implements SessionStore {
 
   destroy(sessionId: string, callback: (err?: unknown) => void): void {
     try {
-      this.store.delete(sessionId);
+      this.remove(sessionId);
       callback();
     } catch (err) {
       callback(err);
+    }
+  }
+
+  /** Drop all sessions past their absolute TTL */
+  sweep(): void {
+    if (this.ttlMs === null) return;
+    for (const id of [...this.store.keys()]) {
+      if (this.expired(id)) this.remove(id);
     }
   }
 
@@ -84,7 +121,29 @@ export class BoundedSessionStore implements SessionStore {
    */
   clear(): void {
     this.store.clear();
+    this.createdAt.clear();
   }
+}
+
+/**
+ * @fastify/session emits `Expires` but no `Max-Age`. Add Max-Age (remaining seconds, derived from
+ * Expires) to the session cookie so clients that prefer it get the same absolute lifetime.
+ */
+export function addSessionMaxAge(headers: unknown, now: number = Date.now()): string[] | undefined {
+  const raw = headers as string | string[] | number | undefined;
+  if (raw === undefined || typeof raw === 'number') return undefined;
+  const list = Array.isArray(raw) ? raw : [raw];
+  let changed = false;
+  const out = list.map(c => {
+    if (!c.startsWith('sessionId=') || /;\s*max-age=/i.test(c)) return c;
+    const m = /;\s*expires=([^;]+)/i.exec(c);
+    if (!m) return c;
+    const expires = new Date(m[1]!).getTime();
+    if (Number.isNaN(expires)) return c;
+    changed = true;
+    return `${c}; Max-Age=${Math.max(0, Math.round((expires - now) / 1000))}`;
+  });
+  return changed ? out : undefined;
 }
 
 /**
