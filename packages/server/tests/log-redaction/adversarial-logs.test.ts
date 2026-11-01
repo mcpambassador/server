@@ -140,3 +140,19 @@ describe('secrets split across stderr chunks', () => {
     expect(leaks(all, [`${N}bsplitA`, `bsplitB${N}bsplittail`, `${N}bsplittail`])).toEqual([]);
   });
 });
+
+describe('PEM, parse errors and spawn-line args', () => {
+  const sinks = (): string => logs + JSON.stringify(cap.endpoint) + JSON.stringify(cap.history);
+  it('PEM block split across chunks: no key material', () => {
+    expect(leaks(sinks(), [`${N}pemA`, `${N}pemB`, `${N}pemline2`])).toEqual([]);
+  });
+  it('malformed JSON from stdout: credentials not logged raw', () => {
+    expect(leaks(sinks(), [`${N}jsoncore`, `${N}jsonbearer`])).toEqual([]);
+  });
+  it('spawn log line: secrets in command args are redacted', () => {
+    const spawnLines = logs.split('\n').filter(l => l.includes('Spawning subprocess'));
+    expect(spawnLines.length).toBeGreaterThan(0);
+    expect(leaks(spawnLines.join('\n'), [`${N}argtoken`, `${N}argkey`, `${N}argurlpass`])).toEqual([]);
+    expect(leaks(sinks(), [`${N}argtoken`, `${N}argkey`, `${N}argurlpass`])).toEqual([]);
+  });
+});
