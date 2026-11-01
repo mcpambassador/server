@@ -241,6 +241,59 @@ describe('bound client lifecycle kills the agent token (next call → 401)', () 
   });
 });
 
+describe('kill switch', () => {
+  const kill = (target: string, enabled: boolean) =>
+    s.admin.inject({
+      method: 'POST',
+      url: `/v1/admin/kill-switch/${target}`,
+      headers: { 'X-Admin-Key': s.adminKey },
+      payload: { enabled },
+    });
+
+  itImpl('client:<bound_client_id> → next /mcp call 401; lifting it restores access', async () => {
+    const c = await createAmbClient(alice, 'killed');
+    const g = await createGrant(alice, { bound_client_id: c });
+    const tok = JSON.parse(g.body).data.access_token as string;
+    expect((await mcpCall(tok)).statusCode).not.toBe(401);
+    expect((await kill(`client:${c}`, true)).statusCode).toBe(200);
+    try {
+      expect((await mcpCall(tok)).statusCode).toBe(401);
+    } finally {
+      await kill(`client:${c}`, false);
+    }
+    expect((await mcpCall(tok)).statusCode).not.toBe(401);
+  });
+
+  itImpl('mcp:<name> → tool-level denial over /mcp, same denial as the stdio path', async () => {
+    const c = await createAmbClient(alice, 'mcp-kill');
+    const g = await createGrant(alice, { bound_client_id: c });
+    const tok = JSON.parse(g.body).data.access_token as string;
+    await kill('mcp:victim', true);
+    try {
+      const r = await s.api.inject({
+        method: 'POST',
+        url: AGENT_MCP_ROUTE,
+        headers: {
+          authorization: `Bearer ${tok}`,
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        payload: {
+          jsonrpc: '2.0',
+          id: 9,
+          method: 'tools/call',
+          params: { name: 'victim__any', arguments: {} },
+        },
+      });
+      // Not an HTTP auth failure: the session stays valid, only the tool is denied.
+      expect(r.statusCode).not.toBe(401);
+      expect(r.body).toMatch(/kill|disabled|denied/i);
+    } finally {
+      await kill('mcp:victim', false);
+    }
+  });
+});
+
 describe('pre-authenticated session cannot be injected over HTTP', () => {
   const forged = {
     client_id: 'forged',
