@@ -86,6 +86,7 @@ export function useAgentGrants() {
 export function useAdminAgentGrants(userId: string) {
   return usePagedGrants(['admin', 'agent-grants', userId], '/v1/admin/agent-grants', {
     user_id: userId,
+    include_inactive: 'true',
   });
 }
 
