@@ -193,6 +193,21 @@ const AgentEndpointConfigSchema = z
   })
   .prefault({});
 
+// ===== ADR-023: human approval gates =====
+
+const ApprovalsConfigSchema = z
+  .object({
+    /** An admin may not approve their own agent's request (admin-required requests only) */
+    require_distinct_admin: z.boolean().default(false),
+    /** How long a request may wait for a human (seconds) */
+    pending_ttl_seconds: z.number().int().min(60).max(86400).default(900),
+    /** How long an approval may be used by the retry (seconds) */
+    approved_use_ttl_seconds: z.number().int().min(30).max(3600).default(600),
+    /** Reaper interval (seconds) */
+    reaper_interval_seconds: z.number().int().min(5).max(3600).default(30),
+  })
+  .optional();
+
 // ===== Root Configuration Schema =====
 
 export const AmbassadorConfigSchema = z.object({
@@ -208,6 +223,7 @@ export const AmbassadorConfigSchema = z.object({
   session: SessionConfigSchema,
   user_pool: UserPoolConfigSchema, // SEC-M17-005: Per-user MCP pool limits
   agent_endpoint: AgentEndpointConfigSchema, // ADR-020
+  approvals: ApprovalsConfigSchema, // ADR-023
 });
 
 // ===== Infer TypeScript type from schema =====

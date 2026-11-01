@@ -18,7 +18,13 @@ import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
-import { users, user_sessions, compatInsert, compatUpdate } from '@mcpambassador/core';
+import {
+  users,
+  user_sessions,
+  compatInsert,
+  compatUpdate,
+  voidApprovalsForLifecycle,
+} from '@mcpambassador/core';
 import { eq, and, or, desc, asc } from 'drizzle-orm';
 import { validatePassword, hashPassword } from '../auth/password-policy.js';
 import { createUserSchema, updateUserSchema, resetPasswordSchema } from '../auth/schemas.js';
@@ -268,6 +274,9 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       // Update user
       await compatUpdate(db, users).set(updates).where(eq(users.user_id, userId));
 
+      // ADR-023: a disabled user's open approval requests are voided and audited
+      await voidApprovalsForLifecycle(db, { userId }, 'user_disabled');
+
       // Expire all active sessions for this user
       await compatUpdate(db, user_sessions)
         .set({ status: 'expired' })
@@ -336,6 +345,9 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       await compatUpdate(db, users)
         .set({ status: 'deactivated', updated_at: nowIso })
         .where(eq(users.user_id, userId));
+
+      // ADR-023: void (and audit) the user's open approval requests
+      await voidApprovalsForLifecycle(db, { userId }, 'user_disabled');
 
       // Expire all active sessions
       await compatUpdate(db, user_sessions)
