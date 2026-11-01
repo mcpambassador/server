@@ -115,6 +115,7 @@ describe('OAuthConsent', () => {
       bound_client_id: 'c1',
       scopes: ['mcp:github'],
       ttl_seconds: 3600,
+      disclosure_mode: 'full',
     });
     vi.unstubAllGlobals();
   });
@@ -255,6 +256,7 @@ describe('AgentAccess', () => {
     bound_client_name: 'Laptop',
     scopes: ['mcp:github'],
     tool_allowlist: null,
+    disclosure_mode: 'full',
     resource: 'https://h/mcp',
     created_at: new Date().toISOString(),
     expires_at: future,
