@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `agent_grants` (
 	`grant_id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL REFERENCES `users`(`user_id`) ON DELETE CASCADE,
 	`client_id` text REFERENCES `oauth_clients`(`client_id`) ON DELETE SET NULL,
-	`bound_client_id` text NOT NULL REFERENCES `clients`(`client_id`) ON DELETE CASCADE,
+	`bound_client_id` text REFERENCES `clients`(`client_id`) ON DELETE SET NULL,
 	`label` text NOT NULL,
 	`scopes` text NOT NULL,
 	`tool_allowlist` text,
@@ -85,3 +85,10 @@ CREATE INDEX IF NOT EXISTS `idx_agent_tokens_grant_id` ON `agent_tokens` (`grant
 CREATE INDEX IF NOT EXISTS `idx_agent_tokens_family_id` ON `agent_tokens` (`family_id`);
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_agent_tokens_expires_at` ON `agent_tokens` (`expires_at`);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `server_settings` (
+	`key` text PRIMARY KEY NOT NULL,
+	`value` text NOT NULL,
+	`updated_at` text NOT NULL,
+	`updated_by` text
+);

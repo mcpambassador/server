@@ -1,6 +1,9 @@
 /**
  * Fixed-window in-memory rate limiter for the agent endpoint (limits come from
  * agent_endpoint.rate_limits). Keys are bounded by periodic pruning.
+ *
+ * NOTE: state is in memory PER PROCESS — it resets on restart and is not shared across replicas.
+ * Acceptable for the single-instance deployment; move to the DB/Redis before running multiple replicas.
  */
 
 interface Window {

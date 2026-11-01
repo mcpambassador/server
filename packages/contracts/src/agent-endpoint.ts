@@ -31,6 +31,8 @@ export const OAUTH_REGISTER_ROUTE = '/oauth/register';
 export const OAUTH_REVOKE_ROUTE = '/oauth/revoke';
 
 /** User API (session cookie + CSRF), 9443 */
+/** GET: availability/limits for the Agent access page; registered even when the endpoint is disabled */
+export const USER_AGENT_ENDPOINT_ROUTE = '/v1/users/me/agent-endpoint';
 export const AGENT_GRANTS_ROUTE = '/v1/users/me/agent-grants';
 export const AGENT_GRANT_ROUTE = '/v1/users/me/agent-grants/:grantId';
 /** Admin API, 9443 */

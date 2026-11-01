@@ -745,9 +745,11 @@ export const agent_grants = sqliteTable(
       onDelete: 'set null',
     }),
     /** Ambassador client this grant is bound to (ADR-020 bound-client model) */
-    bound_client_id: text('bound_client_id')
-      .notNull()
-      .references(() => clients.client_id, { onDelete: 'cascade' }),
+    // Nullable + SET NULL: deleting the client revokes (see revokeGrantsForBoundClient) and RETAINS the grant;
+    // a null bound client is a dead grant.
+    bound_client_id: text('bound_client_id').references(() => clients.client_id, {
+      onDelete: 'set null',
+    }),
     label: text('label').notNull(),
     scopes: text('scopes').notNull(),
     tool_allowlist: text('tool_allowlist'),
@@ -785,6 +787,14 @@ export const agent_tokens = sqliteTable(
     expiresIdx: index('idx_agent_tokens_expires_at').on(table.expires_at),
   })
 );
+
+/** Small key/value store for admin-changed runtime settings that must survive restarts */
+export const server_settings = sqliteTable('server_settings', {
+  key: text('key').primaryKey().notNull(),
+  value: text('value').notNull(),
+  updated_at: text('updated_at').notNull(),
+  updated_by: text('updated_by'),
+});
 
 /**
  * Drizzle relations (for ORM query joins)

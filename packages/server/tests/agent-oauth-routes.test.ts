@@ -14,7 +14,12 @@ import {
   AgentEndpointConfigSchema,
   type DatabaseClient,
 } from '@mcpambassador/core';
-import { registerAgentOAuthRoutes } from '../src/routes/agent-oauth.js';
+import {
+  registerAgentOAuthRoutes,
+  registerCookieFreeGuard,
+  registerAgentEndpointInfoRoute,
+  isCookieFreePath,
+} from '../src/routes/agent-oauth.js';
 import {
   createAgentEndpointDeps,
   resolveAgentEndpointConfig,
@@ -338,5 +343,51 @@ describe('agent oauth routes', () => {
       url: '/v1/admin/agent-grants?include_inactive=true',
     });
     expect(ag.json().data[0]).toMatchObject({ username: 'u1', revoked_by: 'u1' });
+  });
+});
+
+describe('S5 cookie-free guard + info route', () => {
+  it('classifies cookie-free paths', () => {
+    for (const u of ['/mcp', '/mcp?x=1', '/oauth/token', '/.well-known/oauth-protected-resource'])
+      expect(isCookieFreePath(u)).toBe(true);
+    for (const u of ['/v1/users/me', '/mcpx', '/v1/admin/oauth-clients', '/oauth-consent'])
+      expect(isCookieFreePath(u)).toBe(false);
+  });
+
+  it('drops the session on cookie-free paths only', async () => {
+    const a = Fastify();
+    a.decorateRequest('session', null as any);
+    a.addHook('onRequest', async req => {
+      (req as any).session = { userId: 'u1' };
+    });
+    registerCookieFreeGuard(a);
+    a.get('/oauth/x', async req => ({ s: (req as any).session ?? null }));
+    a.get('/v1/y', async req => ({ s: (req as any).session ?? null }));
+    await a.ready();
+    expect((await a.inject({ url: '/oauth/x' })).json().s).toBeNull();
+    expect((await a.inject({ url: '/v1/y' })).json().s).toEqual({ userId: 'u1' });
+    await a.close();
+  });
+
+  it('info route needs a user session and returns the contract shape', async () => {
+    const a = Fastify();
+    a.decorateRequest('session', null as any);
+    let sess: any = {};
+    a.addHook('onRequest', async req => {
+      (req as any).session = sess;
+    });
+    await registerAgentEndpointInfoRoute(a, {
+      enabled: true,
+      default_grant_ttl_seconds: 3600,
+      max_grant_ttl_seconds: 86400,
+      refresh_tokens_enabled: true,
+    });
+    await a.ready();
+    expect((await a.inject({ url: '/v1/users/me/agent-endpoint' })).statusCode).toBe(401);
+    sess = { userId: 'u1' };
+    const r = await a.inject({ url: '/v1/users/me/agent-endpoint' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().data).toMatchObject({ enabled: true, max_grant_ttl_seconds: 86400 });
+    await a.close();
   });
 });

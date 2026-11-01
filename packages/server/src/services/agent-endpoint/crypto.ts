@@ -26,3 +26,8 @@ export function verifyPkceS256(verifier: string, challenge: string): boolean {
   const expected = Buffer.from(challenge);
   return computed.length === expected.length && timingSafeEqual(computed, expected);
 }
+
+/** 256-bit CSPRNG opaque identifier (base64url, 43 chars) for request ids and similar bearer-ish handles */
+export function generateOpaqueId(): string {
+  return randomBytes(32).toString('base64url');
+}

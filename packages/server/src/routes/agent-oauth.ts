@@ -17,6 +17,8 @@ import {
   OAUTH_REGISTER_ROUTE,
   OAUTH_REVOKE_ROUTE,
   AGENT_GRANTS_ROUTE,
+  USER_AGENT_ENDPOINT_ROUTE,
+  type UserAgentEndpointInfo,
   AGENT_GRANT_ROUTE,
   ADMIN_OAUTH_CLIENTS_ROUTE,
   ADMIN_OAUTH_CLIENT_ROUTE,
@@ -106,6 +108,40 @@ const ipOf = (req: FastifyRequest): string => req.ip ?? 'unknown';
 function bodyObject(req: FastifyRequest): Record<string, unknown> {
   const b = req.body;
   return b && typeof b === 'object' ? (b as Record<string, unknown>) : {};
+}
+
+/** Paths where only bearer tokens / OAuth bodies are valid: browser cookie sessions must never apply */
+const COOKIE_FREE_PREFIXES = ['/mcp', '/oauth/', '/.well-known/oauth-'];
+export function isCookieFreePath(url: string): boolean {
+  const path = url.split('?')[0] ?? url;
+  return COOKIE_FREE_PREFIXES.some(p =>
+    p.endsWith('/') || p.endsWith('-') ? path.startsWith(p) : path === p || path.startsWith(`${p}/`)
+  );
+}
+
+/**
+ * S5: drop request.session on /mcp, /oauth/* and /.well-known/oauth-* so a browser cookie can never
+ * authenticate (or be CSRF-ridden into) these endpoints. Register on every listener that serves them.
+ */
+export function registerCookieFreeGuard(app: FastifyInstance): void {
+  app.addHook('onRequest', async request => {
+    if (isCookieFreePath(request.url)) {
+      (request as unknown as { session: unknown }).session = undefined;
+    }
+  });
+}
+
+/**
+ * GET /v1/users/me/agent-endpoint — registered whether or not the endpoint is enabled so the SPA
+ * can hide the Agent access page when `enabled:false`.
+ */
+export async function registerAgentEndpointInfoRoute(
+  app: FastifyInstance,
+  info: UserAgentEndpointInfo
+): Promise<void> {
+  app.get(USER_AGENT_ENDPOINT_ROUTE, { preHandler: requireUserSession }, async (_req, reply) =>
+    reply.send(wrapSuccess(info))
+  );
 }
 
 export async function registerAgentOAuthRoutes(

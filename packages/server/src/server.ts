@@ -65,6 +65,7 @@ import { FileAuditProvider } from '@mcpambassador/audit-file';
 import {
   resolveAgentEndpointConfig,
   createAgentEndpointDeps,
+  loadPersistedSettings,
   type AgentEndpointDeps,
 } from './services/agent-endpoint/index.js';
 import type {
@@ -720,7 +721,7 @@ export class AmbassadorServer {
 
     // Client routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.adminServer, { db: this.db! });
+    await registerClientRoutes(this.adminServer, { db: this.db!, audit: this.audit! });
 
     // Subscription routes
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
@@ -759,9 +760,18 @@ export class AmbassadorServer {
 
     // ADR-020: agent authorization server (off by default)
     const agentEndpointConfig = this.config.ambassadorConfig?.agent_endpoint;
+    const { registerAgentOAuthRoutes, registerAgentEndpointInfoRoute, registerCookieFreeGuard } =
+      await import('./routes/agent-oauth.js');
+    registerCookieFreeGuard(this.adminServer);
+    await registerAgentEndpointInfoRoute(this.adminServer, {
+      enabled: !!agentEndpointConfig?.enabled,
+      default_grant_ttl_seconds: agentEndpointConfig?.default_grant_ttl_seconds ?? 3600,
+      max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 86400,
+      refresh_tokens_enabled:
+        !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
+    });
     if (agentEndpointConfig?.enabled) {
-      const { registerAgentOAuthRoutes } = await import('./routes/agent-oauth.js');
-      await registerAgentOAuthRoutes(this.adminServer, this.buildAgentEndpointDeps());
+      await registerAgentOAuthRoutes(this.adminServer, await this.buildAgentEndpointDeps());
     }
 
     logger.info('[Admin] User-facing API routes registered');
@@ -1635,7 +1645,7 @@ export class AmbassadorServer {
 
     // M25: Register client and subscription routes
     const { registerClientRoutes } = await import('./routes/clients.js');
-    await registerClientRoutes(this.fastify, { db: this.db! });
+    await registerClientRoutes(this.fastify, { db: this.db!, audit: this.audit! });
 
     const { registerSubscriptionRoutes } = await import('./routes/subscriptions.js');
     await registerSubscriptionRoutes(this.fastify, { db: this.db! });
@@ -1654,7 +1664,7 @@ export class AmbassadorServer {
     // ADR-020: MCP resource server (off by default)
     if (this.config.ambassadorConfig?.agent_endpoint?.enabled) {
       const { registerAgentMcpRoutes } = await import('./routes/agent-mcp.js');
-      await registerAgentMcpRoutes(this.fastify, this.buildAgentEndpointDeps());
+      await registerAgentMcpRoutes(this.fastify, await this.buildAgentEndpointDeps());
     }
 
     // M23.4: Register marketplace routes
@@ -1674,7 +1684,7 @@ export class AmbassadorServer {
    * Start the server
    */
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
-  private buildAgentEndpointDeps(): AgentEndpointDeps {
+  private async buildAgentEndpointDeps(): Promise<AgentEndpointDeps> {
     // One shared instance for 9443 and 8443 so runtime settings/rate limits are consistent
     if (this.agentEndpointDeps) return this.agentEndpointDeps;
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
@@ -1692,6 +1702,8 @@ export class AmbassadorServer {
       resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }),
       this.audit!
     );
+    // DB-persisted admin settings (e.g. DCR toggle) win over the config defaults
+    await loadPersistedSettings(this.agentEndpointDeps);
     return this.agentEndpointDeps;
   }
 

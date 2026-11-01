@@ -17,6 +17,7 @@ import {
   oauth_auth_codes,
   agent_grants,
   agent_tokens,
+  server_settings,
 } from '../../schema/index.js';
 import {
   compatInsert,
@@ -42,7 +43,7 @@ export interface AgentGrantRecord {
   /** OAuth client; null = one-shot grant */
   client_id: string | null;
   /** Ambassador client the grant is bound to (permissions come from it) */
-  bound_client_id: string;
+  bound_client_id: string | null;
   label: string;
   scopes: string[];
   tool_allowlist: string[] | null;
@@ -107,7 +108,7 @@ function toGrant(r: any): AgentGrantRecord {
     grant_id: r.grant_id,
     user_id: r.user_id,
     client_id: r.client_id ?? null,
-    bound_client_id: r.bound_client_id,
+    bound_client_id: r.bound_client_id ?? null,
     label: r.label,
     scopes: JSON.parse(r.scopes) as string[],
     tool_allowlist: parseArr(r.tool_allowlist),
@@ -252,48 +253,48 @@ export async function bindPendingAuthRequest(
   requestId: string,
   userId: string
 ): Promise<boolean> {
-  return compatTransaction(db, async () => {
-    const [r] = await compatSelect(db)
-      .from(oauth_pending_requests)
-      .where(
-        and(
-          eq(oauth_pending_requests.request_id, requestId),
-          gt(oauth_pending_requests.expires_at, now()),
-          isNull(oauth_pending_requests.used_at)
-        )
+  // First opener wins via one conditional UPDATE (user_id IS NULL); then verify ownership.
+  await compatUpdate(db, oauth_pending_requests)
+    .set({ user_id: userId })
+    .where(
+      and(
+        eq(oauth_pending_requests.request_id, requestId),
+        isNull(oauth_pending_requests.user_id),
+        gt(oauth_pending_requests.expires_at, now()),
+        isNull(oauth_pending_requests.used_at)
       )
-      .limit(1);
-    if (!r) return false;
-    if (r.user_id === userId) return true;
-    if (r.user_id != null) return false;
-    await compatUpdate(db, oauth_pending_requests)
-      .set({ user_id: userId })
-      .where(eq(oauth_pending_requests.request_id, requestId));
-    return true;
-  });
+    );
+  const [r] = await compatSelect(db)
+    .from(oauth_pending_requests)
+    .where(
+      and(
+        eq(oauth_pending_requests.request_id, requestId),
+        gt(oauth_pending_requests.expires_at, now()),
+        isNull(oauth_pending_requests.used_at)
+      )
+    )
+    .limit(1);
+  return !!r && r.user_id === userId;
 }
-/** Atomically marks used; null if missing/expired/used */
+/**
+ * Single-use consume: ONE conditional UPDATE … WHERE used_at IS NULL AND expires_at > now RETURNING.
+ * Concurrent callers: exactly one gets the row, the others get null (never an exception).
+ */
 export async function consumePendingAuthRequest(
   db: DatabaseClient,
   requestId: string
 ): Promise<PendingAuthRequestRecord | null> {
-  return compatTransaction(db, async () => {
-    const [r] = await compatSelect(db)
-      .from(oauth_pending_requests)
-      .where(
-        and(
-          eq(oauth_pending_requests.request_id, requestId),
-          gt(oauth_pending_requests.expires_at, now()),
-          isNull(oauth_pending_requests.used_at)
-        )
+  const rows = await compatUpdate(db, oauth_pending_requests)
+    .set({ used_at: now() })
+    .where(
+      and(
+        eq(oauth_pending_requests.request_id, requestId),
+        gt(oauth_pending_requests.expires_at, now()),
+        isNull(oauth_pending_requests.used_at)
       )
-      .limit(1);
-    if (!r) return null;
-    await compatUpdate(db, oauth_pending_requests)
-      .set({ used_at: now() })
-      .where(eq(oauth_pending_requests.request_id, requestId));
-    return toPending(r);
-  });
+    )
+    .returning();
+  return rows.length === 1 ? toPending(rows[0]) : null;
 }
 
 // ---- oauth_auth_codes ----
@@ -304,28 +305,22 @@ export async function createAuthCode(db: DatabaseClient, data: AuthCodeRecord): 
     tool_allowlist: data.tool_allowlist == null ? null : j(data.tool_allowlist),
   });
 }
-/** Atomically marks used; returns null if missing, expired or already used */
+/** Single-use consume (one conditional UPDATE … RETURNING); null if missing, expired or already used */
 export async function consumeAuthCode(
   db: DatabaseClient,
   codeHash: string
 ): Promise<AuthCodeRecord | null> {
-  return compatTransaction(db, async () => {
-    const [r] = await compatSelect(db)
-      .from(oauth_auth_codes)
-      .where(
-        and(
-          eq(oauth_auth_codes.code_hash, codeHash),
-          gt(oauth_auth_codes.expires_at, now()),
-          isNull(oauth_auth_codes.used_at)
-        )
+  const rows = await compatUpdate(db, oauth_auth_codes)
+    .set({ used_at: now() })
+    .where(
+      and(
+        eq(oauth_auth_codes.code_hash, codeHash),
+        gt(oauth_auth_codes.expires_at, now()),
+        isNull(oauth_auth_codes.used_at)
       )
-      .limit(1);
-    if (!r) return null;
-    await compatUpdate(db, oauth_auth_codes)
-      .set({ used_at: now() })
-      .where(eq(oauth_auth_codes.code_hash, codeHash));
-    return toCode(r);
-  });
+    )
+    .returning();
+  return rows.length === 1 ? toCode(rows[0]) : null;
 }
 
 // ---- agent_grants ----
@@ -422,22 +417,27 @@ export async function getAgentTokenByHash(
     .limit(1);
   return r ? toToken(r) : null;
 }
-/** Marks a refresh token used; returns false if it was already used/revoked/missing (=> reuse detection) */
+/**
+ * Marks a refresh token used with ONE conditional UPDATE; false if it was already used, revoked,
+ * expired or missing (=> reuse detection by the caller). Exactly one concurrent caller wins.
+ */
 export async function markRefreshTokenUsed(
   db: DatabaseClient,
   tokenHash: string
 ): Promise<boolean> {
-  return compatTransaction(db, async () => {
-    const [r] = await compatSelect(db)
-      .from(agent_tokens)
-      .where(and(eq(agent_tokens.token_hash, tokenHash), eq(agent_tokens.kind, 'refresh')))
-      .limit(1);
-    if (!r || r.used_at != null || r.revoked_at != null) return false;
-    await compatUpdate(db, agent_tokens)
-      .set({ used_at: now() })
-      .where(eq(agent_tokens.token_hash, tokenHash));
-    return true;
-  });
+  const rows = await compatUpdate(db, agent_tokens)
+    .set({ used_at: now() })
+    .where(
+      and(
+        eq(agent_tokens.token_hash, tokenHash),
+        eq(agent_tokens.kind, 'refresh'),
+        isNull(agent_tokens.used_at),
+        isNull(agent_tokens.revoked_at),
+        gt(agent_tokens.expires_at, now())
+      )
+    )
+    .returning();
+  return rows.length === 1;
 }
 /** Grant ids (from the given set) that still have a live, unused refresh token */
 export async function listGrantIdsWithLiveRefresh(
@@ -519,4 +519,57 @@ export async function sweepExpiredAgentRecords(db: DatabaseClient, at: Date): Pr
     }
     return n;
   });
+}
+
+// ---- bound-client lifecycle (revoke-and-retain) ----
+/**
+ * Revokes every live grant bound to the Ambassador client (and all of their tokens). Call this
+ * BEFORE deleting the client; the FK then nulls bound_client_id and the revoked rows are retained.
+ * Returns the affected grants (for auditing).
+ */
+// NOTE: not self-transactional (SQLite has no nested transactions); callers such as client delete wrap it.
+export async function revokeGrantsForBoundClient(
+  db: DatabaseClient,
+  boundClientId: string,
+  revokedBy: string
+): Promise<AgentGrantRecord[]> {
+  {
+    const live = (await compatSelect(db)
+      .from(agent_grants)
+      .where(
+        and(eq(agent_grants.bound_client_id, boundClientId), isNull(agent_grants.revoked_at))
+      )) as any[];
+    const at = now();
+    for (const g of live) {
+      await compatUpdate(db, agent_grants)
+        .set({ revoked_at: at, revoked_by: revokedBy })
+        .where(eq(agent_grants.grant_id, g.grant_id));
+      await compatUpdate(db, agent_tokens)
+        .set({ revoked_at: at })
+        .where(and(eq(agent_tokens.grant_id, g.grant_id), isNull(agent_tokens.revoked_at)));
+    }
+    return live.map(toGrant);
+  }
+}
+
+// ---- server_settings ----
+export async function getServerSetting(db: DatabaseClient, key: string): Promise<string | null> {
+  const [r] = await compatSelect(db)
+    .from(server_settings)
+    .where(eq(server_settings.key, key))
+    .limit(1);
+  return r ? (r.value as string) : null;
+}
+export async function setServerSetting(
+  db: DatabaseClient,
+  key: string,
+  value: string,
+  updatedBy: string | null
+): Promise<void> {
+  await compatInsert(db, server_settings)
+    .values({ key, value, updated_at: now(), updated_by: updatedBy })
+    .onConflictDoUpdate({
+      target: server_settings.key,
+      set: { value, updated_at: now(), updated_by: updatedBy },
+    });
 }
