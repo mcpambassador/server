@@ -25,3 +25,7 @@ CREATE UNIQUE INDEX `unique_tool_pin_scope` ON `tool_pins` (`mcp_id`, COALESCE(`
 CREATE INDEX `idx_tool_pins_status` ON `tool_pins` (`status`);
 --> statement-breakpoint
 ALTER TABLE `mcp_catalog` ADD COLUMN `pin_policy` text NOT NULL DEFAULT 'review';
+--> statement-breakpoint
+-- origin: 'custom' = created by an admin through the catalog flow (only these may use pin_policy=auto).
+-- Existing rows are 'unknown' and treated like registry/imported (review forced).
+ALTER TABLE `mcp_catalog` ADD COLUMN `origin` text NOT NULL DEFAULT 'unknown';

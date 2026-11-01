@@ -9,6 +9,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import {
+  TOOL_PIN_AUTO_HOLD_REJECTIONS,
+  TOOL_PIN_AUTO_HOLD_WINDOW_HOURS,
   TOOL_PIN_BLOCKING_FLAG_CODES,
   SYSTEM_MIGRATION_ACTOR,
   TOOL_PIN_FLAG_RULES_VERSION,
@@ -160,6 +162,234 @@ export class ToolPinService {
     return undefined;
   }
 
+  // ===== Admin decisions (ADR-021 §3, D4a, D6) =====
+
+  /** Pin by id from the in-memory map (admin lookups; not on the serving path). */
+  getById(pinId: string): ToolPinRecord | undefined {
+    for (const l of this.pins.values()) if (l.rec.pin_id === pinId) return l.rec;
+    return undefined;
+  }
+
+  /** All pins, for admin listing (filtering happens in the route). */
+  allRecords(): ToolPinRecord[] {
+    return [...this.pins.values()].map(l => l.rec);
+  }
+
+  /** Rejections recorded for an MCP inside the auto-hold window (derived from rows: restart-safe, self-expiring). */
+  recentRejections(mcpId: string): number {
+    const cutoff = Date.now() - TOOL_PIN_AUTO_HOLD_WINDOW_HOURS * 3_600_000;
+    let n = 0;
+    for (const l of this.pins.values()) {
+      const r = l.rec;
+      if (
+        r.mcp_id === mcpId &&
+        r.rejected_hash &&
+        r.status === 'rejected' &&
+        Date.parse(r.updated_at) >= cutoff
+      )
+        n++;
+    }
+    return n;
+  }
+
+  isMcpAutoHeld(mcpId: string): boolean {
+    return this.recentRejections(mcpId) >= TOOL_PIN_AUTO_HOLD_REJECTIONS;
+  }
+
+  /** Approve the pending definition. `expectedHash` must equal the pin's current pending_hash. */
+  async approve(
+    pinId: string,
+    o: {
+      expectedHash: string;
+      applyTo?: 'this_scope' | 'all_users';
+      actor: string;
+      reason?: string;
+    }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    if (pin.status !== 'pending_review' || !pin.pending_hash || !pin.pending_definition) {
+      return { ok: false, code: 'not_pending' };
+    }
+    if (pin.pending_hash !== o.expectedHash) return { ok: false, code: 'stale' };
+    const flags = parseFlags(pin.flags);
+    const blocking = flags.codes.filter(
+      c =>
+        c === 'canonical_too_large' ||
+        (TOOL_PIN_BLOCKING_FLAG_CODES as readonly string[]).includes(c)
+    );
+    if (blocking.length > 0) return { ok: false, code: 'blocked', flags: blocking };
+    if (hashCanonical(pin.pending_definition) !== pin.pending_hash)
+      return { ok: false, code: 'corrupt' };
+
+    const ts = nowIso();
+    const patch: Partial<ToolPinRecord> = {
+      status: 'approved',
+      approved_hash: pin.pending_hash,
+      approved_definition: pin.pending_definition,
+      pending_hash: null,
+      pending_definition: null,
+      rejected_hash: null,
+      approved_at: ts,
+      approved_by: o.actor,
+      updated_at: ts,
+    };
+    await updateToolPin(this.db, pin.pin_id, patch);
+    this.index({ ...pin, ...patch } as ToolPinRecord);
+
+    let baselineWritten = false;
+    if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
+      baselineWritten = await this.writeBaselinePin(pin, o.actor, ts);
+    }
+    this.audit('tool_pin_approved', {
+      pin_id: pin.pin_id,
+      mcp_id: pin.mcp_id,
+      scope_user_id: pin.scope_user_id,
+      tool: sanitizeToolNameForLog(pin.tool_name),
+      old_hash: pin.approved_hash,
+      new_hash: pin.pending_hash,
+      apply_to: o.applyTo ?? 'this_scope',
+      baseline_written: baselineWritten,
+      actor: o.actor,
+      reason_given: Boolean(o.reason),
+    });
+    return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /** D4a: copy the approved definition to the NULL-scope pin so per-user instances need no review. */
+  private async writeBaselinePin(src: ToolPinRecord, actor: string, ts: string): Promise<boolean> {
+    const hash = src.pending_hash!;
+    const def = src.pending_definition!;
+    const existing = this.pins.get(key(src.mcp_id, null, src.tool_name))?.rec;
+    if (existing) {
+      if (existing.approved_hash === hash) return false;
+      const patch: Partial<ToolPinRecord> = {
+        status: 'approved',
+        approved_hash: hash,
+        approved_definition: def,
+        pending_hash: null,
+        pending_definition: null,
+        rejected_hash: null,
+        approved_at: ts,
+        approved_by: actor,
+        updated_at: ts,
+      };
+      await updateToolPin(this.db, existing.pin_id, patch);
+      this.index({ ...existing, ...patch } as ToolPinRecord);
+      return true;
+    }
+    const rec: ToolPinRecord = {
+      pin_id: randomUUID(),
+      mcp_id: src.mcp_id,
+      scope_user_id: null,
+      tool_name: src.tool_name,
+      status: 'approved',
+      approved_hash: hash,
+      approved_definition: def,
+      pending_hash: null,
+      pending_definition: null,
+      rejected_hash: null,
+      flags: src.flags,
+      absent: false,
+      first_seen_at: ts,
+      approved_at: ts,
+      approved_by: actor,
+      updated_at: ts,
+    };
+    await insertToolPin(this.db, rec);
+    this.index(rec);
+    return true;
+  }
+
+  /** Reject the pending definition. The previously approved one (if any) keeps serving. */
+  async reject(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    if (pin.status !== 'pending_review' || !pin.pending_hash)
+      return { ok: false, code: 'not_pending' };
+    if (pin.pending_hash !== o.expectedHash) return { ok: false, code: 'stale' };
+    const ts = nowIso();
+    const patch: Partial<ToolPinRecord> = {
+      status: 'rejected',
+      rejected_hash: pin.pending_hash,
+      pending_hash: null,
+      pending_definition: null,
+      updated_at: ts,
+    };
+    await updateToolPin(this.db, pin.pin_id, patch);
+    this.index({ ...pin, ...patch } as ToolPinRecord);
+    this.audit('tool_pin_rejected', {
+      pin_id: pin.pin_id,
+      mcp_id: pin.mcp_id,
+      scope_user_id: pin.scope_user_id,
+      tool: sanitizeToolNameForLog(pin.tool_name),
+      rejected_hash: pin.pending_hash,
+      actor: o.actor,
+      reason_given: Boolean(o.reason),
+    });
+    if (this.recentRejections(pin.mcp_id) === TOOL_PIN_AUTO_HOLD_REJECTIONS) {
+      this.audit('mcp_auto_held', {
+        mcp_id: pin.mcp_id,
+        rejections: TOOL_PIN_AUTO_HOLD_REJECTIONS,
+        window_hours: TOOL_PIN_AUTO_HOLD_WINDOW_HOURS,
+      });
+      logger.warn({ mcp_id: pin.mcp_id }, '[tool-pins] MCP auto-held after repeated rejections');
+    }
+    return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /** D6: a human confirms a `system:migration` baseline pin. `expectedHash` must equal approved_hash. */
+  async confirmBaseline(
+    pinId: string,
+    o: { expectedHash: string; actor: string }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    if (pin.approved_by !== SYSTEM_MIGRATION_ACTOR || !pin.approved_hash) {
+      return { ok: false, code: 'not_baseline' };
+    }
+    if (pin.approved_hash !== o.expectedHash) return { ok: false, code: 'stale' };
+    const ts = nowIso();
+    const patch: Partial<ToolPinRecord> = { approved_by: o.actor, approved_at: ts, updated_at: ts };
+    await updateToolPin(this.db, pin.pin_id, patch);
+    this.index({ ...pin, ...patch } as ToolPinRecord);
+    this.audit('tool_pin_baseline_confirmed', {
+      pin_id: pin.pin_id,
+      mcp_id: pin.mcp_id,
+      scope_user_id: pin.scope_user_id,
+      tool: sanitizeToolNameForLog(pin.tool_name),
+      hash: pin.approved_hash,
+      actor: o.actor,
+    });
+    return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /** Queue counts for the SPA badge. */
+  queueSummary(): {
+    pending_count: number;
+    baseline_unreviewed_count: number;
+    held_mcps: Array<{ mcp_id: string; scope_user_id: string | null }>;
+  } {
+    let pending = 0;
+    let baseline = 0;
+    const heldMcps = new Set<string>();
+    for (const l of this.pins.values()) {
+      if (l.rec.status === 'pending_review') pending++;
+      if (l.rec.approved_by === SYSTEM_MIGRATION_ACTOR) baseline++;
+      heldMcps.add(l.rec.mcp_id);
+    }
+    const held = this.heldScopes();
+    for (const m of heldMcps) {
+      if (this.isMcpAutoHeld(m) && !held.some(h => h.mcp_id === m && h.scope_user_id === null)) {
+        held.push({ mcp_id: m, scope_user_id: null });
+      }
+    }
+    return { pending_count: pending, baseline_unreviewed_count: baseline, held_mcps: held };
+  }
+
   /** Compare live definitions with the pins for one (mcp, scope). Never throws on bad downstream data. */
   async observe(args: ObserveArgs): Promise<ObserveSummary> {
     const { mcpId, scopeUserId, liveTools, policy } = args;
@@ -216,7 +446,10 @@ export class ToolPinService {
       }
 
       if (!approve) {
-        if (this.held.has(scopeKey)) {
+        if (
+          this.held.has(scopeKey) ||
+          this.recentRejections(mcpId) >= TOOL_PIN_AUTO_HOLD_REJECTIONS
+        ) {
           summary.held = true;
           continue; // D4c: held scopes record no new pending items
         }
@@ -411,4 +644,22 @@ interface Assessed {
   hash: string;
   tooLarge: boolean;
   flags: ToolPinFlags;
+}
+
+export type DecisionResult =
+  | { ok: true; pin: ToolPinRecord }
+  | {
+      ok: false;
+      code: 'not_found' | 'not_pending' | 'stale' | 'blocked' | 'corrupt' | 'not_baseline';
+      flags?: string[];
+    };
+
+function parseFlags(raw: string | null): ToolPinFlags {
+  if (!raw) return { rules_version: TOOL_PIN_FLAG_RULES_VERSION, codes: [] };
+  try {
+    const v = JSON.parse(raw) as ToolPinFlags;
+    return Array.isArray(v.codes) ? v : { rules_version: TOOL_PIN_FLAG_RULES_VERSION, codes: [] };
+  } catch {
+    return { rules_version: TOOL_PIN_FLAG_RULES_VERSION, codes: [] };
+  }
 }

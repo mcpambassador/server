@@ -62,6 +62,7 @@ export async function createMcpCatalogEntry(
     transport_type: data.transport_type,
     config: JSON.stringify(data.config),
     isolation_mode: data.isolation_mode || 'shared',
+    origin: 'custom',
     requires_user_credentials: data.requires_user_credentials ?? false,
     credential_schema: data.credential_schema ? JSON.stringify(data.credential_schema) : '{}',
     auth_type: data.auth_type || 'none',

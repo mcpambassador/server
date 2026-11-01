@@ -730,6 +730,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
@@ -1645,6 +1647,8 @@ export class AmbassadorServer {
       rotateHmacSecret: this.rotateHmacSecret.bind(this), // M19.2a: HMAC rotation
       registryService: this.registryService, // Community registry service
       secretStore: this.secretStore, // TD-027
+      getToolPins: () => this.getToolPins(), // ADR-021
+      onToolPinsChanged: () => this.toolRouter.invalidatePinObservations(),
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
