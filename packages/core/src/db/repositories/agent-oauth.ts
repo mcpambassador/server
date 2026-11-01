@@ -592,7 +592,9 @@ export async function sweepExpiredAgentRecords(db: DatabaseClient, at: Date): Pr
 export async function revokeGrantsForBoundClient(
   db: DatabaseClient,
   boundClientId: string,
-  revokedBy: string
+  revokedBy: string,
+  /** Why open approvals die with the grants: suspend keeps the client row, delete removes it. */
+  voidReason: 'client_suspended' | 'client_deleted' = 'client_suspended'
 ): Promise<AgentGrantRecord[]> {
   {
     const live = (await compatSelect(db)
@@ -612,7 +614,7 @@ export async function revokeGrantsForBoundClient(
     await voidApprovalsForLifecycle(
       db,
       { grantIds: live.map((g: any) => g.grant_id as string) },
-      'client_suspended'
+      voidReason
     );
     return live.map(toGrant);
   }

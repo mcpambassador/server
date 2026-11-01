@@ -20,6 +20,8 @@ import { wrapSuccess, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 
 export interface AuthRoutesOptions {
   db: DatabaseClient;
+  /** ADR-023: forgotten on logout so a step-up window never outlives its session. */
+  stepUp?: { clear(sessionId: string): void };
 }
 
 /**
@@ -150,6 +152,10 @@ export async function registerAuthRoutes(
    */
   fastify.post('/v1/auth/logout', async (request, reply) => {
     if (request.session.userId) {
+      // N1 (ADR-023): drop any open step-up window before the session id disappears.
+      // NOTE (N3): a password change does NOT clear an open step-up window; the window is bound to the
+      // session id and lasts at most APPROVAL_REAUTH_WINDOW_SECONDS, and a password change keeps the session.
+      if (request.session.sessionId) opts.stepUp?.clear(request.session.sessionId);
       await request.session.destroy();
     }
 

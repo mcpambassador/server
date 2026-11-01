@@ -18,7 +18,12 @@ import type {
   AuthRequest,
   AuthzRequest,
 } from '../spi/index.js';
-import type { ToolInvocationResponse, AuditEvent, AuthMethod } from '@mcpambassador/protocol';
+import type {
+  ToolApprovalResult,
+  ToolInvocationResponse,
+  AuditEvent,
+  AuthMethod,
+} from '@mcpambassador/protocol';
 import { logger } from '../utils/logger.js';
 import { publicErrorMessage } from '../utils/redact.js';
 import {
@@ -127,7 +132,13 @@ export class Pipeline {
     router?: (
       toolName: string,
       args: Record<string, unknown>
-    ) => Promise<{ content: unknown; isError?: boolean; mcpServer?: string }>,
+    ) => Promise<{
+      content: unknown;
+      isError?: boolean;
+      mcpServer?: string;
+      /** ADR-023: set only by the server's approval gate; copied to metadata.approval */
+      approval?: ToolApprovalResult;
+    }>,
     toolSchema?: ToolSchema,
     argumentRestrictions?: ArgumentRestrictions,
     options?: PipelineInvokeOptions
@@ -290,14 +301,18 @@ export class Pipeline {
           // Route to downstream MCP with validated/sanitized arguments
           const mcpResponse = await router(request.tool_name, validatedArgs);
 
+          // ADR-023: `metadata.approval` comes ONLY from the router's own `approval` field (the gate),
+          // never from downstream content, and always implies is_error: true. `result` carries no
+          // approval object and, for a gate outcome, no downstream content.
           response = {
-            result: mcpResponse.content,
+            result: mcpResponse.approval ? null : mcpResponse.content,
             request_id: requestId,
             timestamp: new Date().toISOString(),
             metadata: {
               duration_ms: Date.now() - startTime,
               mcp_server: mcpResponse.mcpServer,
-              is_error: mcpResponse.isError,
+              is_error: mcpResponse.approval ? true : mcpResponse.isError,
+              ...(mcpResponse.approval ? { approval: mcpResponse.approval } : {}),
             },
           };
         } catch (routingError) {
@@ -317,7 +332,10 @@ export class Pipeline {
 
       // ===== Stage 4: Audit Tool Invocation =====
       const duration = Date.now() - startTime;
-      const hasError = response.metadata?.error || response.metadata?.is_error;
+      // A gate outcome (approval required/denied/...) is an expected control-flow result, not a tool error
+      const approvalOutcome = response.metadata?.approval;
+      const hasError =
+        !approvalOutcome && (response.metadata?.error || response.metadata?.is_error);
 
       await this.emitAuditEvent({
         event_id: uuidv4(),
@@ -333,13 +351,14 @@ export class Pipeline {
         tool_name: request.tool_name,
         authz_decision: 'permit',
         response_summary: {
-          status: hasError ? 'error' : 'success',
+          status: approvalOutcome ? approvalOutcome.status : hasError ? 'error' : 'success',
           duration_ms: duration,
         },
         metadata:
-          hasError || options?.auditMetadata
+          hasError || options?.auditMetadata || approvalOutcome
             ? {
                 ...(options?.auditMetadata ?? {}),
+                ...(approvalOutcome ? { approval_status: approvalOutcome.status } : {}),
                 ...(hasError ? { error: response.metadata?.error } : {}),
               }
             : undefined,

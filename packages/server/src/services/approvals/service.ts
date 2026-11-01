@@ -10,7 +10,14 @@
 
 import crypto from 'node:crypto';
 import type { DatabaseClient, ApprovalRequestRecord, VoidScope } from '@mcpambassador/core';
+import { eq } from 'drizzle-orm';
 import {
+  clients,
+  compatSelect,
+  compatTransaction,
+  getAgentGrant,
+  users,
+  withDeferredVoidAudits,
   consumeApproval,
   countApprovalsCreatedSince,
   countOpenApprovals,
@@ -403,6 +410,46 @@ export class ApprovalService {
     /** The client the retry arrives through; NULL never matches. */
     callerBoundClientId: string | null;
   }): Promise<ConsumeResult> {
+    // The principal re-check and the single-use UPDATE share ONE transaction (BEGIN IMMEDIATE), taken
+    // immediately before the downstream call, so a revoke/suspend/disable cannot slip between them.
+    // The decision is made inside; audits go out only after COMMIT. A downstream failure afterwards
+    // does NOT restore the approval: it stays consumed.
+    // One connection cannot nest BEGIN, so concurrent consumes in this process run strictly in turn.
+    const run = this.consumeChain.then(
+      () => this.consumeOnce(i),
+      () => this.consumeOnce(i)
+    );
+    this.consumeChain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
+
+  private consumeChain: Promise<void> = Promise.resolve();
+
+  private async consumeOnce(
+    i: Parameters<ApprovalService['consumeInTx']>[0]
+  ): Promise<ConsumeResult> {
+    const pending: [string, Record<string, unknown>][] = [];
+    const result = await withDeferredVoidAudits(() =>
+      compatTransaction(this.db, () => this.consumeInTx(i, pending))
+    );
+    for (const [action, meta] of pending) this.audit(action, meta);
+    return result;
+  }
+
+  private async consumeInTx(
+    i: {
+      grantId: string;
+      mcpId: string;
+      toolName: string;
+      argsHash: string;
+      currentPinHash: string | null;
+      callerBoundClientId: string | null;
+    },
+    audits: [string, Record<string, unknown>][]
+  ): Promise<ConsumeResult> {
     const nowIso = iso(this.clock());
     const row = await findOpenApproval(this.db, i.grantId, i.mcpId, i.toolName, i.argsHash);
     if (!row || row.status !== 'approved') {
@@ -414,17 +461,30 @@ export class ApprovalService {
     ): Promise<ConsumeResult> => {
       if (void_) {
         const v = await voidApproval(this.db, row.approval_id, void_);
-        if (v) this.auditVoid(v, void_);
+        if (v) {
+          audits.push([
+            'approval_voided',
+            {
+              approval_id: v.approval_id,
+              grant_id: v.grant_id,
+              mcp_id: v.mcp_id,
+              tool_name: v.tool_name,
+              args_hash: v.args_hash,
+              reason: void_,
+            },
+          ]);
+        }
       }
-      this.audit('approval_rejected', {
-        approval_id: row.approval_id,
-        grant_id: i.grantId,
-        reason,
-      });
+      audits.push([
+        'approval_rejected',
+        { approval_id: row.approval_id, grant_id: i.grantId, reason },
+      ]);
       return { kind: 'rejected', reason };
     };
 
     if (row.expires_at <= nowIso) return reject('expired');
+
+    // Active-principal re-check: a NULL bound client is void, never a wildcard
     if (
       !row.bound_client_id ||
       !i.callerBoundClientId ||
@@ -432,20 +492,54 @@ export class ApprovalService {
     ) {
       return reject('wrong_grant', 'client_mismatch');
     }
+    const grant = await getAgentGrant(this.db, i.grantId);
+    if (
+      !grant ||
+      grant.revoked_at ||
+      grant.expires_at <= nowIso ||
+      grant.bound_client_id !== row.bound_client_id
+    ) {
+      return reject(
+        'wrong_grant',
+        grant && !grant.revoked_at ? 'client_mismatch' : 'grant_revoked'
+      );
+    }
+    const [user] = (await compatSelect(this.db)
+      .from(users)
+      .where(eq(users.user_id, row.user_id))
+      .limit(1)) as { status: string }[];
+    if (!user || user.status !== 'active') return reject('wrong_grant', 'user_disabled');
+    const [client] = (await compatSelect(this.db)
+      .from(clients)
+      .where(eq(clients.client_id, row.bound_client_id))
+      .limit(1)) as { status: string; user_id: string }[];
+    if (!client || client.status !== 'active' || client.user_id !== row.user_id) {
+      return reject('wrong_grant', 'client_suspended');
+    }
+
     if (row.pin_hash !== i.currentPinHash)
       return reject('definition_changed', 'definition_changed');
 
     if (!(await consumeApproval(this.db, row.approval_id, nowIso))) {
       return { kind: 'rejected', reason: 'consumed' };
     }
-    this.audit('approval_consumed', {
-      approval_id: row.approval_id,
-      grant_id: row.grant_id,
-      mcp_id: row.mcp_id,
-      tool_name: row.tool_name,
-      args_hash: row.args_hash,
-    });
+    audits.push([
+      'approval_consumed',
+      {
+        approval_id: row.approval_id,
+        grant_id: row.grant_id,
+        mcp_id: row.mcp_id,
+        tool_name: row.tool_name,
+        args_hash: row.args_hash,
+      },
+    ]);
     return { kind: 'consumed', request: { ...row, status: 'consumed', preview: null } };
+  }
+
+  /** The request for a polling agent: only if it belongs to this grant (never another grant's). */
+  async findForGrant(approvalId: string, grantId: string): Promise<ApprovalRequestRecord | null> {
+    const r = await getApprovalRequest(this.db, approvalId);
+    return r && r.grant_id === grantId ? r : null;
   }
 
   // ===== Void / reap =====

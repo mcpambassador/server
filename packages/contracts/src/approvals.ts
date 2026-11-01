@@ -117,6 +117,7 @@ export const APPROVAL_VOID_REASONS = [
   'definition_changed',
   'kill_switch',
   'client_suspended',
+  'client_deleted',
   'client_mismatch',
   'user_disabled',
   'policy_removed',
@@ -141,6 +142,8 @@ export const APPROVAL_UNAVAILABLE_REASONS = [
   'arguments_too_large',
   'too_many_pending',
   'rate_limited',
+  /** Stdio client sessions (no grant) cannot be approved; the gated call is refused. */
+  'not_supported_for_client',
 ] as const;
 export const approvalUnavailableReasonSchema = z.enum(APPROVAL_UNAVAILABLE_REASONS);
 export type ApprovalUnavailableReason = z.infer<typeof approvalUnavailableReasonSchema>;
@@ -332,4 +335,6 @@ export const APPROVAL_UNAVAILABLE_REASON_TEXT = {
   arguments_too_large: 'The arguments are too large to be reviewed by a person.',
   too_many_pending: 'Too many approval requests are already waiting.',
   rate_limited: 'Approval requests are being created too fast.',
+  not_supported_for_client:
+    'This tool needs human approval, which is not supported for this connection type.',
 } as const satisfies Record<ApprovalUnavailableReason, string>;

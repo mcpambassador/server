@@ -10,6 +10,7 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { and, desc, eq, gt, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseClient } from '../client.js';
 import {
@@ -329,7 +330,9 @@ export type VoidScope =
   | { boundClientId: string }
   | { userId: string }
   | { mcpId: string }
-  | { mcpId: string; toolName: string };
+  | { mcpId: string; toolName: string }
+  /** A pin change: only requests created against that approved definition hash (ADR-021 link) */
+  | { mcpId: string; toolName: string; pinHash: string; userId?: string };
 
 /**
  * Void every open request in a scope (grant revoked, client suspended/deleted, user deleted or
@@ -346,9 +349,11 @@ export async function voidOpenApprovals(
   if ('grantIds' in scope) cond.push(inArray(approval_requests.grant_id, scope.grantIds));
   if ('boundClientId' in scope)
     cond.push(eq(approval_requests.bound_client_id, scope.boundClientId));
-  if ('userId' in scope) cond.push(eq(approval_requests.user_id, scope.userId));
+  if ('userId' in scope && scope.userId !== undefined)
+    cond.push(eq(approval_requests.user_id, scope.userId));
   if ('mcpId' in scope) cond.push(eq(approval_requests.mcp_id, scope.mcpId));
   if ('toolName' in scope) cond.push(eq(approval_requests.tool_name, scope.toolName));
+  if ('pinHash' in scope) cond.push(eq(approval_requests.pin_hash, scope.pinHash));
   const rows = (await compatUpdate(db, approval_requests)
     .set({ status: 'voided', void_reason: reason, preview: null })
     .where(and(...cond))
@@ -379,6 +384,19 @@ export function setApprovalVoidObserver(fn: ApprovalVoidObserver | null): void {
 }
 
 /**
+ * Void audits raised inside `withDeferredVoidAudits` are held until the callback (normally a DB
+ * transaction) resolves, then emitted; if it throws they are dropped, because the void rolled back.
+ * AsyncLocalStorage keeps concurrent callers' buffers apart.
+ */
+const deferred = new AsyncLocalStorage<{ rows: [ApprovalRequestRecord[], string][] }>();
+export async function withDeferredVoidAudits<T>(fn: () => Promise<T>): Promise<T> {
+  const buf = { rows: [] as [ApprovalRequestRecord[], string][] };
+  const out = await deferred.run(buf, fn);
+  for (const [rows, reason] of buf.rows) voidObserver?.(rows, reason);
+  return out;
+}
+
+/**
  * Lifecycle hook: void open requests in a scope and report them to the observer. Never throws into
  * the caller's revoke/delete path beyond DB errors (a failed void must not be silent: it throws).
  */
@@ -389,7 +407,11 @@ export async function voidApprovalsForLifecycle(
 ): Promise<number> {
   if ('grantIds' in scope && scope.grantIds.length === 0) return 0;
   const rows = await voidOpenApprovals(db, scope, reason);
-  if (rows.length > 0) voidObserver?.(rows, reason);
+  if (rows.length > 0) {
+    const buf = deferred.getStore();
+    if (buf) buf.rows.push([rows, reason]);
+    else voidObserver?.(rows, reason);
+  }
   return rows.length;
 }
 

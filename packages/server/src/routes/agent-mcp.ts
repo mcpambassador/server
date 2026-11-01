@@ -20,9 +20,11 @@ import {
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { logger, type AgentSession } from '@mcpambassador/core';
-import type { AgentAuthFailureReason } from '@mcpambassador/contracts';
 import {
   AGENT_MCP_ROUTE,
+  APPROVAL_ID_META_KEY,
+  APPROVAL_ID_PATTERN,
+  type AgentAuthFailureReason,
   OAUTH_PROTECTED_RESOURCE_ROUTE,
   OAUTH_PROTECTED_RESOURCE_MCP_ROUTE,
 } from '@mcpambassador/contracts';
@@ -248,7 +250,8 @@ export async function registerAgentMcpRoutes(
     const agent = toAgentSession(p);
     const restriction = restrictionOf(p);
 
-    const metaCtx = (): MetaToolContext => ({
+    const metaCtx = (approvalId?: string): MetaToolContext => ({
+      ...(approvalId !== undefined ? { approvalId } : {}),
       deps: host.toolDeps,
       agent,
       restriction,
@@ -296,11 +299,20 @@ export async function registerAgentMcpRoutes(
         logger.error(`[agent-mcp] tools/call failed: ${String(e)}`);
         return { content: [{ type: 'text', text: 'Tool invocation failed' }], isError: true };
       }
+      // ADR-023: read the agent's approval id (status polling) BEFORE anything drops the `ambassador/`
+      // namespace. Only the request's own `_meta` is read; `_meta` is never forwarded downstream.
+      const rawApprovalId = (call.params._meta as Record<string, unknown> | undefined)?.[
+        APPROVAL_ID_META_KEY
+      ];
+      const approvalId =
+        typeof rawApprovalId === 'string' && APPROVAL_ID_PATTERN.test(rawApprovalId)
+          ? rawApprovalId
+          : undefined;
       // P1: a name in the reserved set always dispatches to the meta-tool (never to a downstream tool)
       if (isMetaToolName(call.params.name)) {
-        return handleMetaTool(metaCtx(), call.params.name, call.params.arguments);
+        return handleMetaTool(metaCtx(approvalId), call.params.name, call.params.arguments);
       }
-      return runToolCall(metaCtx(), call.params.name, call.params.arguments ?? {}, {});
+      return runToolCall(metaCtx(approvalId), call.params.name, call.params.arguments ?? {}, {});
     });
     return server;
   }
