@@ -10,6 +10,12 @@ import type {
   ConnectionHealth,
 } from './types.js';
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
+import {
+  resolveChildIsolation,
+  checkIsolationAvailable,
+  wrapCommandForIsolation,
+  type ChildIsolation,
+} from './child-isolation.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
 import { StringDecoder } from 'node:string_decoder';
@@ -40,15 +46,24 @@ export const SERVER_CONTROLLED_ENV_VARS = [
  */
 export function buildChildEnv(
   configEnv: Record<string, string> | undefined,
-  source: NodeJS.ProcessEnv = process.env
+  source: NodeJS.ProcessEnv = process.env,
+  isolation: ChildIsolation | null = null
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const key of SAFE_ENV_VARS) {
     if (source[key]) env[key] = source[key]!;
   }
+  // TD-052: with isolation the child cannot use the server's HOME/caches (owned by the server uid).
+  // HOME is a default (config.env may still override it, as before); the caches are server-controlled.
+  if (isolation) env['HOME'] = isolation.home;
   if (configEnv) Object.assign(env, configEnv);
   for (const key of SERVER_CONTROLLED_ENV_VARS) {
     if (source[key]) env[key] = source[key]!;
+  }
+  if (isolation) {
+    env['NPM_CONFIG_CACHE'] = `${isolation.home}/.npm-cache`;
+    env['UV_CACHE_DIR'] = `${isolation.home}/.uv-cache`;
+    env['XDG_CACHE_HOME'] = `${isolation.home}/.cache`;
   }
   return env;
 }
@@ -165,10 +180,20 @@ export class StdioMcpConnection extends EventEmitter {
     }
 
     // SEC-M9-02: safe environment - whitelist + config.env + server-controlled settings
-    const safeEnv = buildChildEnv(this.config.env);
+    // TD-052: resolve child uid isolation; fail closed (never fall back to the server uid)
+    const isolation = resolveChildIsolation();
+    if (isolation) {
+      const problem = checkIsolationAvailable(isolation);
+      if (problem) {
+        logger.error(`[MCP:${this.config.name}] ${problem}`);
+        throw new Error(`[${this.config.name}] cannot start: ${problem}`);
+      }
+    }
+    const safeEnv = buildChildEnv(this.config.env, process.env, isolation);
+    const target = isolation ? wrapCommandForIsolation(cmd, args, isolation) : { cmd, args };
 
-    this.process = spawn(cmd, args, {
-      cwd: this.config.cwd || process.cwd(),
+    this.process = spawn(target.cmd, target.args, {
+      cwd: isolation ? '/' : this.config.cwd || process.cwd(),
       env: safeEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
     });

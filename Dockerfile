@@ -154,8 +154,20 @@ ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON=/usr/bin/python3 \
     UV_CACHE_DIR=/tmp/.uv-cache
 
-# Switch to non-root user
-USER mcpambassador
+# TD-052: unprivileged uid for downstream MCP child processes. It owns nothing but its own HOME
+# (/tmp/mcp-home, created by the entrypoint) and cannot read /data. See docker/entrypoint.sh.
+RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent -s /bin/false mcpchild
+ENV MCP_AMBASSADOR_CHILD_UID=1001 \
+    MCP_AMBASSADOR_CHILD_GID=1001 \
+    MCP_AMBASSADOR_CHILD_HOME=/tmp/mcp-home
+
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# The container starts as root ONLY so the entrypoint can prepare the child sandbox; it then execs the
+# server as mcpambassador (uid 1000) with just CAP_SETUID/SETGID/KILL (compose: cap_drop ALL + cap_add
+# SETUID SETGID KILL CHOWN). Without those caps (or when started as non-root) child MCPs fail closed.
+USER root
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Expose ports
 EXPOSE 8443
@@ -164,7 +176,7 @@ EXPOSE 9443
 # Health check
 # The server should respond to GET /health with 200 OK
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
+  CMD setpriv --reuid=1000 --regid=1000 --clear-groups node -e "require('https').get({hostname:'localhost',port:8443,path:'/health',rejectUnauthorized:false},(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 
 # Volume mount points for bind mounts
 VOLUME ["/data", "/config"]
