@@ -6,7 +6,7 @@ import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useAdminAgentGrants, useAdminRevokeGrant } from '@/api/hooks/use-agent';
-import { grantStatus, type AgentGrantSummary } from '@/api/agent-types';
+import { grantStatus, disclosureModeLabel, type AgentGrantSummary } from '@/api/agent-types';
 
 const statusColor = { active: 'green', expired: 'zinc', revoked: 'red' } as const;
 
@@ -49,7 +49,7 @@ export function UserAgentGrants({ userId }: { userId: string }) {
                   <div className="font-medium">{g.label}</div>
                   <Text className="text-xs">
                     {g.client_name ?? 'One-shot'} · client {g.bound_client_name ?? 'removed'} ·{' '}
-                    {g.scopes.join(', ')} · expires {new Date(g.expires_at).toLocaleString()}
+                    {g.scopes.join(', ')} · {disclosureModeLabel(g.disclosure_mode)} tool list · expires {new Date(g.expires_at).toLocaleString()}
                   </Text>
                 </div>
                 <div className="flex items-center gap-2">

@@ -83,7 +83,7 @@ describe('registry import validation (TD-031)', () => {
     return s;
   }
 
-  it('keeps conforming entries and drops the rest', async () => {
+  it('keeps conforming entries and drops the rest (a reserved secret name is dropped)', async () => {
     const s = await loaded();
     const names = (await s.getEntries()).map(e => e.name).sort();
     expect(names).toEqual(['good-oauth', 'good-partial-oauth', 'good-plain', 'supabase-shape']);
@@ -125,9 +125,7 @@ describe('registry import validation (TD-031)', () => {
     const byName = Object.fromEntries(skipped.map(x => [x.name, x.reason]));
     expect(byName['bad-transport']).toBe('transport_type: Invalid value');
     expect(byName['bad-transport']).not.toContain('ftp');
-    for (const n of ['bad-host', 'bad-secret']) {
-      expect(byName[n]).toBe('oauth_config: secret binding rejected');
-    }
+    expect(byName['bad-host']).toBe('oauth_config: secret binding rejected');
     const all = JSON.stringify(skipped);
     for (const leak of ['REGISTRY_TOKEN', 'GITHUB_OAUTH_CLIENT_SECRET', 'evil.example']) {
       expect(all).not.toContain(leak);

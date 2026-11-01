@@ -20,6 +20,7 @@ import type {
 } from '../spi/index.js';
 import type { ToolInvocationResponse, AuditEvent, AuthMethod } from '@mcpambassador/protocol';
 import { logger } from '../utils/logger.js';
+import { publicErrorMessage } from '../utils/redact.js';
 import {
   AuthenticationError,
   AuthorizationError,
@@ -301,14 +302,14 @@ export class Pipeline {
           };
         } catch (routingError) {
           // Tool routing failed
-          logger.error(`[pipeline] Routing error: ${routingError}`);
+          logger.error({ err: routingError }, '[pipeline] Routing error');
           response = {
             result: null,
             request_id: requestId,
             timestamp: new Date().toISOString(),
             metadata: {
               duration_ms: Date.now() - startTime,
-              error: routingError instanceof Error ? routingError.message : String(routingError),
+              error: publicErrorMessage(routingError),
             },
           };
         }
@@ -372,7 +373,7 @@ export class Pipeline {
             duration_ms: duration,
           },
           metadata: {
-            error: error instanceof Error ? error.message : String(error),
+            error: publicErrorMessage(error),
           },
         });
       }

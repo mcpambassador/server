@@ -14,7 +14,13 @@ import { Logomark } from '@/components/brand/Logomark';
 import { safeRedirectUrl } from '@/lib/return-to';
 import { ApiError } from '@/api/client';
 import { useConsentDetails, useSubmitConsent } from '@/api/hooks/use-agent';
-import { parseToolAllowlist, ttlOptions, formatDuration } from '@/api/agent-types';
+import {
+  parseToolAllowlist,
+  ttlOptions,
+  formatDuration,
+  type DisclosureMode,
+} from '@/api/agent-types';
+import { DisclosureModeField } from '@/components/agent/DisclosureModeField';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 function errorMessage(err: unknown): string {
@@ -41,6 +47,7 @@ export function OAuthConsent() {
   const [toolsText, setToolsText] = useState('');
   const [ttl, setTtl] = useState<number | null>(null);
   const [label, setLabel] = useState('');
+  const [disclosureMode, setDisclosureMode] = useState<DisclosureMode>('full');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
 
@@ -84,6 +91,7 @@ export function OAuthConsent() {
         tool_allowlist: decision === 'approve' ? parseToolAllowlist(toolsText) : undefined,
         ttl_seconds: Math.min(Math.max(effectiveTtl, 60), details.max_ttl_seconds),
         label: decision === 'approve' && label.trim() ? label.trim() : undefined,
+        disclosure_mode: decision === 'approve' ? disclosureMode : undefined,
       });
       const target = safeRedirectUrl(res.redirect_url);
       if (!target) {
@@ -240,6 +248,8 @@ export function OAuthConsent() {
                 ))}
               </Select>
             </Field>
+
+            <DisclosureModeField value={disclosureMode} onChange={setDisclosureMode} />
 
             <Field>
               <Label>Label (optional)</Label>

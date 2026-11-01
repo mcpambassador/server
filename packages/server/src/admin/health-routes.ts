@@ -17,7 +17,7 @@ import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
-import { logger } from '@mcpambassador/core';
+import { logger, publicErrorMessage } from '@mcpambassador/core';
 
 /**
  * Admin health routes plugin configuration
@@ -108,7 +108,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
         .send(
           wrapError(
             ErrorCodes.INTERNAL_ERROR,
-            err instanceof Error ? err.message : 'Failed to fetch MCP health summary'
+            err instanceof Error ? publicErrorMessage(err) : 'Failed to fetch MCP health summary'
           )
         );
     }
@@ -180,7 +180,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to fetch MCP instances'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to fetch MCP instances'
             )
           );
       }
@@ -224,7 +224,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
 
         // Check if it's a "not found" error
         if (err instanceof Error && err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
 
         return reply
@@ -232,7 +232,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to restart MCP'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to restart MCP'
             )
           );
       }
@@ -279,7 +279,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to fetch MCP logs'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to fetch MCP logs'
             )
           );
       }
@@ -319,7 +319,7 @@ export const registerAdminHealthRoutes: FastifyPluginCallback<AdminHealthRoutesC
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to clear MCP logs'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to clear MCP logs'
             )
           );
       }

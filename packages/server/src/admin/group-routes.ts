@@ -11,6 +11,7 @@
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback, FastifyRequest } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
+import { publicErrorMessage } from '@mcpambassador/core';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 import { adminKeyActor } from './middleware.js';
@@ -99,7 +100,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
       return reply.status(201).send({ ok: true, data: group });
     } catch (err) {
       if (err instanceof Error && err.message.includes('already exists')) {
-        return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+        return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
       }
       throw err;
     }
@@ -133,7 +134,7 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
       return reply.send({ ok: true, data: group });
     } catch (err) {
       if (err instanceof Error && err.message.includes('not found')) {
-        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+        return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
       }
       throw err;
     }
@@ -172,10 +173,10 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('already exists')) {
-          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -212,10 +213,10 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('Cannot delete')) {
-          return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, err.message));
+          return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -258,10 +259,10 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('already a member')) {
-          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -299,10 +300,10 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('Cannot remove')) {
-          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
         }
       }
       throw err;
@@ -356,10 +357,10 @@ export const registerAdminGroupRoutes: FastifyPluginCallback<AdminGroupRoutesCon
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('not found')) {
-          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, err.message));
+          return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, publicErrorMessage(err)));
         }
         if (err.message.includes('already assigned')) {
-          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, err.message));
+          return reply.status(409).send(wrapError(ErrorCodes.CONFLICT, publicErrorMessage(err)));
         }
       }
       throw err;

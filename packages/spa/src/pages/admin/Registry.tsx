@@ -209,7 +209,8 @@ export function Registry() {
           {filteredMcps.map(mcp => (
             <div
               key={mcp.name}
-              className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
+              data-unavailable={mcp.installable === false ? 'true' : undefined}
+              className={`flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow${mcp.installable === false && !mcp.installed ? ' opacity-60' : ''}`}
             >
               <div className="flex-1 space-y-3">
                 {/* Header */}
@@ -324,6 +325,15 @@ export function Registry() {
                         View Details
                       </Button>
                     )}
+                  </div>
+                ) : mcp.installable === false ? (
+                  <div className="space-y-2">
+                    <Button color="blue" className="w-full" disabled>
+                      Install
+                    </Button>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Not installable on this server: {mcp.unavailable_reason ?? 'unavailable'}
+                    </p>
                   </div>
                 ) : (
                   <Button

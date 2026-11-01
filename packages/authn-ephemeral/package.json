@@ -17,12 +17,12 @@
     "@mcpambassador/core": "workspace:*",
     "@mcpambassador/protocol": "workspace:*",
     "argon2": "^0.44.0",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "^0.45.4",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/uuid": "^9.0.7",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.1"
+    "vitest": "^3.2.7"
   }
 }
