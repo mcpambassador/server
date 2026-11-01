@@ -317,3 +317,68 @@ describe('admin API create / update', () => {
     });
   }
 });
+
+describe('TD-039 round 2: default-deny and subcommand scanning', () => {
+  const reject: string[][] = [
+    ['npx', '--reg=https://evil', 'x'],
+    ['npx', '--git=/tmp/evil', 'x'],
+    ['npx', '--https-proxy=http://e', '--strict-ssl=false', 'x'],
+    ['npx', '--cafile=/tmp/c', 'x'],
+    ['npx', '-y=1', 'x'],
+    ['npx', '--yes=http://e', 'x'],
+    ['uvx', '--index-url', 'https://e', 'x'],
+    ['python3', '-m', 'pip', 'install', '-i', 'https://evil', 'x'],
+    ['deno', 'run', '--import-map=https://evil', 'x.ts'],
+    ['bun', 'run', '--preload', './evil.js', 'x'],
+    ['uv', 'tool', 'run', '--from', 'git+https://e', 'x'],
+    ['uv', 'pip', 'install', '-i', 'https://e', 'x'],
+    ['npm', 'exec', '--registry=https://e', 'x'],
+    ['pnpm', 'dlx', '--registry=https://e', 'x'],
+  ];
+  for (const cmd of reject) {
+    it(`rejects ${cmd.join(' ')}`, () => {
+      expect(checkRunnerCommand(cmd)).not.toBeNull();
+    });
+  }
+
+  const accept: string[][] = [
+    ['npx', '-y', 'pkg'],
+    ['npx', '-y', 'pkg', '-p', '8080'],
+    ['npx', '-y', 'pkg', '--config', 'c'],
+    ['npx', '-y', 'pkg', '--registry=foo'],
+    ['npx', '-y', 'pkg', '--', '--x'],
+    ['npm', 'exec', '-y', 'pkg'],
+    ['uvx', 'mcp-server-git', '--repository', 'x'],
+    ['node', 'server.js', '--port', '1'],
+    ['python3', '-m', 'my_server', '-c', 'cfg'],
+    ['deno', 'run', '-A', 'x.ts'],
+    ['bunx', 'pkg'],
+  ];
+  for (const cmd of accept) {
+    it(`accepts ${cmd.join(' ')}`, () => {
+      expect(checkRunnerCommand(cmd)).toBeNull();
+    });
+  }
+
+  for (const name of [
+    'HTTPS_PROXY',
+    'no_proxy',
+    'ALL_PROXY',
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
+    'REQUESTS_CA_BUNDLE',
+    'CURL_CA_BUNDLE',
+    'JAVA_TOOL_OPTIONS',
+    '_JAVA_OPTIONS',
+    'PERL5OPT',
+    'RUBYOPT',
+    'GCONV_PATH',
+  ]) {
+    it(`blocks env ${name}`, () => {
+      expect(isBlockedEnvName(name)).toBe(true);
+    });
+  }
+  it('still allows NODE_ENV', () => {
+    expect(isBlockedEnvName('NODE_ENV')).toBe(false);
+  });
+});

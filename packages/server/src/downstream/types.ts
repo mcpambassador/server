@@ -64,19 +64,10 @@ export interface UserMcpCredentials {
  * F-SEC-M6-001: Default allowlist of permitted base commands for stdio MCP transport.
  *
  * Configurable via the MCP_ALLOWED_COMMANDS environment variable as a
- * comma-separated list (e.g. "npx,uvx,docker"). When the env var is set,
+ * comma-separated list (e.g. "npx,uvx"). When the env var is set,
  * it replaces this default entirely.
  */
-export const DEFAULT_ALLOWED_COMMANDS = [
-  'npx',
-  'node',
-  'uvx',
-  'docker',
-  'python',
-  'python3',
-  'deno',
-  'bun',
-];
+export const DEFAULT_ALLOWED_COMMANDS = ['npx', 'node', 'uvx', 'python', 'python3', 'deno', 'bun'];
 
 /**
  * Returns the effective command allowlist, respecting the MCP_ALLOWED_COMMANDS

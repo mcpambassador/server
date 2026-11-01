@@ -222,7 +222,7 @@ describe('MCP Validator', () => {
     });
 
     it('should accept base commands from the default allowlist', async () => {
-      const allowedBases = ['npx', 'node', 'uvx', 'docker', 'python', 'python3', 'deno', 'bun'];
+      const allowedBases = ['npx', 'node', 'uvx', 'python', 'python3', 'deno', 'bun'];
       for (const base of allowedBases) {
         const entry = createMockEntry('stdio', {
           command: [base, 'some-safe-arg'],
@@ -231,6 +231,12 @@ describe('MCP Validator', () => {
         // Should not produce an allowlist error for these bases
         expect(result.errors.some(e => e.includes('not in the allowed command list'))).toBe(false);
       }
+    });
+
+    it('should no longer allow docker by default (TD-039)', async () => {
+      const entry = createMockEntry('stdio', { command: ['docker', 'run', 'img'] });
+      const result = await validateMcpConfig(entry);
+      expect(result.errors.some(e => e.includes('not in the allowed command list'))).toBe(true);
     });
 
     it('should respect MCP_ALLOWED_COMMANDS env var override', async () => {
