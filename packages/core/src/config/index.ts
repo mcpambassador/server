@@ -35,11 +35,6 @@ export interface ConfigLoadOptions {
   enforcement?: 'warn' | 'block';
   /** Whether to scrub env vars after loading (default: true per ADR-005) */
   scrub_env_vars?: boolean;
-  /**
-   * Exact env var names the server itself reads after config load (e.g. REGISTRY_TOKEN).
-   * These survive the scrub; every other credential-looking var is still deleted. (TD-027)
-   */
-  preserve_env_vars?: string[];
   /** Base directory for ${file:} resolution (default: config file directory) */
   secrets_base_dir?: string;
 }
@@ -60,7 +55,6 @@ export async function loadConfig(
     additional_credential_patterns = [],
     enforcement = 'block',
     scrub_env_vars = true,
-    preserve_env_vars = [],
     secrets_base_dir,
   } = options;
 
@@ -100,7 +94,7 @@ export async function loadConfig(
 
     // 4. Scrub environment variables (ADR-005 §2.3.3)
     if (scrub_env_vars) {
-      scrubEnvironmentVariables(credentialPatterns, preserve_env_vars);
+      scrubEnvironmentVariables(credentialPatterns);
     }
 
     logger.info('[config] Configuration loaded successfully');
@@ -314,11 +308,10 @@ function isCredentialFieldKey(key: string, patterns: string[]): boolean {
  *
  * F-SEC-M3-009: delete process.env.VAR actually works in Node.js
  */
-function scrubEnvironmentVariables(credentialPatterns: string[], preserve: string[] = []): void {
+function scrubEnvironmentVariables(credentialPatterns: string[]): void {
   const scrubbed: string[] = [];
 
   for (const key of Object.keys(process.env)) {
-    if (preserve.includes(key)) continue;
     if (isCredentialFieldKey(key, credentialPatterns)) {
       delete process.env[key]; // This works in Node.js (F-SEC-M3-009)
       scrubbed.push(key);

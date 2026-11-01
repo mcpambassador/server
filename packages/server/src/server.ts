@@ -140,6 +140,8 @@ export interface ServerConfig {
   };
   /** Full Ambassador configuration from YAML file (TD-014) */
   ambassadorConfig?: AmbassadorConfig;
+  /** TD-027: OAuth client secrets captured before the env scrub, bound to allowed token hosts */
+  oauthClientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
 }
 
 export class AmbassadorServer {
@@ -150,7 +152,7 @@ export class AmbassadorServer {
   private toolRouter!: ToolRouter; // M17: Tool routing layer (initialized in initialize())
   private config: Omit<
     Required<ServerConfig>,
-    'publicUrl' | 'registryConfig' | 'ambassadorConfig'
+    'publicUrl' | 'registryConfig' | 'ambassadorConfig' | 'oauthClientSecrets'
   > & {
     adminPort: number;
     adminUiEnabled: boolean;
@@ -164,6 +166,7 @@ export class AmbassadorServer {
       token?: string;
     };
     ambassadorConfig?: AmbassadorConfig;
+    oauthClientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
   };
   private db: DatabaseClient | null = null;
   private authn: AuthenticationProvider | null = null;
@@ -202,6 +205,7 @@ export class AmbassadorServer {
         token: undefined,
       },
       ambassadorConfig: config.ambassadorConfig,
+      oauthClientSecrets: config.oauthClientSecrets,
     };
 
     this.mcpManager = new SharedMcpManager();
@@ -350,6 +354,7 @@ export class AmbassadorServer {
       db: this.db,
       vault: this.credentialVault,
       callbackBaseUrl,
+      clientSecrets: this.config.oauthClientSecrets,
     });
     logger.info('[Server] OAuth token manager initialized');
 
