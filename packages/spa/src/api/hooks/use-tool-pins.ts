@@ -1,4 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ADMIN_TOOL_PIN_REVOKE_ROUTE, type ToolPinRevokeRequest } from '@mcpambassador/contracts';
 import { apiClient } from '../client';
 import type {
   ToolPinSummary,
@@ -92,9 +93,9 @@ export function useConfirmBaseline() {
 export function useRevokePin() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ pinId, ...body }: { pinId: string; expected_hash: string; reason?: string }) =>
+    mutationFn: ({ pinId, ...body }: { pinId: string } & ToolPinRevokeRequest) =>
       apiClient.post<ToolPinDetail>(
-        `/v1/admin/tool-pins/${encodeURIComponent(pinId)}/revoke`,
+        ADMIN_TOOL_PIN_REVOKE_ROUTE.replace(':pinId', encodeURIComponent(pinId)),
         body
       ),
     onSuccess: invalidate,
