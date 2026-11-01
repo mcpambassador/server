@@ -34,8 +34,14 @@ export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 
 // A flag whose name looks secret (`--api-key VALUE`) carries the secret in the NEXT argv element
 const SECRET_FLAG_RE = /^--?[\w-]*(key|token|secret|password|passwd|auth|credential)[\w-]*$/i;
 
+// `--api-key=VALUE` form
+const SECRET_FLAG_EQ_RE =
+  /^(--?[\w-]*(?:key|token|secret|password|passwd|auth|credential)[\w-]*)=.*$/i;
+
 function redactSecretFlagValues(args: string[]): string[] {
-  return args.map((a, i) => (i > 0 && SECRET_FLAG_RE.test(args[i - 1]!) ? '***' : a));
+  return args.map((a, i) =>
+    i > 0 && SECRET_FLAG_RE.test(args[i - 1]!) ? '***' : a.replace(SECRET_FLAG_EQ_RE, '$1=***')
+  );
 }
 
 export class StdioMcpConnection extends EventEmitter {

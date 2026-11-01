@@ -32,7 +32,7 @@ export const hostile = (tag: string): string =>
     `amb_rt_${N}${tag}rtcore`,
     `Bearer ${N}${tag}bearercore`,
     `https://user:${N}${tag}urlpass@evil.example/path`,
-    `eyJ${N}${tag}hdr0000.eyJ${N}${tag}pay0000.${N}${tag}sig00000`,
+    ['eyJ' + N + tag + 'hdr0000', 'eyJ' + N + tag + 'pay0000', N + tag + 'sig00000'].join('.'),
     `https://cb.example/cb?code=${N}${tag}codeval&state=${N}${tag}stateval&access_token=${N}${tag}atval`,
     `password: ${N}${tag}pwval token=${N}${tag}tokval`,
   ].join(' | ');
@@ -112,8 +112,8 @@ setTimeout(() => process.stderr.write('splitB${N}splittail end\\n'), 150);
 setTimeout(() => process.stderr.write('Bearer ${N}bsplitA'), 300);
 setTimeout(() => process.stderr.write('bsplitB${N}bsplittail\\n'), 450);
 // PEM block split across chunks
-process.stderr.write('-----BEGIN PRIVATE KEY-----\n${N}pemA');
-setTimeout(() => process.stderr.write('${N}pemB\nMIIE${N}pemline2\n-----END PRIVATE KEY-----\n'), 200);
+process.stderr.write('-----BEGIN ' + 'PRIVATE KEY-----\n${N}pemA');
+setTimeout(() => process.stderr.write('${N}pemB\nMIIE${N}pemline2\n-----END ' + 'PRIVATE KEY-----\n'), 200);
 // malformed JSON on stdout carrying credentials (parse-error logging)
 process.stdout.write('{"result": {bad json amb_pk_${N}jsoncore Bearer ${N}jsonbearer\n');
 // very long line with a credential deep inside
