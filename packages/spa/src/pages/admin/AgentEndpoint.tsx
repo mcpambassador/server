@@ -21,8 +21,10 @@ import {
   useUpdateAgentEndpointSettings,
   useOAuthClients,
   useSetOAuthClientDisabled,
+  useDeleteOAuthClient,
 } from '@/api/hooks/use-agent';
 import type { OAuthClientSummary } from '@/api/agent-types';
+import { RegisterClientDialog } from './RegisterClientDialog';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function AgentEndpoint() {
@@ -35,7 +37,10 @@ export function AgentEndpoint() {
   const updateSettings = useUpdateAgentEndpointSettings();
   const { data: clients, isLoading: clientsLoading } = useOAuthClients();
   const setDisabled = useSetOAuthClientDisabled();
+  const deleteClient = useDeleteOAuthClient();
   const [pending, setPending] = useState<OAuthClientSummary | null>(null);
+  const [deleting, setDeleting] = useState<OAuthClientSummary | null>(null);
+  const [registerOpen, setRegisterOpen] = useState(false);
 
   const toggleDcr = async (value: boolean) => {
     try {
@@ -54,6 +59,17 @@ export function AgentEndpoint() {
       setPending(null);
     } catch (err) {
       toast.error('Failed to disable client', { description: (err as Error)?.message });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteClient.mutateAsync(deleting.client_id);
+      toast.success(`Deleted ${deleting.client_name}`);
+      setDeleting(null);
+    } catch (err) {
+      toast.error('Failed to delete client', { description: (err as Error)?.message });
     }
   };
 
@@ -113,15 +129,18 @@ export function AgentEndpoint() {
       </div>
 
       <div>
-        <h3 className="mb-3 text-base/7 font-semibold text-zinc-900 dark:text-white">
-          Registered clients
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+            Registered clients
+          </h3>
+          <Button onClick={() => setRegisterOpen(true)}>Register client</Button>
+        </div>
         {clientsLoading ? (
           <div className="animate-pulse h-32 w-full rounded-lg bg-zinc-200 dark:bg-zinc-700" />
         ) : !clients || clients.length === 0 ? (
           <EmptyState
             title="No OAuth clients"
-            description="Clients appear here after an agent registers or an admin adds one."
+            description="Use Register client to add one, or enable dynamic client registration."
           />
         ) : (
           <Table>
@@ -167,6 +186,9 @@ export function AgentEndpoint() {
                         Disable
                       </Button>
                     )}
+                    <Button plain onClick={() => setDeleting(c)} disabled={deleteClient.isPending}>
+                      Delete
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -190,6 +212,23 @@ export function AgentEndpoint() {
         onConfirm={confirmDisable}
         isLoading={setDisabled.isPending}
       />
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={open => {
+          if (!open) setDeleting(null);
+        }}
+        title="Delete OAuth client?"
+        description={
+          deleting
+            ? `${deleting.client_name} will be removed permanently and its active grants revoked. Agents using it must be registered again.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        isLoading={deleteClient.isPending}
+      />
+
+      <RegisterClientDialog open={registerOpen} onClose={() => setRegisterOpen(false)} />
     </div>
   );
 }

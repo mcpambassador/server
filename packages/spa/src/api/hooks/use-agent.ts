@@ -168,3 +168,21 @@ export function useSetOAuthClientDisabled() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'oauth-clients'] }),
   });
 }
+
+export function useCreateOAuthClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { client_name: string; redirect_uris: string[] }) =>
+      apiClient.post<OAuthClientSummary>('/v1/admin/oauth-clients', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'oauth-clients'] }),
+  });
+}
+
+export function useDeleteOAuthClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: string) =>
+      apiClient.delete(`/v1/admin/oauth-clients/${encodeURIComponent(clientId)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'oauth-clients'] }),
+  });
+}
