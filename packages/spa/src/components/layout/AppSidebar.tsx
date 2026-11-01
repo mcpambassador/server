@@ -1,4 +1,5 @@
 import { useAgentEndpointInfo } from '@/api/hooks/use-agent';
+import { useToolPinSummary } from '@/api/hooks/use-tool-pins';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeIcon,
@@ -72,6 +73,7 @@ const adminNavItems: NavItem[] = [
   { title: 'User Instances', href: '/app/admin/user-instances', icon: ServerStackIcon },
   { title: 'Audit Logs', href: '/app/admin/audit', icon: DocumentTextIcon },
   { title: 'Kill Switches', href: '/app/admin/kill-switches', icon: PowerIcon },
+  { title: 'Tool Review', href: '/app/admin/tool-review', icon: ShieldCheckIcon },
   { title: 'Agent Endpoint', href: '/app/admin/agent-endpoint', icon: ShieldCheckIcon },
   { title: 'Settings', href: '/app/admin/settings', icon: Cog6ToothIcon },
 ];
@@ -87,6 +89,9 @@ export function AppSidebar() {
     queryKey: ['session'],
     queryFn: authApi.getSession,
   });
+
+  const { data: pinSummary } = useToolPinSummary(session?.user.isAdmin === true);
+  const pinBadge = (pinSummary?.pending_count ?? 0) + (pinSummary?.baseline_unreviewed_count ?? 0);
 
   const handleLogout = async () => {
     try {
@@ -151,6 +156,14 @@ export function AppSidebar() {
                 <SidebarItem key={item.href} href={item.href} current={active}>
                   <Icon />
                   <SidebarLabel>{item.title}</SidebarLabel>
+                  {item.href === '/app/admin/tool-review' && pinBadge > 0 && (
+                    <span
+                      data-testid="tool-review-badge"
+                      className="ml-auto rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white"
+                    >
+                      {pinBadge}
+                    </span>
+                  )}
                 </SidebarItem>
               );
             })}
