@@ -379,6 +379,7 @@ export class OAuthTokenManager {
         } catch (err) {
           // 5. Catch errors and log — never throw
           logger.error(
+            // td036-allow: logger-only, never returned to a client
             { err: err instanceof Error ? err.message : String(err) },
             `[OAuthTokenManager] Error revoking ${hint}`
           );
