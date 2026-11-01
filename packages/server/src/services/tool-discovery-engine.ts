@@ -11,7 +11,7 @@
  * @see Architecture §7.3: Downstream MCP Management
  */
 
-import { mergeCredentialEnv } from './credential-env.js';
+import { mapStaticCredentialEnv, mergeCredentialEnv } from './credential-env.js';
 import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { McpCatalogEntry, OAuthConfig } from '@mcpambassador/core';
 import { StdioMcpConnection } from '../downstream/stdio-connection.js';
@@ -394,19 +394,16 @@ export async function discoverTools(
           }
         }
 
-        // Map credential fields to env vars
-        const properties = credentialSchema?.properties as
-          | Record<string, { env_var?: string }>
-          | undefined;
-        for (const [fieldName, fieldValue] of Object.entries(adminCredentials)) {
+        // Map credential fields to env vars (shared mapping: env_var, else field name; TD-048)
+        const properties = credentialSchema?.properties as Record<string, unknown> | undefined;
+        for (const fieldName of Object.keys(adminCredentials)) {
           // (c) Only fields declared in credential_schema.properties are ever injected
           if (!properties || !Object.prototype.hasOwnProperty.call(properties, fieldName)) {
             warnings.push(`Credential field '${fieldName}' is not in credential_schema; ignored`);
-            continue;
           }
-          // Look up env_var mapping in credential_schema (fallback: the field name; TD-048)
-          const envVarName = properties[fieldName]?.env_var ?? fieldName;
-
+        }
+        const mapped = mapStaticCredentialEnv(credentialSchema, adminCredentials);
+        for (const envVarName of Object.keys(mapped)) {
           // Security check: block dangerous env vars
           if (isBlockedEnvName(envVarName)) {
             return {
@@ -414,14 +411,13 @@ export async function discoverTools(
               tools_discovered: [],
               tool_count: 0,
               error_code: 'internal_error',
-              message: `Credential field '${fieldName}' maps to blocked environment variable '${envVarName}'`,
+              message: `Credential maps to blocked environment variable '${envVarName}'`,
               discovered_at: new Date().toISOString(),
               duration_ms: Date.now() - startTime,
               warnings,
             };
           }
-
-          credentialEnvVars[envVarName] = fieldValue;
+          credentialEnvVars[envVarName] = mapped[envVarName] as string;
         }
 
         // Skip the validation_status check when admin provides credentials for testing
@@ -491,13 +487,13 @@ export async function discoverTools(
     };
 
     // Merge admin-provided credential env vars if present
-    if (credentialEnvVars) {
-      // TD-049: fixed config.env wins over credential-derived names
-      const merged = mergeCredentialEnv(dsConfig.env, credentialEnvVars);
+    {
+      // TD-049: fixed config.env wins over credential-derived names; `${NAME}` slots are filled or removed
+      const merged = mergeCredentialEnv(dsConfig.env, credentialEnvVars ?? {});
       for (const name of merged.dropped) {
         warnings.push(`Credential env var '${name}' collides with fixed env; ignored`);
       }
-      dsConfig.env = merged.env;
+      dsConfig.env = dsConfig.env || Object.keys(merged.env).length > 0 ? merged.env : undefined;
     }
 
     // Merge OAuth headers if present

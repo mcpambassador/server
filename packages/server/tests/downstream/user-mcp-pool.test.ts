@@ -627,6 +627,51 @@ describe('UserMcpPool - credential env merge (TD-048/TD-049)', () => {
     expect(env.ALPACA_API_KEY).toBe('k');
   });
 
+  const ALPACA_SCHEMA_ENV = { ALPACA_PAPER_TRADE: 'true' };
+  it('Alpaca registry env (6f03a0a shape, no slots): keys injected, PAPER_TRADE stays true', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    const env = await spawnWith(ALPACA_SCHEMA_ENV, {
+      ALPACA_API_KEY: 'k',
+      ALPACA_SECRET_KEY: 's',
+      ALPACA_PAPER_TRADE: 'false',
+    });
+    expect(env).toEqual({
+      ALPACA_PAPER_TRADE: 'true',
+      ALPACA_API_KEY: 'k',
+      ALPACA_SECRET_KEY: 's',
+    });
+  });
+
+  it('Alpaca older env with ${ALPACA_API_KEY} slots: slots filled, PAPER_TRADE stays true', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    const env = await spawnWith(
+      {
+        ALPACA_API_KEY: '${ALPACA_API_KEY}',
+        ALPACA_SECRET_KEY: '${ALPACA_SECRET_KEY}',
+        ALPACA_PAPER_TRADE: 'true',
+      },
+      { ALPACA_API_KEY: 'k', ALPACA_SECRET_KEY: 's', ALPACA_PAPER_TRADE: 'false' }
+    );
+    expect(env).toEqual({
+      ALPACA_PAPER_TRADE: 'true',
+      ALPACA_API_KEY: 'k',
+      ALPACA_SECRET_KEY: 's',
+    });
+  });
+
+  it('admin-created MCP with env_var + matching slot (pre-PR behaviour preserved)', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    // credential loader already mapped field api_key -> env_var BRAVE_API_KEY
+    const env = await spawnWith({ BRAVE_API_KEY: '${BRAVE_API_KEY}' }, { BRAVE_API_KEY: 'k' });
+    expect(env).toEqual({ BRAVE_API_KEY: 'k' });
+  });
+
+  it('an unfilled slot is not passed as a literal placeholder', async () => {
+    if (!UserMcpPool) return expect(true).toBeTruthy();
+    const env = await spawnWith({ BRAVE_API_KEY: '${BRAVE_API_KEY}', MODE: 'ro' }, { OTHER: 'x' });
+    expect(env).toEqual({ MODE: 'ro', OTHER: 'x' });
+  });
+
   it('a denylisted credential env name is rejected and the MCP is not started', async () => {
     if (!UserMcpPool) return expect(true).toBeTruthy();
     MockConnection.seen = [];
