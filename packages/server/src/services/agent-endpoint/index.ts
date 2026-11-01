@@ -18,8 +18,9 @@ import { AGENT_MCP_ROUTE, OAUTH_PROTECTED_RESOURCE_MCP_ROUTE } from '@mcpambassa
 import type {
   TokenRequest,
   TokenResponse,
-  ConsentRequest,
-  ConsentResponse,
+  ConsentDecision,
+  ConsentDecisionResponse,
+  ConsentDetails,
   ClientRegistrationRequest,
   ClientRegistrationResponse,
   RevokeRequest,
@@ -90,12 +91,20 @@ export async function exchangeToken(
 ): Promise<TokenResponse> {
   throw new NotImplementedError('exchangeToken');
 }
-export async function approveConsent(
+export async function getConsentDetails(
   _deps: AgentEndpointDeps,
   _userId: string,
-  _req: ConsentRequest
-): Promise<ConsentResponse> {
-  throw new NotImplementedError('approveConsent');
+  _requestId: string
+): Promise<ConsentDetails> {
+  throw new NotImplementedError('getConsentDetails');
+}
+export async function decideConsent(
+  _deps: AgentEndpointDeps,
+  _userId: string,
+  _requestId: string,
+  _req: ConsentDecision
+): Promise<ConsentDecisionResponse> {
+  throw new NotImplementedError('decideConsent');
 }
 export async function registerClient(
   _deps: AgentEndpointDeps,

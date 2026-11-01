@@ -8,7 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   OAUTH_AS_METADATA_ROUTE,
   OAUTH_AUTHORIZE_ROUTE,
-  OAUTH_AUTHORIZE_CONSENT_ROUTE,
+  OAUTH_CONSENT_ROUTE,
   OAUTH_TOKEN_ROUTE,
   OAUTH_REGISTER_ROUTE,
   OAUTH_REVOKE_ROUTE,
@@ -35,7 +35,8 @@ export async function registerAgentOAuthRoutes(
 
   app.get(OAUTH_AS_METADATA_ROUTE, async (_req, reply) => reply.status(501).send(oauth501));
   app.get(OAUTH_AUTHORIZE_ROUTE, async (_req, reply) => reply.status(501).send(oauth501));
-  app.post(OAUTH_AUTHORIZE_CONSENT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
+  app.get(OAUTH_CONSENT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
+  app.post(OAUTH_CONSENT_ROUTE, async (_req, reply) => reply.status(501).send(env501));
   app.post(OAUTH_TOKEN_ROUTE, async (_req, reply) => reply.status(501).send(oauth501));
   app.post(OAUTH_REGISTER_ROUTE, async (_req, reply) => reply.status(501).send(oauth501));
   app.post(OAUTH_REVOKE_ROUTE, async (_req, reply) => reply.status(501).send(oauth501));

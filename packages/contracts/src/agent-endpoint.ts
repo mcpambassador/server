@@ -20,7 +20,12 @@ export const OAUTH_PROTECTED_RESOURCE_MCP_ROUTE = '/.well-known/oauth-protected-
 /** Authorization server routes (9443 listener) */
 export const OAUTH_AS_METADATA_ROUTE = '/.well-known/oauth-authorization-server';
 export const OAUTH_AUTHORIZE_ROUTE = '/oauth/authorize';
-export const OAUTH_AUTHORIZE_CONSENT_ROUTE = '/oauth/authorize/consent';
+/** SPA route the browser is redirected to; query: request_id */
+export const SPA_CONSENT_ROUTE = '/app/oauth/consent';
+/** User API (session cookie; POST also CSRF) */
+export const OAUTH_CONSENT_ROUTE = '/v1/oauth/consent/:requestId';
+/** Pending authorize requests: single-use, bound to opening user, ~10 min */
+export const PENDING_AUTH_REQUEST_TTL_SECONDS = 600;
 export const OAUTH_TOKEN_ROUTE = '/oauth/token';
 export const OAUTH_REGISTER_ROUTE = '/oauth/register';
 export const OAUTH_REVOKE_ROUTE = '/oauth/revoke';
@@ -67,7 +72,10 @@ export interface AuthorizationServerMetadata {
   scopes_supported: string[];
 }
 
-// ===== Authorize (GET renders SPA consent; POST consent decides) =====
+// ===== Authorize =====
+// GET /oauth/authorize validates the request (client, redirect_uri, PKCE S256, resource, scope),
+// stores a pending request and 302s to `${SPA_CONSENT_ROUTE}?request_id=…` (requires SPA login;
+// the SPA login flow returns to the same URL). Invalid client/redirect_uri => HTML/JSON error, NO redirect.
 
 export const authorizeQuerySchema = z.object({
   response_type: z.literal('code'),
@@ -81,23 +89,36 @@ export const authorizeQuerySchema = z.object({
 });
 export type AuthorizeQuery = z.infer<typeof authorizeQuerySchema>;
 
-/** POST /oauth/authorize/consent (cookie session + CSRF) */
-export const consentRequestSchema = authorizeQuerySchema.extend({
+/** GET /v1/oauth/consent/:requestId (user session) — envelope data */
+export interface ConsentDetails {
+  client_name: string;
+  /** true only for admin-registered clients; false for DCR clients (SPA shows "unverified" warning) */
+  client_verified: boolean;
+  requested_scopes: string[];
+  /** The user's active subscriptions, as selectable scopes */
+  available_subscriptions: { name: string; scope: string; description?: string }[];
+  default_ttl_seconds: number;
+  max_ttl_seconds: number;
+}
+
+/** POST /v1/oauth/consent/:requestId (user session + CSRF) */
+export const consentDecisionSchema = z.object({
   decision: z.enum(['approve', 'deny']),
-  /** Granted scopes — must be ⊆ requested ∩ user's subscriptions */
-  granted_scopes: z.array(scopeSchema).max(100),
+  /** Granted scopes — must be ⊆ requested ∩ user's subscriptions (server re-checks) */
+  scopes: z.array(scopeSchema).max(100),
   /** Optional tool allowlist (fully qualified tool names) */
   tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
-  /** Grant lifetime seconds; clamped to agent_endpoint.max_grant_ttl_seconds */
-  ttl_seconds: z.number().int().min(60).optional(),
+  /** Clamped to max_ttl_seconds */
+  ttl_seconds: z.number().int().min(60),
   label: z.string().min(1).max(128).optional(),
 });
-export type ConsentRequest = z.infer<typeof consentRequestSchema>;
+export type ConsentDecision = z.infer<typeof consentDecisionSchema>;
 
-/** Response: envelope data; SPA navigates browser to redirect_to */
-export interface ConsentResponse {
-  redirect_to: string;
+/** Response (envelope data); SPA navigates the browser to redirect_url (code+state, or access_denied) */
+export interface ConsentDecisionResponse {
+  redirect_url: string;
 }
+/** Errors (envelope): 404 unknown/expired/used request_id, 403 request bound to another user, 400 invalid scopes. */
 
 // ===== Token endpoint (application/x-www-form-urlencoded) =====
 

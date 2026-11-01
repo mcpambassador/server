@@ -1,7 +1,7 @@
 /**
  * Agent OAuth repositories (ADR-020) — CONTRACT STUBS.
  *
- * Tables (oauth_clients, agent_grants, agent_tokens, oauth_auth_codes) arrive in P3.
+ * Tables (oauth_clients, oauth_pending_requests, agent_grants, agent_tokens, oauth_auth_codes) arrive in P3.
  * Tokens/codes are stored as SHA-256 hashes only; raw values never reach this layer
  * except as a hash argument.
  */
@@ -93,6 +93,49 @@ export async function setOAuthClientDisabled(
   _disabled: boolean
 ): Promise<void> {
   return notImplemented('setOAuthClientDisabled');
+}
+
+export interface PendingAuthRequestRecord {
+  request_id: string;
+  /** Set when the user first opens consent; subsequent users get 403 */
+  user_id: string | null;
+  client_id: string;
+  redirect_uri: string;
+  code_challenge: string;
+  requested_scopes: string[];
+  resource: string;
+  state: string | null;
+  expires_at: string;
+  used_at: string | null;
+}
+
+// ---- pending authorize requests (oauth_pending_requests) ----
+export async function createPendingAuthRequest(
+  _db: DatabaseClient,
+  _data: PendingAuthRequestRecord
+): Promise<void> {
+  return notImplemented('createPendingAuthRequest');
+}
+export async function getPendingAuthRequest(
+  _db: DatabaseClient,
+  _requestId: string
+): Promise<PendingAuthRequestRecord | null> {
+  return notImplemented('getPendingAuthRequest');
+}
+/** Binds request to user on first open; returns false if bound to someone else */
+export async function bindPendingAuthRequest(
+  _db: DatabaseClient,
+  _requestId: string,
+  _userId: string
+): Promise<boolean> {
+  return notImplemented('bindPendingAuthRequest');
+}
+/** Atomically marks used; null if missing/expired/used */
+export async function consumePendingAuthRequest(
+  _db: DatabaseClient,
+  _requestId: string
+): Promise<PendingAuthRequestRecord | null> {
+  return notImplemented('consumePendingAuthRequest');
 }
 
 // ---- oauth_auth_codes ----
