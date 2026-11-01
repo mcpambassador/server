@@ -21,6 +21,39 @@ import { logger, redactSecretsInString, StreamRedactor } from '@mcpambassador/co
 export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 'USER', 'SHELL'];
 
 /**
+ * Server-controlled runtime settings forwarded from the server's own environment (set in the image
+ * Dockerfile) so that uvx-launched MCPs use the system python and the persistent cache. They are
+ * applied AFTER config.env, so a catalog/config value can never override them (the runner guard also
+ * denies uv_* names in config.env).
+ */
+export const SERVER_CONTROLLED_ENV_VARS = [
+  'UV_PYTHON_DOWNLOADS',
+  'UV_PYTHON',
+  'UV_CACHE_DIR',
+  'NPM_CONFIG_CACHE',
+];
+
+/**
+ * Build the environment of a spawned stdio MCP: whitelisted system vars, then the MCP's config.env
+ * (which already includes any injected user credentials), then the server-controlled settings, which
+ * nothing above can override. Exported so the image can be checked through the real spawn path.
+ */
+export function buildChildEnv(
+  configEnv: Record<string, string> | undefined,
+  source: NodeJS.ProcessEnv = process.env
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of SAFE_ENV_VARS) {
+    if (source[key]) env[key] = source[key]!;
+  }
+  if (configEnv) Object.assign(env, configEnv);
+  for (const key of SERVER_CONTROLLED_ENV_VARS) {
+    if (source[key]) env[key] = source[key]!;
+  }
+  return env;
+}
+
+/**
  * Stdio-based MCP connection
  *
  * M6.3: Manages a child process running an MCP server over stdio
@@ -131,17 +164,8 @@ export class StdioMcpConnection extends EventEmitter {
       logger.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
     }
 
-    // SEC-M9-02: Build safe environment - whitelist + config overrides
-    const safeEnv: Record<string, string> = {};
-    for (const key of SAFE_ENV_VARS) {
-      if (process.env[key]) {
-        safeEnv[key] = process.env[key]!;
-      }
-    }
-    // Add MCP-specific env vars from config
-    if (this.config.env) {
-      Object.assign(safeEnv, this.config.env);
-    }
+    // SEC-M9-02: safe environment - whitelist + config.env + server-controlled settings
+    const safeEnv = buildChildEnv(this.config.env);
 
     this.process = spawn(cmd, args, {
       cwd: this.config.cwd || process.cwd(),

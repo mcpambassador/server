@@ -16,7 +16,8 @@
 # STAGE 1: BUILD
 # -----------------------------------------------------------------------------
 # F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-FROM node:20-slim AS builder
+# Base image pinned by digest (index of node:20-slim, `docker buildx imagetools inspect node:20-slim`, 2026-11-01)
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
 
 # Install build tools for native modules (better-sqlite3, argon2)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
@@ -59,10 +60,17 @@ RUN pnpm build
 # STAGE 2: RUNTIME
 # -----------------------------------------------------------------------------
 # F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-FROM node:20-slim
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
-# Install openssl for TLS certificate generation
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+# Install openssl for TLS certificate generation, and the distro python3 so uvx-launched (PyPI)
+# MCP servers run on a fixed interpreter instead of downloading a managed Python at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 && rm -rf /var/lib/apt/lists/*
+
+# uv/uvx for registry entries that run via `uvx <pkg>==<version>` (e.g. Alpaca).
+# Pinned by version AND digest. Digest = the multi-arch image index of ghcr.io/astral-sh/uv:0.13.6,
+# read with `docker buildx imagetools inspect ghcr.io/astral-sh/uv:0.13.6` (2026-11-01).
+# To bump: pick a release from https://github.com/astral-sh/uv/releases, re-inspect, update both.
+COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /usr/local/bin/
 
 # Create non-root user (node:20-slim has node:1000 — remove it first)
 RUN userdel node 2>/dev/null; groupdel node 2>/dev/null; \
@@ -135,6 +143,16 @@ ENV NODE_ENV=production \
 # Configure npm/npx to use writable tmpfs (fixes npx on read-only filesystem)
 ENV NPM_CONFIG_CACHE=/tmp/.npm-cache \
     HOME=/tmp
+
+# uv: use the system python3 only (never download one) and keep the package cache under /tmp, the
+# writable path the runtime user owns on a read-only rootfs. uvx uses ephemeral envs inside the cache,
+# so UV_TOOL_DIR (only for `uv tool install`) is not set. These are forwarded to spawned MCPs by
+# stdio-connection (SERVER_CONTROLLED_ENV_VARS), together with NPM_CONFIG_CACHE.
+# docker-compose bind-mounts ./cache onto /tmp, so the cache survives container recreates
+# (same as the npm cache); /data is deliberately NOT used because it holds the database and secrets.
+ENV UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=/usr/bin/python3 \
+    UV_CACHE_DIR=/tmp/.uv-cache
 
 # Switch to non-root user
 USER mcpambassador
