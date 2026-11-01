@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The browser/user API (every cookie-authenticated route, incl. login, session, CSRF token and user endpoints) is served on the admin/SPA listener (9443) only. It is no longer registered on the client port (8443); browsers or scripts that called it on 8443 must use 9443. 8443 now serves only the MCP client protocol and the agent endpoint.
 - `server.trust_proxy` / `MCP_AMBASSADOR_TRUST_PROXY` no longer accept hop counts (Fastify 5.12 disables them because they let direct clients spoof `X-Forwarded-*`). Use `true`, `false`, or an IP/CIDR list; a bare number in the env var is rejected at startup.
 
+### Fixed
+
+- `POST /v1/admin/users` now adds the new user to `all-users` like every other creation path (without it the user got 403 on subscribe).
+- Publishing or archiving an MCP now hot-applies the catalog, so a published shared MCP serves tools without a manual `POST /v1/admin/catalog/apply` or a restart. Failures stay pending and the SPA banner still offers Apply. Behaviour change: publish now goes live immediately; the review pause returns with ADR-021 tool-definition pinning. One `CatalogReloader` now serves both listeners, so concurrent applies conflict (409) instead of running in parallel.
+- Removing a user from their only group (`all-users`) returns 409 CONFLICT instead of 403 FORBIDDEN.
+
 ### Security
 - Query strings are redacted from request logs and 404 responses; admin-key failures are rate limited per IP and format-checked before argon2; OAuth `state` and raw downstream error bodies are no longer logged.
 - Kill switches persist across restarts (`kill_switches` table) and are enforced in the invocation router; killed tools/clients are hidden from tool listings.
@@ -22,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /v1/users/me/agent-endpoint` returns `resource_url` (the canonical MCP resource URL, `null` when the endpoint is disabled).
 
 ### Changed
-- The migration runner executes migrations statement by statement and tolerates re-running `ALTER TABLE ... ADD COLUMN`.
+- Migrations are tracked (TD-032): `schema_migrations(filename, sha256, applied_at)`. An existing untracked database is bootstrapped once (0000-0003 re-run idempotently, then recorded); later files run exactly once, each in its own transaction with its record, with no already-exists tolerance. Startup refuses (`MigrationIntegrityError`) if an applied migration file's hash changed. Hashes are line-ending-normalised (`.gitattributes` forces LF for `*.sql`). A new migration containing `PRAGMA foreign_keys` is refused (it is a no-op inside the transaction, so a table rebuild would cascade-delete children). The bootstrap logs the recorded filenames and hashes at warn.
 
 ## [0.9.1] - 2026-04-19
 

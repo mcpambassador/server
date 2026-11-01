@@ -193,6 +193,8 @@ describe('service level', () => {
     const t = (await exchangeToken(deps, tokenReq(clientId, code, verifier), '1.1.1.1')) as any;
     try {
       raw(db).exec(`ALTER TABLE agent_grants DROP COLUMN kind`);
+      // A legacy DB predates migration tracking (TD-032): the next boot bootstraps it.
+      raw(db).exec(`DROP TABLE schema_migrations`);
     } catch {
       return; // SQLite too old for DROP COLUMN: nothing to simulate
     }

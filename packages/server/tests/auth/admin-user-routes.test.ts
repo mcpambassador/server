@@ -99,6 +99,31 @@ describe('Admin User CRUD Routes', () => {
       expect(body.data.is_admin).toBe(false);
     });
 
+    it('adds an admin-created user to the all-users group', async () => {
+      const response = await server.fastify.inject({
+        method: 'POST',
+        url: '/v1/admin/users',
+        headers: { 'X-Admin-Key': server.adminKey },
+        payload: {
+          username: 'grouped' + Date.now(),
+          password: 'newpass123',
+          display_name: 'Grouped User',
+          is_admin: false,
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      const userId = JSON.parse(response.body).data.user_id;
+
+      const groups = await server.db.query.user_groups.findMany({
+        where: (ug, { eq }) => eq(ug.user_id, userId),
+      });
+      expect(groups).toHaveLength(1);
+      const group = await server.db.query.groups.findFirst({
+        where: (g, { eq }) => eq(g.group_id, groups[0]!.group_id),
+      });
+      expect(group?.name).toBe('all-users');
+    });
+
     it('should reject duplicate username', async () => {
       // Create first user
       const username = 'duplicate' + Date.now();
