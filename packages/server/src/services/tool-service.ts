@@ -20,7 +20,13 @@ import {
 } from '@mcpambassador/core';
 import { validateAgainstApprovedSchema } from './tool-pins/args-validator.js';
 import { truncateDescriptionForServe } from './tool-pins/flags.js';
-import type { ToolDescriptor, ToolInvocationResponse } from '@mcpambassador/protocol';
+import type {
+  ToolApprovalResult,
+  ToolDescriptor,
+  ToolInvocationResponse,
+} from '@mcpambassador/protocol';
+import { runApprovalGate, type GateGrantContext } from './approvals/gate.js';
+import type { ApprovalService } from './approvals/service.js';
 import type { SharedMcpManager, ToolRouter, UserMcpPool } from '../downstream/index.js';
 
 export interface ToolServiceDeps {
@@ -32,6 +38,8 @@ export interface ToolServiceDeps {
   userPool: UserMcpPool;
   /** Admin kill switches (keys `mcp:<name>` / `client:<id>` / `tool:<mcp_id>:<tool>`); enforced on every invocation path */
   killSwitch?: { isActive(type: string, target: string): boolean };
+  /** ADR-023 approval gate. Absent only where approvals are not initialised (some unit tests). */
+  approvals?: { service: ApprovalService; uiBaseUrl: string };
 }
 
 /** Thrown when an admin kill switch blocks the tool's MCP or the calling client. */
@@ -40,6 +48,31 @@ export class KillSwitchError extends Error {
     super('Tool disabled by kill switch');
     this.name = 'KillSwitchError';
   }
+}
+
+/**
+ * ADR-023: downstream output must never carry the Ambassador namespace. Removes every `ambassador/*`
+ * key from any `_meta` object at any depth (embedded resources included) in content blocks. Applied
+ * in the router, so `/mcp` and `/v1/tools/invoke` get identical output.
+ */
+export function stripAmbassadorMeta(value: unknown, depth = 0): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  // Fail closed: past the depth bound the subtree is dropped, never forwarded unstripped.
+  if (depth > 32) return null;
+  if (Array.isArray(value)) return value.map(v => stripAmbassadorMeta(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === '_meta' && v && typeof v === 'object' && !Array.isArray(v)) {
+      const kept: Record<string, unknown> = {};
+      for (const [mk, mv] of Object.entries(v as Record<string, unknown>)) {
+        if (!mk.startsWith('ambassador/')) kept[mk] = stripAmbassadorMeta(mv, depth + 1);
+      }
+      out[k] = kept;
+    } else {
+      out[k] = stripAmbassadorMeta(v, depth + 1);
+    }
+  }
+  return out;
 }
 
 /** KS-1/KS-2: a client, an MCP, or (ADR-025 M1) the single tool is killed. The tool key uses the catalog's mcp_id. */
@@ -136,12 +169,20 @@ export function buildInvocationRouter(
   /** Receives the KillSwitchError when the router blocks a call (the pipeline swallows routing errors) */
   killHit?: { err?: KillSwitchError },
   /** ADR-022 P3: call exactly this MCP's tool (resolved by the caller); keeps same-named tools apart */
-  sourceMcp?: string
+  sourceMcp?: string,
+  /** ADR-023: the calling grant (agent path). Omitted = a connection with no grant (stdio client). */
+  gateCtx?: GateGrantContext
 ) {
   return async (
     toolName: string,
     args: Record<string, unknown>
-  ): Promise<{ content: unknown; isError?: boolean; mcpServer?: string }> => {
+  ): Promise<{
+    content: unknown;
+    isError?: boolean;
+    mcpServer?: string;
+    /** Set ONLY by the gate; the pipeline copies it to metadata.approval (never from downstream) */
+    approval?: ToolApprovalResult;
+  }> => {
     const mcpRequest = { tool_name: toolName, arguments: args };
 
     // KS-1: one enforcement point for every router caller — client switch first (cheap)
@@ -170,7 +211,9 @@ export function buildInvocationRouter(
       throw err;
     }
 
-    let mcpResponse;
+    // Resolve WHERE the call goes first (these checks throw), so the approval is only consumed once
+    // nothing else can refuse the call.
+    let invoke: () => Promise<{ content: unknown; isError?: boolean }>;
     if (allowedTool.pinned_hash) {
       // ADR-021 D2/D3: route to the exact approved (mcp, scope) source and validate the arguments
       // against the APPROVED inputSchema, not whatever the downstream currently advertises.
@@ -180,25 +223,45 @@ export function buildInvocationRouter(
         args
       );
       if (!check.valid) throw new ValidationError(check.error);
-      mcpResponse = await deps.toolRouter.invokeOnSource(
-        userId,
-        allowedTool.source_mcp,
-        mcpRequest
-      );
+      invoke = () => deps.toolRouter.invokeOnSource(userId, allowedTool.source_mcp, mcpRequest);
     } else {
       const sharedTool = deps.mcpManager.getToolDescriptor(toolName);
       const userTool = deps.userPool.getToolDescriptor(userId, toolName);
       if (sharedTool?.source_mcp === allowedTool.source_mcp) {
-        mcpResponse = await deps.mcpManager.invokeTool(mcpRequest);
+        invoke = () => deps.mcpManager.invokeTool(mcpRequest);
       } else if (userTool?.source_mcp === allowedTool.source_mcp) {
-        mcpResponse = await deps.userPool.invokeTool(userId, mcpRequest);
+        invoke = () => deps.userPool.invokeTool(userId, mcpRequest);
       } else {
         throw new AuthorizationError('Tool source does not match client subscription');
       }
     }
 
+    // ADR-023: AFTER kill switches, scope and schema checks (a killed tool never creates a request),
+    // immediately before the downstream call. `args` is the exact object that is routed.
+    if (deps.approvals) {
+      const gate = await runApprovalGate(
+        { db: deps.db, approvals: deps.approvals.service, uiBaseUrl: deps.approvals.uiBaseUrl },
+        {
+          ctx: gateCtx ?? null,
+          tool: allowedTool,
+          args,
+        }
+      );
+      if (!gate.proceed) {
+        // Fixed, server-built outcome: no downstream content is read, spread or forwarded here.
+        return {
+          content: [],
+          isError: true,
+          mcpServer: allowedTool.source_mcp,
+          approval: gate.approval,
+        };
+      }
+    }
+
+    const mcpResponse = await invoke();
+
     return {
-      content: mcpResponse.content,
+      content: stripAmbassadorMeta(mcpResponse.content),
       isError: mcpResponse.isError,
       mcpServer: allowedTool.source_mcp,
     };
@@ -305,16 +368,30 @@ export async function invokeAgentTool(
   call: { tool: string; arguments: Record<string, unknown> },
   sourceIp: string,
   /** ADR-022: exact MCP (P3) and extra audit metadata (`via`, `disclosure_mode`) */
-  extra: { sourceMcp?: string; auditMetadata?: Record<string, unknown> } = {}
+  extra: {
+    sourceMcp?: string;
+    auditMetadata?: Record<string, unknown>;
+    /** `_meta["ambassador/approval_id"]` from the agent's request (status polling) */
+    approvalId?: string;
+  } = {}
 ): Promise<ToolInvocationResponse> {
   const killHit: { err?: KillSwitchError } = {};
+  const gateCtx: GateGrantContext = {
+    grantId: agent.grant_id,
+    userId: agent.user_id,
+    boundClientId: agent.bound_client_id,
+    disclosureMode: extra.auditMetadata?.disclosure_mode === 'progressive' ? 'progressive' : 'full',
+    via: typeof extra.auditMetadata?.via === 'string' ? extra.auditMetadata.via : null,
+    ...(extra.approvalId !== undefined ? { approvalId: extra.approvalId } : {}),
+  };
   const router = buildInvocationRouter(
     deps,
     agent.user_id,
     agent.bound_client_id,
     t => agentMayUseTool(restriction, t),
     killHit,
-    extra.sourceMcp
+    extra.sourceMcp,
+    gateCtx
   );
   const result = await deps.pipeline.invoke(
     { tool_name: call.tool, client_id: agent.bound_client_id, arguments: call.arguments },

@@ -187,7 +187,11 @@ export type ToolApprovalResult =
   | { status: 'approval_expired'; approval_id: string }
   | {
       status: 'approval_unavailable';
-      reason: 'arguments_too_large' | 'too_many_pending' | 'rate_limited';
+      reason:
+        | 'arguments_too_large'
+        | 'too_many_pending'
+        | 'rate_limited'
+        | 'not_supported_for_client';
     };
 
 /**

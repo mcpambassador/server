@@ -550,6 +550,7 @@ export class AmbassadorServer {
     // ADR-023: human approval gates. Hashes/ids-only audit; the reaper expires due requests.
     {
       const { ApprovalService } = await import('./services/approvals/service.js');
+      const { approvalUiBaseUrlProblem } = await import('./services/approvals/gate.js');
       const approvalAudit = this.audit!;
       const cfg = this.config.ambassadorConfig?.approvals;
       this.approvals = new ApprovalService(
@@ -580,8 +581,76 @@ export class AmbassadorServer {
         }
       );
       const approvals = this.approvals;
-      const { setApprovalVoidObserver } = await import('@mcpambassador/core');
+      const uiProblem = approvalUiBaseUrlProblem(this.approvalUiBaseUrl());
+      if (uiProblem) logger.error(`[approvals] ${uiProblem}; gated tool calls will fail closed`);
+      const { setApprovalVoidObserver, setApprovalVoidFailureObserver } =
+        await import('@mcpambassador/core');
       setApprovalVoidObserver((rows, reason) => approvals.auditVoidedRows(rows, reason));
+      setApprovalVoidFailureObserver((scope, reason, err) => {
+        logger.error({ err, reason }, '[approvals] lifecycle void failed');
+        approvals.emit('approval_void_failed', {
+          scope: Object.keys(scope).join('+'),
+          reason,
+          error: err instanceof Error ? err.name : 'Error',
+        });
+      });
+      // ADR-021/023: a pin's approved hash moving (revoke, re-approve of a changed definition) voids the
+      // open requests created against the old hash. Runs after the pin change; failures are audited.
+      this.toolPins?.setApprovalVoider({
+        void: async c => {
+          // A NULL-scope (shared) pin has no user: its change voids every user's requests on that hash.
+          await approvals.voidScope(
+            {
+              mcpId: c.mcpId,
+              toolName: c.toolName,
+              pinHash: c.oldHash!,
+              ...(c.scopeUserId ? { userId: c.scopeUserId } : {}),
+            },
+            c.newHash === null ? 'pin_revoked' : 'definition_changed'
+          );
+        },
+        onVoidFailure: (c, err) =>
+          approvals.emit('approval_void_failed', {
+            mcp_id: c.mcpId,
+            reason: c.newHash === null ? 'pin_revoked' : 'definition_changed',
+            error: err instanceof Error ? err.name : 'Error',
+          }),
+      });
+      // Kill-switch ACTIVATION voids open requests in its scope (client, MCP or a single tool)
+      const { getMcpEntryByName } = await import('@mcpambassador/core');
+      // The kill is already active and persisted when this runs: a failing void is audited, never thrown.
+      this.killSwitchManager.setActivationHook(async target => {
+        try {
+          await voidForKillSwitch(target);
+        } catch (err) {
+          logger.error({ err, target }, '[approvals] kill-switch void failed');
+          approvals.emit('approval_void_failed', {
+            scope: target.slice(0, target.indexOf(':')),
+            reason: 'kill_switch',
+            error: err instanceof Error ? err.name : 'Error',
+          });
+        }
+      });
+      const voidForKillSwitch = async (target: string): Promise<void> => {
+        const i = target.indexOf(':');
+        const kind = target.slice(0, i);
+        const rest = target.slice(i + 1);
+        if (kind === 'client') {
+          await approvals.voidScope({ boundClientId: rest }, 'kill_switch');
+        } else if (kind === 'mcp') {
+          const mcp = await getMcpEntryByName(this.db as DatabaseClient, rest);
+          if (mcp) await approvals.voidScope({ mcpId: mcp.mcp_id }, 'kill_switch');
+        } else if (kind === 'tool') {
+          // tool:<mcp_id>:<tool name> (the mcp_id never contains ':')
+          const j = rest.indexOf(':');
+          if (j > 0) {
+            await approvals.voidScope(
+              { mcpId: rest.slice(0, j), toolName: rest.slice(j + 1) },
+              'kill_switch'
+            );
+          }
+        }
+      };
       this.approvalReaper = setInterval(
         () => {
           approvals.reap().catch(err => logger.error({ err }, '[approvals] reaper failed'));
@@ -831,17 +900,18 @@ export class AmbassadorServer {
     });
 
     // Auth routes
+    const { StepUpStore } = await import('./auth/step-up.js');
+    const stepUp = new StepUpStore();
     const { registerAuthRoutes } = await import('./auth/routes.js');
     await registerAuthRoutes(this.adminServer, {
       db: this.db!,
+      stepUp,
     });
 
     // ADR-023: reauth + approval queue API (session-only; see approvals-api/session-guard.ts)
     {
-      const { StepUpStore } = await import('./auth/step-up.js');
       const { registerReauthRoute } = await import('./auth/reauth-routes.js');
       const { registerApprovalApiRoutes } = await import('./approvals-api/routes.js');
-      const stepUp = new StepUpStore();
       await registerReauthRoute(this.adminServer, {
         db: this.db!,
         stepUp,
@@ -1016,6 +1086,15 @@ export class AmbassadorServer {
       mcpManager: this.mcpManager,
       userPool: this.userPool,
       killSwitch: this.killSwitchManager,
+      // ADR-023: approval links come from config (PUBLIC_URL), never from the request Host header
+      ...(this.approvals
+        ? {
+            approvals: {
+              service: this.approvals,
+              uiBaseUrl: this.approvalUiBaseUrl(),
+            },
+          }
+        : {}),
     };
   }
 
@@ -1839,6 +1918,13 @@ export class AmbassadorServer {
     // DB-persisted admin settings (e.g. DCR toggle) win over the config defaults
     await loadPersistedSettings(this.agentEndpointDeps);
     return this.agentEndpointDeps;
+  }
+
+  /** ADR-023: approval links come from config (PUBLIC_URL), never from the request Host header. */
+  private approvalUiBaseUrl(): string {
+    return (
+      this.config.publicUrl ?? `https://${this.config.serverName}:${this.config.adminPort}`
+    ).replace(/\/+$/, '');
   }
 
   /** ADR-021 pin service (null before start) */

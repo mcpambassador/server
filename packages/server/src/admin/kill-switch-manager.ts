@@ -28,7 +28,14 @@ export interface ActiveKillSwitch {
 export class KillSwitchManager {
   private state = new Map<string, ActiveKillSwitch>();
 
+  /** ADR-023: runs after an ACTIVATION is in memory and persisted (voids open approvals in its scope). */
+  private onActivated?: (target: string, actor: string) => Promise<void>;
+
   constructor(private readonly db?: DatabaseClient) {}
+
+  setActivationHook(fn: (target: string, actor: string) => Promise<void>): void {
+    this.onActivated = fn;
+  }
 
   /** Replace in-memory state with the persisted switches (call once at startup, after migrations). */
   async load(): Promise<number> {
@@ -55,6 +62,10 @@ export class KillSwitchManager {
       };
       this.state.set(target, rec);
       if (this.db) await upsertKillSwitch(this.db, rec);
+      // The kill is already effective (and blocks the gate before it can create or consume), so a
+      // failing hook must not fail or undo the activation; it throws into the caller's error path
+      // only after the switch is set, so the operator sees it and can press Kill again to retry.
+      if (this.onActivated) await this.onActivated(target, actor);
     } else {
       // Persist the removal first so a failed delete doesn't report a switch as cleared.
       if (this.db) await deleteKillSwitch(this.db, target);

@@ -46,6 +46,15 @@ const MAX_TOOL_NAME_CHARS = 512;
 
 export type PinAuditFn = (action: ToolPinAuditAction, metadata: Record<string, unknown>) => void;
 
+/** One pin whose approved hash moved (old -> new); `scopeUserId` null = the shared/all-users pin. */
+export interface PinHashChange {
+  mcpId: string;
+  toolName: string;
+  scopeUserId: string | null;
+  oldHash: string | null;
+  newHash: string | null;
+}
+
 export interface ApprovedTool {
   definition: ToolDefinition;
   hash: string;
@@ -94,6 +103,46 @@ export class ToolPinService {
     private readonly db: DatabaseClient,
     private readonly audit: PinAuditFn = () => {}
   ) {}
+
+  /**
+   * ADR-023: open approvals bound to a pin hash die when that pin's approved hash changes. Wired by the
+   * server; absent in unit tests. Called AFTER the pin change is committed and indexed, so a failing
+   * void can never leave a revoked tool served (the serving path already hides it); failures are
+   * logged and reported through `onVoidFailure`, never thrown into the pin decision.
+   */
+  private approvalVoider:
+    | {
+        void: (c: PinHashChange) => Promise<void>;
+        onVoidFailure: (c: PinHashChange, err: unknown) => void;
+      }
+    | undefined;
+
+  setApprovalVoider(v: NonNullable<ToolPinService['approvalVoider']>): void {
+    this.approvalVoider = v;
+  }
+
+  /**
+   * Keyed on approved_hash: revoked (new hash null) -> `pin_revoked`; a different hash ->
+   * `definition_changed`; a status-only change (same hash) -> nothing. Only non-null old hashes have
+   * approvals bound to them.
+   */
+  private async voidForChanges(changes: PinHashChange[]): Promise<void> {
+    const v = this.approvalVoider;
+    if (!v) return;
+    for (const c of changes) {
+      if (c.oldHash === null || c.oldHash === c.newHash) continue;
+      try {
+        await v.void(c);
+      } catch (err) {
+        logger.error({ err, mcp_id: c.mcpId }, '[tool-pins] voiding open approvals failed');
+        try {
+          v.onVoidFailure(c, err);
+        } catch {
+          /* the audit sink must not break a pin decision */
+        }
+      }
+    }
+  }
 
   /** Load all pins into memory (startup). */
   async load(): Promise<void> {
@@ -266,11 +315,32 @@ export class ToolPinService {
     };
     await updateToolPin(this.db, pin.pin_id, patch);
     this.index({ ...pin, ...patch } as ToolPinRecord);
+    const changes: PinHashChange[] = [
+      {
+        mcpId: pin.mcp_id,
+        toolName: pin.tool_name,
+        scopeUserId: pin.scope_user_id,
+        oldHash: pin.approved_hash,
+        newHash: pin.pending_hash,
+      },
+    ];
 
     let baselineWritten = false;
     if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
+      const baseOld =
+        this.pins.get(key(pin.mcp_id, null, pin.tool_name))?.rec.approved_hash ?? null;
       baselineWritten = await this.writeBaselinePin(pin, o.actor, ts);
+      if (baselineWritten) {
+        changes.push({
+          mcpId: pin.mcp_id,
+          toolName: pin.tool_name,
+          scopeUserId: null,
+          oldHash: baseOld,
+          newHash: pin.pending_hash,
+        });
+      }
     }
+    await this.voidForChanges(changes);
     this.audit('tool_pin_approved', {
       pin_id: pin.pin_id,
       mcp_id: pin.mcp_id,
@@ -414,6 +484,16 @@ export class ToolPinService {
       updates.map(u => ({ pinId: u.rec.pin_id, patch: u.patch }))
     );
     for (const u of updates) this.index({ ...u.rec, ...u.patch } as ToolPinRecord);
+    // After indexing: the tool is already hidden; the void is a follow-up that may fail without harm.
+    await this.voidForChanges(
+      updates.map(u => ({
+        mcpId: u.rec.mcp_id,
+        toolName: u.rec.tool_name,
+        scopeUserId: u.rec.scope_user_id,
+        oldHash: u.rec.approved_hash,
+        newHash: null,
+      }))
+    );
     const pinIds = updates.map(u => u.rec.pin_id);
     this.audit('tool_pin_revoked', {
       pin_id: pin.pin_id,
