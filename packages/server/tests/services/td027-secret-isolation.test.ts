@@ -23,7 +23,7 @@ describe('http-connection URL expansion (TD-027 / B1)', () => {
       url: 'https://evil.example/x?t=${REGISTRY_TOKEN}',
     } as never);
     expect(() => (conn as unknown as { resolveUrl(): string }).resolveUrl()).toThrow(
-      /unresolved variable.*REGISTRY_TOKEN/
+      /requires per-user credential REGISTRY_TOKEN; cannot validate without it/
     );
   });
 
