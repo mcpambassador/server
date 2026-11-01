@@ -24,9 +24,15 @@ vi.mock('child_process', async orig => {
   };
 });
 
-import { StdioMcpConnection, SAFE_ENV_VARS } from '../../src/downstream/stdio-connection.js';
+import {
+  StdioMcpConnection,
+  SAFE_ENV_VARS,
+  SERVER_CONTROLLED_ENV_VARS,
+} from '../../src/downstream/stdio-connection.js';
 
-const touched = [...STDIO_SAFE_ENV, 'SHOULD_NOT_PASS'];
+// Server-controlled vars (UV_*, NPM_CONFIG_CACHE) are forwarded when set in the server env, so clear
+// them here: the exact-key assertion must hold even if the developer's shell exports them.
+const touched = [...STDIO_SAFE_ENV, ...SERVER_CONTROLLED_ENV_VARS, 'SHOULD_NOT_PASS'];
 const saved: Record<string, string | undefined> = {};
 
 afterEach(() => {
@@ -46,6 +52,7 @@ describe('StdioMcpConnection environment whitelist (SEC-M9-02)', () => {
     for (const k of touched) saved[k] = process.env[k];
     for (const k of STDIO_SAFE_ENV) process.env[k] = `val-${k}`;
     process.env['SHOULD_NOT_PASS'] = 'bad';
+    for (const k of SERVER_CONTROLLED_ENV_VARS) delete process.env[k];
 
     const conn = new StdioMcpConnection(
       makeMcpConfig({ transport: 'stdio', env: { MCP_ONLY: 'yes' } }) as any
