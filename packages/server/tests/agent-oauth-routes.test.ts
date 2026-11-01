@@ -12,6 +12,7 @@ import {
   runMigrations,
   closeDatabase,
   AgentEndpointConfigSchema,
+  createAdminKey,
   type DatabaseClient,
 } from '@mcpambassador/core';
 import {
@@ -286,7 +287,7 @@ describe('agent oauth routes', () => {
             payload: m === 'PUT' ? { dynamic_client_registration: true } : undefined,
           })
         ).statusCode
-      ).toBe(403);
+      ).toBe(401); // admin routes answer 401 for non-admins, like every /v1/admin route
     }
     expect(deps.runtime.dynamic_client_registration).toBe(false);
   });
@@ -389,5 +390,57 @@ describe('S5 cookie-free guard + info route', () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().data).toMatchObject({ enabled: true, max_grant_ttl_seconds: 86400 });
     await a.close();
+  });
+});
+
+describe('R2 admin-key auth, optional label, RFC 7591 error codes', () => {
+  it('admin routes accept X-Admin-Key (no session) and reject a wrong key', async () => {
+    const { admin_key } = await createAdminKey(db, dir);
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/oauth-clients',
+      headers: { 'x-admin-key': admin_key },
+      payload: { client_name: 'K', redirect_uris: [REDIRECT] },
+    });
+    expect(ok.statusCode).toBe(201);
+    const bad = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/oauth-clients',
+      headers: { 'x-admin-key': 'nope' },
+    });
+    expect(bad.statusCode).toBe(401);
+    const none = await app.inject({ method: 'GET', url: '/v1/admin/agent-grants' });
+    expect(none.statusCode).toBe(401);
+    // settings PUT is audited under the admin-key actor
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/v1/admin/agent-endpoint/settings',
+      headers: { 'x-admin-key': admin_key },
+      payload: { dynamic_client_registration: true },
+    });
+    expect([200, 404]).toContain(put.statusCode);
+  });
+
+  it('one-shot grant label is optional and defaults to "One-shot grant <date>"', async () => {
+    session = { userId: 'u1' };
+    const r = await app.inject({
+      method: 'POST',
+      url: '/v1/users/me/agent-grants',
+      payload: { bound_client_id: 'k1', scopes: ['mcp:github'] },
+    });
+    expect(r.statusCode).toBe(201);
+    const list = await app.inject({ method: 'GET', url: '/v1/users/me/agent-grants' });
+    expect(list.json().data[0].label).toMatch(/^One-shot grant \d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('DCR with a bad redirect_uri returns invalid_redirect_uri', async () => {
+    deps.runtime.dynamic_client_registration = true;
+    const r = await app.inject({
+      method: 'POST',
+      url: '/oauth/register',
+      payload: { client_name: 'x', redirect_uris: ['cursor://x/cb'] },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json().error).toBe('invalid_redirect_uri');
   });
 });

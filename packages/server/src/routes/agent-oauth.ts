@@ -40,7 +40,7 @@ import {
 import { logger, sweepExpiredAgentRecords } from '@mcpambassador/core';
 import { wrapSuccess, wrapPaginated, wrapError, ErrorCodes } from '../admin/reply-envelope.js';
 import { requireUserSession } from '../auth/user-session.js';
-import { requireAdmin } from '../auth/admin-middleware.js';
+import { authenticateAdminOrSession } from '../admin/middleware.js';
 import {
   type AgentEndpointDeps,
   OAuthError,
@@ -247,8 +247,10 @@ export async function registerAgentOAuthRoutes(
     try {
       const body = clientRegistrationRequestSchema.safeParse(bodyObject(req));
       if (!body.success) {
+        // RFC 7591: a bad redirect_uris value is invalid_redirect_uri, anything else invalid_client_metadata
+        const badRedirect = body.error.issues.some(i => i.path[0] === 'redirect_uris');
         throw new OAuthError(
-          'invalid_client_metadata',
+          badRedirect ? 'invalid_redirect_uri' : 'invalid_client_metadata',
           body.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
         );
       }
@@ -317,7 +319,9 @@ export async function registerAgentOAuthRoutes(
   });
 
   // ---- Admin ----
-  const adminOnly = [requireUserSession, requireAdmin];
+  // Admin API key (X-Admin-Key) or an admin session, like every other /v1/admin route
+  const adminOnly = [authenticateAdminOrSession(deps.db)];
+  const actorOf = (req: FastifyRequest): string => req.session?.userId ?? 'admin-api-key';
 
   app.get(ADMIN_OAUTH_CLIENTS_ROUTE, { preHandler: adminOnly }, async (_req, reply) => {
     try {
@@ -332,7 +336,7 @@ export async function registerAgentOAuthRoutes(
   app.post(ADMIN_OAUTH_CLIENTS_ROUTE, { preHandler: adminOnly }, async (req, reply) => {
     try {
       const body = adminCreateClientRequestSchema.parse(req.body);
-      const out = await adminCreateClient(deps, req.session.userId!, body, ipOf(req));
+      const out = await adminCreateClient(deps, actorOf(req), body, ipOf(req));
       return reply.status(201).send(wrapSuccess(out));
     } catch (err) {
       return apiFail(reply, err);
@@ -344,7 +348,7 @@ export async function registerAgentOAuthRoutes(
       const body = adminPatchClientRequestSchema.parse(req.body);
       const out = await adminSetClientDisabled(
         deps,
-        req.session.userId!,
+        actorOf(req),
         clientId,
         body.disabled,
         ipOf(req)
@@ -357,7 +361,7 @@ export async function registerAgentOAuthRoutes(
   app.delete(ADMIN_OAUTH_CLIENT_ROUTE, { preHandler: adminOnly }, async (req, reply) => {
     try {
       const { clientId } = req.params as { clientId: string };
-      await adminDeleteClient(deps, req.session.userId!, clientId, ipOf(req));
+      await adminDeleteClient(deps, actorOf(req), clientId, ipOf(req));
       return reply.status(204).send();
     } catch (err) {
       return apiFail(reply, err);
@@ -383,7 +387,7 @@ export async function registerAgentOAuthRoutes(
       const { grantId } = req.params as { grantId: string };
       const out = await revokeGrant(
         deps,
-        { user_id: req.session.userId!, admin: true },
+        { user_id: actorOf(req), admin: true },
         grantId,
         ipOf(req)
       );
@@ -398,9 +402,7 @@ export async function registerAgentOAuthRoutes(
   app.put(ADMIN_AGENT_ENDPOINT_SETTINGS_ROUTE, { preHandler: adminOnly }, async (req, reply) => {
     try {
       const body = adminUpdateSettingsRequestSchema.parse(req.body);
-      return reply.send(
-        wrapSuccess(await updateSettings(deps, req.session.userId!, body, ipOf(req)))
-      );
+      return reply.send(wrapSuccess(await updateSettings(deps, actorOf(req), body, ipOf(req))));
     } catch (err) {
       return apiFail(reply, err);
     }
