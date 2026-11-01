@@ -82,7 +82,7 @@ export class HttpMcpConnection extends EventEmitter {
     if (unresolved.length > 0) {
       // Fail closed: never send a request with a literal placeholder, never fall back to process.env.
       throw new Error(
-        `[${this.config.name}] http url references unresolved variable(s): ${unresolved.join(', ')}`
+        `[${this.config.name}] requires per-user credential ${unresolved.join(', ')}; cannot validate without it`
       );
     }
 
