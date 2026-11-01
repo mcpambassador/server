@@ -16,6 +16,11 @@ export interface OAuthTokenManagerConfig {
   db: DatabaseClient;
   vault: CredentialVault;
   callbackBaseUrl: string; // e.g. "https://mcpambassador.example.com:9443"
+  /**
+   * TD-027: client secrets captured at startup (before the env scrub), keyed by env var name.
+   * A secret is only ever sent to a token_url whose host is in its allowedTokenHosts.
+   */
+  clientSecrets?: Record<string, { value: string; allowedTokenHosts: string[] }>;
 }
 
 /**
@@ -44,11 +49,13 @@ export class OAuthTokenManager {
   // @ts-expect-error - vault available for future use; credential storage handled by routes
   private _vault: CredentialVault;
   private callbackBaseUrl: string;
+  private clientSecrets: Map<string, { value: string; allowedTokenHosts: string[] }>;
 
   constructor(config: OAuthTokenManagerConfig) {
     this.db = config.db;
     this._vault = config.vault;
     this.callbackBaseUrl = config.callbackBaseUrl;
+    this.clientSecrets = new Map(Object.entries(config.clientSecrets ?? {}));
   }
 
   /**
@@ -183,7 +190,10 @@ export class OAuthTokenManager {
 
     // 4 & 5. Resolve client_id and client_secret
     const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-    const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
+    const clientSecret = this.resolveClientSecret(
+      oauthConfig.client_secret_env,
+      oauthConfig.token_url
+    );
 
     // 6. POST to token_url
     const params = new URLSearchParams();
@@ -249,7 +259,10 @@ export class OAuthTokenManager {
 
     // 1. Resolve client_id and client_secret
     const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-    const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
+    const clientSecret = this.resolveClientSecret(
+      oauthConfig.client_secret_env,
+      oauthConfig.token_url
+    );
 
     // 2. POST to token_url
     const params = new URLSearchParams();
@@ -321,7 +334,10 @@ export class OAuthTokenManager {
     try {
       // 2. Resolve client_id/secret
       const clientId = this.resolveEnvVar(oauthConfig.client_id_env);
-      const clientSecret = this.resolveEnvVar(oauthConfig.client_secret_env);
+      const clientSecret = this.resolveClientSecret(
+        oauthConfig.client_secret_env,
+        oauthConfig.token_url
+      );
 
       // 4. Try refresh_token first, then access_token
       const tokensToRevoke: Array<{ token: string; hint: string }> = [];
@@ -378,7 +394,7 @@ export class OAuthTokenManager {
   }
 
   /**
-   * Resolve an environment variable by name.
+   * Resolve a (non-secret) client id from the environment.
    *
    * @throws Error if the environment variable is not set
    */
@@ -388,5 +404,28 @@ export class OAuthTokenManager {
       throw new Error(`OAuth environment variable not set: ${envVarName}`);
     }
     return value;
+  }
+
+  /**
+   * TD-027: resolve a client secret ONLY from the startup-captured map (never process.env),
+   * and only for a token_url whose host is allowlisted for that secret.
+   *
+   * @throws Error if the secret is unknown or the token_url host is not allowed
+   */
+  private resolveClientSecret(envVarName: string, tokenUrl: string): string {
+    const entry = this.clientSecrets.get(envVarName);
+    if (!entry) {
+      throw new Error(`OAuth client secret not available: ${envVarName}`);
+    }
+    let host: string;
+    try {
+      host = new URL(tokenUrl).hostname.toLowerCase();
+    } catch {
+      throw new Error('OAuth token_url is not a valid URL');
+    }
+    if (!entry.allowedTokenHosts.includes(host)) {
+      throw new Error(`OAuth client secret ${envVarName} is not permitted for host ${host}`);
+    }
+    return entry.value;
   }
 }
