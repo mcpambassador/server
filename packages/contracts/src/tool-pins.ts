@@ -1,13 +1,13 @@
 /**
  * ADR-021 Tool Definition Pinning — admin API contracts (9443, `{ ok, data }` envelope).
  *
- * GET  /v1/admin/tool-pins?status=&mcp_id=&scope_user_id=&baseline=&cursor=&limit=
+ * GET  /v1/admin/tool-pins?status=&mcp_id=&scope=shared|user&scope_user_id=&baseline=&cursor=&limit=
  *        → paginated ToolPinSummary[]
  * GET  /v1/admin/tool-pins/:pinId           → ToolPinDetail (both definitions, for the diff view)
  * GET  /v1/admin/tool-pins/summary          → ToolPinQueueSummary (SPA badge)
  * POST /v1/admin/tool-pins/:pinId/approve   → body ToolPinDecisionRequest → ToolPinDetail
  * POST /v1/admin/tool-pins/:pinId/reject    → body ToolPinDecisionRequest → ToolPinDetail
- * POST /v1/admin/tool-pins/:pinId/confirm-baseline → ToolPinDetail (D6: human confirms a system:migration pin)
+ * POST /v1/admin/tool-pins/:pinId/confirm-baseline body ToolPinConfirmBaselineRequest → ToolPinDetail (D6: human confirms a system:migration pin)
  * PATCH /v1/admin/mcps/:mcpId/pin-policy    → body { pin_policy } ; `auto` rejected (400) for registry/imported MCPs
  *
  * All routes are admin-only (adminRoutes, S4 actor). Canonicalisation: see TOOL_CANONICALIZATION and
@@ -83,7 +83,14 @@ export const TOOL_PIN_FLAG_CODES = [
   'markup',
   'canonical_too_large',
   'baseline_mismatch',
+  /** Downstream tool name uses the reserved `ambassador__` prefix: hidden, never approvable (approve => 409). */
+  'reserved_name',
+  /** Definition fails toolDefinitionSchema (e.g. description: null): pending, never approvable (approve => 409). */
+  'invalid_definition',
 ] as const;
+
+/** Flags that make a pin permanently non-approvable: approve (any apply_to) and confirm-baseline return 409. */
+export const TOOL_PIN_BLOCKING_FLAG_CODES = ['reserved_name', 'invalid_definition'] as const;
 export const toolPinFlagCodeSchema = z.enum(TOOL_PIN_FLAG_CODES);
 export type ToolPinFlagCode = z.infer<typeof toolPinFlagCodeSchema>;
 
@@ -95,7 +102,12 @@ export type ToolPinFlags = z.infer<typeof toolPinFlagsSchema>;
 
 // ===== Definition =====
 
-/** The served/hashed tool object. Unknown fields and `_meta` are stripped, so this is strict about nothing else. */
+/**
+ * The served/hashed tool object.
+ * `icons` are metadata only: the review UI shows them as text (src/mimeType) and NEVER renders them as <img>
+ * or fetches them (D5), so an icon URL cannot leak the admin's IP or act as a tracking beacon.
+ */
+// Unknown fields and `_meta` are stripped (D1).
 export const toolDefinitionSchema = z
   .object({
     name: z.string().min(1),
@@ -151,6 +163,8 @@ export type ToolPinQueueSummary = z.infer<typeof toolPinQueueSummarySchema>;
 export const toolPinListQuerySchema = z.object({
   status: toolPinStatusSchema.optional(),
   mcp_id: z.string().optional(),
+  /** `shared` = NULL-scope pins; `user` = per-user pins. Combine with scope_user_id to pick one user. */
+  scope: z.enum(['shared', 'user']).optional(),
   scope_user_id: z.string().optional(),
   baseline: z.enum(['unreviewed']).optional(),
   cursor: z.string().optional(),
@@ -169,6 +183,12 @@ export const toolPinDecisionRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 export type ToolPinDecisionRequest = z.infer<typeof toolPinDecisionRequestSchema>;
+
+export const toolPinConfirmBaselineRequestSchema = z.object({
+  /** Must equal the pin's current approved_hash, so a human confirms exactly the definition they reviewed. */
+  expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type ToolPinConfirmBaselineRequest = z.infer<typeof toolPinConfirmBaselineRequestSchema>;
 
 export const setPinPolicyRequestSchema = z.object({ pin_policy: pinPolicySchema });
 export type SetPinPolicyRequest = z.infer<typeof setPinPolicyRequestSchema>;
