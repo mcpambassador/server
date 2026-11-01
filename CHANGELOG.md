@@ -11,7 +11,7 @@ Hardening release.
 
 ### Security
 - CORS policy (`origin: false`) on the admin server
-- CSRF protection (`@fastify/csrf-protection`) on all cookie-authenticated endpoints
+- CSRF protection (`@fastify/csrf-protection`) on cookie-authenticated endpoints of the admin/SPA listener (9443)
 - Dev client key bootstrap requires explicit `NODE_ENV=development|test`
 - Password policy requires 2 of 4 character classes
 
