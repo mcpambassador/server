@@ -383,10 +383,7 @@ export class AmbassadorServer {
         await this.registryService.fetchRegistry();
         logger.info('[Server] Community registry loaded');
       } catch (error) {
-        logger.warn(
-          '[Server] Failed to load community registry on startup:',
-          error instanceof Error ? error.message : String(error)
-        );
+        logger.warn({ err: error }, '[Server] Failed to load community registry on startup:');
         logger.warn('[Server] Registry will be available after manual refresh');
       }
     } else {
@@ -1099,8 +1096,8 @@ export class AmbassadorServer {
                 logger.info(`[Server] Successfully refreshed OAuth token for MCP ${mcpEntry.name}`);
               } catch (refreshErr) {
                 logger.error(
-                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`,
-                  refreshErr
+                  { err: refreshErr },
+                  `[Server] Failed to refresh OAuth token for MCP ${mcpEntry.name}:`
                 );
 
                 // Check if token was revoked (401/invalid_grant)
@@ -1168,14 +1165,14 @@ export class AmbassadorServer {
             }
           }
         } catch (err) {
-          logger.error(`[Server] Failed to process credential for MCP ${cred.mcp_id}:`, err);
+          logger.error({ err }, `[Server] Failed to process credential for MCP ${cred.mcp_id}:`);
           // Continue processing other credentials
         }
       }
 
       return credMap;
     } catch (err) {
-      logger.error(`[Server] Failed to load user credentials for user ${userId}:`, err);
+      logger.error({ err }, `[Server] Failed to load user credentials for user ${userId}:`);
       return new Map();
     }
   }
@@ -1542,7 +1539,7 @@ export class AmbassadorServer {
             message: 'Session state inconsistent',
           });
         } else {
-          logger.error('[/v1/tools] Error:', err);
+          logger.error({ err }, '[/v1/tools] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Failed to retrieve tool catalog',
@@ -1650,7 +1647,7 @@ export class AmbassadorServer {
             message: 'Session missing client binding',
           });
         } else {
-          logger.error('[/v1/tools/invoke] Error:', err);
+          logger.error({ err }, '[/v1/tools/invoke] Error:');
           // F-SEC-M5-009: Generic error message (don't expose internals)
           return reply.status(500).send({
             error: 'Internal Server Error',
@@ -1703,7 +1700,7 @@ export class AmbassadorServer {
             message: 'Valid session token required. Include X-Session-Token header.',
           });
         } else {
-          logger.error('[/v1/admin/health] Error:', err);
+          logger.error({ err }, '[/v1/admin/health] Error:');
           return reply.status(500).send({
             error: 'Internal Server Error',
             message: 'Health check failed',
@@ -1803,7 +1800,7 @@ export class AmbassadorServer {
         );
       }
     } catch (err) {
-      logger.error('[Server] Failed to start:', err);
+      logger.error({ err }, '[Server] Failed to start:');
       throw err;
     }
   }

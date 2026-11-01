@@ -25,8 +25,9 @@ const summary = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function setup(list: unknown[] = []) {
+function setup(list: unknown[] = [], resourceUrl: string | null = null) {
   server.use(
+    http.get('/v1/users/me/agent-endpoint', () => ok({ enabled: true, resource_url: resourceUrl })),
     http.get('/v1/admin/agent-endpoint/settings', () =>
       ok({ enabled: true, dynamic_client_registration: false })
     ),
@@ -176,6 +177,36 @@ describe('Register client', () => {
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith('cl-new'));
     await user.click(within(dlg).getByRole('button', { name: 'Copy command' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(cmd));
+  });
+
+  it('prefills the endpoint URL from the server, keeps it editable and enables Copy at once', async () => {
+    server.use(
+      http.post('/v1/admin/oauth-clients', () =>
+        HttpResponse.json({ ok: true, data: summary() }, { status: 201 })
+      )
+    );
+    setup([], 'https://amb.test:8443/mcp');
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    await user.click(await screen.findByRole('button', { name: 'Register client' }));
+    const dlg = await screen.findByRole('dialog');
+    await user.type(within(dlg).getByLabelText('Client name'), 'Claude Code');
+    await user.type(within(dlg).getByLabelText('Redirect URIs'), 'http://localhost:33418/callback');
+    await user.click(within(dlg).getByRole('button', { name: 'Register' }));
+    expect(await within(dlg).findByText('cl-new')).toBeVisible();
+    const urlInput = within(dlg).getByLabelText('Agent endpoint URL');
+    expect(urlInput).toHaveValue('https://amb.test:8443/mcp');
+    const copy = within(dlg).getByRole('button', { name: 'Copy command' });
+    expect(copy).toBeEnabled();
+    await user.click(copy);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(
+        'claude mcp add --transport http --client-id cl-new --callback-port 33418 ambassador https://amb.test:8443/mcp'
+      )
+    );
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://other.example/mcp');
+    expect(urlInput).toHaveValue('https://other.example/mcp');
   });
 
   it('omits the Claude Code command for non-localhost redirects', async () => {

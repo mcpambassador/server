@@ -380,7 +380,7 @@ export class RegistryService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[RegistryService] Failed to install MCP '${name}':`, errorMessage);
+      logger.error({ err: error }, `[RegistryService] Failed to install MCP '${name}'`);
 
       return {
         success: false,

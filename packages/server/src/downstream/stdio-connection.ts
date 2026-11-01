@@ -12,7 +12,8 @@ import type {
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
-import { logger } from '@mcpambassador/core';
+import { StringDecoder } from 'node:string_decoder';
+import { logger, redactSecretsInString, StreamRedactor } from '@mcpambassador/core';
 /**
  * SEC-M9-02: Safe environment variable whitelist
  * Only these system environment variables are passed to child processes
@@ -30,6 +31,19 @@ export const SAFE_ENV_VARS = ['PATH', 'HOME', 'NODE_ENV', 'LANG', 'TZ', 'TERM', 
  * - Injects credentials from resolved secrets
  * - Handles process lifecycle (spawn, health check, cleanup)
  */
+// A flag whose name looks secret (`--api-key VALUE`) carries the secret in the NEXT argv element
+const SECRET_FLAG_RE = /^--?[\w-]*(key|token|secret|password|passwd|auth|credential)[\w-]*$/i;
+
+// `--api-key=VALUE` form
+const SECRET_FLAG_EQ_RE =
+  /^(--?[\w-]*(?:key|token|secret|password|passwd|auth|credential)[\w-]*)=.*$/i;
+
+function redactSecretFlagValues(args: string[]): string[] {
+  return args.map((a, i) =>
+    i > 0 && SECRET_FLAG_RE.test(args[i - 1]!) ? '***' : a.replace(SECRET_FLAG_EQ_RE, '$1=***')
+  );
+}
+
 export class StdioMcpConnection extends EventEmitter {
   // F-SEC-M6-003: Buffer size limits to prevent OOM
   private static readonly MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
@@ -55,6 +69,8 @@ export class StdioMcpConnection extends EventEmitter {
   private startedAt: number | null = null;
   // M33.1: Error/stderr ring buffer
   private errorBuffer = new ErrorRingBuffer(50);
+  /** config.env values (can be decrypted user credentials): scrubbed by exact value from stderr/errors */
+  private secretValues: string[] = [];
 
   constructor(config: DownstreamMcpConfig) {
     super();
@@ -86,9 +102,18 @@ export class StdioMcpConnection extends EventEmitter {
       throw new Error(`[${this.config.name}] Empty command array`);
     }
 
+    // Exact config.env values (can be decrypted user credentials) are scrubbed from every output
+    this.secretValues = Object.values(this.config.env ?? {}).filter(
+      (v): v is string => typeof v === 'string'
+    );
+
     // F-SEC-M6-001: Log spawned command for auditability
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    logger.warn(`[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${args.join(' ')}`);
+    logger.warn(
+      redactSecretsInString(
+        `[MCP:${this.config.name}] Spawning subprocess: ${cmd} ${redactSecretFlagValues(args).join(' ')}`,
+        this.secretValues
+      )
+    );
     if (this.config.env) {
       const envKeys = Object.keys(this.config.env).join(', ');
       logger.warn(`[MCP:${this.config.name}] Environment variables injected: ${envKeys}`);
@@ -122,21 +147,27 @@ export class StdioMcpConnection extends EventEmitter {
     // Handle stderr (debug logs)
     // F-SEC-M6-004: Redact potential credentials in stderr
     // M33.1: Capture stderr in error buffer
-    childProcess.stderr?.on('data', (data: Buffer) => {
-      const stderr = data.toString();
-      const redacted = this.redactCredentials(stderr);
-
-      // Split by lines and push each line to error buffer
-      const lines = stderr.split('\n').filter(line => line.trim().length > 0);
-      for (const line of lines) {
-        this.errorBuffer.push(line, 'error');
-      }
+    // Line-buffered so a secret split across chunks is joined before it is scrubbed
+    const stderrRedactor = new StreamRedactor(this.secretValues);
+    const emitStderr = (lines: string[]): void => {
+      // TD-028: the buffer is exposed via the admin API, so it gets the same redaction as the log
+      const kept = lines.filter(line => line.trim().length > 0);
+      if (kept.length === 0) return;
+      for (const line of kept) this.errorBuffer.push(line, 'error');
 
       // Truncate to 500 chars per chunk for console logging
-      const truncated =
-        redacted.length > 500 ? redacted.substring(0, 500) + '... (truncated)' : redacted;
-
-      logger.error(`[MCP:${this.config.name}] stderr:`, truncated);
+      const joined = kept.join('\n');
+      const truncated = joined.length > 500 ? joined.substring(0, 500) + '... (truncated)' : joined;
+      logger.error({ stderr: truncated }, `[MCP:${this.config.name}] stderr`);
+    };
+    // StringDecoder: a multibyte character split across chunks must not break exact-value matches
+    const stderrDecoder = new StringDecoder('utf8');
+    childProcess.stderr?.on('data', (data: string | Buffer) => {
+      emitStderr(stderrRedactor.push(typeof data === 'string' ? data : stderrDecoder.write(data)));
+    });
+    childProcess.stderr?.on('end', () => {
+      emitStderr(stderrRedactor.push(stderrDecoder.end()));
+      emitStderr(stderrRedactor.flush());
     });
 
     // Handle process exit
@@ -152,9 +183,12 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process errors
     childProcess.on('error', (err: Error) => {
-      logger.error(`[MCP:${this.config.name}] Process error:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Process error:`);
       // M33.1: Log error to buffer
-      this.errorBuffer.push(`Process error: ${err.message}`, 'error');
+      this.errorBuffer.push(
+        `Process error: ${redactSecretsInString(err.message, this.secretValues)}`,
+        'error'
+      );
       this.isHealthy = false;
       this.emit('error', err);
     });
@@ -190,7 +224,7 @@ export class StdioMcpConnection extends EventEmitter {
         );
       }
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Initialize handshake failed:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Initialize handshake failed:`);
       // Some legacy MCPs may not support initialize — continue anyway
     }
 
@@ -199,7 +233,7 @@ export class StdioMcpConnection extends EventEmitter {
       await this.refreshToolList();
     } catch (err) {
       // If tool list fetch fails, mark unhealthy but don't crash
-      logger.error(`[MCP:${this.config.name}] Failed to fetch initial tool list:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Failed to fetch initial tool list:`);
       this.isHealthy = false;
       return; // Continue without tools — will retry on health check
     }
@@ -246,10 +280,11 @@ export class StdioMcpConnection extends EventEmitter {
         const message = JSON.parse(line);
         this.handleMessage(message);
       } catch (err) {
+        // Metadata only: a raw downstream line can carry tool results or tokens
+        // (never the SyntaxError message: it embeds a snippet of the input)
         logger.error(
-          `[MCP:${this.config.name}] Failed to parse message:`,
-          line.substring(0, 100),
-          err
+          { errName: err instanceof Error ? err.name : typeof err, lineLength: line.length },
+          `[MCP:${this.config.name}] Failed to parse message`
         );
       }
     }
@@ -279,31 +314,12 @@ export class StdioMcpConnection extends EventEmitter {
         this.emit('tools_list_changed');
         return;
       }
-      logger.info(`[MCP:${this.config.name}] Notification:`, message);
+      // Metadata only: notification params are arbitrary downstream payload
+      logger.info(
+        { method: typeof message.method === 'string' ? message.method : undefined },
+        `[MCP:${this.config.name}] Notification`
+      );
     }
-  }
-
-  /**
-   * Redact potential credentials from stderr output
-   * F-SEC-M6-004: Prevent credential leakage in logs
-   */
-  private redactCredentials(text: string): string {
-    return (
-      text
-        // API keys (OpenAI, Anthropic, etc.)
-        .replace(/sk-[a-zA-Z0-9]{20,}/g, 'sk-***REDACTED***')
-        .replace(/sk_[a-z]+_[a-zA-Z0-9]{20,}/g, 'sk_***REDACTED***')
-        // GitHub tokens
-        .replace(/ghp_[a-zA-Z0-9]{36,}/g, 'ghp_***REDACTED***')
-        .replace(/github_pat_[a-zA-Z0-9_]{82}/g, 'github_pat_***REDACTED***')
-        // Bearer tokens
-        .replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, 'Bearer ***REDACTED***')
-        // Generic tokens/passwords in key=value or "key": "value" format
-        .replace(
-          /(token|password|secret|key|apikey|api_key)[\s]*[:=][\s]*["']?[^\s"',}]+/gi,
-          '$1=***REDACTED***'
-        )
-    );
   }
 
   /**
@@ -357,7 +373,7 @@ export class StdioMcpConnection extends EventEmitter {
       logger.info(`[MCP:${this.config.name}] Loaded ${this.toolCache.length} tools`);
       return this.toolCache;
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Failed to fetch tool list:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Failed to fetch tool list:`);
       throw err;
     }
   }
@@ -384,7 +400,7 @@ export class StdioMcpConnection extends EventEmitter {
 
       return validated;
     } catch (err) {
-      logger.error(`[MCP:${this.config.name}] Tool invocation failed:`, err);
+      logger.error({ err }, `[MCP:${this.config.name}] Tool invocation failed:`);
       throw err;
     }
   }

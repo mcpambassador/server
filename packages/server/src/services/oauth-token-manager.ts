@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
   logger,
+  redactSecretsInString,
   createOAuthState,
   consumeOAuthState,
   cleanupExpiredStates as coreCleanupExpiredStates,
@@ -213,7 +214,9 @@ export class OAuthTokenManager {
 
     if (!response.ok) {
       const detail = await safeOAuthErrorDetail(response);
-      logger.error(`[OAuthTokenManager] Token exchange failed: ${response.status} ${detail}`);
+      logger.error(
+        `[OAuthTokenManager] Token exchange failed: ${response.status} ${redactSecretsInString(detail)}`
+      );
       throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
     }
 
@@ -280,7 +283,9 @@ export class OAuthTokenManager {
 
     if (!response.ok) {
       const detail = await safeOAuthErrorDetail(response);
-      logger.error(`[OAuthTokenManager] Token refresh failed: ${response.status} ${detail}`);
+      logger.error(
+        `[OAuthTokenManager] Token refresh failed: ${response.status} ${redactSecretsInString(detail)}`
+      );
       throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
     }
 
@@ -381,7 +386,7 @@ export class OAuthTokenManager {
       }
     } catch (err) {
       // 5. Catch errors and log — never throw
-      logger.error(`[OAuthTokenManager] Error in revokeTokens:`, err);
+      logger.error({ err }, `[OAuthTokenManager] Error in revokeTokens:`);
     }
   }
 
