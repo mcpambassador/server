@@ -99,6 +99,9 @@ export async function requireUserSession(
   }
 }
 
+/** Default session TTL (8 hours); mirrors the config schema default */
+const DEFAULT_SESSION_TTL_SECONDS = 28800;
+
 /**
  * Register user session on Fastify instance
  *
@@ -112,6 +115,8 @@ export async function registerUserSession(
   config: {
     dataDir: string;
     store: UserSessionStore;
+    /** Cookie lifetime in seconds; derived from config session.ttl_seconds (default 8h) */
+    ttlSeconds?: number;
   }
 ): Promise<void> {
   // Register cookie support
@@ -125,7 +130,7 @@ export async function registerUserSession(
       httpOnly: true,
       sameSite: 'strict',
       path: '/',
-      maxAge: 28800000, // 8 hours in milliseconds
+      maxAge: (config.ttlSeconds ?? DEFAULT_SESSION_TTL_SECONDS) * 1000,
     },
     store: config.store,
     saveUninitialized: false, // Don't create session for unauthenticated requests

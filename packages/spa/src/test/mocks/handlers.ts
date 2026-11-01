@@ -10,6 +10,11 @@ export const handlers = [
     return HttpResponse.json({ ok: true, data: { needsSetup: false } });
   }),
 
+  // CSRF token (fetched before every mutation)
+  http.get(`${API_BASE}/v1/csrf-token`, () => {
+    return HttpResponse.json({ csrfToken: 'test-csrf-token' });
+  }),
+
   // Health check
   http.get(`${API_BASE}/health`, () => {
     return HttpResponse.json({ ok: true, data: { status: 'ok' } });

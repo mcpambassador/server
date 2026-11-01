@@ -117,7 +117,7 @@ describe('Password Policy', () => {
 
     it('should accept password at maximum length', () => {
       // Build a password with both lowercase and digit to satisfy diversity
-      const password = ('a1').repeat(MAX_PASSWORD_LENGTH / 2);
+      const password = 'a1'.repeat(MAX_PASSWORD_LENGTH / 2);
       const result = validatePassword(password);
       expect(result.valid).toBe(true);
     });

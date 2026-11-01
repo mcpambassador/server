@@ -51,10 +51,7 @@ export async function storeCredential(
 
   await compatInsert(db, user_mcp_credentials).values(newCredential);
 
-  log.info(
-    { credential_id, user_id: data.user_id, mcp_id: data.mcp_id },
-    'Stored credential'
-  );
+  log.info({ credential_id, user_id: data.user_id, mcp_id: data.mcp_id }, 'Stored credential');
 
   return newCredential as UserMcpCredential;
 }

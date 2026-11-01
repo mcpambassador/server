@@ -15,7 +15,7 @@ body:
     attributes:
       label: Server Version
       description: "Run: `docker inspect mcpambassador-server --format '{{.Config.Labels.version}}'` or check your deployment"
-      placeholder: "e.g. 0.8.0-beta.1"
+      placeholder: "e.g. 0.9.1"
     validations:
       required: true
 
@@ -66,4 +66,4 @@ body:
         - OS: Ubuntu 24.04
         - Node.js: 20.11.0
         - Docker: 25.0.2
-        - Client version: 0.8.0-beta.1
+        - Client version: 0.9.1

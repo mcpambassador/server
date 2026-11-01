@@ -4,7 +4,7 @@
 
 This is the **mcpambassador_server** repository — a pnpm monorepo containing the Ambassador Server. It is the core of the platform: a Fastify HTTP server with a React SPA, SQLite database, and a plugin-based architecture for auth, authorization, and audit.
 
-**Version:** 0.8.0-beta.1  
+**Version:** 0.9.1  
 **Stack:** Node.js 20+, TypeScript strict, pnpm workspaces, Fastify, Zod, Drizzle ORM (SQLite), React 19, Tailwind v4, Vite, Docker
 
 ## Monorepo Package Structure

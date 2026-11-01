@@ -1,6 +1,6 @@
 # MCP Ambassador Server
 
-[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.8.0--beta.2-orange.svg)]() [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
+[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.9.1-blue.svg)]() [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Docker](https://img.shields.io/badge/docker-supported-blue.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
 
 Centralized authentication, authorization, and audit for MCP tools. One server governs every downstream MCP your organization uses.
 
@@ -192,4 +192,4 @@ Apache License 2.0 -- see [LICENSE](./LICENSE).
 
 ## Status
 
-MCP Ambassador is at v0.8.0-beta.2. The API may change before 1.0. Production use is supported but expect breaking changes during the beta period.
+MCP Ambassador is at v0.9.1. The API may change before 1.0. Production use is supported but expect breaking changes during the beta period.

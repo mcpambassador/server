@@ -473,6 +473,7 @@ export class AmbassadorServer {
     await registerUserSession(this.fastify, {
       dataDir: this.config.dataDir,
       store: this.userSessionStore,
+      ttlSeconds: this.config.ambassadorConfig?.session?.ttl_seconds,
     });
     logger.info('[Server] User session management registered');
 
@@ -590,8 +591,7 @@ export class AmbassadorServer {
       },
       // Read token from custom header only (recommended for SPAs — prevents misuse via
       // form-encoded body while keeping browser-native form POSTs ineffective).
-      getToken: (req) =>
-        req.headers['x-csrf-token'] as string | undefined,
+      getToken: req => req.headers['x-csrf-token'] as string | undefined,
     });
 
     // A.2: CSRF enforcement hook — fires on every state-changing request.
@@ -653,7 +653,7 @@ export class AmbassadorServer {
     // The SPA fetches this before any mutation request. The plugin sets the `_csrf`
     // cookie and returns a fresh token the SPA must send as `x-csrf-token` header.
     this.adminServer.get('/v1/csrf-token', async (_request, reply) => {
-      const token = await reply.generateCsrf();
+      const token = reply.generateCsrf();
       return reply.send({ csrfToken: token });
     });
 

@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/server",
-  "version": "0.8.0-beta.1",
+  "version": "0.9.1",
   "description": "MCP Ambassador Server - HTTP/2 + TLS server with AAA pipeline, MCP routing, admin API",
   "license": "Apache-2.0",
   "repository": {
