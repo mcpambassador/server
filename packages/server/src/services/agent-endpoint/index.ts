@@ -833,7 +833,7 @@ export async function createGrant(
     user_id: userId,
     client_id: null,
     bound_client_id: bound.client_id,
-    label: req.label,
+    label: req.label ?? `One-shot grant ${new Date().toISOString().slice(0, 10)}`,
     scopes: v.scopes,
     tool_allowlist: req.tool_allowlist?.length ? req.tool_allowlist : null,
     resource: deps.config.resource,

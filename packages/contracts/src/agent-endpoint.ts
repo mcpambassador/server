@@ -263,7 +263,8 @@ export type RevokeRequest = z.infer<typeof revokeRequestSchema>;
 export const createGrantRequestSchema = z.object({
   /** The user's own ACTIVE Ambassador client this grant binds to */
   bound_client_id: z.string().min(1),
-  label: z.string().min(1).max(128),
+  /** Defaults to "One-shot grant <YYYY-MM-DD>" */
+  label: z.string().min(1).max(128).optional(),
   scopes: z.array(scopeSchema).min(1).max(100),
   tool_allowlist: z.array(z.string().max(256)).max(500).optional(),
   ttl_seconds: z.number().int().min(60).optional(),
