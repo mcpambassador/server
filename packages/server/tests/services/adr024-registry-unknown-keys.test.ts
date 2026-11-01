@@ -100,4 +100,37 @@ describe('registry entries drop unknown / provenance keys (ADR-024)', () => {
     };
     expect(pickRegistryEntry({ ...known, ...PROVENANCE } as never)).toEqual(known);
   });
+
+  it('keeps deprecated (boolean) and a sanitized deprecation_note', () => {
+    const base = {
+      name: 'x',
+      display_name: 'X',
+      description: 'd',
+      transport_type: 'stdio',
+      config: {},
+    };
+    const kept = pickRegistryEntry({
+      ...base,
+      deprecated: true,
+      deprecation_note: '  use\u202e other\u0000 \n pkg  ',
+    } as never) as unknown as Record<string, unknown>;
+    expect(kept.deprecated).toBe(true);
+    expect(kept.deprecation_note).toBe('use other pkg');
+
+    const bad = pickRegistryEntry({
+      ...base,
+      deprecated: 'yes',
+      deprecation_note: { a: 1 },
+    } as never) as unknown as Record<string, unknown>;
+    expect('deprecated' in bad).toBe(false);
+    expect('deprecation_note' in bad).toBe(false);
+
+    const long = pickRegistryEntry({
+      ...base,
+      deprecation_note: 'a'.repeat(900),
+    } as never) as unknown as {
+      deprecation_note: string;
+    };
+    expect(long.deprecation_note).toHaveLength(500);
+  });
 });

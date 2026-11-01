@@ -33,12 +33,43 @@ const REGISTRY_ENTRY_KEYS = [
   'version',
   'maintainer',
   'verified',
-] as const;
+  'deprecated',
+  'deprecation_note',
+] as const satisfies readonly (keyof RegistryMcpEntry)[];
+
+// Reverse check: every key of RegistryMcpEntry must be in the allowlist (a new field that is not
+// listed would be silently dropped). Compiles to `never` extras only when the lists agree.
+type _MissingRegistryKeys = Exclude<keyof RegistryMcpEntry, (typeof REGISTRY_ENTRY_KEYS)[number]>;
+const _registryKeysExhaustive: [_MissingRegistryKeys] extends [never] ? true : never = true;
+void _registryKeysExhaustive;
+
+const DEPRECATION_NOTE_MAX = 500;
+
+/** Admin-facing free text: strip control, bidi and zero-width characters, trim, cap length. */
+function sanitizeNote(v: string): string {
+  return v
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g,
+      ' '
+    )
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, DEPRECATION_NOTE_MAX);
+}
 
 export function pickRegistryEntry(entry: RegistryMcpEntry): RegistryMcpEntry {
   const out: Record<string, unknown> = {};
   for (const key of REGISTRY_ENTRY_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(entry, key)) out[key] = (entry as never)[key];
+    if (!Object.prototype.hasOwnProperty.call(entry, key)) continue;
+    const v = (entry as never)[key];
+    if (key === 'deprecated') {
+      if (typeof v === 'boolean') out[key] = v;
+    } else if (key === 'deprecation_note') {
+      if (typeof v === 'string') {
+        const note = sanitizeNote(v);
+        if (note) out[key] = note;
+      }
+    } else out[key] = v;
   }
   return out as unknown as RegistryMcpEntry;
 }
@@ -142,6 +173,9 @@ export interface RegistryMcpEntry {
   version?: string;
   maintainer?: string;
   verified?: boolean;
+  /** Safety signal: the upstream package is deprecated. Shown to admins. */
+  deprecated?: boolean;
+  deprecation_note?: string;
 }
 
 export interface RegistryData {
