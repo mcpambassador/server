@@ -87,6 +87,20 @@ export function getAllowedCommands(): string[] {
 }
 
 /**
+ * TD-044: create-time check that a stdio command[0] is on the SAME allowlist spawn enforces
+ * (never stricter than spawn). Returns a generic reason, or null when fine or not applicable.
+ */
+export function commandNotPermittedReason(
+  config: Record<string, unknown> | undefined
+): string | null {
+  const command = config?.['command'];
+  if (!Array.isArray(command) || typeof command[0] !== 'string' || command[0] === '') return null;
+  return getAllowedCommands().includes(command[0])
+    ? null
+    : 'command not permitted on this server; see MCP_ALLOWED_COMMANDS';
+}
+
+/**
  * Shell metacharacters that are dangerous in command or argument strings.
  * These indicate an attempt to chain or redirect shell commands.
  */

@@ -33,6 +33,7 @@ import {
 } from '../services/mcp-catalog-service.js';
 import { validateMcpConfig } from '../services/mcp-validator.js';
 import { checkCatalogEntry } from '../services/runner-guard.js';
+import { commandNotPermittedReason } from '../downstream/types.js';
 import { discoverTools } from '../services/tool-discovery-engine.js';
 
 /**
@@ -91,11 +92,13 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
     },
     reply: FastifyReply
   ): boolean => {
-    const reason = checkCatalogEntry({
-      config: body.config,
-      credential_schema: body.credential_schema,
-      oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
-    });
+    const reason =
+      commandNotPermittedReason(body.config) ??
+      checkCatalogEntry({
+        config: body.config,
+        credential_schema: body.credential_schema,
+        oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
+      });
     if (!reason) return true;
     reply.status(400).send(wrapError(ErrorCodes.VALIDATION_ERROR, reason));
     return false;

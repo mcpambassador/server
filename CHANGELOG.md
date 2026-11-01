@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Creating or updating an MCP (admin API) or installing one from the registry now returns a 400 ("command not permitted on this server; see MCP_ALLOWED_COMMANDS") when `command[0]` is not on the same allowlist spawn enforces (TD-044). Before, e.g. a `docker` draft returned 201 but could never run. The check uses the same `getAllowedCommands()` as spawn, so it is never stricter; the reason does not echo the value.
+
 - Admin API, registry install, catalog reload and tool-discovery error responses no longer echo raw `err.message` for database errors (TD-036): they pass through `publicErrorMessage`, so on Postgres a failed query answers "Database error" instead of the SQL and bound parameters. A regression test fails on any new raw `err instanceof Error ? err.message` in `admin/`, `routes/`, `services/` or `downstream/` unless it carries a `td036-allow` reason. A registry install rejected for its `oauth_config` now says "secret binding rejected" instead of the validator text.
 
 - zod 3.25 → 4.6 in core, contracts and server (TD-020, clears GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized constrained collections). Wire contracts are unchanged (pinned by a before/after accept/reject + output snapshot of every exported contracts schema). Visible differences: zod's own validation message text changed (e.g. `Required` → `Invalid input: expected string, received undefined`) in admin 400 `details`, config errors and registry-skip log lines; the config error for an invalid enum value now names the issue code `invalid_value` instead of `invalid_enum_value`. Enum/literal values are still never echoed (all three redaction copies handle zod 4's `invalid_value`).

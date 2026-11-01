@@ -148,31 +148,41 @@ describe('admin API create', () => {
   });
 });
 
-describe('docker is refused by default', () => {
-  it('with the default allowlist, docker fails validation and discovery (allowlist is enforced at validate/spawn)', async () => {
+describe('TD-044: a non-allowlisted command[0] is refused at create/update (same allowlist as spawn)', () => {
+  const REASON = 'command not permitted on this server; see MCP_ALLOWED_COMMANDS';
+  it('default allowlist: docker draft create is 400, nothing stored, value not echoed; PATCH too', async () => {
     const prev = process.env['MCP_ALLOWED_COMMANDS'];
     delete process.env['MCP_ALLOWED_COMMANDS'];
     try {
-      const c = await post(bodyOf(['docker', 'run', '--rm', `${CANARY}/img`]));
+      const b = bodyOf(['docker', 'run', '--rm', `${CANARY}/img`]);
+      const c = await post(b);
+      expect(c.statusCode, c.body).toBe(400);
+      expect(c.body).toContain(REASON);
+      expect(c.body).not.toContain(CANARY);
+      expect(raw().prepare('SELECT 1 FROM mcp_catalog WHERE name=?').get(b.name)).toBeUndefined();
+
+      const ok = await post(bodyOf(['npx', '-y', 'pkg@1.2.3']));
+      expect(ok.statusCode, ok.body).toBe(201);
+      const id = JSON.parse(ok.body).data.mcp_id as string;
+      const r = await s.admin.inject({
+        method: 'PATCH',
+        url: `/v1/admin/mcps/${id}`,
+        headers: adm(),
+        payload: { config: { command: ['docker', 'run', `${CANARY}/img`] } } as never,
+      });
+      expect(r.statusCode, r.body).toBe(400);
+      expect(r.body).not.toContain(CANARY);
+    } finally {
+      if (prev !== undefined) process.env['MCP_ALLOWED_COMMANDS'] = prev;
+    }
+  });
+
+  it('opted in via MCP_ALLOWED_COMMANDS the same draft is accepted (never stricter than spawn)', async () => {
+    const prev = process.env['MCP_ALLOWED_COMMANDS'];
+    process.env['MCP_ALLOWED_COMMANDS'] = 'npx,node,docker';
+    try {
+      const c = await post(bodyOf(['docker', 'run', '--rm', 'img']));
       expect(c.statusCode, c.body).toBe(201);
-      const id = JSON.parse(c.body).data.mcp_id as string;
-      const v = await s.admin.inject({
-        method: 'POST',
-        url: `/v1/admin/mcps/${id}/validate`,
-        headers: adm(),
-      });
-      expect(v.body).not.toContain(CANARY);
-      expect(v.body, 'validate must report the command as not allowed').toMatch(
-        /not in the allowed command list|invalid|"valid":false|failed/i
-      );
-      expect(v.body).not.toMatch(/"validation_status":"valid"/);
-      const d = await s.admin.inject({
-        method: 'POST',
-        url: `/v1/admin/mcps/${id}/discover`,
-        headers: adm(),
-      });
-      expect(d.body).not.toContain(CANARY);
-      expect(d.body).not.toMatch(/"tool_count":[1-9]/);
     } finally {
       if (prev !== undefined) process.env['MCP_ALLOWED_COMMANDS'] = prev;
     }

@@ -44,7 +44,7 @@ describe('group tool policy admin API (ADR-025)', () => {
       name: 'gtp-mcp',
       display_name: 'GTP',
       transport_type: 'stdio',
-      config: { command: ['echo'] },
+      config: { command: ['node', 'fixture.mjs'] },
       isolation_mode: 'shared',
     });
     mcpId = mk.body.data.mcp_id;
