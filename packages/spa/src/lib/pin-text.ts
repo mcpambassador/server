@@ -30,10 +30,22 @@ export function codePointLength(text: string): number {
 
 export type DiffOp = { kind: 'same' | 'add' | 'del'; line: string };
 
-/** Line diff (LCS). Inputs are capped so a hostile 64 KB definition cannot stall the UI. */
-export function lineDiff(a: string, b: string, maxLines = 400): DiffOp[] {
-  const x = a.split('\n').slice(0, maxLines);
-  const y = b.split('\n').slice(0, maxLines);
+export const DIFF_MAX_LINES = 400;
+export const DIFF_LINE_MAX_CODEPOINTS = 600;
+
+export interface DiffResult {
+  ops: DiffOp[];
+  /** lines dropped from either side beyond the cap (0 = none) */
+  hiddenLines: number;
+}
+
+/** Line diff (LCS). Inputs are capped so a hostile 64 KB definition cannot stall the UI; callers must surface `hiddenLines`. */
+export function lineDiff(a: string, b: string, maxLines = DIFF_MAX_LINES): DiffResult {
+  const xa = a === '' ? [] : a.split('\n');
+  const ya = b === '' ? [] : b.split('\n');
+  const hiddenLines = Math.max(0, xa.length - maxLines) + Math.max(0, ya.length - maxLines);
+  const x = xa.slice(0, maxLines);
+  const y = ya.slice(0, maxLines);
   const dp: number[][] = Array.from({ length: x.length + 1 }, () =>
     new Array(y.length + 1).fill(0)
   );
@@ -42,21 +54,29 @@ export function lineDiff(a: string, b: string, maxLines = 400): DiffOp[] {
       dp[i]![j] = x[i] === y[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
     }
   }
-  const out: DiffOp[] = [];
+  const ops: DiffOp[] = [];
   let i = 0;
   let j = 0;
   while (i < x.length && j < y.length) {
     if (x[i] === y[j]) {
-      out.push({ kind: 'same', line: x[i]! });
+      ops.push({ kind: 'same', line: x[i]! });
       i++;
       j++;
     } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
-      out.push({ kind: 'del', line: x[i++]! });
+      ops.push({ kind: 'del', line: x[i++]! });
     } else {
-      out.push({ kind: 'add', line: y[j++]! });
+      ops.push({ kind: 'add', line: y[j++]! });
     }
   }
-  while (i < x.length) out.push({ kind: 'del', line: x[i++]! });
-  while (j < y.length) out.push({ kind: 'add', line: y[j++]! });
-  return out;
+  while (i < x.length) ops.push({ kind: 'del', line: x[i++]! });
+  while (j < y.length) ops.push({ kind: 'add', line: y[j++]! });
+  return { ops, hiddenLines };
+}
+
+/** True when any displayed diff line would be cut at DIFF_LINE_MAX_CODEPOINTS. */
+export function hasLongLine(ops: DiffOp[]): boolean {
+  return ops.some(
+    o =>
+      o.line.length > DIFF_LINE_MAX_CODEPOINTS && codePointLength(o.line) > DIFF_LINE_MAX_CODEPOINTS
+  );
 }

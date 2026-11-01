@@ -20,11 +20,14 @@ import {
 } from '@/api/hooks/use-tool-pins';
 import { NON_APPROVABLE_FLAGS } from '@/api/tool-pin-types';
 import type { ToolPinSummary, ToolDefinition } from '@/api/tool-pin-types';
+import type { DiffOp } from '@/lib/pin-text';
 import {
   visibleText,
   splitAtCodePoints,
   codePointLength,
   lineDiff,
+  hasLongLine,
+  DIFF_LINE_MAX_CODEPOINTS,
   AGENT_DESCRIPTION_CODEPOINTS,
 } from '@/lib/pin-text';
 
@@ -36,13 +39,12 @@ const FLAG_HELP: Record<string, string> = {
   long_description: 'Unusually long description',
   base64_blob: 'Contains a base64-like blob',
   markup: 'Contains markup or HTML-like text',
-  canonical_too_large: 'Definition exceeds the 64 KiB size cap (never approvable)',
+  canonical_too_large: 'Definition exceeds the 64 KiB size cap; not displayed, never approvable',
   baseline_mismatch: 'Differs from the pre-pinning catalog snapshot',
   reserved_name: 'Uses the reserved ambassador__ prefix (never approvable)',
   invalid_definition: 'Definition failed validation (never approvable)',
   truncated_on_serve: 'Description is longer than 500 code points; agents only see the first 500',
-  duplicate_name: 'Another MCP serves the same tool name; both are hidden',
-  oversize: 'Definition is too large to display (never approvable)',
+  duplicate_name: 'Another MCP serves the same tool name; both are hidden (never approvable)',
 };
 
 const MAX_BLOCK_CHARS = 2000;
@@ -83,21 +85,21 @@ function FlagBadges({ pin }: { pin: ToolPinSummary }) {
   );
 }
 
-function TextBlock({ text, tone }: { text: string; tone?: 'add' | 'del' }) {
+function TextBlock({
+  text,
+  testId,
+  onFull,
+}: {
+  text: string;
+  testId?: string;
+  onFull?: () => void;
+}) {
   const [full, setFull] = useState(false);
-  const long = text.length > MAX_BLOCK_CHARS;
-  const shown = long && !full ? text.slice(0, MAX_BLOCK_CHARS) : text;
-  const cls =
-    tone === 'add'
-      ? 'bg-green-500/10'
-      : tone === 'del'
-        ? 'bg-red-500/10'
-        : 'bg-zinc-100 dark:bg-zinc-800';
+  const long = codePointLength(text) > MAX_BLOCK_CHARS;
+  const shown = long && !full ? splitAtCodePoints(text, MAX_BLOCK_CHARS).head : text;
   return (
-    <div>
-      <pre
-        className={`max-h-80 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap break-words ${cls}`}
-      >
+    <div data-testid={testId}>
+      <pre className="max-h-80 overflow-auto rounded-md bg-zinc-100 p-2 font-mono text-xs break-words whitespace-pre-wrap dark:bg-zinc-800">
         {visibleText(shown)}
         {long && !full ? '…' : ''}
       </pre>
@@ -105,34 +107,56 @@ function TextBlock({ text, tone }: { text: string; tone?: 'add' | 'del' }) {
         <button
           type="button"
           className="mt-1 text-xs text-violet-600 underline dark:text-violet-400"
-          onClick={() => setFull(f => !f)}
+          onClick={() => {
+            setFull(f => !f);
+            if (!full) onFull?.();
+          }}
         >
-          {full ? 'Show less' : `Show all (${text.length.toLocaleString()} characters)`}
+          {full ? 'Show less' : `Show all (${codePointLength(text).toLocaleString()} characters)`}
         </button>
       )}
     </div>
   );
 }
 
-function Diff({ before, after }: { before: string; after: string }) {
-  const ops = useMemo(() => lineDiff(before, after), [before, after]);
+function Diff({ ops, hiddenLines }: { ops: DiffOp[]; hiddenLines: number }) {
   return (
-    <pre
-      data-testid="pin-diff"
-      className="max-h-96 overflow-auto rounded-md bg-zinc-100 p-2 font-mono text-xs break-words whitespace-pre-wrap dark:bg-zinc-800"
-    >
-      {ops.map((o, i) => (
-        <div
-          key={i}
-          className={
-            o.kind === 'add' ? 'bg-green-500/15' : o.kind === 'del' ? 'bg-red-500/15' : undefined
-          }
-        >
-          {o.kind === 'add' ? '+ ' : o.kind === 'del' ? '- ' : '  '}
-          {visibleText(o.line.length > 600 ? `${o.line.slice(0, 600)}…` : o.line)}
-        </div>
-      ))}
-    </pre>
+    <div>
+      <pre
+        data-testid="pin-diff"
+        className="max-h-96 overflow-auto rounded-md bg-zinc-100 p-2 font-mono text-xs break-words whitespace-pre-wrap dark:bg-zinc-800"
+      >
+        {ops.map((o, i) => {
+          const { head, tail } = splitAtCodePoints(o.line, DIFF_LINE_MAX_CODEPOINTS);
+          return (
+            <div
+              key={i}
+              className={
+                o.kind === 'add'
+                  ? 'bg-green-500/15'
+                  : o.kind === 'del'
+                    ? 'bg-red-500/15'
+                    : undefined
+              }
+            >
+              {o.kind === 'add' ? '+ ' : o.kind === 'del' ? '- ' : '  '}
+              {visibleText(head)}
+              {tail && (
+                <span className="font-sans font-bold text-red-600">
+                  {' '}
+                  [line truncated: {codePointLength(tail).toLocaleString()} more characters]
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {hiddenLines > 0 && (
+          <div className="font-sans font-bold text-red-600">
+            [diff truncated: {hiddenLines.toLocaleString()} more lines not shown]
+          </div>
+        )}
+      </pre>
+    </div>
   );
 }
 
@@ -150,7 +174,11 @@ function AgentVisible({ description }: { description: string }) {
         {visibleText(head)}
         <span className="font-sans font-bold text-red-600"> ✂ cut here — agents do not see: </span>
         <span className="opacity-50">
-          {visibleText(tail.length > MAX_BLOCK_CHARS ? `${tail.slice(0, MAX_BLOCK_CHARS)}…` : tail)}
+          {visibleText(
+            codePointLength(tail) > MAX_BLOCK_CHARS
+              ? `${splitAtCodePoints(tail, MAX_BLOCK_CHARS).head}…`
+              : tail
+          )}
         </span>
       </pre>
     </div>
@@ -172,11 +200,22 @@ function ReviewDialog({
   const confirm = useConfirmBaseline();
   const [allUsers, setAllUsers] = useState(false);
   const [reason, setReason] = useState('');
+  const [fullSeen, setFullSeen] = useState(false);
+  const approvedText = defToText(detail?.approved_definition ?? null);
+  const pendingText = defToText(detail?.pending_definition ?? null);
+  const diff = useMemo(() => lineDiff(approvedText, pendingText), [approvedText, pendingText]);
 
   if (!pin) return null;
   const codes: string[] = detail?.flags?.codes ?? pin.flags?.codes ?? [];
   const blocked = codes.some(c => NON_APPROVABLE_FLAGS.includes(c));
-  const oversize = codes.includes('oversize') || codes.includes('canonical_too_large');
+  const oversize = codes.includes('canonical_too_large');
+  const reviewText = mode === 'pending' ? pendingText : approvedText;
+  // Anything the diff cut off, or a long text still collapsed, must be read in full before approving.
+  const truncated =
+    !oversize &&
+    ((mode === 'pending' && (diff.hiddenLines > 0 || hasLongLine(diff.ops))) ||
+      codePointLength(reviewText) > MAX_BLOCK_CHARS);
+  const needsFull = truncated && !fullSeen;
   const busy = approve.isPending || reject.isPending || confirm.isPending;
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
@@ -224,10 +263,9 @@ function ReviewDialog({
                 ? 'Changes since the approved definition'
                 : 'New tool (no approved definition)'}
             </Text>
-            <Diff
-              before={defToText(detail.approved_definition)}
-              after={defToText(detail.pending_definition)}
-            />
+            <Diff ops={diff.ops} hiddenLines={diff.hiddenLines} />
+            <Text className="font-medium">Full pending definition</Text>
+            <TextBlock text={pendingText} testId="pin-full" onFull={() => setFullSeen(true)} />
           </>
         )}
         {detail && !oversize && mode === 'baseline' && (
@@ -235,7 +273,7 @@ function ReviewDialog({
             <Text className="font-medium">
               Approved by the one-time migration baseline; never reviewed by a person.
             </Text>
-            <TextBlock text={defToText(detail.approved_definition)} />
+            <TextBlock text={approvedText} testId="pin-full" onFull={() => setFullSeen(true)} />
           </>
         )}
         {detail && !oversize && description && <AgentVisible description={description} />}
@@ -255,6 +293,12 @@ function ReviewDialog({
               rows={2}
             />
           </Field>
+        )}
+        {needsFull && (
+          <Text data-testid="truncation-warning" className="font-medium text-amber-600">
+            Part of this definition is hidden above. Open &quot;Show all&quot; on the full text
+            before approving.
+          </Text>
         )}
         {blocked && (
           <Text className="text-red-600">This definition is never approvable. Reject it only.</Text>
@@ -285,7 +329,7 @@ function ReviewDialog({
             </Button>
             <Button
               color="green"
-              disabled={busy || blocked || !pendingHash || !detail}
+              disabled={busy || blocked || needsFull || !pendingHash || !detail}
               onClick={() =>
                 run(
                   () =>
@@ -305,7 +349,7 @@ function ReviewDialog({
         ) : (
           <Button
             color="green"
-            disabled={busy || blocked || !approvedHash || !detail}
+            disabled={busy || blocked || needsFull || !approvedHash || !detail}
             onClick={() =>
               run(
                 () => confirm.mutateAsync({ pinId: pin.pin_id, expected_hash: approvedHash! }),

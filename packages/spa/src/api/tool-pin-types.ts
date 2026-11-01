@@ -19,10 +19,13 @@ export type {
   PinPolicy,
 };
 
-/** Never approvable (server answers 409). Mirrors TOOL_PIN_BLOCKING_FLAG_CODES; `oversize` is the pending ADR-021 name. */
-export const NON_APPROVABLE_FLAGS = [
+/**
+ * Never approvable (server answers 409). Superset of the contract's TOOL_PIN_BLOCKING_FLAG_CODES
+ * (a test keeps them in sync); canonical_too_large and duplicate_name are blocking too.
+ */
+export const NON_APPROVABLE_FLAGS: readonly string[] = [
   'reserved_name',
   'invalid_definition',
-  'oversize',
   'canonical_too_large',
+  'duplicate_name',
 ];

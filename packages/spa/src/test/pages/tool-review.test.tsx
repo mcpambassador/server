@@ -8,6 +8,8 @@ import { server } from '../mocks/server';
 import { ToolReview } from '../../pages/admin/ToolReview';
 import { PinPolicyCard } from '../../components/admin/PinPolicyCard';
 import { visibleText, splitAtCodePoints, lineDiff } from '../../lib/pin-text';
+import { NON_APPROVABLE_FLAGS } from '../../api/tool-pin-types';
+import { TOOL_PIN_BLOCKING_FLAG_CODES } from '@mcpambassador/contracts';
 
 const H1 = 'a'.repeat(64);
 const H2 = 'b'.repeat(64);
@@ -90,7 +92,13 @@ describe('pin-text helpers', () => {
     expect(tail).toBe('😀');
   });
   it('diffs by line', () => {
-    expect(lineDiff('a\nb', 'a\nc').map(o => o.kind)).toEqual(['same', 'del', 'add']);
+    expect(lineDiff('a\nb', 'a\nc').ops.map(o => o.kind)).toEqual(['same', 'del', 'add']);
+  });
+});
+
+describe('blocking flags', () => {
+  it('covers every contract blocking code', () => {
+    for (const c of TOOL_PIN_BLOCKING_FLAG_CODES) expect(NON_APPROVABLE_FLAGS).toContain(c);
   });
 });
 
@@ -237,8 +245,51 @@ describe('ToolReview', () => {
   });
 });
 
+describe('ToolReview truncation', () => {
+  it('keeps Approve disabled until a long definition is expanded; hidden text is reachable', async () => {
+    const user = userEvent.setup();
+    const desc = 'y'.repeat(1500) + 'INJECT-MARKER' + 'z'.repeat(487);
+    const posts = setup({
+      pending: [pin()],
+      detail: {
+        ...pin(),
+        approved_definition: null,
+        pending_definition: { name: 'create_issue', description: desc },
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    await screen.findByTestId('pin-diff');
+    expect(screen.getByTestId('pin-diff').textContent).toContain('[line truncated');
+    expect(screen.getByTestId('pin-diff').textContent).not.toContain('INJECT-MARKER');
+    expect(screen.getByTestId('truncation-warning')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /Show all/ }));
+    expect(screen.getByTestId('pin-full').textContent).toContain('INJECT-MARKER');
+    expect(screen.queryByTestId('truncation-warning')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+  });
+
+  it('marks a diff cut at 400 lines', async () => {
+    const user = userEvent.setup();
+    const schema = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`k${i}`, i]));
+    setup({
+      pending: [pin()],
+      detail: {
+        ...pin(),
+        approved_definition: null,
+        pending_definition: { name: 'create_issue', inputSchema: schema },
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    await screen.findByTestId('pin-diff');
+    expect(screen.getByTestId('pin-diff').textContent).toContain('[diff truncated:');
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+  });
+});
+
 describe('PinPolicyCard', () => {
-  function renderCard(policy?: 'review' | 'auto') {
+  function renderCard(policy?: 'review' | 'auto', origin: string = 'custom') {
     const patches: unknown[] = [];
     server.use(
       http.patch('/v1/admin/mcps/m1/pin-policy', async ({ request }) => {
@@ -249,7 +300,7 @@ describe('PinPolicyCard', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>
-        <PinPolicyCard mcpId="m1" policy={policy} />
+        <PinPolicyCard mcpId="m1" policy={policy} origin={origin} />
       </QueryClientProvider>
     );
     return patches;
@@ -260,12 +311,16 @@ describe('PinPolicyCard', () => {
     const patches = renderCard();
     expect(screen.getByTestId('pin-policy-badge')).toHaveTextContent('review');
     await user.click(screen.getByRole('button', { name: 'Switch to auto' }));
-    expect(
-      within(await screen.findByRole('dialog')).getByText(/without any review/)
-    ).toBeInTheDocument();
+    expect(within(await screen.findByRole('dialog')).getByText(/unseen/)).toBeInTheDocument();
     expect(patches).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Use auto' }));
     await waitFor(() => expect(patches).toEqual([{ pin_policy: 'auto' }]));
+  });
+
+  it('hides auto for registry MCPs', () => {
+    renderCard('review', 'registry');
+    expect(screen.queryByRole('button', { name: 'Switch to auto' })).toBeNull();
+    expect(screen.getByTestId('auto-unavailable')).toBeInTheDocument();
   });
 
   it('switches back to review without a prompt', async () => {

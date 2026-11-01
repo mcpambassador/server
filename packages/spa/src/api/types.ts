@@ -208,6 +208,8 @@ export interface McpCatalogEntry {
   tool_count?: number;
   /** ADR-021; absent until the server exposes it on GET /v1/admin/mcps/:id (treated as 'review') */
   pin_policy?: 'review' | 'auto';
+  /** Where the MCP came from; pin_policy 'auto' is only allowed for 'custom' */
+  origin?: 'custom' | 'registry' | 'import' | 'unknown';
   validation_result?: Record<string, unknown>;
   last_validated_at?: string;
   created_at: string;
