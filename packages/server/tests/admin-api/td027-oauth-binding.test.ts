@@ -27,6 +27,12 @@ const body = (over: Record<string, string>) => ({
 
 async function app() {
   const f = Fastify();
+  // mirror the app's mapping of schema (zod) failures to 400 VALIDATION_ERROR
+  f.setErrorHandler((err, _req, reply) =>
+    reply
+      .status(err.name === 'ZodError' ? 400 : 500)
+      .send({ error: { code: err.name === 'ZodError' ? 'VALIDATION_ERROR' : 'INTERNAL' } })
+  );
   await f.register(registerAdminMcpRoutes, {
     db: {} as never,
     audit: {} as never,
@@ -39,6 +45,12 @@ describe('admin MCP oauth_config secret binding (TD-027)', () => {
   it.each([
     ['create wrong host', 'POST', '/v1/admin/mcps', { token_url: 'https://evil.example/t' }],
     ['create REGISTRY_TOKEN', 'POST', '/v1/admin/mcps', { client_secret_env: 'REGISTRY_TOKEN' }],
+    [
+      'create client_id_env DATABASE_URL',
+      'POST',
+      '/v1/admin/mcps',
+      { client_id_env: 'DATABASE_URL' },
+    ],
     [
       'update wrong host',
       'PATCH',
