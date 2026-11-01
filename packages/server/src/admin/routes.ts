@@ -31,6 +31,7 @@ import { registerAdminGroupRoutes } from './group-routes.js';
 import type { SecretStore } from '../services/secret-store.js';
 import { registerAdminMcpRoutes } from './mcp-routes.js';
 import { registerAdminCatalogReloadRoutes } from './catalog-reload-routes.js';
+import { CatalogReloader } from '../services/catalog-reloader.js';
 import { registerAdminUserMcpRoutes } from './user-mcp-routes.js';
 import { registerAdminRegistryRoutes } from './registry-routes.js';
 import type { RegistryService } from '../services/registry-service.js';
@@ -214,7 +215,9 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   fastify.register(registerAdminGroupRoutes, { db, audit });
 
   // MCP catalog management (7 endpoints)
-  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore });
+  // One shared reloader so the reload mutex covers publish/archive auto-apply and manual apply.
+  const catalogReloader = userPool ? new CatalogReloader(db, mcpManager, userPool) : undefined;
+  fastify.register(registerAdminMcpRoutes, { db, audit, secretStore, catalogReloader });
 
   // Community registry (4 endpoints)
   if (registryService) {
@@ -226,6 +229,7 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     db,
     mcpManager,
     userPool,
+    reloader: catalogReloader,
   });
 
   done();
