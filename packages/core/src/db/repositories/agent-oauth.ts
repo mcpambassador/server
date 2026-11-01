@@ -439,6 +439,39 @@ export async function markRefreshTokenUsed(
     return true;
   });
 }
+/** Grant ids (from the given set) that still have a live, unused refresh token */
+export async function listGrantIdsWithLiveRefresh(
+  db: DatabaseClient,
+  grantIds: string[]
+): Promise<Set<string>> {
+  if (grantIds.length === 0) return new Set();
+  const rows = (await compatSelect(db, { g: agent_tokens.grant_id })
+    .from(agent_tokens)
+    .where(
+      and(
+        inArray(agent_tokens.grant_id, grantIds),
+        eq(agent_tokens.kind, 'refresh'),
+        isNull(agent_tokens.used_at),
+        isNull(agent_tokens.revoked_at),
+        gt(agent_tokens.expires_at, now())
+      )
+    )) as { g: string }[];
+  return new Set(rows.map(r => r.g));
+}
+/** Revokes a single token (keeps the row so verification can report `revoked`) */
+export async function revokeSingleToken(db: DatabaseClient, tokenHash: string): Promise<void> {
+  await compatUpdate(db, agent_tokens)
+    .set({ revoked_at: now() })
+    .where(and(eq(agent_tokens.token_hash, tokenHash), isNull(agent_tokens.revoked_at)));
+}
+/** Lists all agent grants (admin), newest first */
+export async function listAllAgentGrants(db: DatabaseClient): Promise<AgentGrantRecord[]> {
+  const rows = await compatSelect(db).from(agent_grants);
+  return (rows as any[]).map(toGrant).sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+export async function deleteOAuthClient(db: DatabaseClient, clientId: string): Promise<void> {
+  await compatDelete(db, oauth_clients).where(eq(oauth_clients.client_id, clientId));
+}
 export async function revokeTokenFamily(db: DatabaseClient, familyId: string): Promise<void> {
   await compatUpdate(db, agent_tokens)
     .set({ revoked_at: now() })
