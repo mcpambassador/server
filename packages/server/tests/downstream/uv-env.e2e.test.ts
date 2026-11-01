@@ -6,7 +6,7 @@ import type { DownstreamMcpConfig, UserMcpCredentials } from '../../src/downstre
 
 // Spawn-path check for the runtime-uv image settings: a REAL UserMcpPool spawns a REAL stdio child
 // (tests/fixtures/env-probe-mcp.mjs, which reports only presence/match, never values) and the child
-// must see the server-controlled UV_* values, even if the MCP config tries to override them.
+// must see the server-controlled UV_*/NPM_CONFIG_CACHE values, even if the MCP config tries to override them.
 
 const FIXTURE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -17,7 +17,7 @@ const SERVER_UV = {
   UV_PYTHON_DOWNLOADS: 'never',
   UV_PYTHON: '/usr/bin/python3',
   UV_CACHE_DIR: '/tmp/.uv-cache',
-  UV_TOOL_DIR: '/tmp/.uv-tools',
+  NPM_CONFIG_CACHE: '/tmp/.npm-cache',
 };
 const KEYS = Object.keys(SERVER_UV);
 const saved: Record<string, string | undefined> = {};
