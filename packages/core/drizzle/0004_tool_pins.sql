@@ -12,6 +12,7 @@ CREATE TABLE `tool_pins` (
 	`pending_hash` text,
 	`pending_definition` text,
 	`rejected_hash` text,
+	`revoked_hashes` text,
 	`flags` text,
 	`absent` integer DEFAULT 0 NOT NULL,
 	`first_seen_at` text NOT NULL,

@@ -206,6 +206,7 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
             : true
       )
       .filter(r => (q.scope_user_id ? r.scope_user_id === q.scope_user_id : true))
+      .filter(r => (q.serving === 'true' ? r.approved_hash !== null : true))
       .filter(r =>
         q.baseline === 'unreviewed'
           ? r.approved_by === SYSTEM_MIGRATION_ACTOR && r.approved_hash !== null

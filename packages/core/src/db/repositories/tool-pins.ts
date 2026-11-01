@@ -23,6 +23,8 @@ export interface ToolPinRecord {
   pending_hash: string | null;
   pending_definition: string | null;
   rejected_hash: string | null;
+  /** JSON array of hashes withdrawn by an admin revoke; never re-raised or auto-approved */
+  revoked_hashes: string | null;
   /** JSON string of ToolPinFlags, or null */
   flags: string | null;
   absent: boolean;
@@ -44,6 +46,7 @@ function toRecord(r: any): ToolPinRecord {
     pending_hash: r.pending_hash ?? null,
     pending_definition: r.pending_definition ?? null,
     rejected_hash: r.rejected_hash ?? null,
+    revoked_hashes: r.revoked_hashes ?? null,
     flags: r.flags ?? null,
     absent: Boolean(r.absent),
     first_seen_at: r.first_seen_at,

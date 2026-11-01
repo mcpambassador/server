@@ -76,7 +76,7 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
   });
 
   describe('G1 revoke', () => {
-    it('hides the tool at once, records the old hash as rejected, does not re-raise it, and a new hash goes pending', async () => {
+    it('hides the tool at once, records the old hash as revoked, does not re-raise it, and a new hash goes pending', async () => {
       const id = await mk('m');
       const pin = await approvedShared(id);
       const old = pin.approved_hash!;
@@ -89,7 +89,8 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
         status: 'rejected',
         approved_hash: null,
         approved_definition: null,
-        rejected_hash: old,
+        rejected_hash: null,
+        revoked_hashes: JSON.stringify([old]),
       });
       expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
       const ev = audits.find(a => a.action === 'tool_pin_revoked')!;
@@ -114,6 +115,84 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
       });
       expect(pins.getPin(id, null, 'a')!.status).toBe('pending_review');
       expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+    });
+
+    it('revoking a pin in pending_review keeps the pending item, hides the tool, and approving it serves it', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      const old = pin.approved_hash!;
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A2')],
+        policy: 'review',
+      });
+      const queued = pins.getPin(id, null, 'a')!;
+      expect(queued.status).toBe('pending_review');
+      expect(queued.approved_hash).toBe(old);
+      const r = await pins.revoke(pin.pin_id, { expectedHash: old, actor: 'x' });
+      expect(r.ok).toBe(true);
+      const after = pins.getPin(id, null, 'a')!;
+      expect(after).toMatchObject({ status: 'pending_review', approved_hash: null });
+      expect(after.pending_hash).toBe(queued.pending_hash);
+      expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+      const ap = await pins.approve(pin.pin_id, {
+        expectedHash: after.pending_hash!,
+        actor: 'x',
+      } as never);
+      expect(ap.ok).toBe(true);
+      expect(pins.resolveApproved(id, null, 'a')).toBeDefined();
+      // the revoked hash stays blocked
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A')],
+        policy: 'auto',
+      });
+      expect(pins.getPin(id, null, 'a')!.pending_hash).toBeNull();
+      expect(pins.getPin(id, null, 'a')!.status).toBe('approved');
+    });
+
+    it('revokes a rejected-status pin that still has approved_hash, keeping its rejected_hash', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      const old = pin.approved_hash!;
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A2')],
+        policy: 'review',
+      });
+      const q = pins.getPin(id, null, 'a')!;
+      await pins.reject(pin.pin_id, { expectedHash: q.pending_hash!, actor: 'x' });
+      const rej = pins.getPin(id, null, 'a')!;
+      expect(rej).toMatchObject({ status: 'rejected', approved_hash: old });
+      expect((await pins.revoke(pin.pin_id, { expectedHash: old, actor: 'x' })).ok).toBe(true);
+      const after = pins.getPin(id, null, 'a')!;
+      expect(after).toMatchObject({
+        status: 'rejected',
+        approved_hash: null,
+        rejected_hash: q.pending_hash,
+        revoked_hashes: JSON.stringify([old]),
+      });
+      expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+    });
+
+    it('revoke of a pin with no approved_hash is 409 not_approved', async () => {
+      const id = await mk('m');
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A')],
+        policy: 'review',
+      });
+      const p = pins.getPin(id, null, 'a')!;
+      expect(
+        await pins.revoke(p.pin_id, { expectedHash: p.pending_hash!, actor: 'x' })
+      ).toMatchObject({
+        ok: false,
+        code: 'not_approved',
+      });
     });
 
     it('stale hash and unapproved pins are refused', async () => {
@@ -348,6 +427,31 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
     });
     afterEach(async () => {
       await app.close();
+    });
+
+    it('GET ?serving=true returns pins with approved_hash in any status; status=approved does not', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A2')],
+        policy: 'review',
+      });
+      const q = pins.getPin(id, null, 'a')!;
+      await pins.reject(pin.pin_id, { expectedHash: q.pending_hash!, actor: 'x' });
+      expect(pins.getPin(id, null, 'a')).toMatchObject({ status: 'rejected' });
+      const serving = await app.inject({ method: 'GET', url: '/v1/admin/tool-pins?serving=true' });
+      expect(serving.statusCode).toBe(200);
+      expect(serving.json().data.map((p: { tool_name: string }) => p.tool_name)).toEqual(['a']);
+      const approved = await app.inject({
+        method: 'GET',
+        url: '/v1/admin/tool-pins?status=approved',
+      });
+      expect(approved.json().data).toHaveLength(0);
+      await pins.revoke(pin.pin_id, { expectedHash: pin.approved_hash!, actor: 'x' });
+      const after = await app.inject({ method: 'GET', url: '/v1/admin/tool-pins?serving=true' });
+      expect(after.json().data).toHaveLength(0);
     });
 
     it('POST /revoke: 200 on match, 409 on stale/not approved, 404 unknown', async () => {

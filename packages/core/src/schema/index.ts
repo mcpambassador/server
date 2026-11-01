@@ -840,6 +840,7 @@ export const tool_pins = sqliteTable(
     pending_hash: text('pending_hash'),
     pending_definition: text('pending_definition'),
     rejected_hash: text('rejected_hash'),
+    revoked_hashes: text('revoked_hashes'),
     flags: text('flags'),
     absent: integer('absent', { mode: 'boolean' }).notNull().default(false),
     first_seen_at: text('first_seen_at').notNull(),
