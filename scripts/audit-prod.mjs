@@ -6,9 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const TRACKED = {
-  'GHSA-mrhx-c7xc-m3w5': { td: 'TD-020', pkg: 'zod', reviewBy: '2026-12-31' },
-};
+export const TRACKED = {};
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
 
