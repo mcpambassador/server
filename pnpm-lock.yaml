@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  hono: ^4.12.10
+  hono: ^4.12.25
   '@hono/node-server': ^1.19.10
   rollup: ^4.59.0
   picomatch: ^4.0.4
@@ -2074,21 +2074,21 @@ packages:
       react: 19.2.4
     dev: false
 
-  /@hono/node-server@1.19.12(hono@4.12.10):
+  /@hono/node-server@1.19.12(hono@4.13.16):
     resolution: {integrity: sha512-txsUW4SQ1iilgE0l9/e9VQWmELXifEFvmdA1j6WFh/aFPj99hIntrSsq/if0UWyGVkmrRPKA1wCeP+UCr1B9Uw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: ^4.12.10
+      hono: ^4.12.25
     dependencies:
-      hono: 4.12.10
+      hono: 4.13.16
 
-  /@hono/zod-validator@0.2.2(hono@4.12.10)(zod@3.25.76):
+  /@hono/zod-validator@0.2.2(hono@4.13.16)(zod@3.25.76):
     resolution: {integrity: sha512-dSDxaPV70Py8wuIU2QNpoVEIOSzSXZ/6/B/h4xA7eOMz7+AarKTSGV8E6QwrdcCbBLkpqfJ4Q2TmBO0eP1tCBQ==}
     peerDependencies:
-      hono: ^4.12.10
+      hono: ^4.12.25
       zod: ^3.19.1
     dependencies:
-      hono: 4.12.10
+      hono: 4.13.16
       zod: 3.25.76
     dev: true
 
@@ -2230,7 +2230,7 @@ packages:
       '@cfworker/json-schema':
         optional: true
     dependencies:
-      '@hono/node-server': 1.19.12(hono@4.12.10)
+      '@hono/node-server': 1.19.12(hono@4.13.16)
       ajv: 8.18.0
       ajv-formats: 3.0.1(ajv@8.18.0)
       content-type: 1.0.5
@@ -2240,7 +2240,7 @@ packages:
       eventsource-parser: 3.1.1
       express: 5.3.0
       express-rate-limit: 8.7.2(express@5.3.0)
-      hono: 4.12.10
+      hono: 4.13.16
       jose: 6.2.14
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -3851,8 +3851,8 @@ packages:
     hasBin: true
     dependencies:
       '@esbuild-kit/esm-loader': 2.6.5
-      '@hono/node-server': 1.19.12(hono@4.12.10)
-      '@hono/zod-validator': 0.2.2(hono@4.12.10)(zod@3.25.76)
+      '@hono/node-server': 1.19.12(hono@4.13.16)
+      '@hono/zod-validator': 0.2.2(hono@4.13.16)(zod@3.25.76)
       camelcase: 7.0.1
       chalk: 5.6.2
       commander: 9.5.0
@@ -3861,7 +3861,7 @@ packages:
       esbuild-register: 3.6.0(esbuild@0.19.12)
       glob: 8.1.0
       hanji: 0.0.5
-      hono: 4.12.10
+      hono: 4.13.16
       json-diff: 0.9.0
       minimatch: 9.0.9
       semver: 7.7.4
@@ -4958,8 +4958,8 @@ packages:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
     dev: false
 
-  /hono@4.12.10:
-    resolution: {integrity: sha512-mx/p18PLy5og9ufies2GOSUqep98Td9q4i/EF6X7yJgAiIopxqdfIO3jbqsi3jRgTgw88jMDEzVKi+V2EF+27w==}
+  /hono@4.13.16:
+    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
     engines: {node: '>=16.9.0'}
 
   /html-encoding-sniffer@6.0.0:
