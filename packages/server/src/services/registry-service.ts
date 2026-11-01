@@ -284,11 +284,15 @@ export class RegistryService {
       };
     }
     const oc = r.data.oauth_config;
-    if (oc?.client_secret_env && oc.token_url) {
+    if (oc?.client_secret_env) {
       // Static rules first, independent of what is configured, so there is no presence oracle:
       // a name outside SUPPORTED_OAUTH_CLIENT_SECRETS (REGISTRY_TOKEN, anything server-internal) or
       // a token/revocation URL that is not https on an allowed host is INVALID, never listed.
-      if (!isSupportedSecretBinding(oc.client_secret_env, [oc.token_url, oc.revocation_url])) {
+      // A named secret with no token_url cannot be bound to a host, so it is INVALID too.
+      if (
+        !oc.token_url ||
+        !isSupportedSecretBinding(oc.client_secret_env, [oc.token_url, oc.revocation_url])
+      ) {
         return { status: 'invalid', reason: 'oauth_config: secret binding rejected' };
       }
       // UNAVAILABLE (TD-035): a supported, correctly bound secret that is simply not configured.
@@ -459,6 +463,9 @@ export class RegistryService {
         }
         const oc = parsed.data;
         safeOauthConfig = oc;
+        if (oc.client_secret_env && !oc.token_url) {
+          throw new OAuthConfigError('client_secret_env requires a token_url');
+        }
         if (oc.client_secret_env && oc.token_url) {
           this.secretStore.assertOAuthConfig({
             client_secret_env: oc.client_secret_env,

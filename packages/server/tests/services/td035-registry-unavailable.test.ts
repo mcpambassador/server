@@ -36,6 +36,11 @@ const doc = JSON.stringify({
     entry('http-url', gh({ token_url: 'http://github.com/login/oauth/access_token' })),
     entry('reserved-secret', gh({ client_secret_env: 'REGISTRY_TOKEN' })),
     entry('unknown-secret', gh({ client_secret_env: 'SOME_OTHER_CLIENT_SECRET' })),
+    entry(
+      'no-token-url',
+      (({ token_url: _t, ...rest }) => rest)(gh({ client_secret_env: 'REGISTRY_TOKEN' }))
+    ),
+    entry('no-token-url-gh', (({ token_url: _t, ...rest }) => rest)(gh())),
     entry('bad-revocation', gh({ revocation_url: 'https://evil.example/revoke' })),
   ],
 });
@@ -75,6 +80,8 @@ describe('registry unavailable vs invalid (TD-035)', () => {
       'wrong-host',
       'reserved-secret',
       'unknown-secret',
+      'no-token-url',
+      'no-token-url-gh',
       'bad-revocation',
     ]) {
       expect(byName[bad]).toBeUndefined();
