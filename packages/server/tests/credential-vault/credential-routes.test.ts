@@ -30,7 +30,7 @@ describe('Credential Routes', () => {
     server = await startTestServer();
 
     // Create test user via admin API (ensures proper password hashing)
-    const createUserRes = await server.fastify.inject({
+    const createUserRes = await server.admin.inject({
       method: 'POST',
       url: '/v1/admin/users',
       headers: { 'X-Admin-Key': server.adminKey },
@@ -102,7 +102,7 @@ describe('Credential Routes', () => {
     });
 
     // Login to get session cookie
-    const loginRes = await server.fastify.inject({
+    const loginRes = await server.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: {
@@ -123,7 +123,7 @@ describe('Credential Routes', () => {
 
   describe('PUT /v1/users/me/credentials/:mcpId', () => {
     it('should set credentials for an MCP that requires credentials', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'PUT',
         url: `/v1/users/me/credentials/${testMcpId}`,
         headers: { Cookie: sessionCookie },
@@ -143,7 +143,7 @@ describe('Credential Routes', () => {
     });
 
     it('should return 400 if MCP does not require credentials', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'PUT',
         url: `/v1/users/me/credentials/${noCrMcpId}`,
         headers: { Cookie: sessionCookie },
@@ -162,7 +162,7 @@ describe('Credential Routes', () => {
     it('should return 404 if MCP does not exist', async () => {
       const fakeMcpId = crypto.randomUUID();
 
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'PUT',
         url: `/v1/users/me/credentials/${fakeMcpId}`,
         headers: { Cookie: sessionCookie },
@@ -177,7 +177,7 @@ describe('Credential Routes', () => {
     });
 
     it('should return 400 if required credential fields are missing', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'PUT',
         url: `/v1/users/me/credentials/${testMcpId}`,
         headers: { Cookie: sessionCookie },
@@ -196,7 +196,7 @@ describe('Credential Routes', () => {
 
     it('should generate vault_salt if user does not have one', async () => {
       // Create a user via admin API
-      const noSaltUserRes = await server.fastify.inject({
+      const noSaltUserRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/admin/users',
         headers: { 'X-Admin-Key': server.adminKey },
@@ -217,7 +217,7 @@ describe('Credential Routes', () => {
       expect(userFromDb?.vault_salt).toBeNull();
 
       // Login as this user
-      const noSaltLoginRes = await server.fastify.inject({
+      const noSaltLoginRes = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -231,7 +231,7 @@ describe('Credential Routes', () => {
       expect(noSaltCookie).toBeDefined();
 
       // Set credentials - this should generate vault_salt
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'PUT',
         url: `/v1/users/me/credentials/${testMcpId}`,
         headers: { Cookie: noSaltCookie! },
@@ -256,7 +256,7 @@ describe('Credential Routes', () => {
 
   describe('GET /v1/users/me/credentials', () => {
     it('should return credential status for all MCPs that require credentials', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/credentials',
         headers: { Cookie: sessionCookie },
@@ -274,7 +274,7 @@ describe('Credential Routes', () => {
     });
 
     it('should never return actual credential values', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/credentials',
         headers: { Cookie: sessionCookie },
@@ -294,7 +294,7 @@ describe('Credential Routes', () => {
 
   describe('DELETE /v1/users/me/credentials/:mcpId', () => {
     it('should delete credentials for an MCP', async () => {
-      const res = await server.fastify.inject({
+      const res = await server.admin.inject({
         method: 'DELETE',
         url: `/v1/users/me/credentials/${testMcpId}`,
         headers: { Cookie: sessionCookie },
@@ -303,7 +303,7 @@ describe('Credential Routes', () => {
       expect(res.statusCode).toBe(200);
 
       // Verify credentials are deleted - check the count or that MCP is no longer in list
-      const listRes = await server.fastify.inject({
+      const listRes = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me/credentials',
         headers: { Cookie: sessionCookie },

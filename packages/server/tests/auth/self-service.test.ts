@@ -28,7 +28,7 @@ describe('Self-Service Routes', () => {
     userId = user.user_id;
 
     // Login to get session cookie
-    const loginResponse = await server.fastify.inject({
+    const loginResponse = await server.admin.inject({
       method: 'POST',
       url: '/v1/auth/login',
       payload: {
@@ -46,7 +46,7 @@ describe('Self-Service Routes', () => {
 
   describe('GET /v1/users/me', () => {
     it('should return current user profile', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me',
         headers: {
@@ -64,7 +64,7 @@ describe('Self-Service Routes', () => {
     });
 
     it('should reject unauthenticated request', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'GET',
         url: '/v1/users/me',
       });
@@ -78,7 +78,7 @@ describe('Self-Service Routes', () => {
 
   describe('PATCH /v1/users/me/password', () => {
     it('should change password with correct current password', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         headers: {
@@ -97,7 +97,7 @@ describe('Self-Service Routes', () => {
     });
 
     it('should reject incorrect current password', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         headers: {
@@ -117,7 +117,7 @@ describe('Self-Service Routes', () => {
 
     it('should reject invalid new password', async () => {
       // Need to login again with new password first
-      const loginResponse = await server.fastify.inject({
+      const loginResponse = await server.admin.inject({
         method: 'POST',
         url: '/v1/auth/login',
         payload: {
@@ -128,7 +128,7 @@ describe('Self-Service Routes', () => {
 
       const newCookies = loginResponse.headers['set-cookie'] as string | string[];
 
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         headers: {
@@ -147,7 +147,7 @@ describe('Self-Service Routes', () => {
     });
 
     it('should reject unauthenticated request', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         payload: {
@@ -160,7 +160,7 @@ describe('Self-Service Routes', () => {
     });
 
     it('should reject missing fields', async () => {
-      const response = await server.fastify.inject({
+      const response = await server.admin.inject({
         method: 'PATCH',
         url: '/v1/users/me/password',
         headers: {
