@@ -45,7 +45,7 @@ export function policiesPermitTool(
   return policies.some(p => policyPermitsTool(p, toolName));
 }
 
-/** True when every policy is 'all' — the caller can skip filtering (default parity fast path). */
+/** True when ANY policy is 'all' (union semantics): nothing needs filtering, the caller can skip it (default parity fast path). */
 export function policiesUnrestricted(
   policies: readonly Pick<GroupToolPolicy, 'tool_mode'>[]
 ): boolean {

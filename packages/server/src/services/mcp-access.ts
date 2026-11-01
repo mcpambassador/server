@@ -11,7 +11,6 @@ import {
   compatSelect,
   getGroupToolPolicies,
   groups,
-  mcp_group_access,
   policiesPermitTool,
   policiesUnrestricted,
   user_groups,
@@ -24,14 +23,8 @@ export async function grantedMcpIdsForUser(
   db: DatabaseClient,
   userId: string
 ): Promise<Set<string>> {
-  const rows = (await compatSelect(db, { mcp_id: mcp_group_access.mcp_id })
-    .from(mcp_group_access)
-    .innerJoin(user_groups, eq(user_groups.group_id, mcp_group_access.group_id))
-    .innerJoin(groups, eq(groups.group_id, mcp_group_access.group_id))
-    .where(and(eq(user_groups.user_id, userId), eq(groups.status, 'active')))) as {
-    mcp_id: string;
-  }[];
-  return new Set(rows.map(r => r.mcp_id));
+  // One source of truth: the same resolver the per-tool policy uses.
+  return (await toolAccessForUser(db, userId)).granted;
 }
 
 /** True when the user is granted this MCP through at least one group. */
