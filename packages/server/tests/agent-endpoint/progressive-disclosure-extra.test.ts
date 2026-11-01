@@ -120,3 +120,24 @@ describe('meta-tools are callable from a full-mode grant too', () => {
     expect(text(await call(full, SEARCH, { query: 'xlong' }))).toContain('xlong');
   });
 });
+
+describe('N1/N2 search hardening', () => {
+  it('N2: the response cap counts UTF-8 bytes, not UTF-16 units', async () => {
+    const { capResponse } = await import('../../src/services/agent-endpoint/meta-tools.js');
+    // 4-byte emoji: 2 UTF-16 units but 4 bytes each. 200 emoji ≈ 800 bytes/hit.
+    const hit = { name: 'n', mcp: 'm', summary: '\u{1F600}'.repeat(200) };
+    const hits = Array.from({ length: 200 }, () => hit);
+    const out = capResponse({ tools: hits }).tools;
+    expect(out.length).toBeLessThan(hits.length);
+    expect(Buffer.byteLength(JSON.stringify({ tools: out }), 'utf8')).toBeLessThanOrEqual(
+      64 * 1024
+    );
+  });
+
+  it('N1: a tool whose sanitized name differs from its real name is never offered', async () => {
+    const { searchHitName } = await import('../../src/services/agent-endpoint/meta-tools.js');
+    expect(searchHitName('plain_tool')).toBe('plain_tool');
+    expect(searchHitName('zero​width')).toBeNull();
+    expect(searchHitName('ctl\u0007name')).toBeNull();
+  });
+});

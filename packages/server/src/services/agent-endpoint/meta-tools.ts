@@ -194,7 +194,12 @@ function matches(tool: ToolDescriptor, qTokens: string[]): boolean {
 const hashOf = (s: string): string =>
   createHash('sha256').update(s, 'utf8').digest('hex').slice(0, 16);
 
-function capResponse(obj: { tools: ToolSearchHit[] }): SearchToolsResult {
+/** N1: the name to offer in a search hit, or null when sanitizing would change it (it would not resolve) */
+export function searchHitName(name: string): string | null {
+  return stripControlAndInvisible(name) === name ? name : null;
+}
+
+export function capResponse(obj: { tools: ToolSearchHit[] }): SearchToolsResult {
   const out: ToolSearchHit[] = [];
   let size = 2;
   for (const h of obj.tools) {
@@ -218,7 +223,7 @@ async function search(ctx: MetaToolContext, args: unknown): Promise<MetaToolResu
     if (hits.length >= limit) break;
     if (t.name.startsWith(RESERVED_TOOL_PREFIX)) continue;
     // Never hand out a name that would not resolve when sent back (sanitizing must not alter it)
-    if (stripControlAndInvisible(t.name) !== t.name) continue;
+    if (searchHitName(t.name) === null) continue;
     const owner = t.metadata?.mcp_server ?? '';
     if (mcp !== undefined && owner !== mcp) continue;
     if (!matches(t, qTokens)) continue;
