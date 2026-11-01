@@ -347,6 +347,9 @@ export class ToolRouter {
         mcpTools = userTools.filter(tool => tool.source_mcp === mcpEntry.name);
       }
 
+      // Stamp the catalog id (never trust the name for policy keys; ADR-025 M1)
+      mcpTools = mcpTools.map(tool => ({ ...tool, mcp_id: mcpEntry.mcp_id }));
+
       // Apply tool selection filter if specified
       if (sub.selected_tools && sub.selected_tools.length > 0) {
         const selectedSet = new Set(sub.selected_tools);

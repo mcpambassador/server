@@ -61,7 +61,7 @@ export const registerAdminSecurityRoutes: FastifyPluginCallback<AdminSecurityRou
         .send(
           wrapError(
             ErrorCodes.VALIDATION_ERROR,
-            'Invalid kill switch request: target must be client:<id> or mcp:<name>, body { enabled: boolean }'
+            'Invalid kill switch request: target must be client:<id>, mcp:<name> or tool:<mcp_id>:<tool_name>, body { enabled: boolean }'
           )
         );
     }
