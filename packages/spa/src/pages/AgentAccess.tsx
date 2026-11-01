@@ -112,7 +112,7 @@ function CreateGrantDialog({
     try {
       const res = await create.mutateAsync({
         bound_client_id: boundClient!.id,
-        label: label.trim(),
+        label: label.trim() || undefined, // server defaults it
         scopes: Array.from(scopes),
         tool_allowlist: parseToolAllowlist(toolsText),
         ttl_seconds: ttl,
@@ -211,9 +211,10 @@ function CreateGrantDialog({
                   </Select>
                 </Field>
                 <Field>
-                  <Label>Label</Label>
+                  <Label>Label (optional)</Label>
                   <Input
                     name="label"
+                    placeholder={`One-shot grant ${new Date().toISOString().slice(0, 10)}`}
                     maxLength={128}
                     value={label}
                     onChange={e => setLabel(e.target.value)}
@@ -280,7 +281,7 @@ function CreateGrantDialog({
               </Button>
               <Button
                 onClick={submit}
-                disabled={create.isPending || !boundClient || !label.trim() || scopes.size === 0}
+                disabled={create.isPending || !boundClient || scopes.size === 0}
               >
                 {create.isPending ? 'Creating...' : 'Create grant'}
               </Button>

@@ -323,46 +323,56 @@ describe('AgentAccess', () => {
     expect(await screen.findByText('No agent access')).toBeInTheDocument();
   });
 
-  it('creates a one-shot grant and shows the token', async () => {
-    server.use(
-      http.get('/v1/users/me/agent-grants', () =>
-        HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
-      ),
-      http.get('/v1/users/me/clients', () =>
-        ok([
-          { id: 'c1', clientName: 'Laptop', status: 'active' },
-          { id: 'c9', clientName: 'Old', status: 'revoked' },
-        ])
-      ),
-      http.get('/v1/users/me/clients/c1/subscriptions', () =>
-        ok([{ id: 's1', clientId: 'c1', mcpName: 'github', status: 'active' }])
-      ),
-      http.post('/v1/users/me/agent-grants', async ({ request }) => {
-        const b = (await request.json()) as {
-          label: string;
-          scopes: string[];
-          bound_client_id: string;
-        };
-        expect(b.bound_client_id).toBe('c1');
-        expect(b.scopes).toEqual(['mcp:github']);
-        return ok({
-          grant_id: 'g2',
-          access_token: 'amb_at_secret',
-          token_type: 'Bearer',
-          expires_at: future,
-          resource: 'https://h/mcp',
-          scopes: b.scopes,
-        });
-      })
-    );
-    renderAt(<AgentAccess />, '/app/agent-access');
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
-    await user.type(await screen.findByRole('textbox', { name: 'Label' }), 'ci');
-    await user.click(await screen.findByRole('checkbox', { name: 'github' }));
-    await user.click(screen.getByRole('button', { name: 'Create grant' }));
-    expect(await screen.findByTestId('grant-token')).toHaveTextContent('amb_at_secret');
-  });
+  it.each([[''], ['ci']])(
+    'creates a one-shot grant (label %j) and shows the token',
+    async typed => {
+      server.use(
+        http.get('/v1/users/me/agent-grants', () =>
+          HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
+        ),
+        http.get('/v1/users/me/clients', () =>
+          ok([
+            { id: 'c1', clientName: 'Laptop', status: 'active' },
+            { id: 'c9', clientName: 'Old', status: 'revoked' },
+          ])
+        ),
+        http.get('/v1/users/me/clients/c1/subscriptions', () =>
+          ok([{ id: 's1', clientId: 'c1', mcpName: 'github', status: 'active' }])
+        ),
+        http.post('/v1/users/me/agent-grants', async ({ request }) => {
+          const b = (await request.json()) as {
+            label?: string;
+            scopes: string[];
+            bound_client_id: string;
+          };
+          expect(b.bound_client_id).toBe('c1');
+          if (typed) expect(b.label).toBe(typed);
+          else expect('label' in b).toBe(false);
+          expect(b.scopes).toEqual(['mcp:github']);
+          return ok({
+            grant_id: 'g2',
+            access_token: 'amb_at_secret',
+            token_type: 'Bearer',
+            expires_at: future,
+            resource: 'https://h/mcp',
+            scopes: b.scopes,
+          });
+        })
+      );
+      renderAt(<AgentAccess />, '/app/agent-access');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
+      const labelBox = await screen.findByRole('textbox', { name: /^Label/ });
+      expect(labelBox).toHaveAttribute(
+        'placeholder',
+        expect.stringMatching(/^One-shot grant \d{4}-\d{2}-\d{2}$/)
+      );
+      if (typed) await user.type(labelBox, typed);
+      await user.click(await screen.findByRole('checkbox', { name: 'github' }));
+      await user.click(screen.getByRole('button', { name: 'Create grant' }));
+      expect(await screen.findByTestId('grant-token')).toHaveTextContent('amb_at_secret');
+    }
+  );
 });
 
 describe('AgentEndpoint (admin)', () => {
