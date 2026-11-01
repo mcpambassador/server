@@ -310,29 +310,91 @@ describe('ToolReview revoke (G1)', () => {
     expect(screen.queryByText(/replace/i)).toBeNull();
   });
 
-  it.each([409, 404])('shows a %i inline in the dialog and refetches the lists', async status => {
+  it.each([409, 404])('on %i closes the dialog and refetches the lists', async status => {
     const user = userEvent.setup();
     const listCalls: string[] = [];
-    setup({ approved: [approvedPin()], listCalls, postStatus: status });
+    const posts = setup({ approved: [approvedPin()], listCalls, postStatus: status });
     await user.click(await screen.findByRole('button', { name: 'Approved' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     const before = listCalls.length;
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
-    const alert = await within(screen.getByRole('dialog')).findByRole('alert');
-    expect(alert.textContent).toMatch(
-      status === 409 ? /changed or is no longer approved/ : /no longer exists/
-    );
+    await waitFor(() => expect(posts).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(listCalls.length).toBeGreaterThan(before));
   });
 
-  it('offers Revoke on a baseline item and nothing on a pending one', async () => {
+  it('offers Revoke on a pending item that still serves an approved version', async () => {
+    const user = userEvent.setup();
+    const posts = setup({ pending: [pin()] });
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({
+      url: '/v1/admin/tool-pins/p1/revoke',
+      body: { expected_hash: H1 },
+    });
+  });
+
+  it('does not offer Revoke on a pending item with no approved version', async () => {
+    setup({ pending: [pin({ approved_hash: null })] });
+    await screen.findByRole('button', { name: 'Review' });
+    expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
+  });
+
+  it('offers Revoke from the review dialog', async () => {
+    const user = userEvent.setup();
+    const posts = setup({ pending: [pin()], detail: pin({ approved_hash: H1 }) });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke approved version' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]!.body).toEqual({ expected_hash: H1 });
+  });
+
+  it('pages with a cursor and offers Load more', async () => {
+    const user = userEvent.setup();
+    const seen: Array<string | null> = [];
+    server.use(
+      http.get('/v1/admin/tool-pins/summary', () =>
+        HttpResponse.json({
+          ok: true,
+          data: { pending_count: 0, baseline_unreviewed_count: 0, held_mcps: [] },
+        })
+      ),
+      http.get('/v1/admin/tool-pins', ({ request }) => {
+        const q = new URL(request.url).searchParams;
+        if (q.get('status') !== 'approved') return HttpResponse.json(list([]));
+        seen.push(q.get('cursor'));
+        return q.get('cursor')
+          ? HttpResponse.json(list([approvedPin({ pin_id: 'p2', tool_name: 'second_tool' })]))
+          : HttpResponse.json({
+              ok: true,
+              data: [approvedPin()],
+              pagination: { has_more: true, next_cursor: 'c1', total_count: 2 },
+            });
+      })
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <ToolReview />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('second_tool')).toBeInTheDocument();
+    expect(seen).toEqual([null, 'c1']);
+  });
+
+  it('offers Revoke on a baseline item', async () => {
     const user = userEvent.setup();
     const posts = setup({
       pending: [pin()],
       baseline: [approvedPin({ baseline_unreviewed: true })],
     });
     await screen.findByRole('button', { name: 'Review' });
-    expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
     await user.click(screen.getByRole('button', { name: /Baseline, never human-reviewed/ }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));

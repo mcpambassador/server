@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 import type {
   ToolPinSummary,
@@ -8,7 +8,9 @@ import type {
   PinPolicy,
 } from '../tool-pin-types';
 
-type Paginated<T> = { data: T[] } | T[];
+type Paginated<T> =
+  | { data: T[]; pagination?: { has_more?: boolean; next_cursor?: string | null } }
+  | T[];
 const rows = <T>(r: Paginated<T> | undefined): T[] => (!r ? [] : Array.isArray(r) ? r : r.data);
 
 const KEY = ['admin', 'tool-pins'] as const;
@@ -27,11 +29,25 @@ export function useToolPins(params: { status?: string; baseline?: 'unreviewed' }
   const p: Record<string, string> = { limit: '200' };
   if (params.status) p.status = params.status;
   if (params.baseline) p.baseline = params.baseline;
-  const q = useQuery({
+  const q = useInfiniteQuery({
     queryKey: [...KEY, 'list', p],
-    queryFn: () => apiClient.get<Paginated<ToolPinSummary>>('/v1/admin/tool-pins', { params: p }),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      apiClient.get<Paginated<ToolPinSummary>>('/v1/admin/tool-pins', {
+        params: { ...p, ...(pageParam ? { cursor: pageParam } : {}) },
+      }),
+    getNextPageParam: last =>
+      !Array.isArray(last) && last.pagination?.has_more
+        ? (last.pagination.next_cursor ?? undefined)
+        : undefined,
   });
-  return { ...q, pins: rows(q.data) };
+  return {
+    ...q,
+    pins: q.data ? q.data.pages.flatMap(pg => rows(pg)) : [],
+    hasMore: !!q.hasNextPage,
+    loadMore: () => void q.fetchNextPage(),
+    loadingMore: q.isFetchingNextPage,
+  };
 }
 
 export function useToolPin(pinId: string | null) {

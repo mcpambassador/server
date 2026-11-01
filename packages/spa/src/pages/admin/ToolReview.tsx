@@ -191,10 +191,12 @@ function ReviewDialog({
   pin,
   mode,
   onClose,
+  onRevoke,
 }: {
   pin: ToolPinSummary | null;
   mode: 'pending' | 'baseline';
   onClose: () => void;
+  onRevoke?: (p: ToolPinSummary) => void;
 }) {
   const { data: detail, isLoading, isError } = useToolPin(pin?.pin_id ?? null);
   const approve = useDecidePin('approve');
@@ -312,6 +314,15 @@ function ReviewDialog({
         <Button plain onClick={onClose} disabled={busy}>
           Close
         </Button>
+        {onRevoke && approvedHash && (
+          <Button
+            outline
+            disabled={busy}
+            onClick={() => onRevoke({ ...pin, approved_hash: approvedHash })}
+          >
+            Revoke approved version
+          </Button>
+        )}
         {mode === 'pending' ? (
           <>
             <Button
@@ -413,7 +424,7 @@ function PinGroups({
                 <FlagBadges pin={p} />
                 <span className="ml-auto flex gap-2">
                   {onReview && <Button onClick={() => onReview(p)}>Review</Button>}
-                  {onRevoke && p.status === 'approved' && p.approved_hash && (
+                  {onRevoke && p.approved_hash && (
                     <Button outline onClick={() => onRevoke(p)}>
                       Revoke
                     </Button>
@@ -500,7 +511,7 @@ export function ToolReview() {
         <PinGroups
           pins={list.pins}
           onReview={tab === 'approved' ? undefined : setSel}
-          onRevoke={tab === 'pending' ? undefined : setRevoking}
+          onRevoke={setRevoking}
           empty={
             tab === 'pending'
               ? 'No tool definitions awaiting review'
@@ -509,6 +520,11 @@ export function ToolReview() {
                 : 'No approved tool definitions'
           }
         />
+      )}
+      {list.hasMore && (
+        <Button outline onClick={list.loadMore} disabled={list.loadingMore}>
+          {list.loadingMore ? 'Loading…' : 'Load more'}
+        </Button>
       )}
       <ConfirmDialog
         open={!!revoking}
@@ -564,15 +580,20 @@ export function ToolReview() {
             toast.success('Tool revoked');
             closeRevoke();
           } catch (e) {
+            // Stale (409) or gone (404): close so a retry cannot reuse the old hash; lists are refetched.
             const st = (e as { status?: number })?.status;
             const msg = (e as Error)?.message ?? String(e);
-            setRevokeError(
-              st === 409
-                ? `This pin changed or is no longer approved; the list was refreshed. ${msg}`
-                : st === 404
-                  ? `This pin no longer exists; the list was refreshed. ${msg}`
-                  : msg
-            );
+            if (st === 409 || st === 404) {
+              toast.error(
+                st === 409
+                  ? 'Pin changed or is no longer approved; list refreshed'
+                  : 'Pin no longer exists; list refreshed',
+                { description: msg }
+              );
+              closeRevoke();
+            } else {
+              setRevokeError(msg);
+            }
           }
         }}
       />
@@ -581,6 +602,10 @@ export function ToolReview() {
         pin={sel}
         mode={tab === 'baseline' ? 'baseline' : 'pending'}
         onClose={() => setSel(null)}
+        onRevoke={p => {
+          setSel(null);
+          setRevoking(p);
+        }}
       />
     </div>
   );
