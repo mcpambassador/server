@@ -16,6 +16,7 @@ import {
   type DatabaseClient,
 } from '@mcpambassador/core';
 import { APPROVAL_DENIAL_COOLDOWN_THRESHOLD, buildApprovalUrl } from '@mcpambassador/contracts';
+import { makeAdminClient } from '../admin-api/helpers.js';
 import { createUser } from '../../src/auth/user-auth.js';
 import type { ApprovalService } from '../../src/services/approvals/service.js';
 import {
@@ -452,5 +453,66 @@ describe('pin voiding', () => {
     } finally {
       (pins as any).setApprovalVoider(voider);
     }
+  });
+});
+
+describe('N2: step-up does not survive logout', () => {
+  it('reauth, logout, login again: the next admin decision is 428', async () => {
+    const PW = 'Correct-Horse-9!';
+    await createUser(db, {
+      username: 'stepadmin',
+      password: PW,
+      display_name: 's',
+      is_admin: true,
+    });
+    const client = makeAdminClient(server.getAdminServer());
+    const login = async (): Promise<string> => {
+      const res = await client.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { username: 'stepadmin', password: PW },
+      });
+      const sc = res.headers['set-cookie'];
+      const list = Array.isArray(sc) ? sc : [String(sc)];
+      return String(list.find(c => String(c).startsWith('sessionId='))).split(';')[0]!;
+    };
+    const cookie1 = await login();
+    const re = await client.inject({
+      method: 'POST',
+      url: '/v1/auth/reauth',
+      headers: { cookie: cookie1 },
+      payload: { password: PW },
+    });
+    expect(re.statusCode).toBe(200);
+    const out = await client.inject({
+      method: 'POST',
+      url: '/v1/auth/logout',
+      headers: { cookie: cookie1 },
+    });
+    expect([200, 204]).toContain(out.statusCode);
+    const cookie2 = await login();
+    const sd = seed();
+    const created = await svc.createOrFind({
+      grantId: sd.grantId,
+      boundClientId: sd.clientId,
+      userId,
+      mcpId: 'm1',
+      toolName: 'admin_only',
+      argsHash: 'a'.repeat(64),
+      pinHash: null,
+      required: 'admin',
+      preview: '{}',
+      via: 'mcp',
+      disclosureMode: 'full',
+      grantExpiresAt: EXP,
+    } as never);
+    if (created.kind !== 'created') throw new Error('seed failed');
+    const dec = await client.inject({
+      method: 'POST',
+      url: `/v1/admin/approvals/${created.request.approval_id}/decision`,
+      headers: { cookie: cookie2 },
+      payload: { decision: 'approve', expected_args_hash: 'a'.repeat(64) },
+    });
+    expect(dec.statusCode).toBe(428);
   });
 });
