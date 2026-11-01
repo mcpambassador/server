@@ -97,7 +97,7 @@ describe('B2 create-time validation (admin API)', () => {
       const r = await server.admin.inject({ method, url, headers: headers(), payload });
       expect(r.statusCode, `${method}`).toBe(400);
       expect(r.body).toContain('VALIDATION_ERROR');
-      expect(r.body).not.toContain(canary);
+      expect(r.body.includes(canary), r.body.slice(0, 500)).toBe(false);
     }
   });
 
