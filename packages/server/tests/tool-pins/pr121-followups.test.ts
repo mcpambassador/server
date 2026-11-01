@@ -498,12 +498,22 @@ describe('R1 revoke on any pin with approved_hash', () => {
     const rej = await pinOf(R, 'rvr');
     expect(rej.status).toBe('rejected');
     expect(rej.approved_hash, 'rejected pin keeps approved_hash').toBeTruthy();
-    expect(rej.rejected_hash, JSON.stringify(rej)).toBeTruthy();
+    const col = (id: string): any =>
+      rawDb()
+        .prepare('SELECT rejected_hash, revoked_hashes FROM tool_pins WHERE pin_id = ?')
+        .get(id);
+    const rejBefore = col(rej.pin_id).rejected_hash; // not exposed in ToolPinDetail: read the column
+    expect(rejBefore, 'rejected_hash recorded by reject').toBeTruthy();
     const rv = await revoke(rej, rej.approved_hash);
     expect(rv.statusCode, rv.body.slice(0, 300)).toBe(200);
     expect((await stdioTools(s, stdio)).body).not.toContain('rvr');
     const after = await pinOf(R, 'rvr');
-    expect(after.rejected_hash, 'existing rejected_hash not lost').toBe(rej.rejected_hash);
+    const row = col(rej.pin_id);
+    expect(row.rejected_hash, 'existing rejected_hash not lost').toBe(rejBefore);
+    expect(JSON.parse(row.revoked_hashes ?? '[]'), 'revoked hash recorded').toContain(
+      rej.approved_hash
+    );
+    expect(after.status).toBe('rejected');
   });
 
   it('a revoked hash is never re-raised or baseline-approved, even when the tool changes away and back', async () => {
