@@ -11,7 +11,6 @@
 import { useState } from 'react';
 import {
   MagnifyingGlassIcon,
-  CubeIcon,
   CheckBadgeIcon,
   XMarkIcon,
 } from '@heroicons/react/20/solid';
@@ -201,11 +200,6 @@ export function RegistryImportModal({ open, onClose, onSelect }: RegistryImportM
                 >
                   {/* Card header */}
                   <div className="flex items-start gap-3">
-                    {mcp.icon_url ? (
-                      <img src={mcp.icon_url} alt="" className="size-8 rounded shrink-0" />
-                    ) : (
-                      <CubeIcon className="size-8 text-zinc-400 dark:text-zinc-500 shrink-0" />
-                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-sm text-zinc-900 dark:text-white truncate">
