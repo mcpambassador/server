@@ -1,5 +1,5 @@
 /** ADR-020 R2 hardening: redirect_uri rules, races, cookie isolation, zero scopes, token lifetime. */
-import { describe, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import {
   AGENT_MCP_ROUTE,
   AGENT_GRANTS_ROUTE,
