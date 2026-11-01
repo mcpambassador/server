@@ -4,11 +4,6 @@ import { http, HttpResponse } from 'msw';
 const API_BASE = '';
 
 // Sample handlers - these will be expanded in M32
-export const handlers = [
-  // CSRF token (fetched by api client before mutating requests)
-  http.get(`${API_BASE}/v1/csrf-token`, () => {
-    return HttpResponse.json({ csrfToken: 'test-csrf-token' });
-  }),
 
   // Setup status (first-run wizard) - default: setup already complete
   http.get(`${API_BASE}/v1/setup/status`, () => {
