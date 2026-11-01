@@ -1,4 +1,48 @@
 /**
+ * TD-031: every registry entry must satisfy the admin create schema. oauth_config is the one
+ * relaxation (partial, e.g. Supabase has no client_id/secret), as in install (TD-027). Unknown
+ * registry-only keys (tags, category, ...) are ignored by the parse.
+ */
+const registryEntrySchema = createMcpSchema.extend({
+  description: createMcpSchema.shape.description.unwrap().default(''),
+  oauth_config: oauthConfigSchema.partial().optional(),
+});
+
+/**
+ * Registry-import only: an empty or whitespace `scopes` means "none declared" (e.g. Supabase ships
+ * `scopes: ''`). Drop it so the partial oauth parse accepts it; createMcpSchema itself is unchanged.
+ */
+function normalizeRegistryOauth(oc: unknown): unknown {
+  if (oc && typeof oc === 'object' && typeof (oc as { scopes?: unknown }).scopes === 'string') {
+    const { scopes, ...rest } = oc as Record<string, unknown> & { scopes: string };
+    return scopes.trim() === '' ? rest : oc;
+  }
+  return oc;
+}
+
+export interface SkippedRegistryEntry {
+  name: string;
+  reason: string;
+}
+
+/** Same rule as the admin routes' safeIssueMessage: zod enum/literal messages echo the received value. */
+function safeIssueMessage(i: { code: string; message: string }): string {
+  return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
+    ? 'Invalid value'
+    : i.message;
+}
+
+/** Entry names and reasons come from remote input: strip control chars and bound the length. */
+function cleanForLog(v: unknown, max: number): string {
+  return (
+    String(v)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '?')
+      .slice(0, max)
+  );
+}
+
+/**
  * Community Registry Service
  *
  * Fetches, caches, and serves MCP definitions from a community registry (YAML file).
@@ -8,7 +52,7 @@
  */
 
 import { SecretStore, OAuthConfigError } from './secret-store.js';
-import { oauthConfigSchema } from '../admin/mcp-schemas.js';
+import { createMcpSchema, oauthConfigSchema } from '../admin/mcp-schemas.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
 import {
@@ -77,6 +121,7 @@ export class RegistryService {
   private db: DatabaseClient;
   private cachedRegistry: RegistryData | null = null;
   private lastFetchedAt: Date | null = null;
+  private skippedEntries: SkippedRegistryEntry[] = [];
 
   private secretStore: SecretStore;
 
@@ -134,11 +179,28 @@ export class RegistryService {
         throw new Error('Invalid registry: mcps must be an array');
       }
 
+      // TD-031: validate each entry like the admin create path; skip (and record) the bad ones
+      const valid: RegistryMcpEntry[] = [];
+      const skipped: SkippedRegistryEntry[] = [];
+      for (const entry of parsed.mcps) {
+        const reason = this.checkEntry(entry);
+        if (reason === null) {
+          valid.push(entry);
+        } else {
+          const name = cleanForLog((entry as { name?: unknown } | null)?.name ?? '(unnamed)', 100);
+          skipped.push({ name, reason });
+          logger.warn(`[RegistryService] Skipping registry entry '${name}': ${reason}`);
+        }
+      }
+      parsed.mcps = valid;
+      this.skippedEntries = skipped;
+
       this.cachedRegistry = parsed;
       this.lastFetchedAt = new Date();
 
       logger.info(
-        `[RegistryService] Registry cached: ${parsed.mcps.length} entries from ${parsed.registry.name}`
+        `[RegistryService] Registry cached: ${valid.length} entries from ${cleanForLog(parsed.registry.name, 100)}` +
+          (skipped.length ? ` (${skipped.length} skipped as invalid)` : '')
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -151,6 +213,50 @@ export class RegistryService {
 
       throw error;
     }
+  }
+
+  /** Entries dropped by the last fetch (name and reason only; no entry contents). */
+  getSkippedEntries(): SkippedRegistryEntry[] {
+    return [...this.skippedEntries];
+  }
+
+  /**
+   * TD-031: schema + oauth binding check for one registry entry.
+   * Returns null when acceptable, else a short reason (never entry values beyond field paths).
+   */
+  private checkEntry(entry: unknown): string | null {
+    if (!entry || typeof entry !== 'object') return 'entry is not an object';
+    const e = entry as Record<string, unknown>;
+    const r = registryEntrySchema.safeParse(
+      e.oauth_config === undefined
+        ? e
+        : { ...e, oauth_config: normalizeRegistryOauth(e.oauth_config) }
+    );
+    if (!r.success) {
+      const issue = r.error.issues[0];
+      return cleanForLog(
+        `${issue?.path.join('.') || 'entry'}: ${issue ? safeIssueMessage(issue) : 'invalid'}`,
+        200
+      );
+    }
+    const oc = r.data.oauth_config;
+    if (oc?.client_secret_env && oc.token_url) {
+      try {
+        this.secretStore.assertOAuthConfig({
+          client_secret_env: oc.client_secret_env,
+          client_id_env: oc.client_id_env,
+          token_url: oc.token_url,
+          auth_url: oc.auth_url,
+          revocation_url: oc.revocation_url,
+        });
+      } catch (e) {
+        // No env var names or hosts in the reason (OAuthConfigError messages can name them)
+        return e instanceof OAuthConfigError
+          ? 'oauth_config: secret binding rejected'
+          : 'oauth_config: rejected';
+      }
+    }
+    return null;
   }
 
   /**
@@ -274,7 +380,9 @@ export class RegistryService {
       try {
         // partial: registry entries may omit fields (e.g. Supabase has no client_id/secret), but any
         // field present must satisfy the admin rules (https URLs, *_CLIENT_ID).
-        const parsed = oauthConfigSchema.partial().safeParse(registryEntry.oauth_config ?? {});
+        const parsed = oauthConfigSchema
+          .partial()
+          .safeParse(normalizeRegistryOauth(registryEntry.oauth_config ?? {}));
         if (!parsed.success) {
           const issue = parsed.error.issues[0];
           throw new OAuthConfigError(
