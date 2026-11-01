@@ -23,10 +23,10 @@ export function Approvals() {
   usePageTitle('Approvals');
   const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.getSession });
   if (!session) return <Text>Loading…</Text>;
-  return <ApprovalsView isAdmin={session.user.isAdmin === true} />;
+  return <ApprovalsView isAdmin={session.user.isAdmin === true} selfId={session.user.id} />;
 }
 
-function ApprovalsView({ isAdmin }: { isAdmin: boolean }) {
+function ApprovalsView({ isAdmin, selfId }: { isAdmin: boolean; selfId: string }) {
   const navigate = useNavigate();
   const { approvalId } = useParams<{ approvalId?: string }>();
   const [tab, setTab] = useState<'pending' | 'history'>('pending');
@@ -45,7 +45,7 @@ function ApprovalsView({ isAdmin }: { isAdmin: boolean }) {
         </Text>
       </div>
       <div className="flex gap-2">
-        {TABS.map(t => (
+        {TABS.map(t =>
           tab === t.key ? (
             <Button key={t.key} onClick={() => setTab(t.key)} data-testid={`tab-${t.key}`}>
               {t.label}
@@ -55,7 +55,7 @@ function ApprovalsView({ isAdmin }: { isAdmin: boolean }) {
               {t.label}
             </Button>
           )
-        ))}
+        )}
       </div>
       {q.isLoading && <Text>Loading…</Text>}
       {q.isError && <Text className="text-red-600">Could not load approvals.</Text>}
@@ -98,6 +98,7 @@ function ApprovalsView({ isAdmin }: { isAdmin: boolean }) {
           key={approvalId}
           approvalId={approvalId}
           isAdmin={isAdmin}
+          selfId={selfId}
           onClose={() => navigate('/app/approvals')}
         />
       )}

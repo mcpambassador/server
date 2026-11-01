@@ -90,13 +90,20 @@ export function useApproval(isAdmin: boolean, approvalId: string | null) {
   });
 }
 
-export function useDecideApproval(isAdmin: boolean) {
+/**
+ * `viaOwnerRoute`: an admin deciding their own owner-class request. The admin route shows it
+ * read-only; the owner route decides it (owner role, no step-up).
+ */
+export function useDecideApproval(isAdmin: boolean, viaOwnerRoute = false) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: KEY });
   return useMutation({
     mutationFn: ({ approvalId, ...body }: { approvalId: string } & ApprovalDecisionRequest) =>
       apiClient.post<ApprovalRequestDetail>(
-        routes(isAdmin).decide.replace(':approvalId', encodeURIComponent(approvalId)),
+        routes(isAdmin && !viaOwnerRoute).decide.replace(
+          ':approvalId',
+          encodeURIComponent(approvalId)
+        ),
         body
       ),
     onSuccess: invalidate,

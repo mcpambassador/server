@@ -28,14 +28,20 @@ const needsReauth = (e: unknown) =>
 export function DecisionDialog({
   approvalId,
   isAdmin,
+  selfId,
   onClose,
 }: {
   approvalId: string;
   isAdmin: boolean;
+  /** The signed-in user's id. */
+  selfId: string;
   onClose: () => void;
 }) {
   const { data: d, isLoading, error } = useApproval(isAdmin, approvalId);
-  const decide = useDecideApproval(isAdmin);
+  // The admin routes show an admin's own owner-class request read-only; the owner route decides it.
+  const ownRequestViaOwnerRoute =
+    isAdmin && !!d && d.read_only && d.required_approver === 'owner' && d.user_id === selfId;
+  const decide = useDecideApproval(isAdmin, ownRequestViaOwnerRoute);
   const reauth = useReauth();
   const [readAll, setReadAll] = useState(false);
   const [reason, setReason] = useState('');
@@ -71,18 +77,19 @@ export function DecisionDialog({
 
   const loadFailed = !!error;
   const open = d?.status === 'pending';
+  const readOnly = !!d && d.read_only && !ownRequestViaOwnerRoute;
   const stepUp = !!d && (d.required_approver === 'admin' || needReauth);
   const needPassword = stepUp && password.length === 0;
   const canApprove =
     !!d &&
     open &&
-    !d.read_only &&
+    !readOnly &&
     !d.definition_changed &&
     d.preview !== null &&
     readAll &&
     !needPassword &&
     !busy;
-  const canDeny = !!d && open && !d.read_only && !busy;
+  const canDeny = !!d && open && !readOnly && !busy;
 
   return (
     <Dialog open onClose={onClose} size="3xl">
@@ -133,7 +140,7 @@ export function DecisionDialog({
                 agent&apos;s call will fail. Deny it or let it expire.
               </div>
             )}
-            {d.read_only && open && (
+            {readOnly && open && (
               <Text data-testid="read-only-note" className="text-amber-600">
                 This tool needs an administrator to approve. You can see the request but not decide
                 it.
@@ -150,14 +157,14 @@ export function DecisionDialog({
               <>
                 <Text className="font-medium">Arguments the agent wants to send</Text>
                 <ApprovalPreview preview={d.preview} onReadAll={setReadAll} />
-                {!readAll && !d.read_only && !d.definition_changed && d.preview !== null && (
+                {!readAll && !readOnly && !d.definition_changed && d.preview !== null && (
                   <Text data-testid="read-warning" className="text-xs text-amber-600">
                     Open the full arguments and scroll to the end to enable Approve.
                   </Text>
                 )}
               </>
             )}
-            {open && !d.read_only && (
+            {open && !readOnly && (
               <>
                 {stepUp && (
                   <Field>
@@ -190,7 +197,7 @@ export function DecisionDialog({
         <Button plain onClick={onClose} disabled={busy}>
           Close
         </Button>
-        {d && open && !d.read_only && (
+        {d && open && !readOnly && (
           <>
             <Button
               color="red"

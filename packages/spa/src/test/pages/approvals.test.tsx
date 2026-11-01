@@ -277,7 +277,8 @@ describe('decision dialog', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('expand-preview'));
     const marks = await screen.findAllByTestId('redaction-marker');
-    expect(marks.map(m => m.textContent)).toEqual(['[REDACTED]', '[REDACTED:email]']);
+    // Only the server's exact token is highlighted; look-alike text an agent typed is not.
+    expect(marks.map(m => m.textContent)).toEqual(['[REDACTED]']);
   });
 
   it('shows the agent label and the hash prefix', async () => {
@@ -382,6 +383,45 @@ describe('decision dialog', () => {
     renderAt('/app/approvals/other-users-request');
     expect(await screen.findByTestId('approval-load-error')).toBeInTheDocument();
     expect(screen.queryByTestId('approval-agent')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('approve-btn')).not.toBeInTheDocument();
+  });
+  it('an admin decides their own owner-class request through the owner route (read-only on the admin route)', async () => {
+    fakeScrollableBox();
+    server.use(
+      session(true),
+      http.get(ADMIN_APPROVALS_ROUTE, () =>
+        HttpResponse.json({ ok: true, data: { items: [], next_cursor: null } })
+      ),
+      http.get(ADMIN_APPROVAL_ROUTE, () =>
+        HttpResponse.json({ ok: true, data: detail({ read_only: true, user_id: 'u1' }) })
+      )
+    );
+    const posts: Post[] = [];
+    mockDecision(false, posts);
+    renderAt('/app/approvals/ap1');
+    const user = await openAndReadAll();
+    expect(screen.queryByTestId('reauth-password')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('approve-btn')).toBeEnabled());
+    await user.click(screen.getByTestId('approve-btn'));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({
+      url: '/v1/users/me/approvals/ap1/decision',
+      body: { decision: 'approve', expected_args_hash: HASH },
+    });
+  });
+
+  it("an admin still cannot decide another user's owner-class request", async () => {
+    server.use(
+      session(true),
+      http.get(ADMIN_APPROVALS_ROUTE, () =>
+        HttpResponse.json({ ok: true, data: { items: [], next_cursor: null } })
+      ),
+      http.get(ADMIN_APPROVAL_ROUTE, () =>
+        HttpResponse.json({ ok: true, data: detail({ read_only: true, user_id: 'u2' }) })
+      )
+    );
+    renderAt('/app/approvals/ap1');
+    await screen.findByTestId('approval-agent');
     expect(screen.queryByTestId('approve-btn')).not.toBeInTheDocument();
   });
 });
