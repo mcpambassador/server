@@ -44,6 +44,9 @@ export const TOOL_CANONICALIZATION = {
   maxCanonicalBytes: 65536,
 } as const;
 
+/** Downstream tool names starting with this prefix are reserved for Ambassador's own tools (flag `reserved_name`). */
+export const TOOL_PIN_RESERVED_NAME_PREFIX = 'ambassador__';
+
 /** Tool names in audit metadata and logs: control characters stripped, max length (D5). */
 export const TOOL_NAME_LOG_MAX_LENGTH = 128;
 
