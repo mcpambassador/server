@@ -235,15 +235,37 @@ export interface ToolInvocationRequest {
 }
 
 /**
+ * One MCP content block (TD-041): text, image, audio, resource_link or an embedded resource,
+ * with the optional `annotations` / `_meta` the spec allows. Fields beyond the ones named here are
+ * dropped (F-SEC-M6-011); each block is size-bounded.
+ */
+export interface ToolContentBlock {
+  type: 'text' | 'image' | 'audio' | 'resource_link' | 'resource';
+  text?: string;
+  data?: string;
+  mimeType?: string;
+  uri?: string;
+  name?: string;
+  title?: string;
+  description?: string;
+  size?: number;
+  resource?: {
+    uri: string;
+    mimeType?: string;
+    text?: string;
+    blob?: string;
+    annotations?: Record<string, unknown>;
+    _meta?: Record<string, unknown>;
+  };
+  annotations?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
+}
+
+/**
  * Tool invocation response (MCP protocol)
  */
 export interface ToolInvocationResponse {
-  content: Array<{
-    type: 'text' | 'image' | 'resource';
-    text?: string;
-    data?: string;
-    mimeType?: string;
-  }>;
+  content: ToolContentBlock[];
   isError?: boolean;
 }
 
@@ -263,22 +285,51 @@ export interface ConnectionHealth {
  * F-SEC-M6-011: Zod schema for validating tool invocation responses
  * Prevents XSS, data exfiltration, and OOM from malicious MCPs
  */
+const MAX_BLOCK_STRING = 10 * 1024 * 1024; // 10MB per text/data/blob
+const MAX_BLOCK_JSON = MAX_BLOCK_STRING + 256 * 1024; // whole block incl. annotations/_meta
+
+const metaRecord = z.record(z.string(), z.unknown());
+
+const embeddedResourceSchema = z.object({
+  uri: z.string().max(8192),
+  mimeType: z.string().max(256).optional(),
+  text: z.string().max(MAX_BLOCK_STRING).optional(),
+  blob: z.string().max(MAX_BLOCK_STRING).optional(),
+  annotations: metaRecord.optional(),
+  _meta: metaRecord.optional(),
+});
+
+const contentBlockSchema = z
+  .object({
+    type: z.enum(['text', 'image', 'audio', 'resource_link', 'resource']),
+    text: z.string().max(MAX_BLOCK_STRING).optional(),
+    data: z.string().max(MAX_BLOCK_STRING).optional(),
+    mimeType: z.string().max(256).optional(),
+    uri: z.string().max(8192).optional(),
+    name: z.string().max(1024).optional(),
+    title: z.string().max(1024).optional(),
+    description: z.string().max(8192).optional(),
+    size: z.number().optional(),
+    resource: embeddedResourceSchema.optional(),
+    annotations: metaRecord.optional(),
+    _meta: metaRecord.optional(),
+  })
+  .superRefine((b, ctx) => {
+    // An embedded resource must carry its resource (the part the spec requires); other block
+    // types stay as lenient as before so no previously-accepted result starts failing.
+    if (b.type === 'resource' && !b.resource) {
+      ctx.addIssue({ code: 'custom', message: 'resource block needs resource' });
+    }
+    if (JSON.stringify(b).length > MAX_BLOCK_JSON) {
+      ctx.addIssue({ code: 'custom', message: 'content block too large' });
+    }
+  });
+
+/**
+ * F-SEC-M6-011: Zod schema for validating tool invocation responses
+ * Prevents XSS, data exfiltration, and OOM from malicious MCPs
+ */
 export const ToolInvocationResponseSchema = z.object({
-  content: z
-    .array(
-      z.object({
-        type: z.enum(['text', 'image', 'resource']),
-        text: z
-          .string()
-          .max(10 * 1024 * 1024)
-          .optional(), // 10MB max per text content
-        data: z
-          .string()
-          .max(10 * 1024 * 1024)
-          .optional(), // 10MB max per data content
-        mimeType: z.string().optional(),
-      })
-    )
-    .max(100), // Max 100 content items
+  content: z.array(contentBlockSchema).max(100), // Max 100 content items
   isError: z.boolean().optional(),
 });

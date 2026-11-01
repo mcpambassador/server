@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A downstream tool result containing an embedded `resource`, `resource_link` or `audio` content block no longer breaks `/mcp` (-32602 "Invalid tools/call result") or is rejected (TD-041). The response schema now models every MCP content block type and keeps each block's payload plus its `annotations` and non-`ambassador/*` `_meta`; unknown fields are still dropped and each block is size-bounded (10MB payload, ~10.25MB per block).
+
 - **TD-037 / ADR-025 M2+M4:** group grants are now evaluated at call time for every MCP (list, search, describe and invoke), via one shared helper also used at subscribe. A user whose group no longer grants an MCP stops being served it even if the subscription row still exists; the row is kept (filter, never mutate), so re-granting restores access. A suspended group grants nothing (ADR-025 §3.5), and the loss-report script labels each affected subscription `no_grant` or `only_suspended`. The subscription list endpoints gain `access: 'granted' | 'revoked'`.
 
 - `POST /v1/admin/users` now adds the new user to `all-users` like every other creation path (without it the user got 403 on subscribe).
