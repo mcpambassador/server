@@ -139,6 +139,28 @@ describe('group MCP grants: tool policy', () => {
     expect(puts[0]!.body).toEqual({ tool_mode: 'deny', tools: ['write'] });
   });
 
+  it('clears the ticks when switching allow to deny, so a list never flips meaning', async () => {
+    const puts: Put[] = [];
+    setup(
+      [grant('m1', { tool_mode: 'allow', tools: ['read'] })],
+      [
+        { name: 'read', orphan: false },
+        { name: 'write', orphan: false },
+      ],
+      puts
+    );
+    const user = await openMcps();
+    await user.click(await screen.findByTestId('edit-policy-m1'));
+    expect(await screen.findByTestId('tool-count')).toHaveTextContent('1 selected');
+    await user.click(screen.getByTestId('mode-deny'));
+    expect(screen.getByTestId('selection-cleared')).toBeInTheDocument();
+    expect(screen.getByTestId('tool-count')).toHaveTextContent('0 selected');
+    expect(screen.getByTestId('tool-check-read')).not.toBeChecked();
+    await user.click(screen.getByTestId('save-policy'));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]!.body).toEqual({ tool_mode: 'deny', tools: [] }); // never deny{read}
+  });
+
   it('keeps this grant’s own rule names visible even if the picker does not list them', async () => {
     setup([grant('m1', { tool_mode: 'allow', tools: ['stale'] })], [], []);
     const user = await openMcps();

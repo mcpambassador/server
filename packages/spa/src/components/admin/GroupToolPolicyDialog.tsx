@@ -50,6 +50,15 @@ export function GroupToolPolicyDialog({
   const put = usePutGroupToolPolicy();
   const [mode, setMode] = useState<GroupToolMode>(initialMode);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(initialTools));
+  const [cleared, setCleared] = useState(false);
+
+  // allow{a} and deny{a} mean opposite things, so ticks never carry across a mode switch.
+  const changeMode = (next: GroupToolMode) => {
+    if (next === mode) return;
+    setCleared(picked.size > 0);
+    setPicked(new Set());
+    setMode(next);
+  };
 
   // This grant's own rule names that the server does not list (e.g. a stale picker) stay visible.
   const listed: KnownMcpTool[] = known.data?.tools ?? [];
@@ -104,7 +113,7 @@ export function GroupToolPolicyDialog({
                 role="radio"
                 aria-checked="true"
                 data-testid={`mode-${m.key}`}
-                onClick={() => setMode(m.key)}
+                onClick={() => changeMode(m.key)}
               >
                 {m.label}
               </Button>
@@ -115,7 +124,7 @@ export function GroupToolPolicyDialog({
                 role="radio"
                 aria-checked="false"
                 data-testid={`mode-${m.key}`}
-                onClick={() => setMode(m.key)}
+                onClick={() => changeMode(m.key)}
               >
                 {m.label}
               </Button>
@@ -123,6 +132,11 @@ export function GroupToolPolicyDialog({
           )}
         </div>
         <Text>{MODES.find(m => m.key === mode)!.help}</Text>
+        {cleared && (
+          <Text data-testid="selection-cleared" className="text-amber-600">
+            Selection cleared: allow and deny lists mean opposite things.
+          </Text>
+        )}
 
         {mode !== 'all' && (
           <div className="space-y-2" data-testid="tool-picker">
