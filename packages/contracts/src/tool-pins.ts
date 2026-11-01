@@ -179,6 +179,12 @@ export type ToolPinSummary = z.infer<typeof toolPinSummarySchema>;
 export const toolPinDetailSchema = toolPinSummarySchema.extend({
   approved_definition: toolDefinitionSchema.nullable(),
   pending_definition: toolDefinitionSchema.nullable(),
+  /**
+   * TD-034: set when the pending definition's exact hash was revoked earlier for this (mcp, tool) in any
+   * scope. Only the last-recorded time is kept, so this is the earliest time the revocation can be
+   * dated to, "no later than" the real revoke time. null otherwise.
+   */
+  previously_revoked_at: z.string().nullable().optional(),
 });
 export type ToolPinDetail = z.infer<typeof toolPinDetailSchema>;
 
@@ -214,6 +220,11 @@ export const toolPinDecisionRequestSchema = z.object({
    */
   apply_to: z.enum(['this_scope', 'all_users']).optional(),
   reason: z.string().max(500).optional(),
+  /**
+   * approve only (TD-034): approve a definition whose exact hash was revoked earlier. Without it the
+   * route answers 409 `previously_revoked`. A forced approval is audited.
+   */
+  force: z.boolean().optional(),
 });
 export type ToolPinDecisionRequest = z.infer<typeof toolPinDecisionRequestSchema>;
 

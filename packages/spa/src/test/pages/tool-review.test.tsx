@@ -114,6 +114,47 @@ describe('pin-text helpers', () => {
   });
 });
 
+describe('previously revoked definition (TD-034)', () => {
+  it('warns with the date and sends force when approving anyway', async () => {
+    const user = userEvent.setup();
+    const posts = setup({
+      pending: [pin()],
+      detail: {
+        ...pin(),
+        approved_definition: null,
+        pending_definition: { name: 'create_issue', description: 'new' },
+        previously_revoked_at: '2026-10-01T10:00:00.000Z',
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    const warn = await screen.findByTestId('previously-revoked');
+    expect(warn.textContent).toContain('2026-10-01T10:00:00.000Z');
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Approve anyway' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]?.body).toMatchObject({ expected_hash: H2, force: true });
+  });
+
+  it('shows no warning and sends no force for an ordinary pending pin', async () => {
+    const user = userEvent.setup();
+    const posts = setup({
+      pending: [pin()],
+      detail: {
+        ...pin(),
+        approved_definition: null,
+        pending_definition: { name: 'create_issue', description: 'new' },
+        previously_revoked_at: null,
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Review' }));
+    await screen.findByTestId('pin-diff');
+    expect(screen.queryByTestId('previously-revoked')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]?.body).not.toHaveProperty('force');
+  });
+});
+
 describe('blocking flags', () => {
   it('covers every contract blocking code', () => {
     for (const c of TOOL_PIN_BLOCKING_FLAG_CODES) expect(NON_APPROVABLE_FLAGS).toContain(c);
