@@ -55,7 +55,7 @@ export const oauthConfigSchema = z.object({
     .url()
     .refine(url => url.startsWith('https://'), { message: 'OAuth URLs must use HTTPS' })
     .optional(),
-  extra_params: z.record(z.string()).optional(),
+  extra_params: z.record(z.string(), z.string()).optional(),
   access_token_env_var: envVarName,
 });
 
@@ -72,10 +72,10 @@ export const createMcpSchema = z.object({
   description: z.string().max(2000).optional(),
   icon_url: z.string().url().optional().nullable(),
   transport_type: transportTypeSchema,
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   isolation_mode: isolationModeSchema.optional(),
   requires_user_credentials: z.boolean().optional(),
-  credential_schema: z.record(z.unknown()).optional(),
+  credential_schema: z.record(z.string(), z.unknown()).optional(),
   auth_type: z.enum(['none', 'static', 'oauth2']).optional().default('none'),
   oauth_config: oauthConfigSchema.optional(),
 });
@@ -88,10 +88,10 @@ export const updateMcpSchema = z.object({
   description: z.string().max(2000).optional(),
   icon_url: z.string().url().optional().nullable(),
   transport_type: transportTypeSchema.optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
   isolation_mode: isolationModeSchema.optional(),
   requires_user_credentials: z.boolean().optional(),
-  credential_schema: z.record(z.unknown()).optional(),
+  credential_schema: z.record(z.string(), z.unknown()).optional(),
   auth_type: z.enum(['none', 'static', 'oauth2']).optional(),
   oauth_config: oauthConfigSchema.optional(),
 });

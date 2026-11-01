@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 
 export const TRACKED = {
   'GHSA-gpj5-g38j-94v9': { td: 'TD-019', pkg: 'drizzle-orm', reviewBy: '2026-12-31' },
-  'GHSA-mrhx-c7xc-m3w5': { td: 'TD-020', pkg: 'zod', reviewBy: '2026-12-31' },
 };
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);

@@ -203,7 +203,7 @@ export type DescribeToolInput = z.infer<typeof describeToolInputSchema>;
 export const callToolInputSchema = z.object({
   name: notReservedName,
   mcp: z.string().min(1).max(128).optional(),
-  arguments: z.record(z.unknown()).optional(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
 });
 export type CallToolInput = z.infer<typeof callToolInputSchema>;
 

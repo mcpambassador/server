@@ -144,7 +144,7 @@ export async function registerClientRoutes(
         if (error.name === 'ZodError') {
           return reply
             .status(400)
-            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request data', error.errors));
+            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request data', error.issues));
         }
 
         if (error.message.includes('not found')) {

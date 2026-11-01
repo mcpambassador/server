@@ -27,7 +27,9 @@ export interface SkippedRegistryEntry {
 
 /** Same rule as the admin routes' safeIssueMessage: zod enum/literal messages echo the received value. */
 function safeIssueMessage(i: { code: string; message: string }): string {
-  return i.code === 'invalid_enum_value' || i.code === 'invalid_literal'
+  return i.code === 'invalid_enum_value' ||
+    i.code === 'invalid_literal' ||
+    i.code === 'invalid_value'
     ? 'Invalid value'
     : i.message;
 }
