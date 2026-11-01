@@ -41,7 +41,7 @@ jobs:
           docker build -t $IMAGE .
           # Start the way docker-compose.yml does. The image starts as root only for docker/entrypoint.sh.
           mkdir -p "$RUNNER_TEMP/amb-data" "$RUNNER_TEMP/amb-cache"
-          sudo chown 1000:1000 "$RUNNER_TEMP/amb-data"
+          sudo chown 1000:1000 "$RUNNER_TEMP/amb-data" "$RUNNER_TEMP/amb-cache"
           docker run -d --name amb-verify --cap-drop ALL \
             --cap-add SETUID --cap-add SETGID --cap-add KILL --cap-add CHOWN --cap-add SETPCAP \
             --security-opt no-new-privileges --read-only \
