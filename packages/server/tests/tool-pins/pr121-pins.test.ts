@@ -1,6 +1,5 @@
 /**
- * ADR-021 verifier tests for the pin service (PR #121 / 3a). GATED: they describe behaviour that
- * lands after the contract commit, so they run as `it.fails` until PINS_IMPL=1 (then as normal tests).
+ * ADR-021 verifier tests for the pin service (PR #121 / 3a). Ungated now that the pin service has landed.
  * Black-box over the real servers with real fake-mcp processes.
  *
  * Interface assumptions (from contracts/src/tool-pins.ts and ADR-021):
@@ -33,6 +32,7 @@ import {
 import {
   allowFakeMcpCommand,
   grantUserAccess,
+  applyCatalog,
   createClientWithKey,
   subscribe,
   stdioSession,
@@ -45,7 +45,7 @@ import {
 } from '../agent-endpoint/fake-mcp-world.js';
 
 vi.setConfig({ testTimeout: 90_000 });
-const itPins: typeof it = (process.env['PINS_IMPL'] === '1' ? it : it.fails) as typeof it;
+const itPins = it;
 
 let s: AgentTestServer;
 let restoreEnv: () => void;
@@ -97,7 +97,7 @@ async function mkMcp(
     payload: { pin_policy: policy },
   });
   if (pol.statusCode !== 200) throw new Error(`pin-policy ${name}: ${pol.statusCode} ${pol.body}`);
-  for (const step of ['validate', 'publish']) {
+  for (const step of ['validate', 'discover', 'publish']) {
     const r = await s.admin.inject({
       method: 'POST',
       url: `/v1/admin/mcps/${mcpId}/${step}`,
@@ -105,6 +105,7 @@ async function mkMcp(
     });
     if (r.statusCode !== 200) throw new Error(`${name} ${step}: ${r.statusCode} ${r.body}`);
   }
+  await applyCatalog(s);
   return { mcpId, name, log, descFile };
 }
 
@@ -148,6 +149,16 @@ async function agentFor(mcps: M[], scopes = ['mcp:*']) {
   if (g.statusCode !== 201) throw new Error(`grant ${g.statusCode} ${g.body}`);
   return { stdio: await stdioSession(s, c.key), token: J(g).data.access_token as string };
 }
+/** Pins are created lazily when a user's catalog is built: list tools once as an agent to observe. */
+const observe = async (stdio: string): Promise<void> => {
+  await stdioTools(s, stdio);
+  await settle(300);
+};
+async function freshUser(name: string): Promise<void> {
+  const u = await createUser(s, name);
+  alice = await loginSession(s, u);
+  aliceId = u.userId;
+}
 const v1Tools = async (tok: string): Promise<any[]> => J(await stdioTools(s, tok)).tools ?? [];
 const settle = (ms = 600) => new Promise(r => setTimeout(r, ms));
 
@@ -177,10 +188,10 @@ describe('D2 name shadowing', () => {
         const A = await mkMcp(`sha-a-${tag}`, ['foo'], 'TEXT-FROM-A');
         const B = await mkMcp(`sha-b-${tag}`, ['foo'], 'TEXT-FROM-B');
         const [ok, no] = approved === 'A' ? [A, B] : [B, A];
+        const { stdio, token } = await agentFor([A, B]);
+        await observe(stdio);
         await approve(ok, 'foo');
         expect((await pinOf(no, 'foo')).status).toBe('pending_review');
-        const { stdio, token } = await agentFor([A, B]);
-        await settle();
 
         const okText = `TEXT-FROM-${approved}`;
         const noText = `TEXT-FROM-${pendingName}`;
@@ -215,11 +226,11 @@ describe('D3 hidden on every path', () => {
       const tag = String(Date.now() % 100000);
       const P = await mkMcp(`sha-p-${tag}`, ['sneaky'], 'PENDING-TEXT');
       const other = await mkMcp(`sha-o-${tag}`, ['plain'], 'other');
-      await approve(other, 'plain');
-      expect((await pinOf(P, 'sneaky')).status).toBe('pending_review');
       const full = await agentFor([P, other]);
       const narrow = await agentFor([P, other], [`mcp:${other.name}`]); // scope excludes P
-      await settle();
+      await observe(full.stdio);
+      await approve(other, 'plain');
+      expect((await pinOf(P, 'sneaky')).status).toBe('pending_review');
 
       // listings
       for (const body of [
@@ -233,7 +244,20 @@ describe('D3 hidden on every path', () => {
 
       // invoke by name: fails as unknown at routing, nothing reaches the downstream
       const inv = await stdioInvoke(s, full.stdio, 'sneaky');
-      expect(inv.statusCode).toBeGreaterThanOrEqual(400);
+      const ghostInv = await stdioInvoke(s, full.stdio, 'no_such_tool_zz');
+      const envOf = (r: { body: string }, name: string): string => {
+        const j = JSON.parse(r.body);
+        return JSON.stringify([
+          j.result,
+          String(j.metadata?.error ?? '')
+            .split(name)
+            .join('<T>'),
+        ]);
+      };
+      expect(JSON.parse(inv.body).result).toBeNull();
+      expect(JSON.parse(inv.body).metadata?.error).toBeTruthy();
+      expect(inv.statusCode).toBe(ghostInv.statusCode);
+      expect(envOf(inv, 'sneaky')).toBe(envOf(ghostInv, 'no_such_tool_zz'));
       const mcpCall = await rpc(s, full.token, 'tools/call', { name: 'sneaky', arguments: {} });
       expect(isDenied(mcpCall)).toBe(true);
       await settle(300);
@@ -264,8 +288,9 @@ describe('D3 hidden on every path', () => {
     async () => {
       const tag = String(Date.now() % 100000);
       const M1 = await mkMcp(`sha-c-${tag}`, ['chg'], 'GOOD-TEXT');
-      await approve(M1, 'chg');
       const { stdio, token } = await agentFor([M1]);
+      await observe(stdio);
+      await approve(M1, 'chg');
       expect((await stdioTools(s, stdio)).body).toContain('GOOD-TEXT');
 
       fs.writeFileSync(M1.descFile, 'EVIL-TEXT'); // rug pull
@@ -276,6 +301,7 @@ describe('D3 hidden on every path', () => {
       });
       expect([200, 409]).toContain(ap.statusCode);
       await settle(1500);
+      await observe(stdio);
       const p = await pinOf(M1, 'chg');
       expect(p.status).toBe('pending_review');
       expect(p.pending_hash).not.toBe(p.approved_hash);
@@ -301,31 +327,34 @@ describe('D6 baseline', () => {
 
       // Simulate the pre-upgrade world: no pins, baseline not done; the drifted MCP changed since publish.
       const raw = (s.db as any).session.client;
+      const snapOf = (id: string): string =>
+        String(
+          raw.prepare('SELECT tool_catalog FROM mcp_catalog WHERE mcp_id = ?').get(id)?.tool_catalog
+        );
+      expect(snapOf(clean.mcpId), 'publish-time snapshot').toContain('stable');
       raw.prepare('DELETE FROM tool_pins').run();
       raw.prepare('DELETE FROM server_settings WHERE key = ?').run(TOOL_PIN_BASELINE_SETTING_KEY);
       fs.writeFileSync(drift.descFile, 'V2-DRIFTED-TEXT');
 
       s = await restartAgentTestServer(s, opts);
-      await settle(2500);
-
+      await freshUser('bl');
+      const ag = await agentFor([clean, drift]);
+      await observe(ag.stdio);
       const c1 = await pinOf(clean, 'stable');
-      expect(c1.status).toBe('approved');
+      expect(c1.status, JSON.stringify(c1)).toBe('approved');
       expect(c1.approved_by).toBe(SYSTEM_MIGRATION_ACTOR);
       expect(c1.baseline_unreviewed).toBe(true);
       const d1 = await pinOf(drift, 'moved');
       expect(d1.status).toBe('pending_review');
       expect(d1.flags.codes).toContain('baseline_mismatch');
       expect(
-        raw
+        (s.db as any).session.client
           .prepare('SELECT value FROM server_settings WHERE key = ?')
           .get(TOOL_PIN_BASELINE_SETTING_KEY)
       ).toBeTruthy();
 
       // hidden vs served after the baseline
-      const u2 = await createUser(s, 'bl');
-      alice = await loginSession(s, u2);
-      aliceId = u2.userId;
-      const ag = await agentFor([clean, drift]);
+
       const names = (await v1Tools(ag.stdio)).map(t => t.name);
       expect(names).toContain('stable');
       expect(names).not.toContain('moved');
@@ -342,16 +371,24 @@ describe('D6 baseline', () => {
       expect(sum.pending_count).toBeGreaterThanOrEqual(1);
 
       // never re-arms: a later change to the clean MCP is a normal pending, not a silent system:migration approval
+      const base = new Map(
+        (await pins(`mcp_id=${clean.mcpId}`)).map(p => [p.tool_name, p.approved_hash])
+      );
       fs.writeFileSync(clean.descFile, 'STABLE-CHANGED');
       s = await restartAgentTestServer(s, opts);
-      await settle(2500);
+      await freshUser('bl2');
+      await observe((await agentFor([clean, drift])).stdio);
       const c2 = await pinOf(clean, 'stable');
       expect(c2.pending_hash).not.toBe(c2.approved_hash);
       expect(c2.status).toBe('pending_review');
       const sys = (await pins(`mcp_id=${clean.mcpId}`)).filter(
         p => p.approved_by === SYSTEM_MIGRATION_ACTOR
       );
-      expect(sys.every(p => p.approved_hash === c1.approved_hash)).toBe(true);
+      // every tool keeps its baseline approval; the change is pending, never a new system:migration approval
+      expect(
+        sys.every(p => p.approved_hash === base.get(p.tool_name)),
+        JSON.stringify(sys.map(p => [p.tool_name, p.approved_hash?.slice(0, 8)]))
+      ).toBe(true);
     }
   );
 
@@ -362,9 +399,10 @@ describe('D6 baseline', () => {
     raw.prepare('DELETE FROM tool_pins').run();
     raw.prepare('DELETE FROM server_settings WHERE key = ?').run(TOOL_PIN_BASELINE_SETTING_KEY);
     s = await restartAgentTestServer(s, opts);
-    await settle(2500);
+    await freshUser('bl3');
+    await observe((await agentFor([m])).stdio);
     const p = await pinOf(m, 'conf');
-    expect(p.baseline_unreviewed).toBe(true);
+    expect(p.baseline_unreviewed, JSON.stringify(p)).toBe(true);
     const r = await s.admin.inject({
       method: 'POST',
       url: `${ADMIN_TOOL_PINS_ROUTE}/${p.pin_id}/confirm-baseline`,

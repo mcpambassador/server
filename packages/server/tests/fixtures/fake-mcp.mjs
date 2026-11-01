@@ -28,6 +28,14 @@ const log = o => {
 log({ kind: 'start', pid: process.pid, env: process.env });
 
 const send = o => process.stdout.write(JSON.stringify(o) + '\n');
+
+// FAKE_MCP_DESC_FILE changes => notifications/tools/list_changed (what a real server does on a definition change).
+if (process.env.FAKE_MCP_DESC_FILE) {
+  fs.watchFile(process.env.FAKE_MCP_DESC_FILE, { interval: 100 }, (cur, prev) => {
+    if (cur.mtimeMs !== prev.mtimeMs)
+      send({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' });
+  }).unref();
+}
 const ok = (id, result) => send({ jsonrpc: '2.0', id, result });
 const err = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
 
