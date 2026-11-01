@@ -64,6 +64,7 @@ import {
 } from '@mcpambassador/authn-ephemeral';
 import { LocalRbacProvider } from '@mcpambassador/authz-local';
 import { FileAuditProvider } from '@mcpambassador/audit-file';
+import { AGENT_MCP_ROUTE } from '@mcpambassador/contracts';
 import {
   resolveAgentEndpointConfig,
   createAgentEndpointDeps,
@@ -796,6 +797,10 @@ export class AmbassadorServer {
       max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 86400,
       refresh_tokens_enabled:
         !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
+      // Canonical MCP resource URL (what clients register as `claude mcp add ... <url>`)
+      resource_url: agentEndpointConfig?.enabled
+        ? `${this.agentPublicUrls().agentBaseUrl}${AGENT_MCP_ROUTE}`
+        : null,
     });
     if (agentEndpointConfig?.enabled) {
       await registerAgentOAuthRoutes(this.adminServer, await this.buildAgentEndpointDeps());
@@ -1671,20 +1676,28 @@ export class AmbassadorServer {
   /**
    * Start the server
    */
+  /** ADR-020: public issuer and /mcp base URL, from config/PUBLIC_URL, never the request Host */
+  private agentPublicUrls(): { issuer: string; agentBaseUrl: string } {
+    const cfg = this.config.ambassadorConfig!.agent_endpoint;
+    const strip = (u: string): string => u.replace(/\/+$/, '');
+    return {
+      issuer: strip(
+        cfg.issuer_url ??
+          this.config.publicUrl ??
+          `https://${this.config.serverName}:${this.config.adminPort}`
+      ),
+      agentBaseUrl: strip(
+        cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
+      ),
+    };
+  }
+
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
   private async buildAgentEndpointDeps(): Promise<AgentEndpointDeps> {
     // One shared instance for 9443 and 8443 so runtime settings/rate limits are consistent
     if (this.agentEndpointDeps) return this.agentEndpointDeps;
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
-    const strip = (u: string): string => u.replace(/\/+$/, '');
-    const issuer = strip(
-      cfg.issuer_url ??
-        this.config.publicUrl ??
-        `https://${this.config.serverName}:${this.config.adminPort}`
-    );
-    const agentBaseUrl = strip(
-      cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
-    );
+    const { issuer, agentBaseUrl } = this.agentPublicUrls();
     this.agentEndpointDeps = createAgentEndpointDeps(
       this.db!,
       resolveAgentEndpointConfig(cfg, { issuer, agentBaseUrl }),
