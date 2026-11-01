@@ -3,7 +3,7 @@
  * refresh rotation / reuse detection, revoke, DCR toggle, one-shot grants.
  * All `itImpl` until P4/P5 replace the 501 stubs (see helpers.ts).
  */
-import { describe, expect, beforeAll, afterAll } from 'vitest';
+import { describe, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import {
   OAUTH_REGISTER_ROUTE,
   AGENT_GRANTS_ROUTE,
@@ -35,6 +35,10 @@ import {
   tokenRequest,
   fullFlow,
 } from './oauth-flow-helpers.js';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('authorize + consent (pending request model)', () => {
   let s: AgentTestServer;
@@ -309,7 +313,7 @@ describe('token endpoint', () => {
           code_challenge: challenge,
         });
         const { code } = await approveAndGetCode(sess, requestId);
-        await new Promise(r => setTimeout(r, 11_000));
+        vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 11_000 });
         const res = await exchangeCode(short, { client_id: cid, code, verifier });
         expect(res.statusCode).toBe(400);
         expect(JSON.parse(res.body).error).toBe('invalid_grant');
@@ -403,7 +407,7 @@ describe('refresh tokens: rotation, reuse detection, expiry cap, revoke', () => 
     'refresh lifetime is capped by the grant expiry',
     async () => {
       const t = await fullFlow(s, alice, clientId, { ttl_seconds: 60 });
-      await new Promise(r => setTimeout(r, 61_000));
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 61_000 });
       const res = await refresh(s, { client_id: clientId, refresh_token: t.refresh_token! });
       expect(res.statusCode).toBe(400);
     },
