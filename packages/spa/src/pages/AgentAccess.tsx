@@ -39,13 +39,14 @@ import {
   grantStatus,
   parseToolAllowlist,
   ttlOptions,
+  formatDuration,
   type AgentGrantSummary,
   type CreateGrantResponse,
 } from '@/api/agent-types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 const ONE_SHOT_DEFAULT_TTL = 3600;
-const ONE_SHOT_MAX_TTL = 7 * 24 * 3600;
+const ONE_SHOT_MAX_TTL = 24 * 3600; // server cap (max_grant_ttl_seconds default); replace with live value
 
 const statusColor = { active: 'green', expired: 'zinc', revoked: 'red' } as const;
 
@@ -157,8 +158,9 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <DialogTitle>Create one-shot grant</DialogTitle>
             <DialogDescription>
               For CI and headless agents that cannot complete a browser sign-in. The token works
-              until the lifetime you choose below and is not renewable: no refresh token is issued,
-              so create a new grant when it expires.
+              until the lifetime you choose below (default {formatDuration(ONE_SHOT_DEFAULT_TTL)},
+              maximum {formatDuration(ONE_SHOT_MAX_TTL)}) and is not renewable: no refresh token is
+              issued, so create a new grant when it expires.
             </DialogDescription>
             {!clientsLoading && clients.length === 0 ? (
               <div role="alert" className="mt-4 space-y-2">
