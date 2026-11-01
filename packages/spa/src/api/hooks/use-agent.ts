@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 import type {
   ConsentDetails,
@@ -11,7 +11,12 @@ import type {
   AgentEndpointSettings,
 } from '../agent-types';
 
-type Paginated<T> = { data: T[]; pagination?: { has_more: boolean; total_count?: number } } | T[];
+type Paginated<T> =
+  | {
+      data: T[];
+      pagination?: { has_more: boolean; total_count?: number; next_cursor?: string | null };
+    }
+  | T[];
 
 function items<T>(res: Paginated<T> | undefined): T[] {
   if (!res) return [];
@@ -43,11 +48,53 @@ export function useSubmitConsent(requestId: string) {
 }
 
 // User grants
+const GRANTS_PAGE_SIZE = 50;
+
+/** Cursor-paginated list; `grants` is the flattened set of pages loaded so far. */
+function usePagedGrants(key: unknown[], path: string, params: Record<string, string> = {}) {
+  const q = useInfiniteQuery({
+    queryKey: key,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      apiClient.get<Paginated<AgentGrantSummary>>(path, {
+        params: {
+          ...params,
+          limit: String(GRANTS_PAGE_SIZE),
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+      }),
+    getNextPageParam: last =>
+      !Array.isArray(last) && last.pagination?.has_more
+        ? (last.pagination.next_cursor ?? undefined)
+        : undefined,
+  });
+  return {
+    grants: q.data ? q.data.pages.flatMap(p => items(p)) : undefined,
+    isLoading: q.isLoading,
+    error: q.error,
+    hasMore: !!q.hasNextPage,
+    loadMore: () => void q.fetchNextPage(),
+    loadingMore: q.isFetchingNextPage,
+  };
+}
+
 export function useAgentGrants() {
-  return useQuery({
-    queryKey: ['agent-grants'],
-    queryFn: async () =>
-      items(await apiClient.get<Paginated<AgentGrantSummary>>('/v1/users/me/agent-grants')),
+  return usePagedGrants(['agent-grants'], '/v1/users/me/agent-grants');
+}
+
+// Admin: grants of one user
+export function useAdminAgentGrants(userId: string) {
+  return usePagedGrants(['admin', 'agent-grants', userId], '/v1/admin/agent-grants', {
+    user_id: userId,
+  });
+}
+
+export function useAdminRevokeGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (grantId: string) =>
+      apiClient.delete(`/v1/admin/agent-grants/${encodeURIComponent(grantId)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'agent-grants'] }),
   });
 }
 

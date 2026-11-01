@@ -119,7 +119,9 @@ export function Setup() {
               <Logomark className="h-10 w-10" />
               <div className="flex items-baseline gap-1">
                 <span className="font-mono text-xl font-bold text-violet-400">MCP</span>
-                <span className="text-xl font-semibold text-zinc-900 dark:text-white">Ambassador</span>
+                <span className="text-xl font-semibold text-zinc-900 dark:text-white">
+                  Ambassador
+                </span>
               </div>
             </div>
           </div>
@@ -136,7 +138,9 @@ export function Setup() {
           <div className="space-y-4">
             <Field>
               <Label>Username</Label>
-              <Description className="text-xs">Letters, numbers, hyphens, and underscores only</Description>
+              <Description className="text-xs">
+                Letters, numbers, hyphens, and underscores only
+              </Description>
               <Input
                 type="text"
                 {...register('username', {
@@ -152,7 +156,9 @@ export function Setup() {
                 autoComplete="username"
               />
               {errors.username && (
-                <div className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username.message}</div>
+                <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.username.message}
+                </div>
               )}
             </Field>
 
@@ -169,7 +175,9 @@ export function Setup() {
                 autoComplete="new-password"
               />
               {errors.password && (
-                <div className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password.message}</div>
+                <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.password.message}
+                </div>
               )}
             </Field>
 
@@ -179,13 +187,15 @@ export function Setup() {
                 type="password"
                 {...register('confirmPassword', {
                   required: 'Please confirm your password',
-                  validate: (value) => value === password.current || 'Passwords do not match',
+                  validate: value => value === password.current || 'Passwords do not match',
                 })}
                 disabled={isSubmitting}
                 autoComplete="new-password"
               />
               {errors.confirmPassword && (
-                <div className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword.message}</div>
+                <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.confirmPassword.message}
+                </div>
               )}
             </Field>
 
@@ -202,7 +212,9 @@ export function Setup() {
                 autoComplete="name"
               />
               {errors.displayName && (
-                <div className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.displayName.message}</div>
+                <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.displayName.message}
+                </div>
               )}
             </Field>
 
@@ -211,13 +223,18 @@ export function Setup() {
               <Input
                 type="email"
                 {...register('email', {
-                  pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email address' },
+                  pattern: {
+                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: 'Invalid email address',
+                  },
                 })}
                 disabled={isSubmitting}
                 autoComplete="email"
               />
               {errors.email && (
-                <div className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</div>
+                <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {errors.email.message}
+                </div>
               )}
             </Field>
           </div>

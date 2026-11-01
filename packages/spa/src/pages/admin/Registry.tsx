@@ -43,9 +43,7 @@ export function Registry() {
 
     try {
       const result = await installMutation.mutateAsync(mcp.name);
-      setSuccessMessage(
-        `Successfully installed ${mcp.display_name}. MCP ID: ${result.mcp_id}`
-      );
+      setSuccessMessage(`Successfully installed ${mcp.display_name}. MCP ID: ${result.mcp_id}`);
     } catch (error: unknown) {
       if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
         setErrorMessage(`${mcp.display_name} is already installed`);
@@ -68,15 +66,14 @@ export function Registry() {
   };
 
   const filteredMcps =
-    registryData?.mcps?.filter((mcp) => {
+    registryData?.mcps?.filter(mcp => {
       const matchesSearch =
         mcp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         mcp.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         mcp.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        mcp.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+        mcp.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesCategory =
-        selectedCategory === 'all' || mcp.category === selectedCategory;
+      const matchesCategory = selectedCategory === 'all' || mcp.category === selectedCategory;
 
       return matchesSearch && matchesCategory;
     }) ?? [];
@@ -86,8 +83,7 @@ export function Registry() {
     return date.toLocaleString();
   };
 
-  const getTransportColor = (transport: string) =>
-    transport === 'http' ? 'blue' : 'zinc';
+  const getTransportColor = (transport: string) => (transport === 'http' ? 'blue' : 'zinc');
 
   const getAuthColor = (authType: string) => {
     switch (authType) {
@@ -123,16 +119,12 @@ export function Registry() {
           <Heading>Community Registry</Heading>
           {registryData?.registry && (
             <Text>
-              {registryData.registry.name} • {registryData.registry.mcp_count} MCPs • Last
-              updated: {formatLastUpdate(registryData.registry.last_fetched_at)}
+              {registryData.registry.name} • {registryData.registry.mcp_count} MCPs • Last updated:{' '}
+              {formatLastUpdate(registryData.registry.last_fetched_at)}
             </Text>
           )}
         </div>
-        <Button
-          color="zinc"
-          onClick={handleRefresh}
-          disabled={refreshMutation.isPending}
-        >
+        <Button color="zinc" onClick={handleRefresh} disabled={refreshMutation.isPending}>
           {refreshMutation.isPending ? (
             <>
               <ArrowPathIcon className="animate-spin" />
@@ -148,16 +140,8 @@ export function Registry() {
       </div>
 
       {/* Success/Error Messages */}
-      {successMessage && (
-        <InlineAlert color="success">
-          {successMessage}
-        </InlineAlert>
-      )}
-      {errorMessage && (
-        <InlineAlert color="error">
-          {errorMessage}
-        </InlineAlert>
-      )}
+      {successMessage && <InlineAlert color="success">{successMessage}</InlineAlert>}
+      {errorMessage && <InlineAlert color="error">{errorMessage}</InlineAlert>}
 
       {/* Search Bar */}
       <div className="relative">
@@ -165,14 +149,14 @@ export function Registry() {
         <Input
           placeholder="Search MCPs by name, description, or tags..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={e => setSearchQuery(e.target.value)}
           className="pl-10"
         />
       </div>
 
       {/* Category Filter */}
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-        {categories.map((category) => (
+        {categories.map(category => (
           <Badge
             key={category}
             color={selectedCategory === category ? 'blue' : 'zinc'}
@@ -180,7 +164,7 @@ export function Registry() {
             role="button"
             tabIndex={0}
             onClick={() => setSelectedCategory(category)}
-            onKeyDown={(e) => {
+            onKeyDown={e => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 setSelectedCategory(category);
@@ -222,7 +206,7 @@ export function Registry() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredMcps.map((mcp) => (
+          {filteredMcps.map(mcp => (
             <div
               key={mcp.name}
               className="flex flex-col rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10 hover:ring-zinc-950/20 dark:hover:ring-white/20 transition-shadow"
@@ -279,10 +263,7 @@ export function Registry() {
                 {mcp.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {mcp.tags.slice(0, 3).map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="text-xs text-zinc-500 dark:text-zinc-400"
-                      >
+                      <span key={idx} className="text-xs text-zinc-500 dark:text-zinc-400">
                         #{tag}
                       </span>
                     ))}

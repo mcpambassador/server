@@ -34,11 +34,11 @@ import {
   SidebarSpacer,
 } from '@/components/catalyst/sidebar';
 import { Avatar } from '@/components/catalyst/avatar';
-import { 
-  Dropdown, 
-  DropdownButton, 
-  DropdownMenu, 
-  DropdownItem, 
+import {
+  Dropdown,
+  DropdownButton,
+  DropdownMenu,
+  DropdownItem,
   DropdownDivider,
   DropdownLabel,
 } from '@/components/catalyst/dropdown';
@@ -80,7 +80,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme, setTheme } = useTheme();
-  
+
   const { data: session } = useQuery({
     queryKey: ['session'],
     queryFn: authApi.getSession,
@@ -124,7 +124,7 @@ export function AppSidebar() {
         {/* User Section */}
         <SidebarSection>
           <SidebarHeading>User</SidebarHeading>
-          {userNavItems.map((item) => {
+          {userNavItems.map(item => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
@@ -140,7 +140,7 @@ export function AppSidebar() {
         {session?.user.isAdmin && (
           <SidebarSection>
             <SidebarHeading>Admin</SidebarHeading>
-            {adminNavItems.map((item) => {
+            {adminNavItems.map(item => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
@@ -173,7 +173,12 @@ export function AppSidebar() {
         <Dropdown>
           <DropdownButton as={SidebarItem}>
             <span className="flex min-w-0 items-center gap-3">
-              <Avatar initials={userInitials} className="size-10 bg-slate-700 text-white" square alt="" />
+              <Avatar
+                initials={userInitials}
+                className="size-10 bg-slate-700 text-white"
+                square
+                alt=""
+              />
               <span className="min-w-0">
                 <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">
                   {session?.user.username}

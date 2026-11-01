@@ -15,7 +15,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
     <nav className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
-        
+
         return (
           <div key={index} className="flex items-center gap-2">
             {item.href && !isLast ? (
@@ -30,9 +30,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
                 {item.label}
               </span>
             )}
-            {!isLast && (
-              <ChevronRightIcon className="size-4 text-zinc-400 dark:text-zinc-500" />
-            )}
+            {!isLast && <ChevronRightIcon className="size-4 text-zinc-400 dark:text-zinc-500" />}
           </div>
         );
       })}

@@ -226,7 +226,7 @@ function CreateGrantDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
 export function AgentAccess() {
   usePageTitle('Agent access');
-  const { data: grants, isLoading, error } = useAgentGrants();
+  const { grants, isLoading, error, hasMore, loadMore, loadingMore } = useAgentGrants();
   const revoke = useRevokeGrant();
   const [pending, setPending] = useState<AgentGrantSummary | null>(null);
   const [revokeAllOpen, setRevokeAllOpen] = useState(false);
@@ -347,6 +347,13 @@ export function AgentAccess() {
             })}
           </TableBody>
         </Table>
+      )}
+      {hasMore && (
+        <div className="mt-4">
+          <Button outline onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
       )}
 
       <ConfirmDialog

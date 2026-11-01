@@ -1,13 +1,32 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeftIcon, TrashIcon, PlusIcon, UserGroupIcon, CubeIcon } from '@heroicons/react/20/solid';
+import {
+  ArrowLeftIcon,
+  TrashIcon,
+  PlusIcon,
+  UserGroupIcon,
+  CubeIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Button } from '@/components/catalyst/button';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger, TabsPanels } from '@/components/catalyst/tabs';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
@@ -68,7 +87,9 @@ export function GroupDetail() {
       setRemoveMemberDialogOpen(false);
       setMemberToRemove(null);
     } catch (error) {
-      toast.error('Remove member failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Remove member failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -120,12 +141,7 @@ export function GroupDetail() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <Breadcrumb
-        items={[
-          { label: 'Groups', href: '/app/admin/groups' },
-          { label: group.name },
-        ]}
-      />
+      <Breadcrumb items={[{ label: 'Groups', href: '/app/admin/groups' }, { label: group.name }]} />
 
       {/* Page Header */}
       <div className="space-y-1">
@@ -139,7 +155,9 @@ export function GroupDetail() {
         <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Group ID</dt>
-            <dd className="mt-1 text-sm font-mono text-zinc-900 dark:text-white">{group.group_id}</dd>
+            <dd className="mt-1 text-sm font-mono text-zinc-900 dark:text-white">
+              {group.group_id}
+            </dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Name</dt>
@@ -147,11 +165,15 @@ export function GroupDetail() {
           </div>
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
-            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{new Date(group.created_at).toLocaleString()}</dd>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
+              {new Date(group.created_at).toLocaleString()}
+            </dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Updated</dt>
-            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">{new Date(group.updated_at).toLocaleString()}</dd>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
+              {new Date(group.updated_at).toLocaleString()}
+            </dd>
           </div>
         </dl>
       </div>
@@ -204,7 +226,7 @@ export function GroupDetail() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {members.map((member) => (
+                      {members.map(member => (
                         <TableRow key={member.user_id}>
                           <TableCell>
                             <Link
@@ -282,7 +304,7 @@ export function GroupDetail() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {mcps.map((mcp) => (
+                      {mcps.map(mcp => (
                         <TableRow key={mcp.mcp_id}>
                           <TableCell>
                             <Link
@@ -334,9 +356,11 @@ export function GroupDetail() {
               value={selectedUserId}
               onChange={(value: string) => setSelectedUserId(value)}
             >
-              {allUsers?.data.map((user) => (
+              {allUsers?.data.map(user => (
                 <ListboxOption key={user.user_id} value={user.user_id}>
-                  <ListboxLabel>{user.username} {user.display_name && `(${user.display_name})`}</ListboxLabel>
+                  <ListboxLabel>
+                    {user.username} {user.display_name && `(${user.display_name})`}
+                  </ListboxLabel>
                 </ListboxOption>
               ))}
             </Listbox>
@@ -365,11 +389,15 @@ export function GroupDetail() {
               value={selectedMcpId}
               onChange={(value: string) => setSelectedMcpId(value)}
             >
-              {allMcps?.data.filter(m => m.status === 'published').map((mcp) => (
-                <ListboxOption key={mcp.mcp_id} value={mcp.mcp_id}>
-                  <ListboxLabel>{mcp.display_name} ({mcp.transport_type})</ListboxLabel>
-                </ListboxOption>
-              ))}
+              {allMcps?.data
+                .filter(m => m.status === 'published')
+                .map(mcp => (
+                  <ListboxOption key={mcp.mcp_id} value={mcp.mcp_id}>
+                    <ListboxLabel>
+                      {mcp.display_name} ({mcp.transport_type})
+                    </ListboxLabel>
+                  </ListboxOption>
+                ))}
             </Listbox>
           </Field>
         </DialogBody>

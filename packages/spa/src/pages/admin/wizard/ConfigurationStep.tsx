@@ -29,7 +29,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
         <Label>Configuration (JSON) *</Label>
         <Textarea
           value={formData.config}
-          onChange={(e) => onChange({ config: e.target.value })}
+          onChange={e => onChange({ config: e.target.value })}
           rows={12}
           className="font-mono text-sm"
           placeholder='{ "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }'
@@ -76,7 +76,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Credential Schema (JSON)</Label>
             <Textarea
               value={formData.credential_schema}
-              onChange={(e) => onChange({ credential_schema: e.target.value })}
+              onChange={e => onChange({ credential_schema: e.target.value })}
               rows={8}
               className="font-mono text-sm"
               placeholder='{ "type": "object", "required": ["api_key"], "properties": { "api_key": { "type": "string", "description": "API Key" } } }'
@@ -84,7 +84,10 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
               aria-describedby={errors.credential_schema ? 'credential-schema-error' : undefined}
             />
             {errors.credential_schema && (
-              <p id="credential-schema-error" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p
+                id="credential-schema-error"
+                className="text-xs text-red-600 dark:text-red-400 mt-1"
+              >
                 {errors.credential_schema}
               </p>
             )}
@@ -98,7 +101,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Authorization URL *</Label>
             <Input
               value={formData.oauth_auth_url}
-              onChange={(e) => onChange({ oauth_auth_url: e.target.value })}
+              onChange={e => onChange({ oauth_auth_url: e.target.value })}
               placeholder="https://accounts.google.com/o/oauth2/v2/auth"
               aria-invalid={!!errors.oauth_auth_url}
               aria-describedby={errors.oauth_auth_url ? 'oauth-auth-url-error' : undefined}
@@ -117,7 +120,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Token URL *</Label>
             <Input
               value={formData.oauth_token_url}
-              onChange={(e) => onChange({ oauth_token_url: e.target.value })}
+              onChange={e => onChange({ oauth_token_url: e.target.value })}
               placeholder="https://oauth2.googleapis.com/token"
               aria-invalid={!!errors.oauth_token_url}
               aria-describedby={errors.oauth_token_url ? 'oauth-token-url-error' : undefined}
@@ -136,7 +139,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Scopes *</Label>
             <Input
               value={formData.oauth_scopes}
-              onChange={(e) => onChange({ oauth_scopes: e.target.value })}
+              onChange={e => onChange({ oauth_scopes: e.target.value })}
               placeholder="openid email profile"
               aria-invalid={!!errors.oauth_scopes}
               aria-describedby={errors.oauth_scopes ? 'oauth-scopes-error' : undefined}
@@ -155,7 +158,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Client ID Environment Variable *</Label>
             <Input
               value={formData.oauth_client_id_env}
-              onChange={(e) => onChange({ oauth_client_id_env: e.target.value })}
+              onChange={e => onChange({ oauth_client_id_env: e.target.value })}
               placeholder="GOOGLE_OAUTH_CLIENT_ID"
               aria-invalid={!!errors.oauth_client_id_env}
               aria-describedby={errors.oauth_client_id_env ? 'oauth-client-id-error' : undefined}
@@ -166,7 +169,8 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
               </p>
             )}
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Name of the environment variable on the server containing the OAuth client ID (not the actual client ID)
+              Name of the environment variable on the server containing the OAuth client ID (not the
+              actual client ID)
             </p>
           </Field>
 
@@ -174,13 +178,18 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Client Secret Environment Variable *</Label>
             <Input
               value={formData.oauth_client_secret_env}
-              onChange={(e) => onChange({ oauth_client_secret_env: e.target.value })}
+              onChange={e => onChange({ oauth_client_secret_env: e.target.value })}
               placeholder="GOOGLE_OAUTH_CLIENT_SECRET"
               aria-invalid={!!errors.oauth_client_secret_env}
-              aria-describedby={errors.oauth_client_secret_env ? 'oauth-client-secret-error' : undefined}
+              aria-describedby={
+                errors.oauth_client_secret_env ? 'oauth-client-secret-error' : undefined
+              }
             />
             {errors.oauth_client_secret_env && (
-              <p id="oauth-client-secret-error" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p
+                id="oauth-client-secret-error"
+                className="text-xs text-red-600 dark:text-red-400 mt-1"
+              >
                 {errors.oauth_client_secret_env}
               </p>
             )}
@@ -193,13 +202,18 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Access Token Environment Variable *</Label>
             <Input
               value={formData.oauth_access_token_env_var}
-              onChange={(e) => onChange({ oauth_access_token_env_var: e.target.value })}
+              onChange={e => onChange({ oauth_access_token_env_var: e.target.value })}
               placeholder="GOOGLE_ACCESS_TOKEN"
               aria-invalid={!!errors.oauth_access_token_env_var}
-              aria-describedby={errors.oauth_access_token_env_var ? 'oauth-access-token-error' : undefined}
+              aria-describedby={
+                errors.oauth_access_token_env_var ? 'oauth-access-token-error' : undefined
+              }
             />
             {errors.oauth_access_token_env_var && (
-              <p id="oauth-access-token-error" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p
+                id="oauth-access-token-error"
+                className="text-xs text-red-600 dark:text-red-400 mt-1"
+              >
                 {errors.oauth_access_token_env_var}
               </p>
             )}
@@ -212,7 +226,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Revocation URL (optional)</Label>
             <Input
               value={formData.oauth_revocation_url}
-              onChange={(e) => onChange({ oauth_revocation_url: e.target.value })}
+              onChange={e => onChange({ oauth_revocation_url: e.target.value })}
               placeholder="https://oauth2.googleapis.com/revoke"
             />
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
@@ -224,7 +238,7 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
             <Label>Extra Parameters (optional JSON)</Label>
             <Textarea
               value={formData.oauth_extra_params}
-              onChange={(e) => onChange({ oauth_extra_params: e.target.value })}
+              onChange={e => onChange({ oauth_extra_params: e.target.value })}
               rows={4}
               className="font-mono text-sm"
               placeholder='{"access_type": "offline", "prompt": "consent"}'
@@ -232,7 +246,10 @@ export function ConfigurationStep({ formData, errors, onChange }: ConfigurationS
               aria-describedby={errors.oauth_extra_params ? 'oauth-extra-params-error' : undefined}
             />
             {errors.oauth_extra_params && (
-              <p id="oauth-extra-params-error" className="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p
+                id="oauth-extra-params-error"
+                className="text-xs text-red-600 dark:text-red-400 mt-1"
+              >
                 {errors.oauth_extra_params}
               </p>
             )}

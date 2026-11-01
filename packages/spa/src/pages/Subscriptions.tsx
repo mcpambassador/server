@@ -8,12 +8,30 @@ import { Button } from '@/components/catalyst/button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Badge } from '@/components/catalyst/badge';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { useClients, useClientSubscriptions, useUserSubscriptions, useUnsubscribe } from '@/api/hooks/use-clients';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  useClients,
+  useClientSubscriptions,
+  useUserSubscriptions,
+  useUnsubscribe,
+} from '@/api/hooks/use-clients';
 import type { Client, Subscription } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptions }: { client: Client; subscriptions?: Subscription[] }) {
+function ClientSubscriptionsSection({
+  client,
+  subscriptions: providedSubscriptions,
+}: {
+  client: Client;
+  subscriptions?: Subscription[];
+}) {
   // If subscriptions are provided by the parent aggregate call, use them to avoid extra requests
   const { data: subsFromHook, isLoading: hookLoading } = useClientSubscriptions(client.id);
   const subscriptions = providedSubscriptions ?? subsFromHook;
@@ -32,7 +50,9 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
       toast.success(`Unsubscribed from ${pendingUnsubscribe.mcpName}`);
       setPendingUnsubscribe(null);
     } catch (error) {
-      toast.error('Failed to unsubscribe', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to unsubscribe', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -45,12 +65,21 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
             <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
               {client.clientName}
             </h3>
-            <Badge color={client.status === 'active' ? 'green' : client.status === 'suspended' ? 'amber' : 'zinc'}>
+            <Badge
+              color={
+                client.status === 'active'
+                  ? 'green'
+                  : client.status === 'suspended'
+                    ? 'amber'
+                    : 'zinc'
+              }
+            >
               {client.status}
             </Badge>
             {subscriptions && subscriptions.length > 0 && (
               <Text className="text-sm text-zinc-500 dark:text-zinc-400">
-                {subscriptions.length} {subscriptions.length === 1 ? 'subscription' : 'subscriptions'}
+                {subscriptions.length}{' '}
+                {subscriptions.length === 1 ? 'subscription' : 'subscriptions'}
               </Text>
             )}
           </div>
@@ -77,7 +106,11 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
       ) : !subscriptions || subscriptions.length === 0 ? (
         <div className="p-8 text-center">
           <Text className="text-zinc-500 dark:text-zinc-400">
-            No subscriptions for this client. Browse the <Link to="/app/marketplace" className="font-medium hover:underline">marketplace</Link> to subscribe to MCPs.
+            No subscriptions for this client. Browse the{' '}
+            <Link to="/app/marketplace" className="font-medium hover:underline">
+              marketplace
+            </Link>{' '}
+            to subscribe to MCPs.
           </Text>
         </div>
       ) : (
@@ -94,7 +127,7 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
             </TableRow>
           </TableHead>
           <TableBody>
-            {subscriptions.map((sub) => (
+            {subscriptions.map(sub => (
               <TableRow key={sub.id}>
                 <TableCell>
                   <Link
@@ -105,9 +138,7 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <Badge color={sub.status === 'active' ? 'green' : 'amber'}>
-                    {sub.status}
-                  </Badge>
+                  <Badge color={sub.status === 'active' ? 'green' : 'amber'}>{sub.status}</Badge>
                 </TableCell>
                 <TableCell>
                   <Text className="text-sm">
@@ -141,7 +172,9 @@ function ClientSubscriptionsSection({ client, subscriptions: providedSubscriptio
       {/* Unsubscribe Confirmation Dialog */}
       <ConfirmDialog
         open={!!pendingUnsubscribe}
-        onClose={(open) => { if (!open) setPendingUnsubscribe(null); }}
+        onClose={open => {
+          if (!open) setPendingUnsubscribe(null);
+        }}
         title="Unsubscribe from MCP?"
         description={
           pendingUnsubscribe
@@ -162,7 +195,8 @@ export function Subscriptions() {
   const { data: clients, isLoading } = useClients();
   const { data: allSubscriptions } = useUserSubscriptions();
 
-  const activeClients = clients?.filter(c => c.status === 'active' || c.status === 'suspended') ?? [];
+  const activeClients =
+    clients?.filter(c => c.status === 'active' || c.status === 'suspended') ?? [];
 
   return (
     <div className="space-y-6">
@@ -199,7 +233,7 @@ export function Subscriptions() {
       ) : (
         /* Client Subscriptions Sections */
         <div className="space-y-6">
-          {activeClients.map((client) => (
+          {activeClients.map(client => (
             <ClientSubscriptionsSection
               key={client.id}
               client={client}

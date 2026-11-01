@@ -6,14 +6,14 @@ interface Props {
 }
 
 export function GlobalErrorHandler({ children }: Props) {
-
   React.useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error('Unhandled promise rejection:', event.reason);
-      
+
       // Extract useful error message
-      const message = event.reason?.message || event.reason?.toString() || 'An unexpected error occurred';
-      
+      const message =
+        event.reason?.message || event.reason?.toString() || 'An unexpected error occurred';
+
       toast.error('Error', {
         description: message,
       });
@@ -21,7 +21,7 @@ export function GlobalErrorHandler({ children }: Props) {
 
     const handleError = (event: ErrorEvent) => {
       console.error('Unhandled error:', event.error);
-      
+
       toast.error('Error', {
         description: event.message || 'An unexpected error occurred',
       });

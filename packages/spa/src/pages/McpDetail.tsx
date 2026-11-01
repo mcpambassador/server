@@ -12,8 +12,18 @@ import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { InlineAlert, InlineAlertDescription, InlineAlertTitle } from '@/components/catalyst/inline-alert';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  InlineAlert,
+  InlineAlertDescription,
+  InlineAlertTitle,
+} from '@/components/catalyst/inline-alert';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Field, Label } from '@/components/catalyst/fieldset';
@@ -47,9 +57,10 @@ export function McpDetail() {
   const credentialFields = useMemo(() => {
     if (!mcp?.credentialSchema) return [];
     try {
-      const schema = typeof mcp.credentialSchema === 'string'
-        ? JSON.parse(mcp.credentialSchema as string)
-        : mcp.credentialSchema;
+      const schema =
+        typeof mcp.credentialSchema === 'string'
+          ? JSON.parse(mcp.credentialSchema as string)
+          : mcp.credentialSchema;
       const props = schema?.properties || {};
       const required = schema?.required || [];
       return Object.entries(props).map(([key, value]: [string, unknown]) => {
@@ -81,7 +92,9 @@ export function McpDetail() {
       setSubscribeDialogOpen(false);
       navigate(`/app/clients/${selectedClientId}`);
     } catch (error) {
-      toast.error('Failed to subscribe', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to subscribe', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -94,7 +107,9 @@ export function McpDetail() {
       });
       setCredentialStep(false);
     } catch (error) {
-      toast.error('Failed to save credentials', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Failed to save credentials', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -134,10 +149,9 @@ export function McpDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <Breadcrumb items={[
-          { label: 'Marketplace', href: '/app/marketplace' },
-          { label: mcp.name },
-        ]} />
+        <Breadcrumb
+          items={[{ label: 'Marketplace', href: '/app/marketplace' }, { label: mcp.name }]}
+        />
         <div>
           <Heading>{mcp.name}</Heading>
           <Text className="mt-1">{mcp.description || 'No description available'}</Text>
@@ -171,27 +185,31 @@ export function McpDetail() {
 
       {/* MCP Details Panel */}
       <div className="rounded-lg bg-white dark:bg-white/5 ring-1 ring-zinc-950/10 dark:ring-white/10 p-6">
-        <Heading level={2} className="mb-4">MCP Details</Heading>
+        <Heading level={2} className="mb-4">
+          MCP Details
+        </Heading>
         <dl className="grid gap-6 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Isolation Mode</dt>
             <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
-              <Badge color="zinc">
-                {mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}
-              </Badge>
+              <Badge color="zinc">{mcp.isolationMode === 'per-user' ? 'Per-User' : 'Shared'}</Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Credentials Required</dt>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Credentials Required
+            </dt>
             <dd className="mt-1 text-sm text-zinc-900 dark:text-white">
-              <Badge color="zinc">
-                {requiresCredentials ? 'Yes' : 'No'}
-              </Badge>
+              <Badge color="zinc">{requiresCredentials ? 'Yes' : 'No'}</Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Tools Available</dt>
-            <dd className="mt-1 text-sm text-zinc-900 dark:text-white font-semibold">{mcp.tools.length}</dd>
+            <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Tools Available
+            </dt>
+            <dd className="mt-1 text-sm text-zinc-900 dark:text-white font-semibold">
+              {mcp.tools.length}
+            </dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</dt>
@@ -207,19 +225,28 @@ export function McpDetail() {
         <div className="flex items-center justify-between mb-2">
           <Heading level={2}>Available Tools</Heading>
           {mcp.tools.length > 0 && (
-            <Badge color="zinc">{mcp.tools.length} {mcp.tools.length === 1 ? 'tool' : 'tools'}</Badge>
+            <Badge color="zinc">
+              {mcp.tools.length} {mcp.tools.length === 1 ? 'tool' : 'tools'}
+            </Badge>
           )}
         </div>
         <Text className="mb-4">All tools provided by this MCP — visible before subscribing</Text>
         {mcp.tools.length === 0 ? (
           <div className="flex items-center gap-3 rounded-md border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-zinc-900/50 px-4 py-3">
             <WrenchScrewdriverIcon className="size-4 text-zinc-400 dark:text-zinc-500 shrink-0" />
-            <Text className="text-zinc-500 dark:text-zinc-400">No tools available for this MCP</Text>
+            <Text className="text-zinc-500 dark:text-zinc-400">
+              No tools available for this MCP
+            </Text>
           </div>
         ) : (
-          <div className={`space-y-0 divide-y divide-zinc-100 dark:divide-white/5 ${mcp.tools.length > 12 ? 'max-h-[32rem] overflow-y-auto rounded-md border border-zinc-200 dark:border-white/10' : ''}`}>
-            {mcp.tools.map((tool) => (
-              <div key={tool.name} className="flex items-start gap-3 py-3 px-1 first:pt-0 last:pb-0">
+          <div
+            className={`space-y-0 divide-y divide-zinc-100 dark:divide-white/5 ${mcp.tools.length > 12 ? 'max-h-[32rem] overflow-y-auto rounded-md border border-zinc-200 dark:border-white/10' : ''}`}
+          >
+            {mcp.tools.map(tool => (
+              <div
+                key={tool.name}
+                className="flex items-start gap-3 py-3 px-1 first:pt-0 last:pb-0"
+              >
                 <WrenchScrewdriverIcon className="size-4 text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white leading-5 break-all">
@@ -246,7 +273,11 @@ export function McpDetail() {
         {activeClients.length === 0 ? (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             You need a client key to subscribe.{' '}
-            <Button href="/app/clients" plain className="inline font-medium text-zinc-900 dark:text-white underline underline-offset-2 hover:no-underline p-0">
+            <Button
+              href="/app/clients"
+              plain
+              className="inline font-medium text-zinc-900 dark:text-white underline underline-offset-2 hover:no-underline p-0"
+            >
               Create one on the Clients page
             </Button>
           </p>
@@ -269,16 +300,21 @@ export function McpDetail() {
                 Enter your credentials to connect to this MCP server.
               </DialogDescription>
               <div className="mt-6 space-y-4">
-                {credentialFields.map((field) => (
+                {credentialFields.map(field => (
                   <Field key={field.key}>
                     <Label>
-                      {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+                      {field.label}
+                      {field.required && <span className="text-red-500 ml-0.5">*</span>}
                     </Label>
                     <Input
                       type={field.sensitive ? 'password' : 'text'}
                       value={credentialValues[field.key] || ''}
-                      onChange={(e) => setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      placeholder={field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`}
+                      onChange={e =>
+                        setCredentialValues(prev => ({ ...prev, [field.key]: e.target.value }))
+                      }
+                      placeholder={
+                        field.sensitive ? '••••••••' : `Enter ${field.label.toLowerCase()}`
+                      }
                     />
                   </Field>
                 ))}
@@ -289,7 +325,10 @@ export function McpDetail() {
                 </Button>
                 <Button
                   onClick={handleSaveCredentials}
-                  disabled={setCredentials.isPending || credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())}
+                  disabled={
+                    setCredentials.isPending ||
+                    credentialFields.some(f => f.required && !credentialValues[f.key]?.trim())
+                  }
                 >
                   {setCredentials.isPending ? 'Saving...' : 'Continue'}
                 </Button>
@@ -306,10 +345,17 @@ export function McpDetail() {
               <div className="mt-6 space-y-4">
                 <Field>
                   <Label>Select Client</Label>
-                  <Listbox placeholder="Choose a client" value={selectedClientId} onChange={(value: string) => setSelectedClientId(value)} name="client">
-                    {activeClients.map((client) => (
+                  <Listbox
+                    placeholder="Choose a client"
+                    value={selectedClientId}
+                    onChange={(value: string) => setSelectedClientId(value)}
+                    name="client"
+                  >
+                    {activeClients.map(client => (
                       <ListboxOption key={client.id} value={client.id}>
-                        <ListboxLabel>{client.clientName} ({client.keyPrefix})</ListboxLabel>
+                        <ListboxLabel>
+                          {client.clientName} ({client.keyPrefix})
+                        </ListboxLabel>
                       </ListboxOption>
                     ))}
                   </Listbox>
@@ -323,7 +369,11 @@ export function McpDetail() {
                   {mcp.tools.length > 0 ? (
                     <>
                       <div className="flex gap-2 mt-1 mb-2">
-                        <Button plain className="text-xs" onClick={() => setSelectedTools(mcp.tools.map(t => t.name))}>
+                        <Button
+                          plain
+                          className="text-xs"
+                          onClick={() => setSelectedTools(mcp.tools.map(t => t.name))}
+                        >
                           Select All
                         </Button>
                         <Button plain className="text-xs" onClick={() => setSelectedTools([])}>
@@ -331,29 +381,28 @@ export function McpDetail() {
                         </Button>
                       </div>
                       <div className="max-h-64 overflow-y-auto space-y-2 rounded-lg border border-zinc-950/10 dark:border-white/10 p-4">
-                      {mcp.tools.map((tool) => (
-                        <CheckboxField key={tool.name}>
-                          <Checkbox
-                            name={tool.name}
-                            checked={selectedTools.includes(tool.name)}
-                            onChange={(checked) => {
-                              if (checked) {
-                                setSelectedTools([...selectedTools, tool.name]);
-                              } else {
-                                setSelectedTools(selectedTools.filter(t => t !== tool.name));
-                              }
-                            }}
-                          />
-                          <Label className="font-medium cursor-pointer">
-                            {tool.name}
-                          </Label>
-                        </CheckboxField>
-                      ))}
+                        {mcp.tools.map(tool => (
+                          <CheckboxField key={tool.name}>
+                            <Checkbox
+                              name={tool.name}
+                              checked={selectedTools.includes(tool.name)}
+                              onChange={checked => {
+                                if (checked) {
+                                  setSelectedTools([...selectedTools, tool.name]);
+                                } else {
+                                  setSelectedTools(selectedTools.filter(t => t !== tool.name));
+                                }
+                              }}
+                            />
+                            <Label className="font-medium cursor-pointer">{tool.name}</Label>
+                          </CheckboxField>
+                        ))}
                       </div>
                     </>
                   ) : isOAuthMcp ? (
                     <Text className="text-sm text-zinc-500 dark:text-zinc-400">
-                      Tools will be discovered after you connect your OAuth account on the Credentials page.
+                      Tools will be discovered after you connect your OAuth account on the
+                      Credentials page.
                     </Text>
                   ) : null}
                 </Field>
@@ -365,7 +414,11 @@ export function McpDetail() {
                 </Button>
                 <Button
                   onClick={handleSubscribe}
-                  disabled={!selectedClientId || (!isOAuthMcp && selectedTools.length === 0) || subscribe.isPending}
+                  disabled={
+                    !selectedClientId ||
+                    (!isOAuthMcp && selectedTools.length === 0) ||
+                    subscribe.isPending
+                  }
                 >
                   {subscribe.isPending ? 'Subscribing...' : 'Subscribe'}
                 </Button>

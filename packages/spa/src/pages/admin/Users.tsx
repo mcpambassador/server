@@ -1,19 +1,45 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, EyeIcon, TrashIcon, KeyIcon, PencilIcon, UsersIcon } from '@heroicons/react/20/solid';
+import {
+  PlusIcon,
+  EyeIcon,
+  TrashIcon,
+  KeyIcon,
+  PencilIcon,
+  UsersIcon,
+} from '@heroicons/react/20/solid';
 import { toast } from 'sonner';
 import { Heading } from '@/components/catalyst/heading';
 import { Text } from '@/components/catalyst/text';
 import { Badge } from '@/components/catalyst/badge';
 import { Button } from '@/components/catalyst/button';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/catalyst/table';
-import { Dialog, DialogBody, DialogTitle, DialogDescription, DialogActions } from '@/components/catalyst/dialog';
+import {
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeader,
+  TableCell,
+} from '@/components/catalyst/table';
+import {
+  Dialog,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+  DialogActions,
+} from '@/components/catalyst/dialog';
 import { Alert, AlertTitle, AlertDescription, AlertActions } from '@/components/catalyst/alert';
 import { Input } from '@/components/catalyst/input';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Listbox, ListboxOption, ListboxLabel } from '@/components/catalyst/listbox';
-import { useAdminUsers, useCreateUser, useUpdateUser, useDeleteUser, useResetPassword } from '@/api/hooks/use-admin';
+import {
+  useAdminUsers,
+  useCreateUser,
+  useUpdateUser,
+  useDeleteUser,
+  useResetPassword,
+} from '@/api/hooks/use-admin';
 import type { AdminUser } from '@/api/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -59,9 +85,17 @@ export function UsersAdmin() {
         is_admin: createFormData.is_admin,
       });
       setCreateDialogOpen(false);
-      setCreateFormData({ username: '', password: '', display_name: '', email: '', is_admin: false });
+      setCreateFormData({
+        username: '',
+        password: '',
+        display_name: '',
+        email: '',
+        is_admin: false,
+      });
     } catch (error) {
-      toast.error('Create user failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Create user failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -80,7 +114,9 @@ export function UsersAdmin() {
       setEditDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      toast.error('Update user failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Update user failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -95,7 +131,9 @@ export function UsersAdmin() {
       setSelectedUser(null);
       setNewPassword('');
     } catch (error) {
-      toast.error('Reset password failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Reset password failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -106,7 +144,9 @@ export function UsersAdmin() {
       setDeleteDialogOpen(false);
       setSelectedUser(null);
     } catch (error) {
-      toast.error('Delete user failed', { description: (error as Error)?.message ?? String(error) });
+      toast.error('Delete user failed', {
+        description: (error as Error)?.message ?? String(error),
+      });
     }
   };
 
@@ -155,19 +195,35 @@ export function UsersAdmin() {
               <>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
-                    <TableCell><div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" /></TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-5 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-20 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="animate-pulse h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+                    </TableCell>
                   </TableRow>
                 ))}
               </>
             ) : usersData?.data && usersData.data.length > 0 ? (
-              usersData.data.map((user) => (
+              usersData.data.map(user => (
                 <TableRow key={user.user_id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -178,10 +234,20 @@ export function UsersAdmin() {
                         {user.username}
                       </Link>
                       {user.username === 'admin' && (
-                        <Badge color="purple" title="System administrator account created during initial setup">System</Badge>
+                        <Badge
+                          color="purple"
+                          title="System administrator account created during initial setup"
+                        >
+                          System
+                        </Badge>
                       )}
                       {user.username === 'qa-tester' && (
-                        <Badge color="amber" title="Test account auto-created in development mode. Not present in production.">Dev Seed</Badge>
+                        <Badge
+                          color="amber"
+                          title="Test account auto-created in development mode. Not present in production."
+                        >
+                          Dev Seed
+                        </Badge>
                       )}
                     </div>
                   </TableCell>
@@ -265,18 +331,14 @@ export function UsersAdmin() {
       {/* Create User Dialog */}
       <Dialog open={createDialogOpen} onClose={setCreateDialogOpen}>
         <DialogTitle>Create New User</DialogTitle>
-        <DialogDescription>
-          Add a new user to the system
-        </DialogDescription>
+        <DialogDescription>Add a new user to the system</DialogDescription>
         <DialogBody>
           <div className="space-y-4">
             <Field>
               <Label>Username *</Label>
               <Input
                 value={createFormData.username}
-                onChange={(e) =>
-                  setCreateFormData({ ...createFormData, username: e.target.value })
-                }
+                onChange={e => setCreateFormData({ ...createFormData, username: e.target.value })}
               />
             </Field>
             <Field>
@@ -284,16 +346,14 @@ export function UsersAdmin() {
               <Input
                 type="password"
                 value={createFormData.password}
-                onChange={(e) =>
-                  setCreateFormData({ ...createFormData, password: e.target.value })
-                }
+                onChange={e => setCreateFormData({ ...createFormData, password: e.target.value })}
               />
             </Field>
             <Field>
               <Label>Display Name</Label>
               <Input
                 value={createFormData.display_name}
-                onChange={(e) =>
+                onChange={e =>
                   setCreateFormData({ ...createFormData, display_name: e.target.value })
                 }
               />
@@ -303,18 +363,14 @@ export function UsersAdmin() {
               <Input
                 type="email"
                 value={createFormData.email}
-                onChange={(e) =>
-                  setCreateFormData({ ...createFormData, email: e.target.value })
-                }
+                onChange={e => setCreateFormData({ ...createFormData, email: e.target.value })}
               />
             </Field>
             <CheckboxField>
               <Checkbox
                 name="is_admin"
                 checked={createFormData.is_admin}
-                onChange={(checked) =>
-                  setCreateFormData({ ...createFormData, is_admin: checked })
-                }
+                onChange={checked => setCreateFormData({ ...createFormData, is_admin: checked })}
               />
               <Label>Administrator</Label>
             </CheckboxField>
@@ -326,9 +382,7 @@ export function UsersAdmin() {
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={
-              !createFormData.username || !createFormData.password || createUser.isPending
-            }
+            disabled={!createFormData.username || !createFormData.password || createUser.isPending}
           >
             {createUser.isPending ? 'Creating...' : 'Create'}
           </Button>
@@ -338,18 +392,14 @@ export function UsersAdmin() {
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onClose={setEditDialogOpen}>
         <DialogTitle>Edit User</DialogTitle>
-        <DialogDescription>
-          Update user information and permissions
-        </DialogDescription>
+        <DialogDescription>Update user information and permissions</DialogDescription>
         <DialogBody>
           <div className="space-y-4">
             <Field>
               <Label>Display Name</Label>
               <Input
                 value={editFormData.display_name}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, display_name: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, display_name: e.target.value })}
               />
             </Field>
             <Field>
@@ -357,9 +407,7 @@ export function UsersAdmin() {
               <Input
                 type="email"
                 value={editFormData.email}
-                onChange={(e) =>
-                  setEditFormData({ ...editFormData, email: e.target.value })
-                }
+                onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
               />
             </Field>
             <Field>
@@ -386,9 +434,7 @@ export function UsersAdmin() {
               <Checkbox
                 name="edit_is_admin"
                 checked={editFormData.is_admin}
-                onChange={(checked) =>
-                  setEditFormData({ ...editFormData, is_admin: checked })
-                }
+                onChange={checked => setEditFormData({ ...editFormData, is_admin: checked })}
               />
               <Label>Administrator</Label>
             </CheckboxField>
@@ -407,16 +453,14 @@ export function UsersAdmin() {
       {/* Reset Password Dialog */}
       <Dialog open={resetDialogOpen} onClose={setResetDialogOpen}>
         <DialogTitle>Reset Password</DialogTitle>
-        <DialogDescription>
-          Set a new password for {selectedUser?.username}
-        </DialogDescription>
+        <DialogDescription>Set a new password for {selectedUser?.username}</DialogDescription>
         <DialogBody>
           <Field>
             <Label>New Password</Label>
             <Input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={e => setNewPassword(e.target.value)}
             />
           </Field>
         </DialogBody>
@@ -424,10 +468,7 @@ export function UsersAdmin() {
           <Button plain onClick={() => setResetDialogOpen(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={handleResetPassword}
-            disabled={!newPassword || resetPassword.isPending}
-          >
+          <Button onClick={handleResetPassword} disabled={!newPassword || resetPassword.isPending}>
             {resetPassword.isPending ? 'Resetting...' : 'Reset Password'}
           </Button>
         </DialogActions>
@@ -437,8 +478,8 @@ export function UsersAdmin() {
       <Alert open={deleteDialogOpen} onClose={setDeleteDialogOpen}>
         <AlertTitle>Are you sure?</AlertTitle>
         <AlertDescription>
-          This will permanently delete the user {selectedUser?.username}. This action
-          cannot be undone.
+          This will permanently delete the user {selectedUser?.username}. This action cannot be
+          undone.
         </AlertDescription>
         <AlertActions>
           <Button plain onClick={() => setDeleteDialogOpen(false)}>
