@@ -72,6 +72,25 @@ export class ToolRouter {
     this.observed = new WeakMap();
   }
 
+  /**
+   * ADR-021: observe a shared MCP's current raw tool list now (after a re-discovery), so changes reach the
+   * review queue without waiting for an agent to list tools. Never throws.
+   */
+  async observeSharedNow(
+    db: DatabaseClient,
+    mcpEntry: { mcp_id: string; name: string }
+  ): Promise<void> {
+    if (!this.pins) return;
+    const raw = this.sharedManager.getRawToolsFor(mcpEntry.name);
+    if (!raw) return;
+    try {
+      const policy: PinPolicy = (await getMcpPinPolicy(db, mcpEntry.mcp_id)) ?? 'review';
+      await this.observeOnce(raw, mcpEntry.mcp_id, null, policy);
+    } catch (err) {
+      logger.error({ err, mcp: mcpEntry.name }, '[ToolRouter] tool pin observation failed');
+    }
+  }
+
   /** Compare one connection's raw tool list with the pins, once per (array identity, policy). */
   private async observeOnce(
     raw: readonly unknown[],
