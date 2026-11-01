@@ -85,6 +85,22 @@ describe('B2 create-time validation (admin API)', () => {
     });
   }
 
+  it('non-OAuth invalid body (missing name) -> 400 VALIDATION_ERROR, no echoed input values', async () => {
+    const canary = 'ECHO-CANARY-9d41';
+    const payload = {
+      display_name: canary,
+      transport_type: canary, // invalid enum value
+      config: { url: 'https://mcp.example/mcp', token: canary },
+    };
+    for (const method of ['POST', 'PATCH'] as const) {
+      const url = method === 'POST' ? '/v1/admin/mcps' : `/v1/admin/mcps/${randomUUID()}`;
+      const r = await server.admin.inject({ method, url, headers: headers(), payload });
+      expect(r.statusCode, `${method}`).toBe(400);
+      expect(r.body).toContain('VALIDATION_ERROR');
+      expect(r.body).not.toContain(canary);
+    }
+  });
+
   it('control: GitHub secret + github.com token_url + *_CLIENT_ID is accepted', async () => {
     const r = await post(oauth());
     expect(r.statusCode).toBe(201);
