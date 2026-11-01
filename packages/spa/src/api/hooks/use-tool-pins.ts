@@ -72,6 +72,18 @@ export function useConfirmBaseline() {
   });
 }
 
+/** G1: revoke an approved pin (hides the tool from agents immediately). Body: expected_hash = approved_hash. */
+export function useRevokePin() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ pinId, expected_hash }: { pinId: string; expected_hash: string }) =>
+      apiClient.post<ToolPinDetail>(`/v1/admin/tool-pins/${encodeURIComponent(pinId)}/revoke`, {
+        expected_hash,
+      }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useSetPinPolicy(mcpId: string) {
   const qc = useQueryClient();
   return useMutation({

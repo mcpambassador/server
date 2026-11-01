@@ -42,6 +42,7 @@ const list = (rows: unknown[]) => ({
 function setup(opts: {
   pending?: unknown[];
   baseline?: unknown[];
+  approved?: unknown[];
   detail?: Record<string, unknown>;
   posts?: Array<{ url: string; body: unknown }>;
 }) {
@@ -59,9 +60,13 @@ function setup(opts: {
     ),
     http.get('/v1/admin/tool-pins', ({ request }) => {
       const q = new URL(request.url).searchParams;
-      return HttpResponse.json(
-        list(q.get('baseline') ? (opts.baseline ?? []) : (opts.pending ?? []))
-      );
+      const rows =
+        q.get('status') === 'approved'
+          ? (opts.approved ?? [])
+          : q.get('baseline')
+            ? (opts.baseline ?? [])
+            : (opts.pending ?? []);
+      return HttpResponse.json(list(rows));
     }),
     http.get('/v1/admin/tool-pins/:id', () =>
       HttpResponse.json({ ok: true, data: opts.detail ?? {} })
@@ -242,6 +247,41 @@ describe('ToolReview', () => {
       url: '/v1/admin/tool-pins/p1/confirm-baseline',
       body: { expected_hash: H1 },
     });
+  });
+});
+
+describe('ToolReview revoke (G1)', () => {
+  const approvedPin = (over: Record<string, unknown> = {}) =>
+    pin({ status: 'approved', pending_hash: null, ...over });
+
+  it('revokes an approved pin after confirmation, with expected_hash = approved_hash', async () => {
+    const user = userEvent.setup();
+    const posts = setup({ approved: [approvedPin()] });
+    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    expect(await screen.findByText(/hides the tool from agents immediately/)).toBeInTheDocument();
+    expect(posts).toHaveLength(0);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toEqual({
+      url: '/v1/admin/tool-pins/p1/revoke',
+      body: { expected_hash: H1 },
+    });
+  });
+
+  it('offers Revoke on a baseline item and nothing on a pending one', async () => {
+    const user = userEvent.setup();
+    const posts = setup({
+      pending: [pin()],
+      baseline: [approvedPin({ baseline_unreviewed: true })],
+    });
+    await screen.findByRole('button', { name: 'Review' });
+    expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Baseline, never human-reviewed/ }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]!.url).toBe('/v1/admin/tool-pins/p1/revoke');
   });
 });
 

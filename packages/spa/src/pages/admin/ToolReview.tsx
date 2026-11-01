@@ -9,6 +9,7 @@ import { Dialog, DialogTitle, DialogBody, DialogActions } from '@/components/cat
 import { Checkbox, CheckboxField } from '@/components/catalyst/checkbox';
 import { Field, Label } from '@/components/catalyst/fieldset';
 import { Textarea } from '@/components/catalyst/textarea';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import {
@@ -17,6 +18,7 @@ import {
   useToolPinSummary,
   useDecidePin,
   useConfirmBaseline,
+  useRevokePin,
 } from '@/api/hooks/use-tool-pins';
 import { NON_APPROVABLE_FLAGS } from '@/api/tool-pin-types';
 import type { ToolPinSummary, ToolDefinition } from '@/api/tool-pin-types';
@@ -370,10 +372,12 @@ function ReviewDialog({
 function PinGroups({
   pins,
   onReview,
+  onRevoke,
   empty,
 }: {
   pins: ToolPinSummary[];
-  onReview: (p: ToolPinSummary) => void;
+  onReview?: (p: ToolPinSummary) => void;
+  onRevoke?: (p: ToolPinSummary) => void;
   empty: string;
 }) {
   const groups = useMemo(() => {
@@ -407,8 +411,13 @@ function PinGroups({
                 )}
                 {p.absent && <Badge>absent</Badge>}
                 <FlagBadges pin={p} />
-                <span className="ml-auto">
-                  <Button onClick={() => onReview(p)}>Review</Button>
+                <span className="ml-auto flex gap-2">
+                  {onReview && <Button onClick={() => onReview(p)}>Review</Button>}
+                  {onRevoke && p.status === 'approved' && p.approved_hash && (
+                    <Button outline onClick={() => onRevoke(p)}>
+                      Revoke
+                    </Button>
+                  )}
                 </span>
               </li>
             ))}
@@ -439,12 +448,15 @@ function TabButton({
 
 export function ToolReview() {
   usePageTitle('Admin - Tool Review');
-  const [tab, setTab] = useState<'pending' | 'baseline'>('pending');
+  const [tab, setTab] = useState<'pending' | 'baseline' | 'approved'>('pending');
   const [sel, setSel] = useState<ToolPinSummary | null>(null);
+  const [revoking, setRevoking] = useState<ToolPinSummary | null>(null);
+  const revoke = useRevokePin();
   const summary = useToolPinSummary();
   const pending = useToolPins({ status: 'pending_review' });
   const baseline = useToolPins({ baseline: 'unreviewed' });
-  const list = tab === 'pending' ? pending : baseline;
+  const approved = useToolPins({ status: 'approved' });
+  const list = tab === 'pending' ? pending : tab === 'baseline' ? baseline : approved;
 
   return (
     <div className="space-y-6">
@@ -469,6 +481,9 @@ export function ToolReview() {
           Baseline, never human-reviewed
           {summary.data ? ` (${summary.data.baseline_unreviewed_count})` : ''}
         </TabButton>
+        <TabButton active={tab === 'approved'} onClick={() => setTab('approved')}>
+          Approved
+        </TabButton>
       </div>
       {list.isLoading ? (
         <Text>Loading…</Text>
@@ -477,13 +492,45 @@ export function ToolReview() {
       ) : (
         <PinGroups
           pins={list.pins}
-          onReview={setSel}
+          onReview={tab === 'approved' ? undefined : setSel}
+          onRevoke={tab === 'pending' ? undefined : setRevoking}
           empty={
-            tab === 'pending' ? 'No tool definitions awaiting review' : 'No unreviewed baseline'
+            tab === 'pending'
+              ? 'No tool definitions awaiting review'
+              : tab === 'baseline'
+                ? 'No unreviewed baseline'
+                : 'No approved tool definitions'
           }
         />
       )}
-      <ReviewDialog key={sel?.pin_id ?? 'none'} pin={sel} mode={tab} onClose={() => setSel(null)} />
+      <ConfirmDialog
+        open={!!revoking}
+        onClose={() => setRevoking(null)}
+        title={`Revoke ${visibleText(revoking?.tool_name ?? '')}?`}
+        description="This hides the tool from agents immediately. It stays hidden until a new definition is approved."
+        confirmLabel="Revoke"
+        confirmColor="red"
+        isLoading={revoke.isPending}
+        onConfirm={async () => {
+          if (!revoking?.approved_hash) return;
+          try {
+            await revoke.mutateAsync({
+              pinId: revoking.pin_id,
+              expected_hash: revoking.approved_hash,
+            });
+            toast.success('Tool revoked');
+            setRevoking(null);
+          } catch (e) {
+            toast.error('Action failed', { description: (e as Error)?.message ?? String(e) });
+          }
+        }}
+      />
+      <ReviewDialog
+        key={sel?.pin_id ?? 'none'}
+        pin={sel}
+        mode={tab === 'baseline' ? 'baseline' : 'pending'}
+        onClose={() => setSel(null)}
+      />
     </div>
   );
 }
