@@ -72,7 +72,7 @@ describe('KillSwitches', () => {
     await userEvent.click(killButtons[0]!);
     await userEvent.click(await screen.findByRole('button', { name: 'Activate kill switch' }));
     await waitFor(() => expect(posts).toHaveLength(1));
-    expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client:c1');
+    expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client%3Ac1');
     expect(posts[0]?.body).toEqual({ enabled: true });
   });
 
@@ -99,13 +99,13 @@ describe('KillSwitches', () => {
     const restore = await screen.findAllByRole('button', { name: 'Restore' });
     expect(restore).toHaveLength(2);
     expect(screen.getAllByText('Kill switch active')).toHaveLength(2);
-    expect(screen.getByText(/by ops$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/by ops$/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Kill' })).toHaveLength(2);
 
     await userEvent.click(restore[0]!); // client:c2 renders first
     await userEvent.click(await screen.findByRole('button', { name: 'Restore access' }));
     await waitFor(() => expect(posts).toHaveLength(1));
-    expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client:c2');
+    expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client%3Ac2');
     expect(posts[0]?.body).toEqual({ enabled: false });
   });
 
@@ -113,5 +113,43 @@ describe('KillSwitches', () => {
     setup('error');
     expect(await screen.findByRole('alert')).toHaveTextContent(/Could not load kill-switch state/);
     for (const b of screen.getAllByRole('button', { name: 'Kill' })) expect(b).toBeDisabled();
+  });
+
+  it('lists every active switch with its own Restore, including orphaned targets', async () => {
+    const posts: Array<{ url: string; body: unknown }> = [];
+    setup(
+      [
+        {
+          target: 'mcp:deleted-mcp',
+          type: 'mcp',
+          activated_at: '2026-10-01T00:00:00Z',
+          activated_by: 'admin',
+        },
+        {
+          target: 'client:gone/1',
+          type: 'client',
+          activated_at: '2026-10-02T00:00:00Z',
+          activated_by: 'ops',
+        },
+      ],
+      posts
+    );
+    const section = await screen.findByTestId('active-kill-switches');
+    expect(section).toHaveTextContent('mcp:deleted-mcp');
+    expect(section).toHaveTextContent('client:gone/1');
+    expect(section).toHaveTextContent(/by ops/);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Restore client:gone/1' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore access' }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    // target is URL-encoded (K1-b): ":" and "/" must not alter the route
+    expect(posts[0]?.url).toBe('/v1/admin/kill-switch/client%3Agone%2F1');
+    expect(posts[0]?.body).toEqual({ enabled: false });
+  });
+
+  it('hides the active section when nothing is killed', async () => {
+    setup([]);
+    await screen.findAllByRole('button', { name: 'Kill' });
+    expect(screen.queryByTestId('active-kill-switches')).toBeNull();
   });
 });

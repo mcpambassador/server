@@ -97,6 +97,43 @@ export function KillSwitches() {
         </p>
       </div>
 
+      {/* Every active switch, including ones whose client/MCP is deleted, archived or off-page */}
+      {switchStateKnown && (switchesData ?? []).length > 0 && (
+        <div
+          data-testid="active-kill-switches"
+          className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10"
+        >
+          <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">
+            Active kill switches
+          </h3>
+          <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+            All switches currently in effect
+          </p>
+          <div className="mt-4 divide-y divide-zinc-950/5 dark:divide-white/10">
+            {(switchesData ?? []).map(s => (
+              <div key={s.target} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm/6 font-mono font-medium text-zinc-900 dark:text-white">
+                    {s.target}
+                  </p>
+                  <p className="text-sm/6 text-zinc-500 dark:text-zinc-400">
+                    {s.type} · {killedInfo(s.target)}
+                  </p>
+                </div>
+                <Button
+                  color="green"
+                  aria-label={`Restore ${s.target}`}
+                  onClick={() => handleToggle(s.target, true)}
+                >
+                  <PowerIcon data-slot="icon" />
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Client Kill Switches */}
       <div className="rounded-lg bg-white dark:bg-white/5 p-6 ring-1 ring-zinc-950/10 dark:ring-white/10">
         <h3 className="text-base/7 font-semibold text-zinc-900 dark:text-white">

@@ -459,7 +459,9 @@ export function useKillSwitch() {
 
   return useMutation({
     mutationFn: ({ target, enabled }: { target: string; enabled: boolean }) =>
-      apiClient.post<KillSwitchResponse>(`/v1/admin/kill-switch/${target}`, { enabled }),
+      apiClient.post<KillSwitchResponse>(`/v1/admin/kill-switch/${encodeURIComponent(target)}`, {
+        enabled,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'kill-switches'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'clients'] });
