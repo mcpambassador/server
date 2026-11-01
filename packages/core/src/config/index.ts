@@ -12,6 +12,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'yaml';
+import { ZodError } from 'zod';
 import {
   AmbassadorConfigSchema,
   buildCredentialPatterns,
@@ -102,11 +103,34 @@ export async function loadConfig(
     if (error instanceof AmbassadorError) {
       throw error;
     }
+    if (error instanceof ZodError) {
+      throw new AmbassadorError(
+        `Config validation failed: ${formatZodIssues(error)}`,
+        'configuration_error'
+      );
+    }
     if (error instanceof Error) {
       throw new AmbassadorError(`Failed to load config: ${error.message}`, 'configuration_error');
     }
     throw error;
   }
+}
+
+// Zod issue codes whose messages echo the offending input value; report only the code for these.
+const VALUE_ECHOING_CODES = new Set([
+  'invalid_enum_value',
+  'invalid_literal',
+  'invalid_union_discriminator',
+]);
+
+/** Format zod issues as `path: message` pairs. Never includes config values. */
+function formatZodIssues(error: ZodError): string {
+  return error.issues
+    .map(
+      i =>
+        `${i.path.join('.') || '(root)'}: ${VALUE_ECHOING_CODES.has(i.code) ? i.code : i.message}`
+    )
+    .join('; ');
 }
 
 /**
