@@ -452,6 +452,7 @@ export function ToolReview() {
   const [sel, setSel] = useState<ToolPinSummary | null>(null);
   const [revoking, setRevoking] = useState<ToolPinSummary | null>(null);
   const revoke = useRevokePin();
+  const [revokeReason, setRevokeReason] = useState('');
   const summary = useToolPinSummary();
   const pending = useToolPins({ status: 'pending_review' });
   const baseline = useToolPins({ baseline: 'unreviewed' });
@@ -505,9 +506,30 @@ export function ToolReview() {
       )}
       <ConfirmDialog
         open={!!revoking}
-        onClose={() => setRevoking(null)}
+        onClose={() => {
+          setRevoking(null);
+          setRevokeReason('');
+        }}
         title={`Revoke ${visibleText(revoking?.tool_name ?? '')}?`}
-        description="This hides the tool from agents immediately. It stays hidden until a new definition is approved."
+        description={
+          <div className="space-y-3">
+            <p>
+              Agents lose this tool immediately in this scope
+              {revoking && !revoking.scope_user_id
+                ? ' and in every per-user scope that relies on it'
+                : ''}
+              . It stays hidden until a new definition is approved.
+            </p>
+            <Textarea
+              aria-label="Reason (optional)"
+              placeholder="Reason (optional)"
+              value={revokeReason}
+              maxLength={500}
+              onChange={e => setRevokeReason(e.target.value)}
+              rows={2}
+            />
+          </div>
+        }
         confirmLabel="Revoke"
         confirmColor="red"
         isLoading={revoke.isPending}
@@ -517,7 +539,9 @@ export function ToolReview() {
             await revoke.mutateAsync({
               pinId: revoking.pin_id,
               expected_hash: revoking.approved_hash,
+              ...(revokeReason.trim() ? { reason: revokeReason.trim() } : {}),
             });
+            setRevokeReason('');
             toast.success('Tool revoked');
             setRevoking(null);
           } catch (e) {

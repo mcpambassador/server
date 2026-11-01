@@ -43,6 +43,7 @@ function setup(opts: {
   pending?: unknown[];
   baseline?: unknown[];
   approved?: unknown[];
+  listCalls?: string[];
   detail?: Record<string, unknown>;
   posts?: Array<{ url: string; body: unknown }>;
 }) {
@@ -60,6 +61,7 @@ function setup(opts: {
     ),
     http.get('/v1/admin/tool-pins', ({ request }) => {
       const q = new URL(request.url).searchParams;
+      opts.listCalls?.push(request.url);
       const rows =
         q.get('status') === 'approved'
           ? (opts.approved ?? [])
@@ -256,17 +258,35 @@ describe('ToolReview revoke (G1)', () => {
 
   it('revokes an approved pin after confirmation, with expected_hash = approved_hash', async () => {
     const user = userEvent.setup();
-    const posts = setup({ approved: [approvedPin()] });
+    const listCalls: string[] = [];
+    const posts = setup({ approved: [approvedPin()], listCalls });
     await user.click(await screen.findByRole('button', { name: 'Approved' }));
     await user.click(await screen.findByRole('button', { name: 'Revoke' }));
-    expect(await screen.findByText(/hides the tool from agents immediately/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /Agents lose this tool immediately in this scope and in every per-user scope that relies on it/
+      )
+    ).toBeInTheDocument();
     expect(posts).toHaveLength(0);
+    await user.type(screen.getByRole('textbox', { name: 'Reason (optional)' }), 'bad tool');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toEqual({
       url: '/v1/admin/tool-pins/p1/revoke',
-      body: { expected_hash: H1 },
+      body: { expected_hash: H1, reason: 'bad tool' },
     });
+    // the lists are refetched after a revoke
+    await waitFor(() => expect(listCalls.length).toBeGreaterThan(2));
+  });
+
+  it('says only this scope for a user-scoped pin', async () => {
+    const user = userEvent.setup();
+    setup({ approved: [approvedPin({ scope_user_id: 'u1' })] });
+    await user.click(await screen.findByRole('button', { name: 'Approved' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke' }));
+    const d = await screen.findByRole('dialog');
+    expect(d.textContent).toContain('Agents lose this tool immediately in this scope');
+    expect(d.textContent).not.toContain('per-user scope');
   });
 
   it('offers Revoke on a baseline item and nothing on a pending one', async () => {

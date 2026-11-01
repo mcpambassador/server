@@ -76,10 +76,11 @@ export function useConfirmBaseline() {
 export function useRevokePin() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ pinId, expected_hash }: { pinId: string; expected_hash: string }) =>
-      apiClient.post<ToolPinDetail>(`/v1/admin/tool-pins/${encodeURIComponent(pinId)}/revoke`, {
-        expected_hash,
-      }),
+    mutationFn: ({ pinId, ...body }: { pinId: string; expected_hash: string; reason?: string }) =>
+      apiClient.post<ToolPinDetail>(
+        `/v1/admin/tool-pins/${encodeURIComponent(pinId)}/revoke`,
+        body
+      ),
     onSuccess: invalidate,
   });
 }
