@@ -39,19 +39,16 @@ export class KillSwitchError extends Error {
   }
 }
 
-/** Shared pre-check for stdio and agent invocations (kill switches were previously not enforced). */
-async function assertNotKilled(
+/** KS-1/KS-2: a client or MCP is killed */
+function isKilled(
   deps: ToolServiceDeps,
-  userId: string,
   clientId: string,
-  toolName: string
-): Promise<void> {
+  tool?: { source_mcp?: string }
+): boolean {
   const ks = deps.killSwitch;
-  if (!ks) return;
-  if (ks.isActive('client', clientId)) throw new KillSwitchError();
-  const catalog = await deps.toolRouter.getIsolationAwareToolCatalog(deps.db, userId, clientId);
-  const tool = catalog.find(t => t.name === toolName);
-  if (tool?.source_mcp && ks.isActive('mcp', tool.source_mcp)) throw new KillSwitchError();
+  if (!ks) return false;
+  if (ks.isActive('client', clientId)) return true;
+  return !!tool?.source_mcp && ks.isActive('mcp', tool.source_mcp);
 }
 
 /** Thrown when an authenticated session has no matching DB record (DB inconsistency). */
@@ -103,6 +100,7 @@ export async function listPermittedTools(
 
   const allowed: ToolDescriptor[] = [];
   for (const tool of aggregated) {
+    if (isKilled(deps, clientId, tool)) continue; // KS-2
     const decision = await deps.authz.authorize(session, {
       tool_name: tool.name,
       tool_arguments: {}, // Not needed for catalog check
@@ -129,13 +127,22 @@ export function buildInvocationRouter(
   userId: string,
   clientId: string,
   /** Extra per-call restriction (agent scopes/allowlist); false = not permitted */
-  extraFilter?: (tool: { name: string; source_mcp?: string }) => boolean
+  extraFilter?: (tool: { name: string; source_mcp?: string }) => boolean,
+  /** Receives the KillSwitchError when the router blocks a call (the pipeline swallows routing errors) */
+  killHit?: { err?: KillSwitchError }
 ) {
   return async (
     toolName: string,
     args: Record<string, unknown>
   ): Promise<{ content: unknown; isError?: boolean; mcpServer?: string }> => {
     const mcpRequest = { tool_name: toolName, arguments: args };
+
+    // KS-1: one enforcement point for every router caller — client switch first (cheap)
+    if (isKilled(deps, clientId)) {
+      const err = new KillSwitchError();
+      if (killHit) killHit.err = err;
+      throw err;
+    }
 
     const allowedTools = await deps.toolRouter.getIsolationAwareToolCatalog(
       deps.db,
@@ -145,6 +152,12 @@ export function buildInvocationRouter(
     const allowedTool = allowedTools.find(tool => tool.name === toolName);
     if (!allowedTool || (extraFilter && !extraFilter(allowedTool))) {
       throw new AuthorizationError('Tool not subscribed for this client');
+    }
+
+    if (isKilled(deps, clientId, allowedTool)) {
+      const err = new KillSwitchError();
+      if (killHit) killHit.err = err;
+      throw err;
     }
 
     const sharedTool = deps.mcpManager.getToolDescriptor(toolName);
@@ -184,9 +197,11 @@ export async function invokeTool(
     client_id: clientId,
     arguments: call.arguments,
   };
-  await assertNotKilled(deps, userId, clientId, call.tool);
-  const router = buildInvocationRouter(deps, userId, clientId);
-  return deps.pipeline.invoke(pipelineRequest, authRequest, router);
+  const killHit: { err?: KillSwitchError } = {};
+  const router = buildInvocationRouter(deps, userId, clientId, undefined, killHit);
+  const result = await deps.pipeline.invoke(pipelineRequest, authRequest, router);
+  if (killHit.err) throw killHit.err; // surfaces as 403; the pipeline already audited the blocked call
+  return result;
 }
 
 // ===== Remote agent variants (ADR-020) =====
@@ -233,6 +248,7 @@ export async function listAgentTools(
   const allowed: ToolDescriptor[] = [];
   for (const tool of aggregated) {
     if (!agentMayUseTool(restriction, tool)) continue;
+    if (isKilled(deps, agent.bound_client_id, tool)) continue; // KS-2
     const decision = await deps.authz.authorize(session, {
       tool_name: tool.name,
       tool_arguments: {},
@@ -261,11 +277,15 @@ export async function invokeAgentTool(
   call: { tool: string; arguments: Record<string, unknown> },
   sourceIp: string
 ): Promise<ToolInvocationResponse> {
-  await assertNotKilled(deps, agent.user_id, agent.bound_client_id, call.tool);
-  const router = buildInvocationRouter(deps, agent.user_id, agent.bound_client_id, t =>
-    agentMayUseTool(restriction, t)
+  const killHit: { err?: KillSwitchError } = {};
+  const router = buildInvocationRouter(
+    deps,
+    agent.user_id,
+    agent.bound_client_id,
+    t => agentMayUseTool(restriction, t),
+    killHit
   );
-  return deps.pipeline.invoke(
+  const result = await deps.pipeline.invoke(
     { tool_name: call.tool, client_id: agent.bound_client_id, arguments: call.arguments },
     { headers: {}, sourceIp } satisfies AuthRequest,
     router,
@@ -273,4 +293,6 @@ export async function invokeAgentTool(
     undefined,
     { preAuthenticatedSession: agent }
   );
+  if (killHit.err) throw killHit.err;
+  return result;
 }

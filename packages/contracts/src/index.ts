@@ -22,3 +22,6 @@ export { ErrorCodes, type ErrorCode } from './error-codes.js';
 
 // ADR-020 remote agent endpoint contracts
 export * from './agent-endpoint.js';
+
+// Admin kill switches (TD-022)
+export * from './kill-switch.js';
