@@ -18,7 +18,6 @@ import {
   agentEndpointOpts,
   createUser,
   loginSession,
-  itImpl,
   TEST_RESOURCE_BASE,
   type AgentTestServer,
   type UserSession,
@@ -193,11 +192,21 @@ describe('audit lifecycle events + no token leakage', () => {
     }
   );
 
-  itImpl('raw tokens, codes, verifiers never appear in audit, DB files, or logs', async () => {
+  it('raw tokens, codes, verifiers never appear in audit, DB files, or logs', async () => {
     clientId = await registerAdminClient(s); // earlier tests disabled the shared client
     await issue();
+    // unknown paths (404 handler) must not log a token in the query string either
+    for (const m of ['GET', 'POST'] as const) {
+      await s.api.inject({ method: m, url: '/no-such-path?access_token=amb_at_' + 'w'.repeat(43) });
+      await s.admin.inject({
+        method: m,
+        url: '/no-such-path?access_token=amb_at_' + 'w'.repeat(43),
+      });
+    }
     // include the garbage tokens used on the failure paths
-    const garbage = ['z'.repeat(43), 'y'.repeat(43), 'x'.repeat(43)].map(g => 'amb_at_' + g);
+    const garbage = ['z'.repeat(43), 'y'.repeat(43), 'x'.repeat(43), 'w'.repeat(43)].map(
+      g => 'amb_at_' + g
+    );
     await waitForAudit(s, 'agent_token_issued');
     await new Promise(r => setTimeout(r, 6000)); // let the next audit flush land
     const bytes = dataDirBytes(s.dataDir);

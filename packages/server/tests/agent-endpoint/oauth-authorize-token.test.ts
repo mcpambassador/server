@@ -16,7 +16,6 @@ import {
   agentEndpointOpts,
   createUser,
   loginSession,
-  itImpl,
   TEST_RESOURCE,
   type AgentTestServer,
   type UserSession,

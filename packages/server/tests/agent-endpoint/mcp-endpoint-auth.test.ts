@@ -13,7 +13,6 @@ import {
   startAgentTestServer,
   stopAgentTestServer,
   agentEndpointOpts,
-  itImpl,
   TEST_RESOURCE_BASE,
   type AgentTestServer,
 } from './helpers.js';

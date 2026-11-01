@@ -1,7 +1,5 @@
 /**
- * ADR-020 phase 1: discovery metadata + master switch.
- * Disabled-state tests run for real today; enabled-state tests are marked `itImpl`
- * until the routes stop being 501 stubs.
+ * ADR-020 phase 1: discovery metadata + master switch (disabled and enabled states).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
@@ -18,7 +16,6 @@ import {
   startAgentTestServer,
   stopAgentTestServer,
   agentEndpointOpts,
-  itImpl,
   TEST_ISSUER,
   TEST_RESOURCE,
   type AgentTestServer,

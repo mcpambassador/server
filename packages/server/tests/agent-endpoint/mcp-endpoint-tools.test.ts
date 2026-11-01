@@ -2,7 +2,7 @@
  * ADR-020 test-plan #4 + #5 with a REAL downstream MCP (tests/fixtures/fake-mcp.mjs):
  * isolation between clients, per-user spawn over /mcp, call-time scope/allowlist, kill-switch
  * parity, /v1/tools parity, audit on client delete, and auth-failure reasons.
- * Kill-switch gaps (hide, 400 targets, list, persistence) stay itImpl until platform lands them.
+ * Kill-switch behaviour: hide, target validation, list, persistence.
  */
 import os from 'os';
 import path from 'path';
@@ -19,7 +19,6 @@ import {
   restartAgentTestServer,
   createUser,
   loginSession,
-  itImpl,
   type AgentTestServer,
   type UserSession,
 } from './helpers.js';
@@ -315,7 +314,7 @@ describe('kill switches: stdio path (/v1/tools/invoke) and /mcp', () => {
   // the fixture always lists a built-in __env tool; ignore it
   const visibleTools = async (tok: string): Promise<string[]> =>
     (await mcpToolNames(s, tok)).filter(n => n !== '__env');
-  itImpl('killed tools are hidden from /v1/tools and from /mcp tools/list', async () => {
+  it('killed tools are hidden from /v1/tools and from /mcp tools/list', async () => {
     const g = await oneShot(alice, cA.clientId);
     expect((await visibleTools(g.token)).sort()).toEqual(['echo', 'other']);
     await kill('mcp:fk-a', true);
@@ -329,7 +328,7 @@ describe('kill switches: stdio path (/v1/tools/invoke) and /mcp', () => {
     expect((await visibleTools(g.token)).sort()).toEqual(['echo', 'other']);
   });
 
-  itImpl.each(['fk-a', 'tool:echo', 'foo:bar', 'client:', ''])(
+  it.each(['fk-a', 'tool:echo', 'foo:bar', 'client:', ''])(
     'kill target %j that is not client:<id> or mcp:<name> → 400',
     async target => {
       const r = await kill(target || 'x', true);
@@ -337,7 +336,7 @@ describe('kill switches: stdio path (/v1/tools/invoke) and /mcp', () => {
     }
   );
 
-  itImpl('GET /v1/admin/kill-switches lists only the active switches', async () => {
+  it('GET /v1/admin/kill-switches lists only the active switches', async () => {
     const list = () =>
       s.admin.inject({
         method: 'GET',
@@ -438,7 +437,7 @@ describe('audit', () => {
 
 // Last on purpose: restarting replaces `s`, so earlier sessions/tokens stop being valid.
 describe('persistence across restart', () => {
-  itImpl('kill switches survive a server restart (same DB, new instance)', async () => {
+  it('kill switches survive a server restart (same DB, new instance)', async () => {
     expect((await kill('mcp:fk-b', true)).statusCode).toBe(200);
     const before = s;
     try {

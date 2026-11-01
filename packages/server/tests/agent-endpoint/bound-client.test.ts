@@ -10,7 +10,6 @@ import {
   agentEndpointOpts,
   createUser,
   loginSession,
-  itImpl,
   type AgentTestServer,
   type UserSession,
 } from './helpers.js';
