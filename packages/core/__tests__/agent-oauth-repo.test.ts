@@ -243,13 +243,25 @@ describe('grants and tokens', () => {
     expect(await repo.markRefreshTokenUsed(db, 'r2')).toBe(false);
   });
 
-  it('binds to an Ambassador client and cascades when that client is deleted', async () => {
+  it('revoke-and-retain: revoking by bound client keeps the grant, nulls the binding on delete', async () => {
     await grant('g1');
     await tok('a1', 'g1', 'access');
     expect((await repo.getAgentGrant(db, 'g1'))?.bound_client_id).toBe('k1');
+    const revoked = await repo.revokeGrantsForBoundClient(db, 'k1', 'u1');
+    expect(revoked.map(g => g.grant_id)).toEqual(['g1']);
     raw(db).prepare(`DELETE FROM clients WHERE client_id='k1'`).run();
-    expect(await repo.getAgentGrant(db, 'g1')).toBeNull();
-    expect(await repo.getAgentTokenByHash(db, 'a1')).toBeNull();
+    const g = await repo.getAgentGrant(db, 'g1');
+    expect(g).not.toBeNull();
+    expect(g?.bound_client_id).toBeNull();
+    expect(g?.revoked_at).toBeTruthy();
+    expect(await repo.revokeGrantsForBoundClient(db, 'k1', 'u1')).toEqual([]);
+  });
+
+  it('server settings round-trip', async () => {
+    expect(await repo.getServerSetting(db, 'x')).toBeNull();
+    await repo.setServerSetting(db, 'x', 'true', 'admin');
+    await repo.setServerSetting(db, 'x', 'false', 'admin');
+    expect(await repo.getServerSetting(db, 'x')).toBe('false');
   });
 
   it('touch + deleteAgentToken + user delete cascades', async () => {

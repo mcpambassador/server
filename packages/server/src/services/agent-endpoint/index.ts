@@ -32,6 +32,8 @@ import {
   listAllAgentGrants,
   revokeAgentGrant,
   touchAgentGrant,
+  getServerSetting,
+  setServerSetting,
   insertAgentToken,
   getAgentTokenByHash,
   markRefreshTokenUsed,
@@ -66,8 +68,9 @@ import {
   type OAuthErrorResponse,
   type AgentAuthFailureReason,
   type AgentAuditAction,
+  isAllowedRedirectUri,
 } from '@mcpambassador/contracts';
-import { generateToken, hashToken, logPrefix, verifyPkceS256 } from './crypto.js';
+import { generateOpaqueId, generateToken, hashToken, logPrefix, verifyPkceS256 } from './crypto.js';
 import { RateLimiter } from './rate-limiter.js';
 import {
   getActiveBoundClient,
@@ -185,7 +188,7 @@ export interface AgentAuditContext {
 }
 
 export async function emitAgentAudit(
-  deps: AgentEndpointDeps,
+  deps: Pick<AgentEndpointDeps, 'audit'>,
   action: AgentAuditAction,
   ctx: AgentAuditContext
 ): Promise<void> {
@@ -234,25 +237,8 @@ function stripControlChars(v: string): string {
 
 const SCOPE_RE = /^mcp:(\*|[A-Za-z0-9_.-]{1,128})$/;
 
-/** Redirect URIs: https, loopback http, or a private-use custom scheme. No fragments, no dangerous schemes. */
-const BLOCKED_SCHEMES = new Set(['javascript:', 'data:', 'vbscript:', 'file:', 'about:', 'blob:']);
-export function isAcceptableRedirectUri(uri: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(uri);
-  } catch {
-    return false;
-  }
-  if (u.hash) return false;
-  if (u.username || u.password) return false;
-  if (BLOCKED_SCHEMES.has(u.protocol)) return false;
-  if (u.protocol === 'https:') return true;
-  if (u.protocol === 'http:') {
-    return u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]';
-  }
-  // custom (private-use) scheme for native apps, e.g. cursor://…
-  return /^[a-z][a-z0-9+.-]*:$/.test(u.protocol);
-}
+/** Redirect URIs: https or loopback http only (ADR-020 §5b); single source of truth lives in contracts */
+export const isAcceptableRedirectUri = isAllowedRedirectUri;
 
 function toGrantSummary(
   g: AgentGrantRecord,
@@ -266,7 +252,7 @@ function toGrantSummary(
     client_id: g.client_id,
     client_name: g.client_id ? (oauthNames.get(g.client_id) ?? null) : null,
     bound_client_id: g.bound_client_id,
-    bound_client_name: boundNames.get(g.bound_client_id) ?? '(deleted client)',
+    bound_client_name: g.bound_client_id ? (boundNames.get(g.bound_client_id) ?? null) : null,
     scopes: g.scopes,
     tool_allowlist: g.tool_allowlist,
     resource: g.resource,
@@ -289,7 +275,7 @@ async function summarize(
     if (c) oauthNames.set(id, c.client_name);
   }
   const boundNames = await getClientNames(deps.db, [
-    ...new Set(grants.map(g => g.bound_client_id)),
+    ...new Set(grants.map(g => g.bound_client_id).filter((x): x is string => !!x)),
   ]);
   const live = await listGrantIdsWithLiveRefresh(
     deps.db,
@@ -337,7 +323,13 @@ async function issueRefreshToken(
 
 // ===== Verification (used by /mcp in P5) =====
 
-export async function verifyAccessToken(
+/**
+ * The single token validator for /mcp (S2). Every request re-reads token, grant, bound client and
+ * user from the DB (no cache): token not revoked/expired; grant not revoked/expired; audience is
+ * the canonical /mcp resource; OAuth client enabled; bound client present, active, unexpired and
+ * owned by grant.user_id; user active. A null bound_client_id (client deleted) is a dead grant.
+ */
+export async function validateAgentToken(
   deps: AgentEndpointDeps,
   rawToken: string
 ): Promise<VerifyResult> {
@@ -356,6 +348,7 @@ export async function verifyAccessToken(
     if (!oc || oc.disabled) return { ok: false, reason: 'revoked' };
   }
   // Bound-client model: dead as soon as the client/user stops being active
+  if (!grant.bound_client_id) return { ok: false, reason: 'revoked' };
   const bound = await getActiveBoundClient(deps.db, grant.user_id, grant.bound_client_id);
   if (!bound) return { ok: false, reason: 'revoked' };
   return {
@@ -363,7 +356,7 @@ export async function verifyAccessToken(
     principal: {
       grant_id: grant.grant_id,
       user_id: grant.user_id,
-      bound_client_id: grant.bound_client_id,
+      bound_client_id: grant.bound_client_id ?? undefined,
       oauth_client_id: grant.client_id,
       scopes: grant.scopes,
       tool_allowlist: grant.tool_allowlist,
@@ -371,6 +364,9 @@ export async function verifyAccessToken(
     },
   };
 }
+
+/** @deprecated alias kept for callers; use validateAgentToken */
+export const verifyAccessToken = validateAgentToken;
 
 /** Best-effort last_used bookkeeping (never throws) */
 export async function touchGrant(deps: AgentEndpointDeps, grantId: string): Promise<void> {
@@ -425,7 +421,7 @@ export async function startAuthorization(
   }
   const scopes = parseScopeString(q.scope);
   if (scopes.some(s => !SCOPE_RE.test(s))) throw new OAuthError('invalid_scope', 'Malformed scope');
-  const requestId = randomUUID();
+  const requestId = generateOpaqueId();
   await createPendingAuthRequest(deps.db, {
     request_id: requestId,
     user_id: null,
@@ -467,6 +463,7 @@ export async function getConsentDetails(
   return {
     client_name: oc.client_name,
     client_verified: oc.registered_via === 'admin',
+    redirect_uri_host: new URL(pending.redirect_uri).host,
     requested_scopes: pending.requested_scopes,
     clients: await listConsentClients(deps.db, userId),
     default_ttl_seconds: deps.config.default_grant_ttl_seconds,
@@ -541,7 +538,12 @@ export async function decideConsent(
     user_id: userId,
     bound_client_id: bound.client_id,
     source_ip: sourceIp,
-    metadata: { stage: 'authorization_code', oauth_client_id: pending.client_id, scopes: v.scopes },
+    metadata: {
+      stage: 'authorization_code',
+      oauth_client_id: pending.client_id,
+      scopes: v.scopes,
+      token_prefix: logPrefix(code),
+    },
   });
   return {
     redirect_url: redirectWith(pending.redirect_uri, {
@@ -622,7 +624,7 @@ async function exchangeCode(
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_grant_created', {
     user_id: grant.user_id,
-    bound_client_id: grant.bound_client_id,
+    bound_client_id: grant.bound_client_id ?? undefined,
     source_ip: sourceIp,
     metadata: {
       agent_grant_id: grant.grant_id,
@@ -662,7 +664,7 @@ async function exchangeRefresh(
     if (tok.family_id) await revokeTokenFamily(deps.db, tok.family_id);
     await emitAgentAudit(deps, 'agent_refresh_reuse_detected', {
       user_id: grant.user_id,
-      bound_client_id: grant.bound_client_id,
+      bound_client_id: grant.bound_client_id ?? undefined,
       source_ip: sourceIp,
       severity: 'warn',
       metadata: {
@@ -678,7 +680,9 @@ async function exchangeRefresh(
   if (req.resource && req.resource !== grant.resource) {
     throw new OAuthError('invalid_target', 'resource does not match the grant');
   }
-  const bound = await getActiveBoundClient(deps.db, grant.user_id, grant.bound_client_id);
+  const bound = grant.bound_client_id
+    ? await getActiveBoundClient(deps.db, grant.user_id, grant.bound_client_id)
+    : null;
   if (!bound) throw invalid();
 
   // Atomic single use: a concurrent second use loses and is treated as reuse
@@ -686,7 +690,7 @@ async function exchangeRefresh(
     if (tok.family_id) await revokeTokenFamily(deps.db, tok.family_id);
     await emitAgentAudit(deps, 'agent_refresh_reuse_detected', {
       user_id: grant.user_id,
-      bound_client_id: grant.bound_client_id,
+      bound_client_id: grant.bound_client_id ?? undefined,
       source_ip: sourceIp,
       severity: 'warn',
       metadata: { agent_grant_id: grant.grant_id, race: true },
@@ -699,9 +703,13 @@ async function exchangeRefresh(
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_token_refreshed', {
     user_id: grant.user_id,
-    bound_client_id: grant.bound_client_id,
+    bound_client_id: grant.bound_client_id ?? undefined,
     source_ip: sourceIp,
-    metadata: { agent_grant_id: grant.grant_id, oauth_client_id: client.client_id },
+    metadata: {
+      agent_grant_id: grant.grant_id,
+      oauth_client_id: client.client_id,
+      token_prefix: logPrefix(at.raw),
+    },
   });
   return {
     access_token: at.raw,
@@ -791,7 +799,7 @@ export async function revokeToken(
   else await revokeSingleToken(deps.db, hash);
   await emitAgentAudit(deps, 'agent_token_revoked', {
     user_id: grant.user_id,
-    bound_client_id: grant.bound_client_id,
+    bound_client_id: grant.bound_client_id ?? undefined,
     source_ip: sourceIp,
     metadata: {
       agent_grant_id: grant.grant_id,
@@ -884,7 +892,7 @@ export async function revokeGrant(
     await revokeAgentGrant(deps.db, grantId, actor.user_id);
     await emitAgentAudit(deps, 'agent_grant_revoked', {
       user_id: actor.user_id,
-      bound_client_id: grant.bound_client_id,
+      bound_client_id: grant.bound_client_id ?? undefined,
       source_ip: sourceIp,
       metadata: {
         agent_grant_id: grantId,
@@ -1006,17 +1014,40 @@ export function getSettings(deps: AgentEndpointDeps): AgentEndpointSettings {
   };
 }
 
+const SETTING_DCR = 'agent_endpoint.dynamic_client_registration';
+
+/**
+ * Applies admin-changed settings persisted in server_settings over the config defaults.
+ * Call once at startup after createAgentEndpointDeps(). DB value wins once an admin has set it.
+ */
+export async function loadPersistedSettings(deps: AgentEndpointDeps): Promise<void> {
+  const v = await getServerSetting(deps.db, SETTING_DCR);
+  if (v === 'true' || v === 'false') deps.runtime.dynamic_client_registration = v === 'true';
+}
+
 export async function updateSettings(
   deps: AgentEndpointDeps,
   adminUserId: string,
   patch: { dynamic_client_registration: boolean },
   sourceIp: string
 ): Promise<AgentEndpointSettings> {
+  const previous = deps.runtime.dynamic_client_registration;
+  // Persist first: the DB value wins over the config default from now on (survives restarts)
+  await setServerSetting(
+    deps.db,
+    SETTING_DCR,
+    patch.dynamic_client_registration ? 'true' : 'false',
+    adminUserId
+  );
   deps.runtime.dynamic_client_registration = patch.dynamic_client_registration;
   await emitAgentAudit(deps, 'agent_endpoint_settings_updated', {
     user_id: adminUserId,
     source_ip: sourceIp,
-    metadata: { setting: 'dynamic_client_registration', value: patch.dynamic_client_registration },
+    metadata: {
+      setting: 'dynamic_client_registration',
+      value: patch.dynamic_client_registration,
+      previous,
+    },
   });
   return getSettings(deps);
 }

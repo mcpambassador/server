@@ -11,12 +11,15 @@ import {
   OAUTH_PROTECTED_RESOURCE_MCP_ROUTE,
 } from '@mcpambassador/contracts';
 import type { AgentEndpointDeps } from '../services/agent-endpoint/index.js';
+import { registerCookieFreeGuard } from './agent-oauth.js';
 
 export async function registerAgentMcpRoutes(
   app: FastifyInstance,
   deps: AgentEndpointDeps
 ): Promise<void> {
   void deps;
+  // S5: cookie sessions never apply on /mcp
+  registerCookieFreeGuard(app);
   const stub = { error: 'not_implemented', message: 'Not implemented' };
   app.get(OAUTH_PROTECTED_RESOURCE_ROUTE, async (_req, reply) => reply.status(501).send(stub));
   app.get(OAUTH_PROTECTED_RESOURCE_MCP_ROUTE, async (_req, reply) => reply.status(501).send(stub));

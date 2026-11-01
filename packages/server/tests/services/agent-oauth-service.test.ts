@@ -11,6 +11,7 @@ import {
   runMigrations,
   closeDatabase,
   AgentEndpointConfigSchema,
+  revokeGrantsForBoundClient,
   type DatabaseClient,
 } from '@mcpambassador/core';
 import {
@@ -21,6 +22,9 @@ import {
   decideConsent,
   exchangeToken,
   verifyAccessToken,
+  validateAgentToken,
+  updateSettings,
+  loadPersistedSettings,
   registerClient,
   revokeToken,
   createGrant,
@@ -539,7 +543,8 @@ describe('registration + revocation', () => {
     expect(isAcceptableRedirectUri('https://app.example/cb')).toBe(true);
     expect(isAcceptableRedirectUri('http://localhost:1234/cb')).toBe(true);
     expect(isAcceptableRedirectUri('http://127.0.0.1:1/cb')).toBe(true);
-    expect(isAcceptableRedirectUri('cursor://anysphere.cursor/cb')).toBe(true);
+    expect(isAcceptableRedirectUri('cursor://anysphere.cursor/cb')).toBe(false); // private-use schemes rejected in v1
+    expect(isAcceptableRedirectUri('http://[::1]:1/cb')).toBe(true);
     expect(isAcceptableRedirectUri('http://evil.example/cb')).toBe(false);
     expect(isAcceptableRedirectUri('javascript:alert(1)')).toBe(false);
     expect(isAcceptableRedirectUri('https://app.example/cb#frag')).toBe(false);
@@ -562,5 +567,61 @@ describe('registration + revocation', () => {
     await revokeToken(deps, { token: t.refresh_token!, client_id: a });
     expect((await verifyAccessToken(deps, t.access_token)).ok).toBe(false);
     expect(JSON.stringify(events)).not.toContain(t.refresh_token!);
+  });
+});
+
+describe('R2: bound client lifecycle + persisted settings', () => {
+  it('validateAgentToken rejects once the bound client is deleted (revoke-and-retain, null binding)', async () => {
+    const id = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    expect((await validateAgentToken(deps, tok.access_token)).ok).toBe(true);
+
+    // same ordering as client-service.revokeUserClient: revoke first, then delete (FK -> SET NULL)
+    const revoked = await revokeGrantsForBoundClient(db, 'k1', 'u1');
+    expect(revoked).toHaveLength(1);
+    raw(db).prepare(`DELETE FROM clients WHERE client_id='k1'`).run();
+    const v = await validateAgentToken(deps, tok.access_token);
+    expect(v.ok).toBe(false);
+
+    // grant is retained, unbound, still listed
+    const row = raw(db).prepare(`SELECT bound_client_id, revoked_at FROM agent_grants`).get();
+    expect(row.bound_client_id).toBeNull();
+    expect(row.revoked_at).toBeTruthy();
+    expect((await listGrants(deps, 'u1')).length).toBe(1);
+  });
+
+  it('validateAgentToken rejects when the bound client is disabled, even for an unrevoked grant', async () => {
+    const id = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await authorize(id, challenge);
+    const tok = await exchangeToken(deps, tokenReq(id, code, verifier), '2.2.2.2');
+    raw(db).prepare(`UPDATE clients SET status='suspended' WHERE client_id='k1'`).run();
+    expect((await validateAgentToken(deps, tok.access_token)).ok).toBe(false);
+  });
+
+  it('DCR toggle persists, is audited with previous/value, and wins over config on reload', async () => {
+    expect(deps.runtime.dynamic_client_registration).toBe(true); // fixture config default
+    await updateSettings(deps, 'admin', { dynamic_client_registration: false }, '1.1.1.1');
+    const ev = events.filter(e => e.metadata && 'previous' in e.metadata).pop();
+    expect(ev.metadata).toMatchObject({ previous: true, value: false });
+    deps.runtime.dynamic_client_registration = true; // simulate restart with config default
+    await loadPersistedSettings(deps);
+    expect(deps.runtime.dynamic_client_registration).toBe(false);
+  });
+
+  it('consent details expose redirect_uri_host', async () => {
+    const id = await newClient();
+    const { requestId } = await startAuthorization(deps, {
+      response_type: 'code',
+      client_id: id,
+      redirect_uri: REDIRECT,
+      code_challenge: pkce().challenge,
+      code_challenge_method: 'S256',
+      resource: RESOURCE,
+    });
+    const d = await getConsentDetails(deps, 'u1', requestId);
+    expect(d.redirect_uri_host).toBe('localhost:7777');
   });
 });
