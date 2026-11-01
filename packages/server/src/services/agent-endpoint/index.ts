@@ -223,6 +223,7 @@ export async function emitAgentAudit(
     });
   } catch (err) {
     // Audit failure must not break the OAuth flow, but must be visible
+    // td036-allow: logger-only, never returned to a client
     logger.error(`[AgentEndpoint] audit emit failed for ${action}: ${String(err)}`);
   }
 }
@@ -982,6 +983,7 @@ export async function adminCreateClient(
     c = await createClientRecord(deps, req, 'admin');
   } catch (e) {
     if (e instanceof OAuthError) {
+      // td036-allow: OAuthError text is app-authored
       throw new AgentApiError(e.status === 503 ? 409 : 400, 'validation_error', e.message);
     }
     throw e;

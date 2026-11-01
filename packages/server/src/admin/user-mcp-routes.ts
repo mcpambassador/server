@@ -21,7 +21,7 @@
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient } from '@mcpambassador/core';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
-import { logger, users } from '@mcpambassador/core';
+import { logger, users, publicErrorMessage } from '@mcpambassador/core';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
 import { eq } from 'drizzle-orm';
 
@@ -178,7 +178,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
         .send(
           wrapError(
             ErrorCodes.INTERNAL_ERROR,
-            err instanceof Error ? err.message : 'Failed to fetch user MCP instances'
+            err instanceof Error ? publicErrorMessage(err) : 'Failed to fetch user MCP instances'
           )
         );
     }
@@ -284,7 +284,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to fetch user MCP details'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to fetch user MCP details'
             )
           );
       }
@@ -341,7 +341,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to refresh user MCPs'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to refresh user MCPs'
             )
           );
       }
@@ -415,7 +415,7 @@ export const registerAdminUserMcpRoutes: FastifyPluginCallback<AdminUserMcpRoute
           .send(
             wrapError(
               ErrorCodes.INTERNAL_ERROR,
-              err instanceof Error ? err.message : 'Failed to restart user MCP'
+              err instanceof Error ? publicErrorMessage(err) : 'Failed to restart user MCP'
             )
           );
       }

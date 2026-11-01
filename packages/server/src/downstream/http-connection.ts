@@ -31,6 +31,7 @@ export class HttpMcpConnection extends EventEmitter {
    * Node fetch errors can contain the full URL with resolved credentials.
    */
   private sanitizeError(err: unknown): string {
+    // td036-allow: downstream HTTP error (sanitized/redacted below), not a DB error; needed for admin debugging
     const msg = err instanceof Error ? err.message : String(err);
     return redactSecretsInString(redactUrl(msg));
   }
@@ -230,6 +231,7 @@ export class HttpMcpConnection extends EventEmitter {
       return response.result;
     } catch (err) {
       // M33.1: Log connection/fetch errors
+      // td036-allow: downstream HTTP error (sanitized/redacted below), not a DB error; needed for admin debugging
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.pushError(`Request failed (${method}): ${errorMsg}`);
 
