@@ -159,6 +159,9 @@ export function wrapCommandForIsolation(
       `--reuid=${iso.uid}`,
       `--regid=${iso.gid}`,
       '--clear-groups',
+      // No --bounding-set here: lowering it needs CAP_SETPCAP, which the server deliberately lacks. The
+      // child inherits the server's bounding set {setuid,setgid,kill} but ends with ZERO permitted/
+      // effective/ambient caps (cleared here, plus no-new-privileges), so the bounding set cannot be used.
       '--inh-caps=-all',
       '--ambient-caps=-all',
       '--',

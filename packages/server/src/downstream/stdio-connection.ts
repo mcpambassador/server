@@ -193,7 +193,9 @@ export class StdioMcpConnection extends EventEmitter {
       }
     }
     const safeEnv = buildChildEnv(this.config.env, process.env, isolation);
-    const target = isolation ? wrapCommandForIsolation(cmd, args, isolation) : { cmd, args };
+    const target = isolation
+      ? wrapCommandForIsolation(cmd, args, isolation, this.config.cwd || isolation.home)
+      : { cmd, args };
 
     this.process = spawn(target.cmd, target.args, {
       cwd: isolation ? '/' : this.config.cwd || process.cwd(),
