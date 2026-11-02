@@ -50,12 +50,13 @@ services:
       
       # Logging
       MCP_AMBASSADOR_LOG_LEVEL: ${LOG_LEVEL:-info}
+      # MCP_AMBASSADOR_LOG_LEVEL: debug   # verbose logging for local trials (or set LOG_LEVEL=debug in .env)
       
       # Application mode
-      # 'development' enables verbose logging and dev client key bootstrap
-      # 'production' disables dev-only features
+      # 'development' (or 'test') creates an all-tools dev preshared key on first boot, once an admin exists
+      # 'production' (default) disables that bootstrap; a config file that fails to load aborts startup
       # The setup wizard works in ALL modes — no hardcoded credentials regardless of NODE_ENV
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
       
       # Admin authentication (optional - for testing/dev)
       # Leave unset for production: admin key will be auto-generated on first boot

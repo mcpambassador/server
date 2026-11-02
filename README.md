@@ -26,15 +26,17 @@ Needs Docker Engine 20+ and docker compose v2.
 git clone https://github.com/mcpambassador/server.git
 cd server
 cp .env.example .env
-mkdir -p data config cache   # bind mounts; see setup-host-dirs.sh for ownership
+./setup-host-dirs.sh         # creates data/ config/ cache/ owned by uid 1000 (data/ mode 700)
 docker compose up -d
 ```
 
 Open https://localhost:9443 (self-signed TLS) and follow the first-run setup wizard to create the admin account.
 
+The compose default is `NODE_ENV=production`. For a local trial you can set `NODE_ENV=development` in `.env`: after the admin exists, first boot then creates an all-tools dev preshared key (never use that in production). For verbose logs set `LOG_LEVEL=debug`.
+
 | Port | Serves                                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------------- |
-| 8443 | MCP client protocol (registration, discovery, invocation) and the agent endpoint (`/mcp`, `/oauth/*`) |
+| 8443 | MCP client protocol (registration, discovery, invocation); the agent endpoint (`/mcp`, `/oauth/*`) too, when `agent_endpoint.enabled` is set |
 | 9443 | Admin API, user API (cookie-authenticated routes), and the SPA                                        |
 
 The reference compose file binds 9443 to `127.0.0.1`. Production setup, TLS, and reverse proxies: [Docker guide](https://mcpambassador.ai/docs/docker) and [Production guide](https://mcpambassador.ai/docs/production).
@@ -60,7 +62,7 @@ Without SETUID/SETGID/KILL, MCP children refuse to start; without SETPCAP, the c
 
 ## Configuration
 
-Configured by environment variables (see `.env.example`, `docker-compose.yml`, and the [configuration reference](https://mcpambassador.ai/docs/configuration)). Commonly used:
+Configured by environment variables (see `.env.example`, `docker-compose.yml`, and the [configuration reference](https://mcpambassador.ai/docs/configuration)). The compose file has no `env_file`: `.env` only feeds the `${...}` substitutions already in `docker-compose.yml` (such as `LOG_LEVEL`, `NODE_ENV`, `PUBLIC_URL`, `REGISTRY_*`). To set any other variable below, add it under `environment:` in `docker-compose.yml`. Commonly used:
 
 | Variable                                               | Default               | Purpose                                                                                                                     |
 | ------------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -71,12 +73,16 @@ Configured by environment variables (see `.env.example`, `docker-compose.yml`, a
 | `MCP_AMBASSADOR_CHILD_NPROC`                           | `256` (`0` disables)  | `RLIMIT_NPROC` per instance; counts threads. Browser MCPs may need e.g. `1024`; keep well under the container `pids` limit. |
 | `MCP_AMBASSADOR_TRUST_PROXY`                           | off                   | `true`, `false`, or an IP/CIDR list. Hop counts are no longer accepted.                                                     |
 | `PUBLIC_URL`                                           |                       | Public base URL for OAuth callbacks behind a reverse proxy                                                                  |
-| `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry /  | Registry source, token for a private registry, on/off                                                                       |
+| `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry URL / empty / `true` | Registry source, token for a private registry, on/off                                                                       |
 
 ## Security model
 
-- **Isolation**: each downstream stdio MCP instance runs under its own uid with a private home, cannot read `/data` or other instances, and starts with `no-new-privs`. The container has a read-only root filesystem and a reduced capability set.
-- **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them; flagged or previously revoked definitions need an explicit extra step.
+- **Isolation**: each downstream stdio MCP instance runs under its own uid with a private home, cannot read `/data` or other instances, and starts with `no-new-privs`. The container has a read-only root filesystem and a reduced capability set. This is process-level isolation, not a sandbox:
+  - instances share the container's network namespace and process list;
+  - the server process keeps `SETUID`/`SETGID`/`KILL`;
+  - isolation can be disabled, and the legacy single-uid mode puts every instance under one uid;
+  - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only admins should add MCPs you trust.
+- **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them (unless that MCP's pin policy is `auto`, which is not allowed for registry or imported MCPs); flagged or previously revoked definitions need an explicit extra step.
 - **Authorization order per call**: kill switch, group policy, then the subscription's selected tools. A tool that is denied answers the same as one that does not exist.
 - **Approval gates**: per-tool human approval with an argument preview.
 - **Credentials**: AES-256-GCM encryption with per-user HKDF-derived keys; Argon2id password hashing; HMAC-SHA256 session tokens.
@@ -87,7 +93,7 @@ Report vulnerabilities as described in [.github/SECURITY.md](.github/SECURITY.md
 
 ## Connecting a client
 
-The [client](https://github.com/mcpambassador/client) is a stdio MCP you point your AI tool at. It is not published to npm yet (npm only has `0.8.0-beta.2`); install it from source following the client README. Agents that speak MCP over HTTP can also use the agent endpoint on 8443 (see [client-server docs](https://mcpambassador.ai/docs/client-server)).
+The [client](https://github.com/mcpambassador/client) is a stdio MCP you point your AI tool at. It is not published to npm yet (npm only has `0.8.0-beta.2`); install it from source following the client README. When `agent_endpoint.enabled` is set in the server config (off by default; the routes return 404 otherwise), agents that speak MCP over HTTP can also use the agent endpoint on 8443 (see [client-server docs](https://mcpambassador.ai/docs/client-server)).
 
 ## Repository layout
 
