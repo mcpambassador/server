@@ -412,6 +412,35 @@ describe('ChildUidAllocator', () => {
       expect(l.uid).not.toBe(la.uid);
     });
 
+    it('TD-064: a prepared uid stays in `preparing` until the victim key is gone and the lease is taken', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      const priv = a as unknown as { preparing: Set<number>; entries: Map<string, unknown> | null };
+      (await a.lease('user:a:m')).release();
+      // the victim is dropped inside prepareFreshUid; the uid must still be held at that point
+      let heldAfterWipe = false;
+      h.hooks.wipeHome = () => {
+        heldAfterWipe = priv.preparing.has(20000);
+        return Promise.resolve();
+      };
+      const l = await a.lease('user:b:m');
+      expect(heldAfterWipe).toBe(true);
+      expect(l.uid).toBe(20000);
+      expect(priv.preparing.size).toBe(0); // released once the lease exists
+      expect(JSON.parse(h.file()!).entries['user:a:m']).toBeUndefined();
+    });
+
+    it('TD-064: a failed persist does not leave the uid stuck in `preparing`', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      const priv = a as unknown as { preparing: Set<number> };
+      h.hooks.writeMap = () => {
+        throw new Error('disk full');
+      };
+      await expect(a.lease('user:a:m')).rejects.toThrow(ChildUidError);
+      expect(priv.preparing.size).toBe(0);
+    });
+
     it('an idle candidate leased meanwhile is skipped, never reclaimed', async () => {
       const h = harness(20000, 20002);
       const a = h.make();
