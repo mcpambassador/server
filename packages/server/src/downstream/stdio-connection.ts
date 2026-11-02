@@ -205,8 +205,23 @@ export class StdioMcpConnection extends EventEmitter {
         logger.error(msg);
         throw new Error(msg);
       }
+      // capabilities, setpriv and the homes parent are checked BEFORE the allocator is touched, so a server
+      // without caps fails with the clear hint and never assigns a uid or writes the map
+      const early = checkIsolationAvailable(
+        {
+          uid: isoConfig.min,
+          gid: isoConfig.min,
+          home: `${isoConfig.homesRoot}/${isoConfig.min}`,
+          parent: isoConfig.homesRoot,
+        },
+        { homeOk: true }
+      );
+      if (early) {
+        logger.error(`[MCP:${this.config.name}] ${early}`);
+        throw new Error(`[${this.config.name}] cannot start: ${early}`);
+      }
       try {
-        lease = getChildUidAllocator(isoConfig).lease(this.instanceKey);
+        lease = await getChildUidAllocator(isoConfig).lease(this.instanceKey);
       } catch (err) {
         const why = errText(err);
         logger.error(`[MCP:${this.config.name}] ${why}`);

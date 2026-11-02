@@ -25,7 +25,10 @@ vi.mock('child_process', async orig => {
 });
 vi.mock('../../src/downstream/child-isolation.js', async orig => {
   const actual = await orig<typeof import('../../src/downstream/child-isolation.js')>();
-  return { ...actual, checkIsolationAvailable: () => null };
+  return {
+    ...actual,
+    checkIsolationAvailable: () => (globalThis as any).__td059CapProblem ?? null,
+  };
 });
 // in-memory map; injected allocator so no real fs, setpriv or runner uid is involved
 let mapFile: string | null = null;
@@ -42,8 +45,9 @@ vi.mock('../../src/downstream/child-uid-allocator.js', async orig => {
         },
         wipeHome: (uid: number) => {
           wipes.push(uid);
+          return Promise.resolve();
         },
-        reapUid: () => 0,
+        reapUid: () => Promise.resolve(0),
       });
       return (globalThis as any).__td059Alloc;
     },
@@ -62,15 +66,20 @@ afterEach(() => {
   mapFile = null;
   (globalThis as any).__td059Alloc = undefined;
   delete process.env['MCP_AMBASSADOR_CHILD_UID_RANGE'];
+  (globalThis as any).__td059CapProblem = undefined;
 });
 
 const cfg = () => makeMcpConfig({ transport: 'stdio', command: ['node', 'x.js'] });
-const start = (c: StdioMcpConnection) => void c.start().catch(() => undefined);
+// the uid lease is async (kill + wipe are awaited), so let it settle before looking at the spawn
+const start = async (c: StdioMcpConnection) => {
+  void c.start().catch(() => undefined);
+  await new Promise(r => setImmediate(r));
+};
 
 describe('per-instance child uid through StdioMcpConnection', () => {
-  it('two instances spawn under different uids and homes', () => {
-    start(new StdioMcpConnection(cfg(), 'user:u1:a'));
-    start(new StdioMcpConnection(cfg(), 'user:u2:a'));
+  it('two instances spawn under different uids and homes', async () => {
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+    await start(new StdioMcpConnection(cfg(), 'user:u2:a'));
     const [a, b] = spawnCalls;
     expect(a![1]).toContain('--reuid=20000');
     expect(b![1]).toContain('--reuid=20001');
@@ -81,10 +90,10 @@ describe('per-instance child uid through StdioMcpConnection', () => {
     expect(b![2].env.TMPDIR).toBe('/tmp/mcp-homes/20001/tmp');
   });
 
-  it('a restart of the same instance keeps its uid', () => {
-    start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+  it('a restart of the same instance keeps its uid', async () => {
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
     procs[0].emit('exit', 1, null);
-    start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
     expect(spawnCalls[1]![1]).toContain('--reuid=20000');
     expect(wipes).toEqual([20000]); // wiped once, on first assignment only
   });
@@ -95,17 +104,17 @@ describe('per-instance child uid through StdioMcpConnection', () => {
   });
 
   it('refuses to spawn when the range is exhausted by live children', async () => {
-    start(new StdioMcpConnection(cfg(), 'k1'));
-    start(new StdioMcpConnection(cfg(), 'k2'));
+    await start(new StdioMcpConnection(cfg(), 'k1'));
+    await start(new StdioMcpConnection(cfg(), 'k2'));
     await expect(new StdioMcpConnection(cfg(), 'k3').start()).rejects.toThrow(/exhausted/);
     expect(spawnCalls).toHaveLength(2);
   });
 
   it('frees the uid when the child exits so another instance can be reclaimed into it', async () => {
-    start(new StdioMcpConnection(cfg(), 'k1'));
-    start(new StdioMcpConnection(cfg(), 'k2'));
+    await start(new StdioMcpConnection(cfg(), 'k1'));
+    await start(new StdioMcpConnection(cfg(), 'k2'));
     procs[0].emit('exit', 0, null);
-    start(new StdioMcpConnection(cfg(), 'k3'));
+    await start(new StdioMcpConnection(cfg(), 'k3'));
     expect(spawnCalls[2]![1]).toContain('--reuid=20000');
     expect(wipes).toEqual([20000, 20001, 20000]);
   });
@@ -113,6 +122,14 @@ describe('per-instance child uid through StdioMcpConnection', () => {
   it('fails closed on a corrupt map', async () => {
     mapFile = '{garbage';
     await expect(new StdioMcpConnection(cfg(), 'k').start()).rejects.toThrow(/is invalid/);
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('checks capabilities BEFORE touching the allocator: no uid assigned, no map written, no wipe', async () => {
+    (globalThis as any).__td059CapProblem = 'child isolation requires CAP_KILL (hint)';
+    await expect(new StdioMcpConnection(cfg(), 'k').start()).rejects.toThrow(/requires CAP_KILL/);
+    expect(mapFile).toBeNull();
+    expect(wipes).toEqual([]);
     expect(spawnCalls).toHaveLength(0);
   });
 });
