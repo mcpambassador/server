@@ -105,7 +105,7 @@ export class SharedMcpManager {
         validateMcpConfig(config);
 
         if (config.transport === 'stdio') {
-          const connection = new StdioMcpConnection(config);
+          const connection = new StdioMcpConnection(config, `shared:${config.name}`);
           await connection.start();
           this.connections.set(config.name, connection);
 
@@ -442,7 +442,7 @@ export class SharedMcpManager {
     let connection: StdioMcpConnection | HttpMcpConnection;
 
     if (config.transport === 'stdio') {
-      connection = new StdioMcpConnection(config);
+      connection = new StdioMcpConnection(config, `shared:${config.name}`);
     } else if (config.transport === 'http' || config.transport === 'sse') {
       connection = new HttpMcpConnection(config);
     } else {

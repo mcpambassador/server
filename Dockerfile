@@ -64,7 +64,7 @@ FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e16
 
 # Install openssl for TLS certificate generation, and the distro python3 so uvx-launched (PyPI)
 # MCP servers run on a fixed interpreter instead of downloading a managed Python at runtime.
-RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 tini=0.19.0-1+b3 && rm -rf /var/lib/apt/lists/*
 
 # uv/uvx for registry entries that run via `uvx <pkg>==<version>` (e.g. Alpaca).
 # Pinned by version AND digest. Digest = the multi-arch image index of ghcr.io/astral-sh/uv:0.13.6,
@@ -154,12 +154,18 @@ ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON=/usr/bin/python3 \
     UV_CACHE_DIR=/tmp/.uv-cache
 
-# TD-052: unprivileged uid for downstream MCP child processes. It owns nothing but its own HOME
-# (/tmp/mcp-home, created by the entrypoint) and cannot read /data. See docker/entrypoint.sh.
-RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent -s /bin/false mcpchild
-ENV MCP_AMBASSADOR_CHILD_UID=1001 \
-    MCP_AMBASSADOR_CHILD_GID=1001 \
-    MCP_AMBASSADOR_CHILD_HOME=/tmp/mcp-home
+# TD-052/TD-059: unprivileged uids for downstream MCP child processes. Every downstream instance (shared
+# MCP, or user x MCP) gets its OWN uid from MCP_AMBASSADOR_CHILD_UID_RANGE and its own 0700 home under
+# /tmp/mcp-homes/<uid> (all created by docker/entrypoint.sh); none can read /data or another child's
+# environ/home. passwd/group entries are built for the default range so tools that look up the user work
+# on the read-only rootfs (a runtime range outside it only logs a warning). uid 1001 (mcpchild) is kept
+# for the legacy single-uid mode (MCP_AMBASSADOR_CHILD_UID=1001, home /tmp/mcp-home).
+RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent -s /bin/false mcpchild \
+ && for u in $(seq 20000 20999); do \
+      echo "mcpchild$u:x:$u:$u:mcp child:/nonexistent:/bin/false" >> /etc/passwd; \
+      echo "mcpchild$u:x:$u:" >> /etc/group; \
+    done
+ENV MCP_AMBASSADOR_CHILD_UID_RANGE=20000-20999
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

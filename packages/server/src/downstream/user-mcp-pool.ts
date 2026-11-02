@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
 
+import { keyHash } from './child-uid-allocator.js';
 import { logger, ServiceUnavailableError } from '@mcpambassador/core';
 import type {
   DownstreamMcpConfig,
@@ -121,13 +122,13 @@ export class UserMcpPool {
     // Idempotent: if already spawned, return immediately
     const existingInstances = this.userInstances.get(userId);
     if (existingInstances && existingInstances.status === 'ready') {
-      logger.info(`[UserMcpPool] User ${userId} already has active instances`);
+      logger.info(`[UserMcpPool] User ${keyHash(userId)} already has active instances`);
       return;
     }
 
     // Check for concurrent spawn
     if (this.spawningUsers.has(userId)) {
-      logger.info(`[UserMcpPool] User ${userId} already spawning, waiting...`);
+      logger.info(`[UserMcpPool] User ${keyHash(userId)} already spawning, waiting...`);
       // Wait for current spawn to complete (simple polling with timeout)
       const maxWaitMs = 30000;
       const startTime = Date.now();
@@ -158,7 +159,7 @@ export class UserMcpPool {
       // M17.6: Check resource limits (now under system-wide lock)
       await this.enforceResourceLimits(userId);
 
-      logger.info(`[UserMcpPool] Spawning MCP instances for user ${userId}...`);
+      logger.info(`[UserMcpPool] Spawning MCP instances for user ${keyHash(userId)}...`);
 
       // Initialize user instance set
       const instanceSet: UserInstanceSet = {
@@ -233,7 +234,7 @@ export class UserMcpPool {
           let connection: StdioMcpConnection | HttpMcpConnection | null = null;
 
           if (finalConfig.transport === 'stdio') {
-            connection = new StdioMcpConnection(finalConfig);
+            connection = new StdioMcpConnection(finalConfig, `user:${userId}:${finalConfig.name}`);
             await connection.start();
             instanceSet.connections.set(finalConfig.name, connection);
           } else if (finalConfig.transport === 'http' || finalConfig.transport === 'sse') {
@@ -253,7 +254,10 @@ export class UserMcpPool {
           }
         } catch (err) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-          logger.error({ err }, `[UserMcpPool] User ${userId} failed to start ${config.name}:`);
+          logger.error(
+            { err },
+            `[UserMcpPool] User ${keyHash(userId)} failed to start ${config.name}:`
+          );
           // Continue with other MCPs even if one fails
         }
       });
@@ -278,7 +282,7 @@ export class UserMcpPool {
         for (const [mcpName, connection] of instanceSet.connections.entries()) {
           try {
             await connection.stop();
-            logger.info(`[UserMcpPool] Stopped connection ${mcpName} for user ${userId}`);
+            logger.info(`[UserMcpPool] Stopped connection ${mcpName} for user ${keyHash(userId)}`);
           } catch (stopErr) {
             // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             logger.error(
@@ -417,16 +421,16 @@ export class UserMcpPool {
     const instanceSet = this.userInstances.get(userId);
 
     if (!instanceSet) {
-      logger.info(`[UserMcpPool] User ${userId} has no instances to terminate`);
+      logger.info(`[UserMcpPool] User ${keyHash(userId)} has no instances to terminate`);
       return;
     }
 
     if (instanceSet.status === 'terminating' || instanceSet.status === 'terminated') {
-      logger.info(`[UserMcpPool] User ${userId} instances already terminating/terminated`);
+      logger.info(`[UserMcpPool] User ${keyHash(userId)} instances already terminating/terminated`);
       return;
     }
 
-    logger.info(`[UserMcpPool] Terminating MCP instances for user ${userId}...`);
+    logger.info(`[UserMcpPool] Terminating MCP instances for user ${keyHash(userId)}...`);
     this.respawn.cancelPrefix(`${userId}:`);
     instanceSet.status = 'terminating';
 
@@ -434,7 +438,7 @@ export class UserMcpPool {
     const stopPromises = Array.from(instanceSet.connections.values()).map(conn =>
       conn.stop().catch(err => {
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        logger.error({ err }, `[UserMcpPool] User ${userId} error stopping connection:`);
+        logger.error({ err }, `[UserMcpPool] User ${keyHash(userId)} error stopping connection:`);
       })
     );
 
@@ -449,7 +453,7 @@ export class UserMcpPool {
     // Remove from map
     this.userInstances.delete(userId);
 
-    logger.info(`[UserMcpPool] User ${userId} instances terminated`);
+    logger.info(`[UserMcpPool] User ${keyHash(userId)} instances terminated`);
   }
 
   /**
@@ -667,7 +671,7 @@ export class UserMcpPool {
     mcpName: string
   ): void {
     connection.on('disconnect', (info?: { intentional?: boolean }) => {
-      logger.info(`[UserMcpPool] User ${userId} MCP ${mcpName} disconnected`);
+      logger.info(`[UserMcpPool] User ${keyHash(userId)} MCP ${mcpName} disconnected`);
       void this.aggregateToolsForUser(userId);
       // TD-045: an unexpected exit of a still-registered stdio instance respawns it with backoff
       if (connection instanceof StdioMcpConnection && !info?.intentional) {
@@ -689,7 +693,7 @@ export class UserMcpPool {
 
     connection.on('error', err => {
       // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      logger.error({ err }, `[UserMcpPool] User ${userId} MCP ${mcpName} error:`);
+      logger.error({ err }, `[UserMcpPool] User ${keyHash(userId)} MCP ${mcpName} error:`);
     });
   }
 
@@ -775,7 +779,7 @@ export class UserMcpPool {
 
       for (const [mcpName, connection] of instanceSet.connections) {
         if (!connection.isConnected()) {
-          logger.warn(`[UserMcpPool] User ${userId} MCP ${mcpName} is unhealthy`);
+          logger.warn(`[UserMcpPool] User ${keyHash(userId)} MCP ${mcpName} is unhealthy`);
         }
       }
     }

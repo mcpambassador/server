@@ -14,6 +14,7 @@
  * @see M21.7: Admin User CRUD Routes
  */
 
+import { forgetChildUidKeys } from '../downstream/child-uid-allocator.js';
 import crypto from 'crypto';
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
@@ -367,6 +368,8 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       if (userPool) {
         await userPool.terminateForUser(userId);
       }
+      // TD-059: give the user's child uids back (homes are wiped when a uid is assigned again)
+      forgetChildUidKeys(key => key.startsWith(`user:${userId}:`));
 
       // Emit audit event
       await audit.emit({

@@ -16,7 +16,7 @@
 #   - Create these directories on the host before first run
 #
 # Security Notes:
-#   - Server runs as non-root user (mcpambassador:1000); MCP children run as uid 1001 (TD-052)
+#   - Server runs as non-root user (mcpambassador:1000); each MCP instance runs under its own uid from MCP_AMBASSADOR_CHILD_UID_RANGE (TD-052/TD-059)
 #   - Read-only root filesystem (except /data volume)
 #   - Self-signed TLS certificates auto-generated on first boot
 #   - Use volume encryption for sensitive data at rest
@@ -103,7 +103,7 @@ services:
       - no-new-privileges:true
 
     # TD-052: start as root only for docker/entrypoint.sh, which execs the server as uid 1000 and keeps
-    # just CAP_SETUID/SETGID/KILL so MCP children can be run as uid 1001 (unable to read /data).
+    # just CAP_SETUID/SETGID/KILL so each MCP instance can run under its own uid (unable to read /data or each other).
     user: "0:0"
     cap_drop:
       - ALL
@@ -116,6 +116,10 @@ services:
     
     # Read-only root filesystem (except bind-mounted volumes)
     read_only: true
+
+    # TD-059: each MCP instance gets its own RLIMIT_NPROC (MCP_AMBASSADOR_CHILD_NPROC, default 256) and the
+    # container is capped by deploy.resources.limits.pids below. No `init: true`: docker-init would stay a
+    # root PID 1; the image runs tini (uid 1000, same caps as the server) as PID 1 to reap orphaned grandchildren.
     
     # Health check
     healthcheck:
@@ -132,6 +136,7 @@ services:
         limits:
           cpus: '2.0'
           memory: 1G
+          pids: 4096 # TD-059: container-wide cap
         reservations:
           cpus: '0.5'
           memory: 512M

@@ -504,7 +504,7 @@ export async function discoverTools(
     // Create connection based on transport
     let connection: StdioMcpConnection | HttpMcpConnection;
     if (entry.transport_type === 'stdio') {
-      connection = new StdioMcpConnection(dsConfig);
+      connection = new StdioMcpConnection(dsConfig, `discovery:${dsConfig.name}`);
     } else if (entry.transport_type === 'http' || entry.transport_type === 'sse') {
       connection = new HttpMcpConnection(dsConfig);
     } else {

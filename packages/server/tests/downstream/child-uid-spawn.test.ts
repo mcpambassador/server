@@ -1,0 +1,180 @@
+import { describe, it, afterEach, beforeEach, expect, vi } from 'vitest';
+import { EventEmitter } from 'events';
+import { makeMcpConfig } from './helpers';
+
+const procs: any[] = [];
+const spawnCalls: any[][] = [];
+vi.mock('child_process', async orig => {
+  const actual = await orig<typeof import('child_process')>();
+  return {
+    ...actual,
+    spawn: (...args: any[]) => {
+      spawnCalls.push(args);
+      const p: any = new EventEmitter();
+      Object.assign(p, {
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+        stdin: { write: () => {}, end: () => {}, on: () => {} },
+        pid: 100 + procs.length,
+        kill: () => {},
+      });
+      procs.push(p);
+      return p;
+    },
+  };
+});
+vi.mock('../../src/downstream/child-isolation.js', async orig => {
+  const actual = await orig<typeof import('../../src/downstream/child-isolation.js')>();
+  return {
+    ...actual,
+    checkIsolationAvailable: () => (globalThis as any).__td059CapProblem ?? null,
+  };
+});
+// in-memory map; injected allocator so no real fs, setpriv or runner uid is involved
+let mapFile: string | null = null;
+const wipes: number[] = [];
+const reaps: number[] = [];
+vi.mock('../../src/downstream/child-uid-allocator.js', async orig => {
+  const actual = await orig<typeof import('../../src/downstream/child-uid-allocator.js')>();
+  return {
+    ...actual,
+    getChildUidAllocator: (range: any) => {
+      (globalThis as any).__td059Alloc ??= new actual.ChildUidAllocator(range, {
+        readMap: () => mapFile,
+        writeMap: (_p: string, d: string) => {
+          mapFile = d;
+        },
+        wipeHome: (uid: number) => {
+          wipes.push(uid);
+          return Promise.resolve();
+        },
+        reapUid: (uid: number) => {
+          reaps.push(uid);
+          return Promise.resolve(0);
+        },
+      });
+      return (globalThis as any).__td059Alloc;
+    },
+  };
+});
+
+import { StdioMcpConnection } from '../../src/downstream/stdio-connection.js';
+
+beforeEach(() => {
+  process.env['MCP_AMBASSADOR_CHILD_UID_RANGE'] = '20000-20001';
+});
+afterEach(() => {
+  spawnCalls.length = 0;
+  procs.length = 0;
+  wipes.length = 0;
+  reaps.length = 0;
+  mapFile = null;
+  (globalThis as any).__td059Alloc = undefined;
+  delete process.env['MCP_AMBASSADOR_CHILD_UID_RANGE'];
+  (globalThis as any).__td059CapProblem = undefined;
+});
+
+const cfg = () => makeMcpConfig({ transport: 'stdio', command: ['node', 'x.js'] });
+// the uid lease is async (kill + wipe are awaited), so let it settle before looking at the spawn
+const start = async (c: StdioMcpConnection) => {
+  void c.start().catch(() => undefined);
+  await new Promise(r => setImmediate(r));
+};
+
+describe('per-instance child uid through StdioMcpConnection', () => {
+  it('two instances spawn under different uids and homes', async () => {
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+    await start(new StdioMcpConnection(cfg(), 'user:u2:a'));
+    const [a, b] = spawnCalls;
+    expect(a![1]).toContain('--reuid=20000');
+    expect(b![1]).toContain('--reuid=20001');
+    expect(a![2].env.HOME).toBe('/tmp/mcp-homes/20000');
+    expect(b![2].env.HOME).toBe('/tmp/mcp-homes/20001');
+    expect(a![2].env.NPM_CONFIG_CACHE).toBe('/tmp/mcp-homes/20000/.npm-cache');
+    expect(b![2].env.UV_CACHE_DIR).toBe('/tmp/mcp-homes/20001/.uv-cache');
+    expect(b![2].env.TMPDIR).toBe('/tmp/mcp-homes/20001/tmp');
+  });
+
+  it('a restart of the same instance keeps its uid', async () => {
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+    procs[0].emit('exit', 1, null);
+    await start(new StdioMcpConnection(cfg(), 'user:u1:a'));
+    expect(spawnCalls[1]![1]).toContain('--reuid=20000');
+    expect(wipes).toEqual([20000]); // wiped once, on first assignment only
+  });
+
+  it('refuses to spawn without an instance key (never shares a uid)', async () => {
+    await expect(new StdioMcpConnection(cfg()).start()).rejects.toThrow(/no instance key/);
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('refuses to spawn when the range is exhausted by live children', async () => {
+    await start(new StdioMcpConnection(cfg(), 'k1'));
+    await start(new StdioMcpConnection(cfg(), 'k2'));
+    await expect(new StdioMcpConnection(cfg(), 'k3').start()).rejects.toThrow(/exhausted/);
+    expect(spawnCalls).toHaveLength(2);
+  });
+
+  it('frees the uid when the child exits so another instance can be reclaimed into it', async () => {
+    await start(new StdioMcpConnection(cfg(), 'k1'));
+    await start(new StdioMcpConnection(cfg(), 'k2'));
+    procs[0].emit('exit', 0, null);
+    await start(new StdioMcpConnection(cfg(), 'k3'));
+    expect(spawnCalls[2]![1]).toContain('--reuid=20000');
+    expect(wipes).toEqual([20000, 20001, 20000]);
+  });
+
+  it('fails closed on a corrupt map', async () => {
+    mapFile = '{garbage';
+    await expect(new StdioMcpConnection(cfg(), 'k').start()).rejects.toThrow(/is invalid/);
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('checks capabilities BEFORE touching the allocator: no uid assigned, no map written, no wipe', async () => {
+    (globalThis as any).__td059CapProblem = 'child isolation requires CAP_KILL (hint)';
+    await expect(new StdioMcpConnection(cfg(), 'k').start()).rejects.toThrow(/requires CAP_KILL/);
+    expect(mapFile).toBeNull();
+    expect(wipes).toEqual([]);
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('stop() that needs SIGKILL and never sees an exit still releases the uid lease (sweep runs)', async () => {
+    vi.useFakeTimers();
+    try {
+      const c = new StdioMcpConnection(cfg(), 'user:u1:a');
+      void c.start().catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10);
+      const kills: string[] = [];
+      procs[0].kill = (sig: string) => kills.push(sig);
+      reaps.length = 0;
+      const stopped = c.stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(kills).toEqual(['SIGTERM', 'SIGKILL']);
+      expect(reaps).toEqual([]); // still waiting (bounded) for the exit event
+      await vi.advanceTimersByTimeAsync(2000);
+      await stopped;
+      expect(reaps).toEqual([20000]); // lease released -> uid swept
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stop() with a late exit after SIGKILL releases once, through the exit handler', async () => {
+    vi.useFakeTimers();
+    try {
+      const c = new StdioMcpConnection(cfg(), 'user:u1:a');
+      void c.start().catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10);
+      procs[0].kill = () => {};
+      reaps.length = 0;
+      const stopped = c.stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      procs[0].emit('exit', null, 'SIGKILL');
+      await vi.advanceTimersByTimeAsync(10);
+      await stopped;
+      expect(reaps).toEqual([20000]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
