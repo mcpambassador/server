@@ -10,7 +10,7 @@ One server to authenticate, authorize, and audit every MCP tool your team uses. 
 - **Group RBAC**, including **per-tool group policy**: a group's MCP grant can allow all tools, only a list, or all but a list.
 - **Per-user MCP instances** with encrypted credentials (AES-256-GCM, HKDF-derived keys) and OAuth 2.0 for downstream MCPs.
 - **Tool pinning**: tool definitions are hashed; new or changed tools wait in a review queue (single and bulk approve) before agents see them.
-- **Approval gates**: an admin can require a person to approve each use of a risky tool.
+- **Approval gates**: an admin can require a person to approve each use of a risky tool. They apply to remote-agent (`/mcp`) grants; stdio client calls to a gated tool are refused (`not_supported_for_client`).
 - **Kill switches**: disable a client, an MCP, or a single tool of one MCP.
 - **Progressive disclosure**: agents can be given three search/describe/call tools instead of the full tool list.
 - **Audit log**: append-only JSONL of authentication decisions and tool calls.
@@ -36,10 +36,10 @@ First boot also writes `data/initial-credentials.txt` (admin API key and recover
 
 The compose default is `NODE_ENV=production`. For a local trial you can set `NODE_ENV=development` in `.env`: after the admin exists, first boot then creates an all-tools dev preshared key (never use that in production). For verbose logs set `LOG_LEVEL=debug`.
 
-| Port | Serves                                                                                                                                       |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 8443 | MCP client protocol (registration, discovery, invocation); the agent endpoint (`/mcp`, `/oauth/*`) too, when `agent_endpoint.enabled` is set |
-| 9443 | Admin API, user API (cookie-authenticated routes), and the SPA                                                                               |
+| Port | Serves                                                                                                                           |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 8443 | MCP client protocol (registration, discovery, invocation); the agent endpoint (`/mcp`) too, when `agent_endpoint.enabled` is set |
+| 9443 | Admin API, user API (cookie-authenticated routes), OAuth routes (`/oauth/*`), and the SPA                                        |
 
 The reference compose file binds 9443 to `127.0.0.1`. Production setup, TLS, and reverse proxies: [Docker guide](https://mcpambassador.ai/docs/docker) and [Production guide](https://mcpambassador.ai/docs/production).
 
@@ -86,7 +86,7 @@ Configured by environment variables (see `.env.example`, `docker-compose.yml`, a
   - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only add MCPs you trust.
 - **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them (unless that MCP's pin policy is `auto`, which is not allowed for registry or imported MCPs); flagged or previously revoked definitions need an explicit extra step.
 - **Authorization order per call**: kill switch, group policy, then the subscription's selected tools. A tool that is denied answers the same as one that does not exist.
-- **Approval gates**: per-tool human approval with an argument preview.
+- **Approval gates**: per-tool human approval for remote-agent (`/mcp`) grants; the approver sees a redacted argument preview. Stdio client calls to a gated tool are refused (`not_supported_for_client`).
 - **Credentials**: AES-256-GCM encryption with per-user HKDF-derived keys; Argon2id password hashing; HMAC-SHA256 session tokens.
 - **Transport**: TLS on every listener (self-signed by default, or CA-signed).
 - **Audit**: every decision and call is written to an append-only log.
