@@ -541,4 +541,76 @@ describe('ADR-021 D7 revoke, D6 frozen baseline, S3 (gate review)', () => {
       expect(nf.statusCode).toBe(404);
     });
   });
+
+  describe('decisions serialize with a concurrent discovery of a changed definition', () => {
+    // started together with no await in between: discovery must wait (or go first), never interleave
+    it('reject keeps the newly pending definition', async () => {
+      const id = await mk('m');
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'one')],
+        policy: 'review',
+      });
+      const pin = pins.getPin(id, null, 'a')!;
+      const h1 = pin.pending_hash!;
+      const [r] = await Promise.all([
+        pins.reject(pin.pin_id, { expectedHash: h1, actor: 'admin' }),
+        pins.observe({
+          mcpId: id,
+          scopeUserId: null,
+          liveTools: [t('a', 'two')],
+          policy: 'review',
+        }),
+      ]);
+      expect(r.ok).toBe(true);
+      const after = pins.getPin(id, null, 'a')!;
+      expect(after.rejected_hash).toBe(h1);
+      expect(after.status).toBe('pending_review');
+      expect(after.pending_hash).toBeTruthy();
+      expect(after.pending_hash).not.toBe(h1);
+    });
+
+    it('revoke keeps the newly pending definition', async () => {
+      const id = await mk('m');
+      const pin = await approvedShared(id);
+      const h1 = pin.approved_hash!;
+      const [, r] = await Promise.all([
+        pins.observe({ mcpId: id, scopeUserId: null, liveTools: [t('a', 'B')], policy: 'review' }),
+        pins.revoke(pin.pin_id, { expectedHash: h1, actor: 'admin' }),
+      ]);
+      expect(r.ok).toBe(true);
+      const after = pins.getPin(id, null, 'a')!;
+      expect(after.approved_hash).toBeNull();
+      expect(JSON.parse(after.revoked_hashes!)).toContain(h1);
+      expect(after.status).toBe('pending_review');
+      expect(after.pending_hash).toBeTruthy();
+      expect(pins.resolveApproved(id, null, 'a')).toBeUndefined();
+    });
+
+    it('confirmBaseline keeps the newly pending definition', async () => {
+      const id = await mk('m', [t('a', 'A')]);
+      const b = new ToolPinBaseline(db, pins);
+      await b.init();
+      await pins.observe({
+        mcpId: id,
+        scopeUserId: null,
+        liveTools: [t('a', 'A')],
+        policy: 'review',
+        baseline: await b.baselineFor(id, null),
+      });
+      const pin = pins.getPin(id, null, 'a')!;
+      const h1 = pin.approved_hash!;
+      const [r] = await Promise.all([
+        pins.confirmBaseline(pin.pin_id, { expectedHash: h1, actor: 'admin' }),
+        pins.observe({ mcpId: id, scopeUserId: null, liveTools: [t('a', 'A2')], policy: 'review' }),
+      ]);
+      expect(r.ok).toBe(true);
+      const after = pins.getPin(id, null, 'a')!;
+      expect(after.approved_by).toBe('admin');
+      expect(after.approved_hash).toBe(h1);
+      expect(after.status).toBe('pending_review');
+      expect(after.pending_hash).toBeTruthy();
+    });
+  });
 });

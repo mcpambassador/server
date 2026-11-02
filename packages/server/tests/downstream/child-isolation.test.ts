@@ -27,6 +27,9 @@ import { join } from 'node:path';
 import {
   resolveChildIsolation,
   parseCapEff,
+  parseNoNewPrivs,
+  resetNoNewPrivsWarning,
+  warnIfServerLacksNoNewPrivs,
   checkIsolationAvailable,
   wrapCommandForIsolation,
 } from '../../src/downstream/child-isolation.js';
@@ -140,6 +143,23 @@ describe('checkIsolationAvailable', () => {
     expect(checkIsolationAvailable(iso, { ...ok, setprivOk: false })).toMatch(/setpriv/);
     expect(checkIsolationAvailable(iso, { ...ok, homeOk: false })).toMatch(/child home/);
   });
+  it('parses NoNewPrivs and warns once when the server lacks it', async () => {
+    expect(parseNoNewPrivs('Name:\tx\nNoNewPrivs:\t1\n')).toBe(true);
+    expect(parseNoNewPrivs('NoNewPrivs:\t0\n')).toBe(false);
+    expect(parseNoNewPrivs('nothing')).toBeNull();
+    const { logger } = await import('@mcpambassador/core');
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    resetNoNewPrivsWarning();
+    expect(checkIsolationAvailable(iso, { ...ok, noNewPrivs: false })).toBeNull();
+    warnIfServerLacksNoNewPrivs(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toMatch(/no-new-privileges/);
+    resetNoNewPrivsWarning();
+    warnIfServerLacksNoNewPrivs(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+    resetNoNewPrivsWarning();
+  });
   it('parses CapEff', () => {
     expect(parseCapEff('Name:\tx\nCapEff:\t00000000000000e0\nCapBnd:\t0\n')).toBe(0xe0n);
     expect(parseCapEff('nothing')).toBeNull();
@@ -156,6 +176,7 @@ describe('spawn wrapping', () => {
       '--clear-groups',
       '--inh-caps=-all',
       '--ambient-caps=-all',
+      '--no-new-privs',
       '--',
       '/bin/sh',
       '-c',

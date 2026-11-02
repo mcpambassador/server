@@ -62,6 +62,12 @@ services:
       # Generate with: node -e "console.log('amb_ak_' + require('crypto').randomBytes(32).toString('base64url'))"
       # AMBASSADOR_ADMIN_KEY: ${AMBASSADOR_ADMIN_KEY:-}
       
+      # Per-instance child isolation (TD-059). The image defaults to the range below.
+      # MCP_AMBASSADOR_CHILD_UID_RANGE: 20000-20999
+      # RLIMIT_NPROC per MCP instance (default 256). It counts THREADS of every process of that instance's uid.
+      # Browser MCPs (Playwright/Puppeteer) may need more, e.g. 1024; keep it well below deploy.resources.limits.pids.
+      # MCP_AMBASSADOR_CHILD_NPROC: 256
+
       # Downstream MCP API keys (ADR-009)
       ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
@@ -117,7 +123,7 @@ services:
     # Read-only root filesystem (except bind-mounted volumes)
     read_only: true
 
-    # TD-059: each MCP instance gets its own RLIMIT_NPROC (MCP_AMBASSADOR_CHILD_NPROC, default 256) and the
+    # TD-059: each MCP instance gets its own RLIMIT_NPROC (MCP_AMBASSADOR_CHILD_NPROC, default 256, counts threads; browser MCPs may need more) and the
     # container is capped by deploy.resources.limits.pids below. No `init: true`: docker-init would stay a
     # root PID 1; the image runs tini (uid 1000, same caps as the server) as PID 1 to reap orphaned grandchildren.
     

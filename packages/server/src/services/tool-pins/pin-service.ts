@@ -258,8 +258,32 @@ export class ToolPinService {
     return this.recentRejections(mcpId) >= TOOL_PIN_AUTO_HOLD_REJECTIONS;
   }
 
-  /** Approve the pending definition. `expectedHash` must equal the pin's current pending_hash. */
+  /**
+   * Approve the pending definition. `expectedHash` must equal the pin's current pending_hash.
+   * Serialized with `observe` per (mcp, scope) (and with the all-users scope when `applyTo` is `all_users`), so a
+   * discovery cannot rewrite the pin between the check and the commit and have its pending change overwritten.
+   */
   async approve(
+    pinId: string,
+    o: {
+      expectedHash: string;
+      applyTo?: 'this_scope' | 'all_users';
+      actor: string;
+      reason?: string;
+      force?: boolean;
+      bulkId?: string;
+    }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    const keys = [key(pin.mcp_id, pin.scope_user_id, '')];
+    if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
+      keys.push(key(pin.mcp_id, null, ''));
+    }
+    return this.withScopeLocks(keys, () => this.approveLocked(pinId, o));
+  }
+
+  private async approveLocked(
     pinId: string,
     o: {
       expectedHash: string;
@@ -268,6 +292,8 @@ export class ToolPinService {
       reason?: string;
       /** TD-034: approve a definition whose exact hash was revoked earlier. Audited. */
       force?: boolean;
+      /** FB-033: shared id of a bulk approval, recorded in the audit event. */
+      bulkId?: string;
     }
   ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
@@ -357,9 +383,70 @@ export class ToolPinService {
       baseline_written: baselineWritten,
       actor: o.actor,
       reason_given: Boolean(o.reason),
+      ...(o.bulkId ? { bulk_id: o.bulkId } : {}),
       ...(wasRevoked ? { forced_previously_revoked: true } : {}),
     });
     return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /**
+   * FB-033: approve many pending pins of one MCP, one at a time (each runs the full single-approve
+   * checks, so a changed hash or a blocking flag skips that pin only). Pins with any flag are skipped
+   * unless `includeFlagged`. Never throws for a per-item failure.
+   */
+  async approveMany(
+    mcpId: string,
+    items: { pinId: string; expectedHash: string }[],
+    o: {
+      applyTo?: 'this_scope' | 'all_users';
+      actor: string;
+      reason?: string;
+      includeFlagged?: boolean;
+      bulkId: string;
+    }
+  ): Promise<{
+    approved: { pinId: string; toolName: string }[];
+    skipped: { pinId: string; reason: string }[];
+  }> {
+    const approved: { pinId: string; toolName: string }[] = [];
+    const skipped: { pinId: string; reason: string }[] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+      if (seen.has(it.pinId)) {
+        skipped.push({ pinId: it.pinId, reason: 'duplicate' });
+        continue;
+      }
+      seen.add(it.pinId);
+      const pin = this.getById(it.pinId);
+      if (pin && pin.mcp_id !== mcpId) {
+        skipped.push({ pinId: it.pinId, reason: 'wrong_mcp' });
+        continue;
+      }
+      if (pin && !o.includeFlagged && hasRiskFlag(pin.flags)) {
+        skipped.push({ pinId: it.pinId, reason: 'flagged' });
+        continue;
+      }
+      const r = await this.approve(it.pinId, {
+        expectedHash: it.expectedHash,
+        applyTo: o.applyTo,
+        reason: o.reason,
+        actor: o.actor,
+        bulkId: o.bulkId,
+      });
+      if (r.ok) approved.push({ pinId: it.pinId, toolName: r.pin.tool_name });
+      else skipped.push({ pinId: it.pinId, reason: r.code });
+    }
+    this.audit('tool_pin_bulk_approved', {
+      bulk_id: o.bulkId,
+      mcp_id: mcpId,
+      requested: items.length,
+      approved: approved.length,
+      skipped: skipped.length,
+      include_flagged: Boolean(o.includeFlagged),
+      apply_to: o.applyTo ?? 'this_scope',
+      actor: o.actor,
+    });
+    return { approved, skipped };
   }
 
   /** D4a: copy the approved definition to the NULL-scope pin so per-user instances need no review. */
@@ -413,6 +500,17 @@ export class ToolPinService {
     pinId: string,
     o: { expectedHash: string; actor: string; reason?: string }
   ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    return this.withScopeLocks([key(pin0.mcp_id, pin0.scope_user_id, '')], () =>
+      this.rejectLocked(pinId, o)
+    );
+  }
+
+  private async rejectLocked(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
     if (!pin) return { ok: false, code: 'not_found' };
     if (pin.status !== 'pending_review' || !pin.pending_hash)
@@ -453,6 +551,22 @@ export class ToolPinService {
    * a NULL-scope pin); the old hash is recorded as rejected so it is not re-raised, and a new hash goes pending.
    */
   async revoke(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    // revoke withdraws the hash in every scope serving it: lock each scope of this (mcp, tool)
+    const keys = new Set([key(pin0.mcp_id, pin0.scope_user_id, '')]);
+    for (const l of this.pins.values()) {
+      if (l.rec.mcp_id === pin0.mcp_id && l.rec.tool_name === pin0.tool_name) {
+        keys.add(key(l.rec.mcp_id, l.rec.scope_user_id, ''));
+      }
+    }
+    return this.withScopeLocks([...keys], () => this.revokeLocked(pinId, o));
+  }
+
+  private async revokeLocked(
     pinId: string,
     o: { expectedHash: string; actor: string; reason?: string }
   ): Promise<DecisionResult> {
@@ -541,6 +655,17 @@ export class ToolPinService {
     pinId: string,
     o: { expectedHash: string; actor: string }
   ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    return this.withScopeLocks([key(pin0.mcp_id, pin0.scope_user_id, '')], () =>
+      this.confirmBaselineLocked(pinId, o)
+    );
+  }
+
+  private async confirmBaselineLocked(
+    pinId: string,
+    o: { expectedHash: string; actor: string }
+  ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
     if (!pin) return { ok: false, code: 'not_found' };
     if (pin.approved_by !== SYSTEM_MIGRATION_ACTOR || !pin.approved_hash) {
@@ -593,18 +718,29 @@ export class ToolPinService {
    * Serialized per (mcp, scope) so two overlapping discoveries cannot race on the same rows.
    */
   observe(args: ObserveArgs): Promise<ObserveSummary> {
-    const k = key(args.mcpId, args.scopeUserId, '');
-    const prev = this.chains.get(k) ?? Promise.resolve();
-    const run = prev.then(
-      () => this.observeLocked(args),
-      () => this.observeLocked(args)
+    return this.withScopeLock(key(args.mcpId, args.scopeUserId, ''), () =>
+      this.observeLocked(args)
     );
+  }
+
+  /** Run `fn` after every earlier job on the same (mcp, scope) key; shared by observe and approve. */
+  private withScopeLock<T>(k: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.chains.get(k) ?? Promise.resolve();
+    const run = prev.then(fn, fn);
     const tail = run.catch(() => undefined);
     this.chains.set(k, tail);
     void tail.then(() => {
       if (this.chains.get(k) === tail) this.chains.delete(k);
     });
     return run;
+  }
+
+  /** Take several scope locks in a fixed (sorted) order so two callers can never wait on each other. */
+  private withScopeLocks<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
+    const sorted = [...new Set(keys)].sort();
+    const run = (i: number): Promise<T> =>
+      i < sorted.length ? this.withScopeLock(sorted[i]!, () => run(i + 1)) : fn();
+    return run(0);
   }
 
   private async observeLocked(args: ObserveArgs): Promise<ObserveSummary> {
@@ -926,6 +1062,13 @@ function parseRevoked(raw: string | null): string[] {
   } catch {
     return [];
   }
+}
+
+/** FB-033: any flag other than the purely informational length ones counts as suspicious. */
+function hasRiskFlag(raw: string | null): boolean {
+  return parseFlags(raw).codes.some(
+    c => !(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c)
+  );
 }
 
 function parseFlags(raw: string | null): ToolPinFlags {

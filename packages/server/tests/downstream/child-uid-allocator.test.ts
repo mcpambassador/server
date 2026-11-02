@@ -412,6 +412,59 @@ describe('ChildUidAllocator', () => {
       expect(l.uid).not.toBe(la.uid);
     });
 
+    it('TD-064: a prepared uid stays in `preparing` until the victim key is gone and the lease is taken', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      const priv = a as unknown as { preparing: Set<number>; entries: Map<string, unknown> | null };
+      (await a.lease('user:a:m')).release();
+      // the victim is dropped inside prepareFreshUid; the uid must still be held at that point
+      let heldAfterWipe = false;
+      h.hooks.wipeHome = () => {
+        heldAfterWipe = priv.preparing.has(20000);
+        return Promise.resolve();
+      };
+      const l = await a.lease('user:b:m');
+      expect(heldAfterWipe).toBe(true);
+      expect(l.uid).toBe(20000);
+      expect(priv.preparing.size).toBe(0); // released once the lease exists
+      expect(JSON.parse(h.file()!).entries['user:a:m']).toBeUndefined();
+    });
+
+    it('TD-064: the victim key cannot fast-path lease the same uid in the gap after its wipe', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      (await a.lease('user:a:m')).release();
+      // probe the victim key on every microtask hop right after the wipe resolves, i.e. across the gap between
+      // "wipe done" and "victim key dropped / new lease taken"
+      const probes: Array<Promise<{ uid: number }>> = [];
+      h.hooks.wipeHome = () => {
+        const hop = (n: number): void => {
+          if (n === 0) return;
+          probes.push(a.lease('user:a:m'));
+          void Promise.resolve().then(() => hop(n - 1));
+        };
+        void Promise.resolve().then(() => hop(12));
+        return Promise.resolve();
+      };
+      const lb = await a.lease('user:b:m');
+      expect(lb.uid).toBe(20000);
+      const settled = await Promise.allSettled(probes);
+      for (const r of settled) {
+        if (r.status === 'fulfilled') expect(r.value.uid).not.toBe(lb.uid);
+      }
+    });
+
+    it('TD-064: a failed persist does not leave the uid stuck in `preparing`', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      const priv = a as unknown as { preparing: Set<number> };
+      h.hooks.writeMap = () => {
+        throw new Error('disk full');
+      };
+      await expect(a.lease('user:a:m')).rejects.toThrow(ChildUidError);
+      expect(priv.preparing.size).toBe(0);
+    });
+
     it('an idle candidate leased meanwhile is skipped, never reclaimed', async () => {
       const h = harness(20000, 20002);
       const a = h.make();
@@ -606,9 +659,9 @@ describe('range-mode preflight and wrapper', () => {
   it('wrapper caps processes per instance (default 256, configurable, 0 disables)', async () => {
     const has = (n?: number) => wrapCommandForIsolation('npx', [], iso, undefined, n).args;
     const d = wrapCommandForIsolation('npx', [], iso).args;
-    expect(d.slice(5, 9)).toEqual(['--', '/usr/bin/prlimit', '--nproc=256', '--']);
-    expect(has(64).slice(5, 9)).toEqual(['--', '/usr/bin/prlimit', '--nproc=64', '--']);
-    expect(has(64).slice(9, 11)).toEqual(['/bin/sh', '-c']);
+    expect(d.slice(6, 10)).toEqual(['--', '/usr/bin/prlimit', '--nproc=256', '--']);
+    expect(has(64).slice(6, 10)).toEqual(['--', '/usr/bin/prlimit', '--nproc=64', '--']);
+    expect(has(64).slice(10, 12)).toEqual(['/bin/sh', '-c']);
     expect(has(0)).not.toContain('/usr/bin/prlimit');
   });
   it('never asks for more than the stricter hard limit the server already runs under', async () => {

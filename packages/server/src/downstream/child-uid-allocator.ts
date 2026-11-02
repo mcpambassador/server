@@ -298,26 +298,33 @@ export class ChildUidAllocator {
     const entries = this.load();
     let entry = entries.get(key);
     const fresh = !entry;
-    if (!entry) {
-      const uid = await this.prepareFreshUid(entries, key);
-      entry = { uid, lastUsed: this.deps.now() };
-      entries.set(key, entry);
-      try {
-        this.persist(entries);
-      } catch (err) {
-        entries.delete(key);
-        this.entries = null; // a reclaimed victim was dropped from memory only; reread the file
-        throw new ChildUidError(`cannot persist ${this.range.mapPath}: ${errText(err)}`);
+    // TD-064: a freshly prepared uid stays in `preparing` until the lease below is taken (or we fail).
+    let held: number | undefined;
+    try {
+      if (!entry) {
+        const uid = await this.prepareFreshUid(entries, key);
+        held = uid;
+        entry = { uid, lastUsed: this.deps.now() };
+        entries.set(key, entry);
+        try {
+          this.persist(entries);
+        } catch (err) {
+          entries.delete(key);
+          this.entries = null; // a reclaimed victim was dropped from memory only; reread the file
+          throw new ChildUidError(`cannot persist ${this.range.mapPath}: ${errText(err)}`);
+        }
+        logger.info(`[child-uid] assigned uid ${uid} to instance ${keyHash(key)}`);
+        const size = this.range.max - this.range.min + 1;
+        if (entries.size * 5 >= size * 4) {
+          logger.warn(
+            `[child-uid] ${entries.size}/${size} uids of ${this.range.min}-${this.range.max} are assigned (80%+); widen MCP_AMBASSADOR_CHILD_UID_RANGE before idle instances start being reclaimed`
+          );
+        }
       }
-      logger.info(`[child-uid] assigned uid ${uid} to instance ${keyHash(key)}`);
-      const size = this.range.max - this.range.min + 1;
-      if (entries.size * 5 >= size * 4) {
-        logger.warn(
-          `[child-uid] ${entries.size}/${size} uids of ${this.range.min}-${this.range.max} are assigned (80%+); widen MCP_AMBASSADOR_CHILD_UID_RANGE before idle instances start being reclaimed`
-        );
-      }
+      return this.takeLease(entries, entry, fresh);
+    } finally {
+      if (held !== undefined) this.preparing.delete(held);
     }
-    return this.takeLease(entries, entry, fresh);
   }
 
   /** Synchronous: mark the entry used and take a lease on its uid. */
@@ -389,9 +396,8 @@ export class ChildUidAllocator {
       } catch (err) {
         lastWhy = errText(err);
         logger.warn(`[child-uid] uid ${uid} not usable for ${keyHash(key)}: ${lastWhy}`);
+        this.preparing.delete(uid); // failure only; on success leaseInner releases it once the lease is taken
         return false;
-      } finally {
-        this.preparing.delete(uid);
       }
     };
     for (let uid = this.range.min; uid <= this.range.max && budgetLeft(); uid++) {

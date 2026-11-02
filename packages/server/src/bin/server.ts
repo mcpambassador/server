@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import yaml from 'yaml';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
+import { resolveChildIsolationConfig } from '../downstream/child-isolation.js';
 import { logger, loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
 
 /**
@@ -279,6 +280,21 @@ async function main() {
   logger.info(
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
+
+  try {
+    if (!resolveChildIsolationConfig()) {
+      logger.warn(
+        '[Server] child isolation disabled: MCP children run as the server uid and can read /data'
+      );
+    }
+  } catch (err) {
+    // bad MCP_AMBASSADOR_CHILD_* settings: one clear line instead of a stack trace
+    // td036-allow: config validation error text, startup log only (no client or DB error involved)
+    logger.error(
+      `[Server] invalid child isolation configuration: ${err instanceof Error ? err.message : String(err)}`
+    );
+    process.exit(1);
+  }
 
   const server = new AmbassadorServer({
     port:
