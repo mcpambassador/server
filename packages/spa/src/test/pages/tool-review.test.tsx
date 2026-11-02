@@ -602,10 +602,13 @@ describe('ToolReview bulk approve (FB-033)', () => {
   ];
 
   function bulkSetup(response?: unknown) {
-    const bodies: Array<{ url: string; body: any }> = [];
+    const bodies: Array<{
+      url: string;
+      body: { items: Array<{ pin_id: string; expected_hash: string }>; include_flagged?: boolean };
+    }> = [];
     server.use(
       http.post('/v1/admin/mcps/:mcpId/tool-pins/approve', async ({ request }) => {
-        bodies.push({ url: new URL(request.url).pathname, body: await request.json() });
+        bodies.push({ url: new URL(request.url).pathname, body: (await request.json()) as never });
         return HttpResponse.json({
           ok: true,
           data: response ?? { bulk_id: 'bk', approved: [], skipped: [] },
@@ -653,7 +656,7 @@ describe('ToolReview bulk approve (FB-033)', () => {
     await user.click(screen.getByRole('button', { name: 'Yes, approve flagged tools' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]!.body.include_flagged).toBe(true);
-    expect(bodies[0]!.body.items.map((i: any) => i.pin_id)).toEqual(['a', 'b', 'f']);
+    expect(bodies[0]!.body.items.map(i => i.pin_id)).toEqual(['a', 'b', 'f']);
   });
 
   it('Approve selected sends only the checked pins; blocked pins cannot be checked', async () => {
