@@ -1,37 +1,42 @@
 version: 2
 updates:
-  # pnpm monorepo root
+  # npm: one monthly PR for all minor+patch; majors come individually.
+  # Security updates ignore this schedule and grouping.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
-      typescript-tooling:
+      minor-and-patch:
         patterns:
-          - "typescript"
-          - "@typescript-eslint/*"
-          - "eslint*"
-          - "prettier"
-      vitest:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
-      types:
-        patterns:
-          - "@types/*"
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # CI and runtime are Node 20; stay on the Node 20 typings
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "automated"
 
-  # GitHub Actions
+
+  # GitHub Actions: one monthly grouped PR
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "area: ci"
