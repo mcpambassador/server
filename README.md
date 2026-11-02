@@ -95,7 +95,7 @@ Report vulnerabilities as described in [.github/SECURITY.md](.github/SECURITY.md
 
 ## Connecting a client
 
-The [client](https://github.com/mcpambassador/client) is a stdio MCP you point your AI tool at. It is not published to npm yet (npm only has `0.8.0-beta.2`); install it from source following the client README. When `agent_endpoint.enabled` is set in the server config (off by default; the routes return 404 otherwise), agents that speak MCP over HTTP can also use the agent endpoint on 8443 (see [client-server docs](https://mcpambassador.ai/docs/client-server)).
+The [client](https://github.com/mcpambassador/client) is a stdio MCP you point your AI tool at. Install it from npm: `npx -y @mcpambassador/client --config <path>` or `npm i -g @mcpambassador/client` (releases carry provenance; check with `npm audit signatures`). See the client README for tool configs. When `agent_endpoint.enabled` is set in the server config (off by default; the routes return 404 otherwise), agents that speak MCP over HTTP can also use the agent endpoint on 8443 (see [client-server docs](https://mcpambassador.ai/docs/client-server)).
 
 ## Repository layout
 
