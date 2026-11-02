@@ -14,6 +14,7 @@
 import { accessSync, constants, lstatSync, readFileSync } from 'node:fs';
 
 export const SETPRIV_PATH = '/usr/bin/setpriv';
+export const PRLIMIT_PATH = '/usr/bin/prlimit';
 export const DEFAULT_CHILD_HOME = '/tmp/mcp-home';
 
 const CAP_SETGID = 6;
@@ -32,6 +33,8 @@ export const DEFAULT_CHILD_HOMES_ROOT = '/tmp/mcp-homes';
 export const DEFAULT_CHILD_UID_MAP = '/data/child-uids.json';
 export const MAX_CHILD_UID_RANGE_SIZE = 10000;
 export const MIN_CHILD_UID = 10000;
+/** TD-059: default RLIMIT_NPROC per child instance (counts threads of every process of that uid). */
+export const DEFAULT_CHILD_NPROC = 256;
 
 /** TD-059: how child uids are chosen. */
 export type ChildIsolationConfig =
@@ -57,6 +60,7 @@ export function resolveChildIsolationConfig(
   serverUid: number | undefined = process.getuid?.(),
   serverGid: number | undefined = process.getgid?.()
 ): ChildIsolationConfig | null {
+  resolveChildNproc(source); // fail fast on a bad value
   const rawRange = source['MCP_AMBASSADOR_CHILD_UID_RANGE']?.trim();
   if (!rawRange) {
     const iso = resolveChildIsolation(source, serverUid, serverGid);
@@ -104,6 +108,37 @@ export function resolveChildIsolationConfig(
     throw new Error('MCP_AMBASSADOR_CHILD_UID_MAP must be an absolute path');
   }
   return { kind: 'range', min, max, homesRoot, mapPath };
+}
+
+/**
+ * MCP_AMBASSADOR_CHILD_NPROC: per-instance process/thread cap (RLIMIT_NPROC of the instance's own uid, so it
+ * is a per-instance budget). Default 256; 0 disables. Throws on anything else.
+ */
+export function resolveChildNproc(source: NodeJS.ProcessEnv = process.env): number {
+  const raw = source['MCP_AMBASSADOR_CHILD_NPROC']?.trim();
+  if (!raw) return DEFAULT_CHILD_NPROC;
+  if (!/^\d{1,7}$/.test(raw)) {
+    throw new Error(`MCP_AMBASSADOR_CHILD_NPROC must be a non-negative integer, got "${raw}"`);
+  }
+  return Number(raw);
+}
+
+/** Hard RLIMIT_NPROC of this process (inherited by children), or null when unlimited/unreadable. */
+export function readHardNproc(): number | null {
+  try {
+    const m = /^Max processes\s+\S+\s+(\d+)\s/m.exec(readFileSync('/proc/self/limits', 'utf8'));
+    return m ? Number(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The cap to apply: never above a stricter hard limit the server itself runs under (raising is not allowed). */
+export function effectiveChildNproc(
+  configured: number,
+  hard: number | null = readHardNproc()
+): number {
+  return configured > 0 && hard !== null && hard < configured ? hard : configured;
 }
 
 function parseId(name: string, raw: string): number {
@@ -167,6 +202,7 @@ export function checkIsolationAvailable(
     setprivOk?: boolean;
     homeOk?: boolean;
     parentOk?: boolean;
+    prlimitOk?: boolean;
   } = {}
 ): string | null {
   const capEff =
@@ -189,6 +225,17 @@ export function checkIsolationAvailable(
         return false;
       }
     })();
+  const prlimitOk =
+    deps.prlimitOk ??
+    (resolveChildNproc() === 0 ||
+      (() => {
+        try {
+          accessSync(PRLIMIT_PATH, constants.X_OK);
+          return true;
+        } catch {
+          return false;
+        }
+      })());
   const homeOk =
     deps.homeOk ??
     (() => {
@@ -225,6 +272,9 @@ export function checkIsolationAvailable(
   if (!setprivOk) {
     return `child isolation (uid ${iso.uid}) requires ${SETPRIV_PATH} (util-linux), which is missing. ${hint}`;
   }
+  if (!prlimitOk) {
+    return `child isolation (uid ${iso.uid}) requires ${PRLIMIT_PATH} (util-linux) for the per-instance process cap, which is missing. Install util-linux, or set MCP_AMBASSADOR_CHILD_NPROC=0 to disable the cap.`;
+  }
   if (capEff === null) {
     return `child isolation (uid ${iso.uid}) could not read process capabilities. ${hint}`;
   }
@@ -252,8 +302,13 @@ export function wrapCommandForIsolation(
   cmd: string,
   args: string[],
   iso: ChildIsolation,
-  cwd: string = iso.home
+  cwd: string = iso.home,
+  nproc: number = effectiveChildNproc(resolveChildNproc())
 ): { cmd: string; args: string[] } {
+  // RLIMIT_NPROC (soft+hard; lowering needs no capability) bounds a fork bomb of this instance, whose uid is its
+  // own. prlimit (util-linux) rather than the shell's ulimit: dash has no `ulimit -u`. If it cannot be applied
+  // the child is not started.
+  const limit = nproc > 0 ? [PRLIMIT_PATH, `--nproc=${nproc}`, '--'] : [];
   return {
     cmd: SETPRIV_PATH,
     args: [
@@ -266,9 +321,10 @@ export function wrapCommandForIsolation(
       '--inh-caps=-all',
       '--ambient-caps=-all',
       '--',
+      ...limit,
       '/bin/sh',
       '-c',
-      'chmod 0700 "$HOME" 2>/dev/null; mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
+      `chmod 0700 "$HOME" 2>/dev/null; mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"`,
       cwd,
       cmd,
       ...args,

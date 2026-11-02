@@ -19,7 +19,7 @@
  */
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   closeSync,
@@ -35,6 +35,9 @@ import { SETPRIV_PATH, resolveChildIsolationConfig } from './child-isolation.js'
 
 /** Cleaning attempts per assignment (each may kill processes and wipe a home), so refusal stays fast. */
 const MAX_PREPARE_ATTEMPTS = 8;
+/** Total time one assignment may spend preparing uids; after that it is refused (restarts of others are not held up). */
+const MAX_PREPARE_MS = 60_000;
+const WIPE_TIMEOUT_MS = 60_000;
 const execFileAsync = promisify(execFile);
 const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
 
@@ -52,10 +55,49 @@ export interface AllocatorDeps {
   writeMap: (path: string, data: string) => void;
   /** Remove everything inside `home`, running as `uid`. Throws on failure. */
   wipeHome: (uid: number, home: string) => Promise<void>;
-  /** SIGKILL every process running under `uid`; returns how many (non-zombie) processes remain. */
-  reapUid: (uid: number) => Promise<number>;
+  /**
+   * SIGKILL every process running under `uid`; returns how many (non-zombie) processes remain.
+   * `shouldAbort` is checked before each round after the first: true means the uid has a new owner/lease and
+   * must not be touched any more (returns 0).
+   */
+  reapUid: (uid: number, shouldAbort?: () => boolean) => Promise<number>;
   now: () => number;
 }
+
+/** IO behind the reap sweep (injectable for tests). Every function is synchronous so a round is atomic. */
+export interface ReapIo {
+  procs: (uid: number) => number[];
+  kill: (pid: number) => void;
+  /** Kill every process of `uid` from inside the uid (`kill -KILL -1` as that uid, no capabilities needed). */
+  killAll: (uid: number) => void;
+  sleep: (ms: number) => Promise<void>;
+}
+
+/** dash rejects `kill -s KILL -1` (reads -1 as an option), hence the `--`. kill(-1) skips the caller itself. */
+export const KILL_ALL_SCRIPT = 'kill -s KILL -- -1';
+
+const defaultReapIo: ReapIo = {
+  procs: uid => procsOfUid(uid),
+  kill: pid => process.kill(pid, 'SIGKILL'),
+  killAll: uid => {
+    spawnSync(
+      SETPRIV_PATH,
+      [
+        `--reuid=${uid}`,
+        `--regid=${uid}`,
+        '--clear-groups',
+        '--inh-caps=-all',
+        '--ambient-caps=-all',
+        '--',
+        '/bin/sh',
+        '-c',
+        KILL_ALL_SCRIPT,
+      ],
+      { timeout: 5_000, stdio: 'ignore', env: { PATH: '/usr/bin:/bin' } }
+    );
+  },
+  sleep,
+};
 
 interface Entry {
   uid: number;
@@ -114,21 +156,37 @@ export function procsOfUid(uid: number): number[] {
   return pids;
 }
 
-/** SIGKILL every process of `uid` (needs CAP_KILL), repeating while new ones appear. Returns survivors. */
-export async function reapProcessesOfUid(uid: number): Promise<number> {
+/**
+ * SIGKILL every process of `uid` (needs CAP_KILL), repeating while new ones appear. Returns survivors.
+ * Each round (scan, per-pid kill, in-uid `kill -1`) runs without yielding, and `shouldAbort` is checked before
+ * every round after the first (round 0 runs synchronously in the caller), so a sweep that started when the last
+ * lease was released can never kill a child that the next lease of the same uid has started since.
+ */
+export async function reapProcessesOfUid(
+  uid: number,
+  shouldAbort?: () => boolean,
+  io: ReapIo = defaultReapIo
+): Promise<number> {
   for (let round = 0; round < 20; round++) {
-    const pids = procsOfUid(uid);
+    if (round > 0 && shouldAbort?.()) return 0;
+    const pids = io.procs(uid);
     if (pids.length === 0) return 0;
     for (const pid of pids) {
       try {
-        process.kill(pid, 'SIGKILL');
+        io.kill(pid);
       } catch {
         // already gone, or not killable: the next scan decides
       }
     }
-    await sleep(25);
+    try {
+      io.killAll(uid);
+    } catch {
+      // best effort: catches forks the scan missed; the next scan decides
+    }
+    await io.sleep(25);
   }
-  return procsOfUid(uid).length;
+  if (shouldAbort?.()) return 0;
+  return io.procs(uid).length;
 }
 
 const defaultDeps: AllocatorDeps = {
@@ -182,14 +240,14 @@ const defaultDeps: AllocatorDeps = {
           'wipe',
           home,
         ],
-        { timeout: 120_000, env: { PATH: '/usr/bin:/bin' } }
+        { timeout: WIPE_TIMEOUT_MS, env: { PATH: '/usr/bin:/bin' } }
       );
     } catch (err) {
       const code = (err as { code?: unknown }).code;
       throw new Error(`wipe of ${home} as uid ${uid} failed (${String(code)})`, { cause: err });
     }
   },
-  reapUid: uid => reapProcessesOfUid(uid),
+  reapUid: (uid, shouldAbort) => reapProcessesOfUid(uid, shouldAbort),
   now: () => Date.now(),
 };
 
@@ -197,6 +255,8 @@ export class ChildUidAllocator {
   private entries: Map<string, Entry> | null = null;
   private chain: Promise<void> = Promise.resolve();
   private live = new Map<number, number>(); // uid -> live lease count
+  /** uids being cleaned for a (re)assignment right now; their entries must not be leased through the fast path */
+  private preparing = new Set<number>();
   private readonly deps: AllocatorDeps;
 
   constructor(
@@ -212,6 +272,18 @@ export class ChildUidAllocator {
 
   /** Lease the uid for `key` (assigning one if needed). Throws ChildUidError; callers must not spawn. */
   lease(key: string): Promise<UidLease> {
+    // Fast path (N1): a key that already has an assignment whose uid is not being reclaimed right now needs no
+    // cleaning, so it must not queue behind another instance's slow prepare (a wipe can take a while).
+    if (key && this.entries) {
+      const known = this.entries.get(key);
+      if (known && !this.preparing.has(known.uid)) {
+        try {
+          return Promise.resolve(this.takeLease(this.entries, known));
+        } catch (err) {
+          return Promise.reject(err instanceof Error ? err : new Error(errText(err)));
+        }
+      }
+    }
     // serialized: preparing a uid awaits (kill, wipe) and two callers must never pick the same one
     const run = this.chain.then(() => this.leaseInner(key));
     this.chain = run.then(
@@ -225,6 +297,7 @@ export class ChildUidAllocator {
     if (!key) throw new ChildUidError('child isolation needs a non-empty instance key');
     const entries = this.load();
     let entry = entries.get(key);
+    const fresh = !entry;
     if (!entry) {
       const uid = await this.prepareFreshUid(entries, key);
       entry = { uid, lastUsed: this.deps.now() };
@@ -243,8 +316,14 @@ export class ChildUidAllocator {
           `[child-uid] ${entries.size}/${size} uids of ${this.range.min}-${this.range.max} are assigned (80%+); widen MCP_AMBASSADOR_CHILD_UID_RANGE before idle instances start being reclaimed`
         );
       }
-    } else {
-      entry.lastUsed = this.deps.now();
+    }
+    return this.takeLease(entries, entry, fresh);
+  }
+
+  /** Synchronous: mark the entry used and take a lease on its uid. */
+  private takeLease(entries: Map<string, Entry>, entry: Entry, justPersisted = false): UidLease {
+    entry.lastUsed = this.deps.now();
+    if (!justPersisted) {
       try {
         this.persist(entries);
       } catch {
@@ -267,8 +346,10 @@ export class ChildUidAllocator {
           return;
         }
         this.live.delete(uid);
-        // the direct child is gone; kill anything it detached (a later assignment sweeps again before reuse)
-        void this.deps.reapUid(uid).then(
+        // The direct child is gone; kill anything it detached. Round 0 runs right here; later rounds stop as
+        // soon as the uid is leased again (a quick stop -> start of the same instance) or being reclaimed.
+        const stale = (): boolean => (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid);
+        void this.deps.reapUid(uid, stale).then(
           left => {
             if (left > 0)
               logger.warn(`[child-uid] ${left} process(es) of uid ${uid} survived SIGKILL`);
@@ -291,10 +372,15 @@ export class ChildUidAllocator {
     const idle = [...entries.entries()]
       .filter(([, e]) => (this.live.get(e.uid) ?? 0) === 0)
       .sort((x, y) => x[1].lastUsed - y[1].lastUsed);
+    const started = this.deps.now();
     let tried = 0;
     let lastWhy = '';
+    const budgetLeft = (): boolean =>
+      tried < MAX_PREPARE_ATTEMPTS && this.deps.now() - started < MAX_PREPARE_MS;
     const attempt = async (uid: number): Promise<boolean> => {
       tried++;
+      // marked before the first await: the fast path must not lease this uid while it is being cleaned
+      this.preparing.add(uid);
       try {
         const left = await this.deps.reapUid(uid);
         if (left > 0) throw new Error(`${left} process(es) still running under it`);
@@ -304,13 +390,17 @@ export class ChildUidAllocator {
         lastWhy = errText(err);
         logger.warn(`[child-uid] uid ${uid} not usable for ${keyHash(key)}: ${lastWhy}`);
         return false;
+      } finally {
+        this.preparing.delete(uid);
       }
     };
-    for (let uid = this.range.min; uid <= this.range.max && tried < MAX_PREPARE_ATTEMPTS; uid++) {
+    for (let uid = this.range.min; uid <= this.range.max && budgetLeft(); uid++) {
       if (!used.has(uid) && (await attempt(uid))) return uid;
     }
     for (const [k, e] of idle) {
-      if (tried >= MAX_PREPARE_ATTEMPTS) break;
+      if (!budgetLeft()) break;
+      // an earlier attempt awaited: the key may have been leased (fast path), released or reassigned since
+      if ((this.live.get(e.uid) ?? 0) > 0 || entries.get(k) !== e) continue;
       if (await attempt(e.uid)) {
         entries.delete(k);
         logger.warn(
@@ -439,6 +529,14 @@ export function forgetChildUidKeys(match: (key: string) => boolean): void {
   } catch (err) {
     logger.warn(`[child-uid] could not release uid assignments: ${errText(err)}`);
   }
+}
+
+/** Instance keys of one catalog MCP: its shared and discovery instances and every user's instance of it. */
+export function catalogMcpKeyMatcher(name: string): (key: string) => boolean {
+  return key =>
+    key === `shared:${name}` ||
+    key === `discovery:${name}` ||
+    (key.startsWith('user:') && key.endsWith(`:${name}`));
 }
 
 /** Test hook. */

@@ -148,7 +148,7 @@ describe('checkIsolationAvailable', () => {
 
 describe('spawn wrapping', () => {
   it('wraps the command in setpriv that clears ambient/inheritable caps', () => {
-    const w = wrapCommandForIsolation('npx', ['-y', 'pkg'], iso);
+    const w = wrapCommandForIsolation('npx', ['-y', 'pkg'], iso, undefined, 0);
     expect(w.cmd).toBe('/usr/bin/setpriv');
     expect(w.args).toEqual([
       '--reuid=1001',
@@ -168,7 +168,7 @@ describe('spawn wrapping', () => {
   });
 
   it('enters the requested cwd inside the child', () => {
-    expect(wrapCommandForIsolation('npx', [], iso, '/work').args).toContain('/work');
+    expect(wrapCommandForIsolation('npx', [], iso, '/work', 0).args).toContain('/work');
   });
 
   it('child env: isolated HOME/caches, server env does not leak, caches not overridable', () => {
