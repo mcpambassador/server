@@ -25,6 +25,7 @@ import {
 } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
+import { resolveAgentPublicUrls, resolveApprovalUiBaseUrl } from './services/approvals/base-url.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
   logger,
@@ -211,7 +212,8 @@ export class AmbassadorServer {
       adminUiEnabled: config.adminUiEnabled ?? true,
       maxMcpInstancesPerUser: config.maxMcpInstancesPerUser ?? 10,
       maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
-      publicUrl: config.publicUrl,
+      // Compose passes PUBLIC_URL as "" when unset: empty/whitespace means unset for every caller
+      publicUrl: config.publicUrl?.trim() || undefined,
       registryConfig: config.registryConfig || {
         url: 'https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml',
         refreshIntervalHours: 24,
@@ -1979,17 +1981,14 @@ export class AmbassadorServer {
   /** ADR-020: public issuer and /mcp base URL, from config/PUBLIC_URL, never the request Host */
   private agentPublicUrls(): { issuer: string; agentBaseUrl: string } {
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
-    const strip = (u: string): string => u.replace(/\/+$/, '');
-    return {
-      issuer: strip(
-        cfg.issuer_url ??
-          this.config.publicUrl ??
-          `https://${this.config.serverName}:${this.config.adminPort}`
-      ),
-      agentBaseUrl: strip(
-        cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
-      ),
-    };
+    return resolveAgentPublicUrls({
+      issuerUrl: cfg.issuer_url,
+      resourceBaseUrl: cfg.resource_base_url,
+      publicUrl: this.config.publicUrl,
+      serverName: this.config.serverName,
+      adminPort: this.config.adminPort,
+      port: this.config.port,
+    });
   }
 
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
@@ -2010,9 +2009,11 @@ export class AmbassadorServer {
 
   /** ADR-023: approval links come from config (PUBLIC_URL), never from the request Host header. */
   private approvalUiBaseUrl(): string {
-    return (
-      this.config.publicUrl ?? `https://${this.config.serverName}:${this.config.adminPort}`
-    ).replace(/\/+$/, '');
+    return resolveApprovalUiBaseUrl(
+      this.config.publicUrl,
+      this.config.serverName,
+      this.config.adminPort
+    );
   }
 
   /** ADR-021 pin service (null before start) */
