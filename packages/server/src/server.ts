@@ -212,7 +212,8 @@ export class AmbassadorServer {
       adminUiEnabled: config.adminUiEnabled ?? true,
       maxMcpInstancesPerUser: config.maxMcpInstancesPerUser ?? 10,
       maxTotalMcpInstances: config.maxTotalMcpInstances ?? 100,
-      publicUrl: config.publicUrl,
+      // Compose passes PUBLIC_URL as "" when unset: empty/whitespace means unset for every caller
+      publicUrl: config.publicUrl?.trim() || undefined,
       registryConfig: config.registryConfig || {
         url: 'https://api.github.com/repos/mcpambassador/community-registry/contents/registry.yaml',
         refreshIntervalHours: 24,
