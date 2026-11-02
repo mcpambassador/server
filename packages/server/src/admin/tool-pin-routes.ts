@@ -278,6 +278,9 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
   });
 
   // POST /v1/admin/mcps/:mcpId/tool-pins/approve (FB-033)
+  // Not all-or-nothing: each item is approved or skipped on its own (`skipped[].reason`). Per item the hash/state
+  // check and the commit have no await between them (single-threaded), so a pin changed since the admin's list
+  // is skipped as `stale`. Flagged pins are skipped unless `include_flagged` is true.
   fastify.post(ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE, async (request, reply) => {
     const pins = getPins();
     if (!pins) return unavailable(reply);

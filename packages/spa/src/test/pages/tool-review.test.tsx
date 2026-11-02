@@ -645,6 +645,30 @@ describe('ToolReview bulk approve (FB-033)', () => {
     expect(bodies[0]!.body.include_flagged).toBeUndefined();
   });
 
+  it('splits more than 200 approvals into several requests of at most 200', async () => {
+    const bodies: Array<{ items: unknown[] }> = [];
+    server.use(
+      http.post('/v1/admin/mcps/:mcpId/tool-pins/approve', async ({ request }) => {
+        bodies.push((await request.json()) as { items: unknown[] });
+        return HttpResponse.json({ ok: true, data: { bulk_id: 'bk', approved: [], skipped: [] } });
+      })
+    );
+    const many = Array.from({ length: 401 }, (_, i) =>
+      pin({
+        pin_id: `p${i}`,
+        tool_name: `t${i}`,
+        approved_hash: null,
+        pending_hash: String(i % 10).repeat(64),
+      })
+    );
+    setup({ pending: many });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve all (401)' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve 401' }));
+    await waitFor(() => expect(bodies).toHaveLength(3));
+    expect(bodies.map(b => b.items.length)).toEqual([200, 200, 1]);
+  }, 60_000);
+
   it('including flagged needs an explicit checkbox and a second confirmation', async () => {
     const bodies = bulkSetup();
     const user = userEvent.setup();
@@ -682,7 +706,9 @@ describe('ToolReview bulk approve (FB-033)', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Approve all (2)' }));
     await user.click(await screen.findByRole('button', { name: 'Approve 2' }));
-    await waitFor(() => expect(warn).toHaveBeenCalledWith('Approved 1, skipped 1', expect.anything()));
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith('Approved 1, skipped 1', expect.anything())
+    );
     warn.mockRestore();
   });
 

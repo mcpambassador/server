@@ -12,6 +12,7 @@
  * If it is set but cannot be honored, the child is NOT started (fail closed).
  */
 import { accessSync, constants, lstatSync, readFileSync } from 'node:fs';
+import { logger } from '@mcpambassador/core';
 
 export const SETPRIV_PATH = '/usr/bin/setpriv';
 export const PRLIMIT_PATH = '/usr/bin/prlimit';
@@ -191,6 +192,36 @@ export function parseCapEff(status: string): bigint | null {
   return m ? BigInt('0x' + m[1]!) : null;
 }
 
+/** Parse the NoNewPrivs flag from /proc/<pid>/status; null when absent or unreadable. */
+export function parseNoNewPrivs(status: string): boolean | null {
+  const m = /^NoNewPrivs:\s*(\d+)\s*$/m.exec(status);
+  return m ? m[1] !== '0' : null;
+}
+
+let warnedNoNewPrivs = false;
+/** Test hook. */
+export function resetNoNewPrivsWarning(): void {
+  warnedNoNewPrivs = false;
+}
+/** Warn (once) when the server itself lacks NoNewPrivs; children still get --no-new-privs from setpriv. */
+export function warnIfServerLacksNoNewPrivs(noNewPrivs?: boolean | null): void {
+  const nnp =
+    noNewPrivs !== undefined
+      ? noNewPrivs
+      : (() => {
+          try {
+            return parseNoNewPrivs(readFileSync('/proc/self/status', 'utf8'));
+          } catch {
+            return null;
+          }
+        })();
+  if (nnp !== false || warnedNoNewPrivs) return;
+  warnedNoNewPrivs = true;
+  logger.warn(
+    '[child-isolation] the server runs without NoNewPrivs; add security_opt no-new-privileges:true to the container (MCP children are still started with --no-new-privs)'
+  );
+}
+
 /**
  * Verify the process can actually switch uid. Returns an error message, or null when OK.
  * `capEff` and `setprivOk` are injectable for tests.
@@ -203,6 +234,7 @@ export function checkIsolationAvailable(
     homeOk?: boolean;
     parentOk?: boolean;
     prlimitOk?: boolean;
+    noNewPrivs?: boolean | null;
   } = {}
 ): string | null {
   const capEff =
@@ -267,6 +299,8 @@ export function checkIsolationAvailable(
           }
         })());
 
+  warnIfServerLacksNoNewPrivs(deps.noNewPrivs);
+
   const hint =
     'Run the container via docker/entrypoint.sh with cap_add SETUID, SETGID, KILL, CHOWN, SETPCAP, or unset MCP_AMBASSADOR_CHILD_UID to disable child isolation (not recommended).';
   if (!setprivOk) {
@@ -320,6 +354,9 @@ export function wrapCommandForIsolation(
       // effective/ambient caps (cleared here, plus no-new-privileges), so the bounding set cannot be used.
       '--inh-caps=-all',
       '--ambient-caps=-all',
+      // Needs no capability. Without it a child that execs a setuid-root binary could gain caps from the inherited
+      // bounding set {setuid,setgid,kill} when the container lacks security_opt no-new-privileges.
+      '--no-new-privs',
       '--',
       ...limit,
       '/bin/sh',

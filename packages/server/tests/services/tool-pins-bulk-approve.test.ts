@@ -157,6 +157,11 @@ describe('bulk tool-pin approve (FB-033)', () => {
     expect(
       (await post({ items: [{ pin_id: 'x', expected_hash: 'short' }] })).statusCode
     ).toBeGreaterThanOrEqual(400);
+    const tooMany = Array.from({ length: 201 }, (_, i) => ({
+      pin_id: `p${i}`,
+      expected_hash: 'a'.repeat(64),
+    }));
+    expect((await post({ items: tooMany })).statusCode).toBeGreaterThanOrEqual(400);
     const nf = await post(
       { items: [{ pin_id: 'x', expected_hash: 'a'.repeat(64) }] },
       '/v1/admin/mcps/missing/tool-pins/approve'

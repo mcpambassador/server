@@ -167,6 +167,10 @@ RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent 
     done
 ENV MCP_AMBASSADOR_CHILD_UID_RANGE=20000-20999
 
+# No setuid/setgid binaries: with an inherited bounding set {setuid,setgid,kill} a child could otherwise gain
+# caps by exec'ing one when the container runs without no-new-privileges.
+RUN find / -xdev -perm /6000 -type f -exec chmod a-s {} + || true
+
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # The container starts as root ONLY so the entrypoint can prepare the child sandbox; it then execs the

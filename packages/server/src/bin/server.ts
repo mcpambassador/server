@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import yaml from 'yaml';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
+import { resolveChildIsolationConfig } from '../downstream/child-isolation.js';
 import { logger, loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
 
 /**
@@ -279,6 +280,12 @@ async function main() {
   logger.info(
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
+
+  if (!resolveChildIsolationConfig()) {
+    logger.warn(
+      '[Server] child isolation disabled: MCP children run as the server uid and can read /data'
+    );
+  }
 
   const server = new AmbassadorServer({
     port:
