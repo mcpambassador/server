@@ -12,6 +12,7 @@ import type { AuditProvider, DatabaseClient, ToolPinRecord } from '@mcpambassado
 import { getMcpEntryById, getMcpPinPolicy, setMcpPinPolicy } from '@mcpambassador/core';
 import {
   ADMIN_MCP_PIN_POLICY_ROUTE,
+  ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE,
   ADMIN_TOOL_PINS_ROUTE,
   ADMIN_TOOL_PINS_SUMMARY_ROUTE,
   ADMIN_TOOL_PIN_APPROVE_ROUTE,
@@ -21,6 +22,8 @@ import {
   ADMIN_TOOL_PIN_ROUTE,
   SYSTEM_MIGRATION_ACTOR,
   setPinPolicyRequestSchema,
+  toolPinBulkApproveRequestSchema,
+  type ToolPinBulkSkipReason,
   toolPinConfirmBaselineRequestSchema,
   toolPinDecisionRequestSchema,
   toolPinListQuerySchema,
@@ -272,6 +275,39 @@ export const registerAdminToolPinRoutes: FastifyPluginCallback<AdminToolPinRoute
     if (!r.ok) return sendDecisionError(reply, r);
     onChanged?.();
     return reply.send(wrapSuccess(await detailOf(r.pin)));
+  });
+
+  // POST /v1/admin/mcps/:mcpId/tool-pins/approve (FB-033)
+  fastify.post(ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE, async (request, reply) => {
+    const pins = getPins();
+    if (!pins) return unavailable(reply);
+    const { mcpId } = request.params as { mcpId: string };
+    const body = toolPinBulkApproveRequestSchema.parse(request.body);
+    const entry = await getMcpEntryById(db, mcpId);
+    if (!entry) return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'MCP not found'));
+    const bulkId = crypto.randomUUID();
+    const r = await pins.approveMany(
+      mcpId,
+      body.items.map(i => ({ pinId: i.pin_id, expectedHash: i.expected_hash })),
+      {
+        applyTo: body.apply_to,
+        reason: body.reason,
+        includeFlagged: body.include_flagged === true,
+        actor: actorOf(request),
+        bulkId,
+      }
+    );
+    if (r.approved.length > 0) onChanged?.();
+    return reply.send(
+      wrapSuccess({
+        bulk_id: bulkId,
+        approved: r.approved.map(a => ({ pin_id: a.pinId, tool_name: a.toolName })),
+        skipped: r.skipped.map(s => ({
+          pin_id: s.pinId,
+          reason: s.reason as ToolPinBulkSkipReason,
+        })),
+      })
+    );
   });
 
   // POST /v1/admin/tool-pins/:pinId/reject

@@ -268,6 +268,8 @@ export class ToolPinService {
       reason?: string;
       /** TD-034: approve a definition whose exact hash was revoked earlier. Audited. */
       force?: boolean;
+      /** FB-033: shared id of a bulk approval, recorded in the audit event. */
+      bulkId?: string;
     }
   ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
@@ -357,9 +359,70 @@ export class ToolPinService {
       baseline_written: baselineWritten,
       actor: o.actor,
       reason_given: Boolean(o.reason),
+      ...(o.bulkId ? { bulk_id: o.bulkId } : {}),
       ...(wasRevoked ? { forced_previously_revoked: true } : {}),
     });
     return { ok: true, pin: this.getById(pin.pin_id)! };
+  }
+
+  /**
+   * FB-033: approve many pending pins of one MCP, one at a time (each runs the full single-approve
+   * checks, so a changed hash or a blocking flag skips that pin only). Pins with any flag are skipped
+   * unless `includeFlagged`. Never throws for a per-item failure.
+   */
+  async approveMany(
+    mcpId: string,
+    items: { pinId: string; expectedHash: string }[],
+    o: {
+      applyTo?: 'this_scope' | 'all_users';
+      actor: string;
+      reason?: string;
+      includeFlagged?: boolean;
+      bulkId: string;
+    }
+  ): Promise<{
+    approved: { pinId: string; toolName: string }[];
+    skipped: { pinId: string; reason: string }[];
+  }> {
+    const approved: { pinId: string; toolName: string }[] = [];
+    const skipped: { pinId: string; reason: string }[] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+      if (seen.has(it.pinId)) {
+        skipped.push({ pinId: it.pinId, reason: 'duplicate' });
+        continue;
+      }
+      seen.add(it.pinId);
+      const pin = this.getById(it.pinId);
+      if (pin && pin.mcp_id !== mcpId) {
+        skipped.push({ pinId: it.pinId, reason: 'wrong_mcp' });
+        continue;
+      }
+      if (pin && !o.includeFlagged && hasRiskFlag(pin.flags)) {
+        skipped.push({ pinId: it.pinId, reason: 'flagged' });
+        continue;
+      }
+      const r = await this.approve(it.pinId, {
+        expectedHash: it.expectedHash,
+        applyTo: o.applyTo,
+        reason: o.reason,
+        actor: o.actor,
+        bulkId: o.bulkId,
+      });
+      if (r.ok) approved.push({ pinId: it.pinId, toolName: r.pin.tool_name });
+      else skipped.push({ pinId: it.pinId, reason: r.code });
+    }
+    this.audit('tool_pin_bulk_approved', {
+      bulk_id: o.bulkId,
+      mcp_id: mcpId,
+      requested: items.length,
+      approved: approved.length,
+      skipped: skipped.length,
+      include_flagged: Boolean(o.includeFlagged),
+      apply_to: o.applyTo ?? 'this_scope',
+      actor: o.actor,
+    });
+    return { approved, skipped };
   }
 
   /** D4a: copy the approved definition to the NULL-scope pin so per-user instances need no review. */
@@ -926,6 +989,13 @@ function parseRevoked(raw: string | null): string[] {
   } catch {
     return [];
   }
+}
+
+/** FB-033: any flag other than the purely informational length ones counts as suspicious. */
+function hasRiskFlag(raw: string | null): boolean {
+  return parseFlags(raw).codes.some(
+    c => !(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c)
+  );
 }
 
 function parseFlags(raw: string | null): ToolPinFlags {

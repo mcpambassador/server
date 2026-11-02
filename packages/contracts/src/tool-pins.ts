@@ -6,6 +6,7 @@
  * GET  /v1/admin/tool-pins/:pinId           → ToolPinDetail (both definitions, for the diff view)
  * GET  /v1/admin/tool-pins/summary          → ToolPinQueueSummary (SPA badge)
  * POST /v1/admin/tool-pins/:pinId/approve   → body ToolPinDecisionRequest → ToolPinDetail
+ * POST /v1/admin/mcps/:mcpId/tool-pins/approve → body ToolPinBulkApproveRequest → ToolPinBulkApproveResponse (FB-033; per-item hash check, flagged pins skipped unless include_flagged)
  * POST /v1/admin/tool-pins/:pinId/reject    → body ToolPinDecisionRequest → ToolPinDetail
  * POST /v1/admin/tool-pins/:pinId/revoke   → body ToolPinRevokeRequest → ToolPinRevokeResponse (D7: withdraw an APPROVED hash from EVERY scope of this mcp+tool; tool hidden at once)
  * POST /v1/admin/tool-pins/:pinId/confirm-baseline body ToolPinConfirmBaselineRequest → ToolPinDetail (D6: human confirms a system:migration pin)
@@ -25,6 +26,7 @@ export const ADMIN_TOOL_PIN_APPROVE_ROUTE = '/v1/admin/tool-pins/:pinId/approve'
 export const ADMIN_TOOL_PIN_REJECT_ROUTE = '/v1/admin/tool-pins/:pinId/reject';
 export const ADMIN_TOOL_PIN_REVOKE_ROUTE = '/v1/admin/tool-pins/:pinId/revoke';
 export const ADMIN_TOOL_PIN_CONFIRM_BASELINE_ROUTE = '/v1/admin/tool-pins/:pinId/confirm-baseline';
+export const ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE = '/v1/admin/mcps/:mcpId/tool-pins/approve';
 export const ADMIN_MCP_PIN_POLICY_ROUTE = '/v1/admin/mcps/:mcpId/pin-policy';
 
 // ===== Canonicalisation (D1) =====
@@ -227,6 +229,46 @@ export const toolPinDecisionRequestSchema = z.object({
 });
 export type ToolPinDecisionRequest = z.infer<typeof toolPinDecisionRequestSchema>;
 
+/** Max pins in one bulk approval. */
+export const TOOL_PIN_BULK_MAX = 200;
+
+/** FB-033: approve many pending pins of one MCP. Each item is checked exactly like a single approve. */
+export const toolPinBulkApproveRequestSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        pin_id: z.string().min(1).max(128),
+        /** Must equal the pin's current pending_hash; a mismatch skips that pin only. */
+        expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
+      })
+    )
+    .min(1)
+    .max(TOOL_PIN_BULK_MAX),
+  apply_to: z.enum(['this_scope', 'all_users']).optional(),
+  reason: z.string().max(500).optional(),
+  /** Pins carrying any flag are skipped (`flagged`) unless this is true. Never-approvable flags stay blocked. */
+  include_flagged: z.boolean().optional(),
+});
+export type ToolPinBulkApproveRequest = z.infer<typeof toolPinBulkApproveRequestSchema>;
+
+export type ToolPinBulkSkipReason =
+  | 'wrong_mcp'
+  | 'duplicate'
+  | 'flagged'
+  | 'not_found'
+  | 'not_pending'
+  | 'stale'
+  | 'blocked'
+  | 'corrupt'
+  | 'baseline_conflict'
+  | 'previously_revoked';
+
+export interface ToolPinBulkApproveResponse {
+  bulk_id: string;
+  approved: { pin_id: string; tool_name: string }[];
+  skipped: { pin_id: string; reason: ToolPinBulkSkipReason }[];
+}
+
 export const toolPinConfirmBaselineRequestSchema = z.object({
   /** Must equal the pin's current approved_hash, so a human confirms exactly the definition they reviewed. */
   expected_hash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -255,6 +297,7 @@ export const TOOL_PIN_AUDIT_ACTIONS = [
   'tool_pin_created',
   'tool_definition_changed',
   'tool_pin_approved',
+  'tool_pin_bulk_approved',
   'tool_pin_rejected',
   'tool_pin_revoked',
   'tool_pin_baseline_conflict',

@@ -578,3 +578,116 @@ describe('PinPolicyCard', () => {
     await waitFor(() => expect(patches).toEqual([{ pin_policy: 'review' }]));
   });
 });
+
+describe('ToolReview bulk approve (FB-033)', () => {
+  const H = (c: string) => c.repeat(64);
+  const bulkPins = () => [
+    pin({ pin_id: 'a', tool_name: 'alpha', approved_hash: null, pending_hash: H('1') }),
+    pin({ pin_id: 'b', tool_name: 'beta', approved_hash: null, pending_hash: H('2') }),
+    pin({
+      pin_id: 'f',
+      tool_name: 'flaggy',
+      approved_hash: null,
+      pending_hash: H('3'),
+      flags: { rules_version: 1, codes: ['instruction_phrase'] },
+    }),
+    pin({
+      pin_id: 'x',
+      tool_name: 'blocked',
+      approved_hash: null,
+      pending_hash: H('4'),
+      flags: { rules_version: 1, codes: ['reserved_name'] },
+    }),
+    pin({ pin_id: 'o', mcp_id: 'm2', mcp_name: 'other', tool_name: 'solo', pending_hash: H('5') }),
+  ];
+
+  function bulkSetup(response?: unknown) {
+    const bodies: Array<{ url: string; body: any }> = [];
+    server.use(
+      http.post('/v1/admin/mcps/:mcpId/tool-pins/approve', async ({ request }) => {
+        bodies.push({ url: new URL(request.url).pathname, body: await request.json() });
+        return HttpResponse.json({
+          ok: true,
+          data: response ?? { bulk_id: 'bk', approved: [], skipped: [] },
+        });
+      })
+    );
+    setup({ pending: bulkPins() });
+    return bodies;
+  }
+
+  it('Approve all counts only unflagged pins, flagged excluded by default', async () => {
+    const bodies = bulkSetup({
+      bulk_id: 'bk',
+      approved: [
+        { pin_id: 'a', tool_name: 'alpha' },
+        { pin_id: 'b', tool_name: 'beta' },
+      ],
+      skipped: [],
+    });
+    const user = userEvent.setup();
+    const btn = await screen.findByRole('button', { name: 'Approve all (2)' });
+    await user.click(btn);
+    expect(await screen.findByTestId('bulk-counts')).toHaveTextContent(
+      '2 unflagged tools will be approved. 1 flagged tool is excluded.'
+    );
+    expect(screen.queryByText('blocked', { selector: 'li' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Approve 2' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]!.url).toBe('/v1/admin/mcps/m1/tool-pins/approve');
+    expect(bodies[0]!.body.items).toEqual([
+      { pin_id: 'a', expected_hash: H('1') },
+      { pin_id: 'b', expected_hash: H('2') },
+    ]);
+    expect(bodies[0]!.body.include_flagged).toBeUndefined();
+  });
+
+  it('including flagged needs an explicit checkbox and a second confirmation', async () => {
+    const bodies = bulkSetup();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve all (2)' }));
+    await user.click(await screen.findByRole('checkbox', { name: /Also approve the 1 flagged/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue…' }));
+    expect(await screen.findByTestId('bulk-second-confirm')).toBeInTheDocument();
+    expect(bodies).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Yes, approve flagged tools' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]!.body.include_flagged).toBe(true);
+    expect(bodies[0]!.body.items.map((i: any) => i.pin_id)).toEqual(['a', 'b', 'f']);
+  });
+
+  it('Approve selected sends only the checked pins; blocked pins cannot be checked', async () => {
+    const bodies = bulkSetup();
+    const user = userEvent.setup();
+    await screen.findByText('alpha');
+    expect(screen.getByRole('checkbox', { name: 'Select blocked' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Approve selected/ })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: 'Select beta' }));
+    await user.click(screen.getByRole('button', { name: 'Approve selected (1)' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve 1' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]!.body.items).toEqual([{ pin_id: 'b', expected_hash: H('2') }]);
+  });
+
+  it('reports skipped pins in a warning toast', async () => {
+    const warn = vi.spyOn(toast, 'warning').mockImplementation(() => '' as never);
+    bulkSetup({
+      bulk_id: 'bk',
+      approved: [{ pin_id: 'a', tool_name: 'alpha' }],
+      skipped: [{ pin_id: 'b', reason: 'stale' }],
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve all (2)' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve 2' }));
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('Approved 1, skipped 1', expect.anything()));
+    warn.mockRestore();
+  });
+
+  it('has no bulk controls on the approved tab', async () => {
+    setup({ pending: bulkPins(), approved: [pin({ approved_hash: H('1') })] });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /Approved versions/ }));
+    await screen.findByText('create_issue');
+    expect(screen.queryByRole('button', { name: /Approve all/ })).toBeNull();
+  });
+});

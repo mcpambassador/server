@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TOOL_PIN_BULK_MAX, TOOL_PIN_INFORMATIONAL_FLAG_CODES } from '@mcpambassador/contracts';
 import { toast } from 'sonner';
 import { ShieldExclamationIcon } from '@heroicons/react/20/solid';
 import { Heading } from '@/components/catalyst/heading';
@@ -19,6 +20,7 @@ import {
   useDecidePin,
   useConfirmBaseline,
   useRevokePin,
+  useBulkApprovePins,
 } from '@/api/hooks/use-tool-pins';
 import { NON_APPROVABLE_FLAGS } from '@/api/tool-pin-types';
 import type { ToolPinSummary, ToolDefinition } from '@/api/tool-pin-types';
@@ -50,6 +52,129 @@ const FLAG_HELP: Record<string, string> = {
 };
 
 const MAX_BLOCK_CHARS = 2000;
+
+/** Flagged = carries any flag other than the purely informational length ones (never auto-included in bulk). */
+const isFlagged = (p: ToolPinSummary): boolean =>
+  (p.flags?.codes ?? []).some(c => !(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c));
+const isBlocked = (p: ToolPinSummary): boolean =>
+  (p.flags?.codes ?? []).some(c => NON_APPROVABLE_FLAGS.includes(c));
+/** A pin a bulk action can act on at all. */
+const isBulkable = (p: ToolPinSummary): boolean =>
+  p.status === 'pending_review' && !!p.pending_hash && !isBlocked(p);
+
+interface BulkRequest {
+  mcpId: string;
+  mcpName: string;
+  pins: ToolPinSummary[];
+}
+
+function BulkApproveDialog({
+  req,
+  onClose,
+}: {
+  req: BulkRequest | null;
+  onClose: () => void;
+}) {
+  const bulk = useBulkApprovePins();
+  const [includeFlagged, setIncludeFlagged] = useState(false);
+  const [stage, setStage] = useState<1 | 2>(1);
+  const close = () => {
+    setIncludeFlagged(false);
+    setStage(1);
+    onClose();
+  };
+  const normal = req?.pins.filter(p => !isFlagged(p)) ?? [];
+  const flagged = req?.pins.filter(isFlagged) ?? [];
+  const total = normal.length + (includeFlagged ? flagged.length : 0);
+  const second = includeFlagged && flagged.length > 0 && stage === 1;
+
+  const run = async () => {
+    if (!req) return;
+    if (second) {
+      setStage(2);
+      return;
+    }
+    const chosen = includeFlagged ? [...normal, ...flagged] : normal;
+    try {
+      let a = 0;
+      let s = 0;
+      for (let i = 0; i < chosen.length; i += TOOL_PIN_BULK_MAX) {
+        const res = await bulk.mutateAsync({
+          mcpId: req.mcpId,
+          items: chosen
+            .slice(i, i + TOOL_PIN_BULK_MAX)
+            .map(p => ({ pin_id: p.pin_id, expected_hash: p.pending_hash! })),
+          ...(includeFlagged ? { include_flagged: true } : {}),
+        });
+        a += res?.approved?.length ?? 0;
+        s += res?.skipped?.length ?? 0;
+      }
+      if (s > 0) {
+        toast.warning(`Approved ${a}, skipped ${s}`, {
+          description: 'Skipped tools changed or could not be approved; the list was refreshed.',
+        });
+      } else {
+        toast.success(`Approved ${a} tool${a === 1 ? '' : 's'}`);
+      }
+      close();
+    } catch (e) {
+      toast.error('Bulk approve failed', { description: (e as Error)?.message ?? String(e) });
+    }
+  };
+
+  return (
+    <ConfirmDialog
+      open={!!req}
+      onClose={close}
+      title={
+        stage === 2
+          ? `Really approve ${flagged.length} flagged tool${flagged.length === 1 ? '' : 's'}?`
+          : `Approve ${total} tool${total === 1 ? '' : 's'} of ${visibleText(req?.mcpName ?? '')}?`
+      }
+      description={
+        <div className="space-y-3" data-testid="bulk-approve-body">
+          {stage === 2 ? (
+            <p data-testid="bulk-second-confirm" className="font-medium text-red-600">
+              {flagged.length} of these tools carry security flags (for example instruction-like
+              text or hidden characters). Approving them lets agents see their definitions. Review
+              them individually unless you trust this MCP.
+            </p>
+          ) : (
+            <>
+              <p data-testid="bulk-counts">
+                {normal.length} unflagged tool{normal.length === 1 ? '' : 's'} will be approved.
+                {flagged.length > 0 &&
+                  ` ${flagged.length} flagged tool${flagged.length === 1 ? ' is' : 's are'} excluded.`}
+              </p>
+              {flagged.length > 0 && (
+                <CheckboxField>
+                  <Checkbox checked={includeFlagged} onChange={setIncludeFlagged} />
+                  <Label>
+                    Also approve the {flagged.length} flagged tool{flagged.length === 1 ? '' : 's'}
+                  </Label>
+                </CheckboxField>
+              )}
+              <ul className="max-h-48 overflow-auto font-mono text-xs">
+                {[...normal, ...(includeFlagged ? flagged : [])].map(p => (
+                  <li key={p.pin_id}>{visibleText(p.tool_name)}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-zinc-500">
+                Each tool is approved only if its definition is unchanged since this page loaded.
+              </p>
+            </>
+          )}
+        </div>
+      }
+      confirmLabel={
+        second ? 'Continue…' : stage === 2 ? 'Yes, approve flagged tools' : `Approve ${total}`
+      }
+      confirmColor={includeFlagged ? 'red' : 'zinc'}
+      isLoading={bulk.isPending}
+      onConfirm={total === 0 ? close : run}
+    />
+  );
+}
 
 /** Render a definition as plain text for review and diffing. */
 function defToText(def: ToolDefinition | null): string {
@@ -392,13 +517,23 @@ function PinGroups({
   pins,
   onReview,
   onRevoke,
+  onBulk,
   empty,
 }: {
   pins: ToolPinSummary[];
   onReview?: (p: ToolPinSummary) => void;
   onRevoke?: (p: ToolPinSummary) => void;
+  /** Pending tab only: enables checkboxes, "Approve all" and "Approve selected". */
+  onBulk?: (r: BulkRequest) => void;
   empty: string;
 }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
   const groups = useMemo(() => {
     const m = new Map<string, ToolPinSummary[]>();
     for (const p of pins) {
@@ -414,16 +549,30 @@ function PinGroups({
     <div className="space-y-6">
       {groups.map(g => (
         <section key={`${g[0]!.mcp_id}|${g[0]!.scope_user_id ?? ''}`} className="space-y-2">
-          <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">
-            {visibleText(g[0]!.mcp_name)}{' '}
-            <span className="font-normal text-zinc-500">
-              · {g[0]!.scope_user_id ? `user ${visibleText(g[0]!.scope_user_id)}` : 'shared'} ·{' '}
-              {g.length} tool{g.length === 1 ? '' : 's'}
-            </span>
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">
+              {visibleText(g[0]!.mcp_name)}{' '}
+              <span className="font-normal text-zinc-500">
+                · {g[0]!.scope_user_id ? `user ${visibleText(g[0]!.scope_user_id)}` : 'shared'} ·{' '}
+                {g.length} tool{g.length === 1 ? '' : 's'}
+              </span>
+            </h3>
+            {onBulk && (
+              <BulkButtons group={g} selected={selected} onBulk={onBulk} onDone={setSelected} />
+            )}
+          </div>
           <ul className="divide-y divide-zinc-950/5 rounded-lg border border-zinc-950/10 dark:divide-white/10 dark:border-white/10">
             {g.map(p => (
               <li key={p.pin_id} className="flex flex-wrap items-center gap-3 p-3">
+                {onBulk && (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${visibleText(p.tool_name)}`}
+                    disabled={!isBulkable(p)}
+                    checked={selected.has(p.pin_id)}
+                    onChange={() => toggle(p.pin_id)}
+                  />
+                )}
                 <span className="font-mono text-sm">{visibleText(p.tool_name)}</span>
                 {p.approved_hash && p.status === 'pending_review' && (
                   <Badge color="blue">changed</Badge>
@@ -444,6 +593,39 @@ function PinGroups({
         </section>
       ))}
     </div>
+  );
+}
+
+function BulkButtons({
+  group,
+  selected,
+  onBulk,
+  onDone,
+}: {
+  group: ToolPinSummary[];
+  selected: Set<string>;
+  onBulk: (r: BulkRequest) => void;
+  onDone: (s: Set<string>) => void;
+}) {
+  const first = group[0]!;
+  const bulkable = group.filter(isBulkable);
+  const unflagged = bulkable.filter(p => !isFlagged(p));
+  const chosen = bulkable.filter(p => selected.has(p.pin_id));
+  const mk = (pins: ToolPinSummary[]) => () => {
+    onBulk({ mcpId: first.mcp_id, mcpName: first.mcp_name, pins });
+    onDone(new Set());
+  };
+  return (
+    <span className="ml-auto flex gap-2">
+      {chosen.length > 0 && (
+        <Button outline onClick={mk(chosen)}>
+          Approve selected ({chosen.length})
+        </Button>
+      )}
+      <Button outline disabled={bulkable.length === 0} onClick={mk(bulkable)}>
+        Approve all ({unflagged.length})
+      </Button>
+    </span>
   );
 }
 
@@ -470,6 +652,7 @@ export function ToolReview() {
   const [tab, setTab] = useState<'pending' | 'baseline' | 'approved'>('pending');
   const [sel, setSel] = useState<ToolPinSummary | null>(null);
   const [revoking, setRevoking] = useState<ToolPinSummary | null>(null);
+  const [bulkReq, setBulkReq] = useState<BulkRequest | null>(null);
   const revoke = useRevokePin();
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeError, setRevokeError] = useState<string | null>(null);
@@ -520,6 +703,7 @@ export function ToolReview() {
           pins={list.pins}
           onReview={tab === 'approved' ? undefined : setSel}
           onRevoke={setRevoking}
+          onBulk={tab === 'pending' ? setBulkReq : undefined}
           empty={
             tab === 'pending'
               ? 'No tool definitions awaiting review'
@@ -602,6 +786,11 @@ export function ToolReview() {
             }
           }
         }}
+      />
+      <BulkApproveDialog
+        key={bulkReq ? `bulk-${bulkReq.mcpId}:${bulkReq.pins.length}` : 'bulk-none'}
+        req={bulkReq}
+        onClose={() => setBulkReq(null)}
       />
       <ReviewDialog
         key={sel?.pin_id ?? 'none'}

@@ -1,6 +1,9 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ADMIN_TOOL_PIN_REVOKE_ROUTE,
+  ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE,
+  type ToolPinBulkApproveRequest,
+  type ToolPinBulkApproveResponse,
   type ToolPinRevokeRequest,
   type ToolPinRevokeResponse,
 } from '@mcpambassador/contracts';
@@ -80,6 +83,19 @@ export function useDecidePin(action: 'approve' | 'reject') {
     mutationFn: ({ pinId, ...body }: { pinId: string } & ToolPinDecisionRequest) =>
       apiClient.post<ToolPinDetail>(
         `/v1/admin/tool-pins/${encodeURIComponent(pinId)}/${action}`,
+        body
+      ),
+    onSuccess: invalidate,
+  });
+}
+
+/** FB-033: approve many pending pins of one MCP; the server checks each hash and skips mismatches. */
+export function useBulkApprovePins() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ mcpId, ...body }: { mcpId: string } & ToolPinBulkApproveRequest) =>
+      apiClient.post<ToolPinBulkApproveResponse>(
+        ADMIN_MCP_TOOL_PINS_BULK_APPROVE_ROUTE.replace(':mcpId', encodeURIComponent(mcpId)),
         body
       ),
     onSuccess: invalidate,
