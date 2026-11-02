@@ -32,6 +32,8 @@ docker compose up -d
 
 Open https://localhost:9443 (self-signed TLS) and follow the first-run setup wizard to create the admin account.
 
+First boot also writes `data/initial-credentials.txt` (admin API key and recovery token, mode 600). Record them in a password manager, then delete the file.
+
 The compose default is `NODE_ENV=production`. For a local trial you can set `NODE_ENV=development` in `.env`: after the admin exists, first boot then creates an all-tools dev preshared key (never use that in production). For verbose logs set `LOG_LEVEL=debug`.
 
 | Port | Serves                                                                                                |
@@ -72,7 +74,7 @@ Configured by environment variables (see `.env.example`, `docker-compose.yml`, a
 | `MCP_AMBASSADOR_CHILD_UID_RANGE`                       | `20000-20999` (image) | Each downstream instance gets its own uid/gid and 0700 home. Widen it if startup warns that 80%+ is assigned.               |
 | `MCP_AMBASSADOR_CHILD_NPROC`                           | `256` (`0` disables)  | `RLIMIT_NPROC` per instance; counts threads. Browser MCPs may need e.g. `1024`; keep well under the container `pids` limit. |
 | `MCP_AMBASSADOR_TRUST_PROXY`                           | off                   | `true`, `false`, or an IP/CIDR list. Hop counts are no longer accepted.                                                     |
-| `PUBLIC_URL`                                           |                       | Public base URL for OAuth callbacks behind a reverse proxy                                                                  |
+| `PUBLIC_URL`                                           |                       | Public base URL for OAuth callbacks behind a reverse proxy. Approval gates need it set to an https URL (or http on loopback); without it gated tool calls fail closed and the server logs an error at startup.                                                                  |
 | `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry URL / empty / `true` | Registry source, token for a private registry, on/off                                                                       |
 
 ## Security model
