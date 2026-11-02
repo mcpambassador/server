@@ -635,9 +635,9 @@ describe('range-mode preflight and wrapper', () => {
   it('wrapper caps processes per instance (default 256, configurable, 0 disables)', async () => {
     const has = (n?: number) => wrapCommandForIsolation('npx', [], iso, undefined, n).args;
     const d = wrapCommandForIsolation('npx', [], iso).args;
-    expect(d.slice(5, 9)).toEqual(['--', '/usr/bin/prlimit', '--nproc=256', '--']);
-    expect(has(64).slice(5, 9)).toEqual(['--', '/usr/bin/prlimit', '--nproc=64', '--']);
-    expect(has(64).slice(9, 11)).toEqual(['/bin/sh', '-c']);
+    expect(d.slice(6, 10)).toEqual(['--', '/usr/bin/prlimit', '--nproc=256', '--']);
+    expect(has(64).slice(6, 10)).toEqual(['--', '/usr/bin/prlimit', '--nproc=64', '--']);
+    expect(has(64).slice(10, 12)).toEqual(['/bin/sh', '-c']);
     expect(has(0)).not.toContain('/usr/bin/prlimit');
   });
   it('never asks for more than the stricter hard limit the server already runs under', async () => {
