@@ -25,7 +25,7 @@ import {
 } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
-import { resolveApprovalUiBaseUrl } from './services/approvals/base-url.js';
+import { resolveAgentPublicUrls, resolveApprovalUiBaseUrl } from './services/approvals/base-url.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
   logger,
@@ -1980,17 +1980,14 @@ export class AmbassadorServer {
   /** ADR-020: public issuer and /mcp base URL, from config/PUBLIC_URL, never the request Host */
   private agentPublicUrls(): { issuer: string; agentBaseUrl: string } {
     const cfg = this.config.ambassadorConfig!.agent_endpoint;
-    const strip = (u: string): string => u.replace(/\/+$/, '');
-    return {
-      issuer: strip(
-        cfg.issuer_url ??
-          this.config.publicUrl ??
-          `https://${this.config.serverName}:${this.config.adminPort}`
-      ),
-      agentBaseUrl: strip(
-        cfg.resource_base_url ?? `https://${this.config.serverName}:${this.config.port}`
-      ),
-    };
+    return resolveAgentPublicUrls({
+      issuerUrl: cfg.issuer_url,
+      resourceBaseUrl: cfg.resource_base_url,
+      publicUrl: this.config.publicUrl,
+      serverName: this.config.serverName,
+      adminPort: this.config.adminPort,
+      port: this.config.port,
+    });
   }
 
   /** ADR-020: resolved agent endpoint deps (URLs from PUBLIC_URL/config, never request Host) */
