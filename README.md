@@ -1,6 +1,6 @@
 # MCP Ambassador Server
 
-[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](./CHANGELOG.md) [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](<>) [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
+[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](./CHANGELOG.md) [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
 
 One server to authenticate, authorize, and audit every MCP tool your team uses. It proxies tool calls between AI clients and downstream MCP servers, and records each decision.
 
@@ -36,10 +36,10 @@ First boot also writes `data/initial-credentials.txt` (admin API key and recover
 
 The compose default is `NODE_ENV=production`. For a local trial you can set `NODE_ENV=development` in `.env`: after the admin exists, first boot then creates an all-tools dev preshared key (never use that in production). For verbose logs set `LOG_LEVEL=debug`.
 
-| Port | Serves                                                                                                |
-| ---- | ----------------------------------------------------------------------------------------------------- |
+| Port | Serves                                                                                                                                       |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 8443 | MCP client protocol (registration, discovery, invocation); the agent endpoint (`/mcp`, `/oauth/*`) too, when `agent_endpoint.enabled` is set |
-| 9443 | Admin API, user API (cookie-authenticated routes), and the SPA                                        |
+| 9443 | Admin API, user API (cookie-authenticated routes), and the SPA                                                                               |
 
 The reference compose file binds 9443 to `127.0.0.1`. Production setup, TLS, and reverse proxies: [Docker guide](https://mcpambassador.ai/docs/docker) and [Production guide](https://mcpambassador.ai/docs/production).
 
@@ -48,7 +48,7 @@ The reference compose file binds 9443 to `127.0.0.1`. Production setup, TLS, and
 MCP children run under their own uids, so the container must start as root, drop to uid 1000 in the entrypoint, and keep only the capabilities it needs. `docker-compose.yml` in this repo is the reference; a deployment's compose must match it:
 
 ```yaml
-user: '0:0'
+user: "0:0"
 cap_drop: [ALL]
 cap_add: [SETUID, SETGID, KILL, CHOWN, SETPCAP]
 security_opt:
@@ -66,16 +66,16 @@ Without SETUID/SETGID/KILL, MCP children refuse to start; without SETPCAP, the c
 
 Configured by environment variables (see `.env.example`, `docker-compose.yml`, and the [configuration reference](https://mcpambassador.ai/docs/configuration)). The compose file has no `env_file`: `.env` only feeds the `${...}` substitutions already in `docker-compose.yml` (such as `LOG_LEVEL`, `NODE_ENV`, `PUBLIC_URL`, `REGISTRY_*`). To set any other variable below, add it under `environment:` in `docker-compose.yml`. Commonly used:
 
-| Variable                                               | Default               | Purpose                                                                                                                     |
-| ------------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `MCP_AMBASSADOR_DATA_DIR`                              | `/data`               | Database, TLS certs, audit log, secrets                                                                                     |
-| `MCP_AMBASSADOR_HOST` / `MCP_AMBASSADOR_PORT`          | `0.0.0.0` / `8443`    | Client listener                                                                                                             |
-| `MCP_AMBASSADOR_LOG_LEVEL`                             | `info`                | Log level                                                                                                                   |
-| `MCP_AMBASSADOR_CHILD_UID_RANGE`                       | `20000-20999` (image) | Each downstream instance gets its own uid/gid and 0700 home. Widen it if startup warns that 80%+ is assigned.               |
-| `MCP_AMBASSADOR_CHILD_NPROC`                           | `256` (`0` disables)  | `RLIMIT_NPROC` per instance; counts threads. Browser MCPs may need e.g. `1024`; keep well under the container `pids` limit. |
-| `MCP_AMBASSADOR_TRUST_PROXY`                           | off                   | `true`, `false`, or an IP/CIDR list. Hop counts are no longer accepted.                                                     |
-| `PUBLIC_URL`                                           |                       | Public base URL for OAuth callbacks behind a reverse proxy. Approval gates need it set to an https URL (or http on loopback); without it gated tool calls fail closed and the server logs an error at startup.                                                                  |
-| `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry URL / empty / `true` | Registry source, token for a private registry, on/off                                                                       |
+| Variable                                               | Default                                 | Purpose                                                                                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MCP_AMBASSADOR_DATA_DIR`                              | `/data`                                 | Database, TLS certs, audit log, secrets                                                                                                                                                                        |
+| `MCP_AMBASSADOR_HOST` / `MCP_AMBASSADOR_PORT`          | `0.0.0.0` / `8443`                      | Client listener                                                                                                                                                                                                |
+| `MCP_AMBASSADOR_LOG_LEVEL`                             | `info`                                  | Log level                                                                                                                                                                                                      |
+| `MCP_AMBASSADOR_CHILD_UID_RANGE`                       | `20000-20999` (image)                   | Each downstream instance gets its own uid/gid and 0700 home. Widen it if startup warns that 80%+ is assigned.                                                                                                  |
+| `MCP_AMBASSADOR_CHILD_NPROC`                           | `256` (`0` disables)                    | `RLIMIT_NPROC` per instance; counts threads. Browser MCPs may need e.g. `1024`; keep well under the container `pids` limit.                                                                                    |
+| `MCP_AMBASSADOR_TRUST_PROXY`                           | off                                     | `true`, `false`, or an IP/CIDR list. Hop counts are no longer accepted.                                                                                                                                        |
+| `PUBLIC_URL`                                           |                                         | Public base URL for OAuth callbacks behind a reverse proxy. Approval gates need it set to an https URL (or http on loopback); without it gated tool calls fail closed and the server logs an error at startup. |
+| `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry URL / empty / `true` | Registry source, token for a private registry, on/off                                                                                                                                                          |
 
 ## Security model
 
