@@ -81,7 +81,7 @@ Configured by environment variables (see `.env.example`, `docker-compose.yml`, a
   - instances share the container's network namespace and process list;
   - the server process keeps `SETUID`/`SETGID`/`KILL`;
   - isolation can be disabled, and the legacy single-uid mode puts every instance under one uid;
-  - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only admins should add MCPs you trust.
+  - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only add MCPs you trust.
 - **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them (unless that MCP's pin policy is `auto`, which is not allowed for registry or imported MCPs); flagged or previously revoked definitions need an explicit extra step.
 - **Authorization order per call**: kill switch, group policy, then the subscription's selected tools. A tool that is denied answers the same as one that does not exist.
 - **Approval gates**: per-tool human approval with an argument preview.
