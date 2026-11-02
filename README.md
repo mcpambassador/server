@@ -1,6 +1,6 @@
 # MCP Ambassador Server
 
-[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](./CHANGELOG.md) [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
+[![CI](https://github.com/mcpambassador/server/actions/workflows/ci.yml/badge.svg)](https://github.com/mcpambassador/server/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE) [![Version](https://img.shields.io/badge/version-0.10.1-blue.svg)](./CHANGELOG.md) [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)]() [![Website](https://img.shields.io/badge/docs-mcpambassador.ai-blue.svg)](https://mcpambassador.ai)
 
 One server to authenticate, authorize, and audit every MCP tool your team uses. It proxies tool calls between AI clients and downstream MCP servers, and records each decision.
 
