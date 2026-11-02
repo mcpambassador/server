@@ -321,7 +321,7 @@ export class ChildUidAllocator {
           );
         }
       }
-      return this.takeLease(entries, entry!, fresh);
+      return this.takeLease(entries, entry, fresh);
     } finally {
       if (held !== undefined) this.preparing.delete(held);
     }
