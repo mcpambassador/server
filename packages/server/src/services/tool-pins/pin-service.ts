@@ -280,12 +280,7 @@ export class ToolPinService {
     if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
       keys.push(key(pin.mcp_id, null, ''));
     }
-    keys.sort(); // fixed order: two approvals can never wait on each other's second lock
-    const run = (i: number): Promise<DecisionResult> =>
-      i < keys.length
-        ? this.withScopeLock(keys[i]!, () => run(i + 1))
-        : this.approveLocked(pinId, o);
-    return run(0);
+    return this.withScopeLocks(keys, () => this.approveLocked(pinId, o));
   }
 
   private async approveLocked(
@@ -505,6 +500,17 @@ export class ToolPinService {
     pinId: string,
     o: { expectedHash: string; actor: string; reason?: string }
   ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    return this.withScopeLocks([key(pin0.mcp_id, pin0.scope_user_id, '')], () =>
+      this.rejectLocked(pinId, o)
+    );
+  }
+
+  private async rejectLocked(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
     if (!pin) return { ok: false, code: 'not_found' };
     if (pin.status !== 'pending_review' || !pin.pending_hash)
@@ -545,6 +551,22 @@ export class ToolPinService {
    * a NULL-scope pin); the old hash is recorded as rejected so it is not re-raised, and a new hash goes pending.
    */
   async revoke(
+    pinId: string,
+    o: { expectedHash: string; actor: string; reason?: string }
+  ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    // revoke withdraws the hash in every scope serving it: lock each scope of this (mcp, tool)
+    const keys = new Set([key(pin0.mcp_id, pin0.scope_user_id, '')]);
+    for (const l of this.pins.values()) {
+      if (l.rec.mcp_id === pin0.mcp_id && l.rec.tool_name === pin0.tool_name) {
+        keys.add(key(l.rec.mcp_id, l.rec.scope_user_id, ''));
+      }
+    }
+    return this.withScopeLocks([...keys], () => this.revokeLocked(pinId, o));
+  }
+
+  private async revokeLocked(
     pinId: string,
     o: { expectedHash: string; actor: string; reason?: string }
   ): Promise<DecisionResult> {
@@ -633,6 +655,17 @@ export class ToolPinService {
     pinId: string,
     o: { expectedHash: string; actor: string }
   ): Promise<DecisionResult> {
+    const pin0 = this.getById(pinId);
+    if (!pin0) return { ok: false, code: 'not_found' };
+    return this.withScopeLocks([key(pin0.mcp_id, pin0.scope_user_id, '')], () =>
+      this.confirmBaselineLocked(pinId, o)
+    );
+  }
+
+  private async confirmBaselineLocked(
+    pinId: string,
+    o: { expectedHash: string; actor: string }
+  ): Promise<DecisionResult> {
     const pin = this.getById(pinId);
     if (!pin) return { ok: false, code: 'not_found' };
     if (pin.approved_by !== SYSTEM_MIGRATION_ACTOR || !pin.approved_hash) {
@@ -700,6 +733,14 @@ export class ToolPinService {
       if (this.chains.get(k) === tail) this.chains.delete(k);
     });
     return run;
+  }
+
+  /** Take several scope locks in a fixed (sorted) order so two callers can never wait on each other. */
+  private withScopeLocks<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
+    const sorted = [...new Set(keys)].sort();
+    const run = (i: number): Promise<T> =>
+      i < sorted.length ? this.withScopeLock(sorted[i]!, () => run(i + 1)) : fn();
+    return run(0);
   }
 
   private async observeLocked(args: ObserveArgs): Promise<ObserveSummary> {
