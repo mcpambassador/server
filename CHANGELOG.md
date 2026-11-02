@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reference `docker-compose.yml` now defaults `NODE_ENV=production`: no dev preshared key on first boot, a config file that fails to load aborts startup, and MCP children inherit `NODE_ENV=production`. Set `NODE_ENV=development` for a local trial.
+
 ### Fixed
 
 - An empty `PUBLIC_URL` (the reference `docker-compose.yml` passes `PUBLIC_URL: ${PUBLIC_URL:-}`, which is an empty string when unset) was treated as set, so the approval UI base URL became empty, startup logged an invalid-URL error, gated tool calls failed closed, and the agent-endpoint OAuth metadata had `issuer: ""` with relative endpoints. Empty or whitespace `PUBLIC_URL` now counts as unset and falls back to `https://<server name or localhost>:<admin port>` for both the approval links and the agent-endpoint issuer.
