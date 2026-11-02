@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reference `docker-compose.yml` now defaults `NODE_ENV=production`: no dev preshared key on first boot, a config file that fails to load aborts startup, and MCP children inherit `NODE_ENV=production`. Set `NODE_ENV=development` for a local trial.
+
 ## [0.10.0] - 2026-11-01
 
 Highlights: downstream MCP children are isolated from `/data` and from each other (TD-052, TD-059), the image ships `uv`/`uvx` and Python for uvx-based registry entries (#156), and Tool Review gains bulk approve (FB-033). **This release changes the container's run requirements; read BREAKING before upgrading.** `protocol` and `contracts` wire types are unchanged apart from the additive bulk-approve route.
