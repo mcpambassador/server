@@ -55,7 +55,9 @@ const MAX_BLOCK_CHARS = 2000;
 
 /** Flagged = carries any flag other than the purely informational length ones (never auto-included in bulk). */
 const isFlagged = (p: ToolPinSummary): boolean =>
-  (p.flags?.codes ?? []).some(c => !(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c));
+  (p.flags?.codes ?? []).some(
+    c => !(TOOL_PIN_INFORMATIONAL_FLAG_CODES as readonly string[]).includes(c)
+  );
 const isBlocked = (p: ToolPinSummary): boolean =>
   (p.flags?.codes ?? []).some(c => NON_APPROVABLE_FLAGS.includes(c));
 /** A pin a bulk action can act on at all. */
@@ -68,13 +70,7 @@ interface BulkRequest {
   pins: ToolPinSummary[];
 }
 
-function BulkApproveDialog({
-  req,
-  onClose,
-}: {
-  req: BulkRequest | null;
-  onClose: () => void;
-}) {
+function BulkApproveDialog({ req, onClose }: { req: BulkRequest | null; onClose: () => void }) {
   const bulk = useBulkApprovePins();
   const [includeFlagged, setIncludeFlagged] = useState(false);
   const [stage, setStage] = useState<1 | 2>(1);
@@ -527,11 +523,13 @@ function PinGroups({
   onBulk?: (r: BulkRequest) => void;
   empty: string;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const toggle = (id: string) =>
+  // pin_id -> the pending_hash that was on screen when the box was ticked: a later refetch must not change what
+  // gets approved (a changed definition then comes back `stale` from the server, which is the intended outcome)
+  const [selected, setSelected] = useState<Map<string, string>>(new Map());
+  const toggle = (p: ToolPinSummary) =>
     setSelected(prev => {
-      const n = new Set(prev);
-      if (!n.delete(id)) n.add(id);
+      const n = new Map(prev);
+      if (!n.delete(p.pin_id) && p.pending_hash) n.set(p.pin_id, p.pending_hash);
       return n;
     });
   const groups = useMemo(() => {
@@ -570,7 +568,7 @@ function PinGroups({
                     aria-label={`Select ${visibleText(p.tool_name)}`}
                     disabled={!isBulkable(p)}
                     checked={selected.has(p.pin_id)}
-                    onChange={() => toggle(p.pin_id)}
+                    onChange={() => toggle(p)}
                   />
                 )}
                 <span className="font-mono text-sm">{visibleText(p.tool_name)}</span>
@@ -603,17 +601,21 @@ function BulkButtons({
   onDone,
 }: {
   group: ToolPinSummary[];
-  selected: Set<string>;
+  selected: Map<string, string>;
   onBulk: (r: BulkRequest) => void;
-  onDone: (s: Set<string>) => void;
+  onDone: (s: Map<string, string>) => void;
 }) {
   const first = group[0]!;
   const bulkable = group.filter(isBulkable);
   const unflagged = bulkable.filter(p => !isFlagged(p));
-  const chosen = bulkable.filter(p => selected.has(p.pin_id));
+  // the hash that was on screen at tick time, not the latest refetch
+  const chosen = bulkable
+    .filter(p => selected.has(p.pin_id))
+    .map(p => ({ ...p, pending_hash: selected.get(p.pin_id)! }));
   const mk = (pins: ToolPinSummary[]) => () => {
-    onBulk({ mcpId: first.mcp_id, mcpName: first.mcp_name, pins });
-    onDone(new Set());
+    // "Approve all" snapshots the hashes on screen at this click; the dialog keeps them
+    onBulk({ mcpId: first.mcp_id, mcpName: first.mcp_name, pins: pins.map(p => ({ ...p })) });
+    onDone(new Map());
   };
   return (
     <span className="ml-auto flex gap-2">

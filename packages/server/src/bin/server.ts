@@ -281,10 +281,18 @@ async function main() {
     `[Server] Registry config: url=${registryConfig.url}, enabled=${registryConfig.enabled}`
   );
 
-  if (!resolveChildIsolationConfig()) {
-    logger.warn(
-      '[Server] child isolation disabled: MCP children run as the server uid and can read /data'
+  try {
+    if (!resolveChildIsolationConfig()) {
+      logger.warn(
+        '[Server] child isolation disabled: MCP children run as the server uid and can read /data'
+      );
+    }
+  } catch (err) {
+    // bad MCP_AMBASSADOR_CHILD_* settings: one clear line instead of a stack trace
+    logger.error(
+      `[Server] invalid child isolation configuration: ${err instanceof Error ? err.message : String(err)}`
     );
+    process.exit(1);
   }
 
   const server = new AmbassadorServer({

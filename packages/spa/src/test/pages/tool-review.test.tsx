@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { describe, it, expect, vi } from 'vitest';
@@ -694,6 +694,58 @@ describe('ToolReview bulk approve (FB-033)', () => {
     await user.click(await screen.findByRole('button', { name: 'Approve 1' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]!.body.items).toEqual([{ pin_id: 'b', expected_hash: H('2') }]);
+  });
+
+  /** Change a pin's hash server-side and make the page refetch its list. */
+  async function refetchWith(rows: Array<{ pending_hash: string }>, calls: string[]) {
+    rows[1]!.pending_hash = H('9');
+    const before = calls.length;
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await waitFor(() => expect(calls.length).toBeGreaterThan(before));
+  }
+
+  it('sends the hash that was on screen when the box was ticked, not the refetched one', async () => {
+    const bodies: Array<{ url: string; body: { items: unknown[] } }> = [];
+    const rows = bulkPins();
+    const calls: string[] = [];
+    setup({ pending: rows, listCalls: calls });
+    server.use(
+      http.post('/v1/admin/mcps/:mcpId/tool-pins/approve', async ({ request }) => {
+        bodies.push({ url: '', body: (await request.json()) as never });
+        return HttpResponse.json({ ok: true, data: { bulk_id: 'bk', approved: [], skipped: [] } });
+      })
+    );
+    const user = userEvent.setup();
+    await screen.findByText('beta');
+    await user.click(screen.getByRole('checkbox', { name: 'Select beta' }));
+    await refetchWith(rows as never, calls);
+    await user.click(await screen.findByRole('button', { name: 'Approve selected (1)' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve 1' }));
+    await waitFor(() => expect(bodies.length).toBeGreaterThan(0));
+    expect(bodies.at(-1)!.body.items).toEqual([{ pin_id: 'b', expected_hash: H('2') }]);
+  });
+
+  it('Approve all keeps the hashes of the moment the dialog was opened', async () => {
+    const bodies: Array<{ url: string; body: { items: unknown[] } }> = [];
+    const rows = bulkPins();
+    const calls: string[] = [];
+    setup({ pending: rows, listCalls: calls });
+    server.use(
+      http.post('/v1/admin/mcps/:mcpId/tool-pins/approve', async ({ request }) => {
+        bodies.push({ url: '', body: (await request.json()) as never });
+        return HttpResponse.json({ ok: true, data: { bulk_id: 'bk', approved: [], skipped: [] } });
+      })
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve all (2)' }));
+    await refetchWith(rows as never, calls);
+    await user.click(await screen.findByRole('button', { name: 'Approve 2' }));
+    await waitFor(() => expect(bodies.length).toBeGreaterThan(0));
+    expect(bodies.at(-1)!.body.items).toEqual([
+      { pin_id: 'a', expected_hash: H('1') },
+      { pin_id: 'b', expected_hash: H('2') },
+    ]);
   });
 
   it('reports skipped pins in a warning toast', async () => {

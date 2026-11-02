@@ -430,6 +430,30 @@ describe('ChildUidAllocator', () => {
       expect(JSON.parse(h.file()!).entries['user:a:m']).toBeUndefined();
     });
 
+    it('TD-064: the victim key cannot fast-path lease the same uid in the gap after its wipe', async () => {
+      const h = harness(20000, 20000);
+      const a = h.make();
+      (await a.lease('user:a:m')).release();
+      // probe the victim key on every microtask hop right after the wipe resolves, i.e. across the gap between
+      // "wipe done" and "victim key dropped / new lease taken"
+      const probes: Array<Promise<{ uid: number }>> = [];
+      h.hooks.wipeHome = () => {
+        const hop = (n: number): void => {
+          if (n === 0) return;
+          probes.push(a.lease('user:a:m'));
+          void Promise.resolve().then(() => hop(n - 1));
+        };
+        void Promise.resolve().then(() => hop(12));
+        return Promise.resolve();
+      };
+      const lb = await a.lease('user:b:m');
+      expect(lb.uid).toBe(20000);
+      const settled = await Promise.allSettled(probes);
+      for (const r of settled) {
+        if (r.status === 'fulfilled') expect(r.value.uid).not.toBe(lb.uid);
+      }
+    });
+
     it('TD-064: a failed persist does not leave the uid stuck in `preparing`', async () => {
       const h = harness(20000, 20000);
       const a = h.make();

@@ -169,7 +169,8 @@ ENV MCP_AMBASSADOR_CHILD_UID_RANGE=20000-20999
 
 # No setuid/setgid binaries: with an inherited bounding set {setuid,setgid,kill} a child could otherwise gain
 # caps by exec'ing one when the container runs without no-new-privileges.
-RUN find / -xdev -perm /6000 -type f -exec chmod a-s {} + || true
+RUN find / -xdev -perm /6000 -type f -exec chmod a-s {} + \
+ && test -z "$(find / -xdev -perm /6000 -type f)"
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

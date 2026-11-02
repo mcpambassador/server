@@ -258,8 +258,37 @@ export class ToolPinService {
     return this.recentRejections(mcpId) >= TOOL_PIN_AUTO_HOLD_REJECTIONS;
   }
 
-  /** Approve the pending definition. `expectedHash` must equal the pin's current pending_hash. */
+  /**
+   * Approve the pending definition. `expectedHash` must equal the pin's current pending_hash.
+   * Serialized with `observe` per (mcp, scope) (and with the all-users scope when `applyTo` is `all_users`), so a
+   * discovery cannot rewrite the pin between the check and the commit and have its pending change overwritten.
+   */
   async approve(
+    pinId: string,
+    o: {
+      expectedHash: string;
+      applyTo?: 'this_scope' | 'all_users';
+      actor: string;
+      reason?: string;
+      force?: boolean;
+      bulkId?: string;
+    }
+  ): Promise<DecisionResult> {
+    const pin = this.getById(pinId);
+    if (!pin) return { ok: false, code: 'not_found' };
+    const keys = [key(pin.mcp_id, pin.scope_user_id, '')];
+    if (o.applyTo === 'all_users' && pin.scope_user_id !== null) {
+      keys.push(key(pin.mcp_id, null, ''));
+    }
+    keys.sort(); // fixed order: two approvals can never wait on each other's second lock
+    const run = (i: number): Promise<DecisionResult> =>
+      i < keys.length
+        ? this.withScopeLock(keys[i]!, () => run(i + 1))
+        : this.approveLocked(pinId, o);
+    return run(0);
+  }
+
+  private async approveLocked(
     pinId: string,
     o: {
       expectedHash: string;
@@ -656,12 +685,15 @@ export class ToolPinService {
    * Serialized per (mcp, scope) so two overlapping discoveries cannot race on the same rows.
    */
   observe(args: ObserveArgs): Promise<ObserveSummary> {
-    const k = key(args.mcpId, args.scopeUserId, '');
-    const prev = this.chains.get(k) ?? Promise.resolve();
-    const run = prev.then(
-      () => this.observeLocked(args),
-      () => this.observeLocked(args)
+    return this.withScopeLock(key(args.mcpId, args.scopeUserId, ''), () =>
+      this.observeLocked(args)
     );
+  }
+
+  /** Run `fn` after every earlier job on the same (mcp, scope) key; shared by observe and approve. */
+  private withScopeLock<T>(k: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.chains.get(k) ?? Promise.resolve();
+    const run = prev.then(fn, fn);
     const tail = run.catch(() => undefined);
     this.chains.set(k, tail);
     void tail.then(() => {

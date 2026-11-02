@@ -152,6 +152,22 @@ describe('bulk tool-pin approve (FB-033)', () => {
     expect(pins.resolveApproved(otherMcpId, null, 'z')).toBeUndefined();
   });
 
+  it('approve and a concurrent discovery of a changed definition do not lose the pending change', async () => {
+    await observe(mcpId, [tool('a', 'one')]);
+    const it0 = item(mcpId, 'a');
+    // started together, no await in between: discovery must wait for the approval (or vice versa), never interleave
+    const [res] = await Promise.all([
+      pins.approve(it0.pin_id, { expectedHash: it0.expected_hash, actor: 'admin' }),
+      observe(mcpId, [tool('a', 'one but changed')]),
+    ]);
+    expect(res.ok).toBe(true);
+    const p = pins.getPin(mcpId, null, 'a')!;
+    expect(p.approved_hash).toBe(it0.expected_hash);
+    expect(p.status).toBe('pending_review'); // the changed definition is waiting for review
+    expect(p.pending_hash).toBeTruthy();
+    expect(p.pending_hash).not.toBe(it0.expected_hash);
+  });
+
   it('validates the body and the MCP', async () => {
     expect((await post({ items: [] })).statusCode).toBeGreaterThanOrEqual(400);
     expect(

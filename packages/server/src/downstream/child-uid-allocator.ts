@@ -396,9 +396,8 @@ export class ChildUidAllocator {
       } catch (err) {
         lastWhy = errText(err);
         logger.warn(`[child-uid] uid ${uid} not usable for ${keyHash(key)}: ${lastWhy}`);
+        this.preparing.delete(uid); // failure only; on success leaseInner releases it once the lease is taken
         return false;
-      } finally {
-        this.preparing.delete(uid);
       }
     };
     for (let uid = this.range.min; uid <= this.range.max && budgetLeft(); uid++) {
