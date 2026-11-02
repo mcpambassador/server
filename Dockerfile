@@ -64,7 +64,7 @@ FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e16
 
 # Install openssl for TLS certificate generation, and the distro python3 so uvx-launched (PyPI)
 # MCP servers run on a fixed interpreter instead of downloading a managed Python at runtime.
-RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 tini=0.19.0-1+b3 && rm -rf /var/lib/apt/lists/*
 
 # uv/uvx for registry entries that run via `uvx <pkg>==<version>` (e.g. Alpaca).
 # Pinned by version AND digest. Digest = the multi-arch image index of ghcr.io/astral-sh/uv:0.13.6,

@@ -117,12 +117,9 @@ services:
     # Read-only root filesystem (except bind-mounted volumes)
     read_only: true
 
-    # TD-059: container-wide process cap; each MCP instance also gets its own RLIMIT_NPROC
-    # (MCP_AMBASSADOR_CHILD_NPROC, default 256) so one fork bomb cannot starve the others.
-    pids_limit: 4096
-    # Reaps orphaned grandchildren of MCP processes. Without it they stay zombies under the server (PID 1 does not
-    # wait for processes it did not spawn) and zombies still count against the pids and per-instance nproc limits.
-    init: true
+    # TD-059: each MCP instance gets its own RLIMIT_NPROC (MCP_AMBASSADOR_CHILD_NPROC, default 256) and the
+    # container is capped by deploy.resources.limits.pids below. No `init: true`: docker-init would stay a
+    # root PID 1; the image runs tini (uid 1000, same caps as the server) as PID 1 to reap orphaned grandchildren.
     
     # Health check
     healthcheck:
@@ -139,6 +136,7 @@ services:
         limits:
           cpus: '2.0'
           memory: 1G
+          pids: 4096 # TD-059: container-wide cap
         reservations:
           cpus: '0.5'
           memory: 512M

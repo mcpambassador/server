@@ -63,6 +63,15 @@ jobs:
           if [ "$CAPEFF" != "00000000000000e0" ]; then
             echo "ERROR: PID 1 CapEff is $CAPEFF, expected 00000000000000e0 (SETUID/SETGID/KILL)."; docker rm -f amb-verify; exit 1
           fi
+          PID1_NAME=$(echo "$STATUS" | awk '/^Name:/{print $2}')
+          [ "$PID1_NAME" = "tini" ] || { echo "ERROR: PID 1 is $PID1_NAME, expected tini."; docker rm -f amb-verify; exit 1; }
+          NODE_STATUS=$(docker exec -u 1000 amb-verify sh -c 'for d in /proc/[0-9]*; do if grep -q "^Name:.node$" $d/status 2>/dev/null; then cat $d/status; break; fi; done')
+          NODE_UID=$(echo "$NODE_STATUS" | awk '/^Uid:/{print $2" "$3" "$4" "$5}')
+          NODE_CAP=$(echo "$NODE_STATUS" | awk '/^CapEff:/{print $2}')
+          echo "node: Uid=[$NODE_UID] CapEff=$NODE_CAP"
+          if [ "$NODE_UID" != "1000 1000 1000 1000" ] || [ "$NODE_CAP" != "00000000000000e0" ]; then
+            echo "ERROR: node process is not uid 1000 with CapEff e0."; docker rm -f amb-verify; exit 1
+          fi
           ROOT_PROCS=$(docker exec -u 1000 amb-verify sh -c 'for d in /proc/[0-9]*; do awk "/^Uid:/{if (\$2==0) print FILENAME}" $d/status; done' | wc -l)
           if [ "$ROOT_PROCS" != "0" ]; then
             echo "ERROR: $ROOT_PROCS uid-0 process(es) still running."; docker rm -f amb-verify; exit 1

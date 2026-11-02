@@ -33,6 +33,7 @@ vi.mock('../../src/downstream/child-isolation.js', async orig => {
 // in-memory map; injected allocator so no real fs, setpriv or runner uid is involved
 let mapFile: string | null = null;
 const wipes: number[] = [];
+const reaps: number[] = [];
 vi.mock('../../src/downstream/child-uid-allocator.js', async orig => {
   const actual = await orig<typeof import('../../src/downstream/child-uid-allocator.js')>();
   return {
@@ -47,7 +48,10 @@ vi.mock('../../src/downstream/child-uid-allocator.js', async orig => {
           wipes.push(uid);
           return Promise.resolve();
         },
-        reapUid: () => Promise.resolve(0),
+        reapUid: (uid: number) => {
+          reaps.push(uid);
+          return Promise.resolve(0);
+        },
       });
       return (globalThis as any).__td059Alloc;
     },
@@ -63,6 +67,7 @@ afterEach(() => {
   spawnCalls.length = 0;
   procs.length = 0;
   wipes.length = 0;
+  reaps.length = 0;
   mapFile = null;
   (globalThis as any).__td059Alloc = undefined;
   delete process.env['MCP_AMBASSADOR_CHILD_UID_RANGE'];
@@ -131,5 +136,45 @@ describe('per-instance child uid through StdioMcpConnection', () => {
     expect(mapFile).toBeNull();
     expect(wipes).toEqual([]);
     expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('stop() that needs SIGKILL and never sees an exit still releases the uid lease (sweep runs)', async () => {
+    vi.useFakeTimers();
+    try {
+      const c = new StdioMcpConnection(cfg(), 'user:u1:a');
+      void c.start().catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10);
+      const kills: string[] = [];
+      procs[0].kill = (sig: string) => kills.push(sig);
+      reaps.length = 0;
+      const stopped = c.stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(kills).toEqual(['SIGTERM', 'SIGKILL']);
+      expect(reaps).toEqual([]); // still waiting (bounded) for the exit event
+      await vi.advanceTimersByTimeAsync(2000);
+      await stopped;
+      expect(reaps).toEqual([20000]); // lease released -> uid swept
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stop() with a late exit after SIGKILL releases once, through the exit handler', async () => {
+    vi.useFakeTimers();
+    try {
+      const c = new StdioMcpConnection(cfg(), 'user:u1:a');
+      void c.start().catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10);
+      procs[0].kill = () => {};
+      reaps.length = 0;
+      const stopped = c.stop();
+      await vi.advanceTimersByTimeAsync(5000);
+      procs[0].emit('exit', null, 'SIGKILL');
+      await vi.advanceTimersByTimeAsync(10);
+      await stopped;
+      expect(reaps).toEqual([20000]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

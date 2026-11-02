@@ -27,6 +27,10 @@ fi
 case "$SERVER_UID$SERVER_GID" in *[!0-9]*|'') die "server uid/gid must be numeric" ;; esac
 [ "$SERVER_UID" != "0" ] && [ "$SERVER_GID" != "0" ] || die "server uid/gid must not be 0"
 
+# TD-059: tini is PID 1 (uid 1000, same caps as the server): it reaps orphaned grandchildren of MCP processes,
+# which would otherwise stay zombies and count against the pids and per-instance nproc limits.
+TINI=/usr/bin/tini
+[ -x "$TINI" ] || { echo "entrypoint: $TINI is missing" >&2; exit 1; }
 umask 077 # anything the server creates after boot (caches, temp dirs) is private to the server uid
 
 as_server() {
@@ -36,7 +40,8 @@ as_server() {
 if [ -z "$CHILD_UID" ] && [ -z "$CHILD_RANGE" ]; then
   # Isolation not configured: legacy behavior, no capabilities at all.
   exec setpriv --reuid="$SERVER_UID" --regid="$SERVER_GID" --clear-groups \
-    --inh-caps=-all --ambient-caps=-all --bounding-set=-all "$@"
+    --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+    "$TINI" -s -- "$@"
 fi
 
 if [ -n "$CHILD_RANGE" ]; then
@@ -105,7 +110,8 @@ if [ -n "$CHILD_RANGE" ]; then
 
   exec setpriv --reuid="$SERVER_UID" --regid="$SERVER_GID" --clear-groups \
     --inh-caps=-all,+setuid,+setgid,+kill --ambient-caps=-all,+setuid,+setgid,+kill \
-    --bounding-set=-all,+setuid,+setgid,+kill "$@"
+    --bounding-set=-all,+setuid,+setgid,+kill \
+    "$TINI" -s -- "$@"
 fi
 
 case "$CHILD_UID$CHILD_GID" in *[!0-9]*) die "MCP_AMBASSADOR_CHILD_UID/GID must be numeric" ;; esac
@@ -143,4 +149,5 @@ chown -h "$CHILD_UID:$CHILD_GID" "$CHILD_HOME"
 # stays in the bounding set.
 exec setpriv --reuid="$SERVER_UID" --regid="$SERVER_GID" --clear-groups \
   --inh-caps=-all,+setuid,+setgid,+kill --ambient-caps=-all,+setuid,+setgid,+kill \
-  --bounding-set=-all,+setuid,+setgid,+kill "$@"
+  --bounding-set=-all,+setuid,+setgid,+kill \
+    "$TINI" -s -- "$@"

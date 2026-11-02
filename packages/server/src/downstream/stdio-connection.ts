@@ -107,6 +107,8 @@ export class StdioMcpConnection extends EventEmitter {
 
   private config: DownstreamMcpConfig;
   private process: ChildProcess | null = null;
+  /** TD-059: uid lease of the running child (released on exit; stop() also releases it after a SIGKILL timeout) */
+  private uidLease: UidLease | null = null;
   private messageBuffer = '';
   // TD-045: set while discarding the rest of an oversize line
   private discarding: { head: string; tail: string; bytes: number; failed?: boolean } | null = null;
@@ -305,6 +307,8 @@ export class StdioMcpConnection extends EventEmitter {
       emitStderr(stderrRedactor.push(stderrDecoder.end()));
       emitStderr(stderrRedactor.flush());
     });
+
+    this.uidLease = lease;
 
     // Handle process exit
     childProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
@@ -653,23 +657,30 @@ export class StdioMcpConnection extends EventEmitter {
     if (this.process) {
       this.process.kill('SIGTERM');
 
-      // Wait for graceful exit (max 5s)
-      await new Promise<void>(resolve => {
-        const timeout = setTimeout(() => {
-          if (this.process) {
-            logger.info(`[MCP:${this.config.name}] Force killing...`);
-            this.process.kill('SIGKILL');
-          }
-          resolve();
-        }, 5000);
-
-        this.process?.once('exit', () => {
-          clearTimeout(timeout);
-          resolve();
+      // Wait for graceful exit (max 5s), then SIGKILL and wait (max 2s) for the exit event
+      const child = this.process;
+      const exited = (ms: number): Promise<boolean> =>
+        new Promise<boolean>(resolve => {
+          if ((child.exitCode ?? null) !== null || (child.signalCode ?? null) !== null)
+            return resolve(true);
+          const t = setTimeout(() => resolve(false), ms);
+          child.once('exit', () => {
+            clearTimeout(t);
+            resolve(true);
+          });
         });
-      });
+      if (!(await exited(5000))) {
+        logger.info(`[MCP:${this.config.name}] Force killing...`);
+        child.kill('SIGKILL');
+        if (!(await exited(2000))) {
+          // never reported an exit: give the uid back anyway; the release sweep SIGKILLs everything under it
+          logger.warn(`[MCP:${this.config.name}] no exit after SIGKILL; sweeping its uid`);
+          this.uidLease?.release();
+        }
+      }
 
       this.process = null;
+      this.uidLease = null;
     }
 
     this.startedAt = null;
