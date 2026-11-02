@@ -24,14 +24,14 @@
   },
   "dependencies": {
     "@mcpambassador/protocol": "workspace:*",
-    "argon2": "^0.44.0",
+    "argon2": "^0.45.1",
     "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.45.4",
     "pino": "^8.17.2",
-    "postgres": "^3.4.3",
-    "re2": "1.23.3",
+    "postgres": "^3.4.9",
+    "re2": "1.27.0",
     "uuid": "^9.0.1",
-    "yaml": "^2.3.4",
+    "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
