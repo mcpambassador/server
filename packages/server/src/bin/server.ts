@@ -311,7 +311,8 @@ async function main() {
     downstreamMcps,
     maxMcpInstancesPerUser: userPoolConfig.maxInstancesPerUser, // SEC-M17-005
     maxTotalMcpInstances: userPoolConfig.maxTotalInstances, // SEC-M17-005
-    publicUrl: process.env.PUBLIC_URL, // OAuth callback base URL for reverse proxy deployments
+    // compose passes PUBLIC_URL as "" when unset; treat empty/whitespace as unset
+    publicUrl: process.env.PUBLIC_URL?.trim() || undefined, // OAuth callback base URL for reverse proxy deployments
     registryConfig, // Community registry configuration
     ambassadorConfig, // Pass full config to server for runtime use
     oauthClientSecrets, // TD-027

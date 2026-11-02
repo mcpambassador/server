@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- An empty `PUBLIC_URL` (the reference `docker-compose.yml` passes `PUBLIC_URL: ${PUBLIC_URL:-}`, which is an empty string when unset) was treated as set, so the approval UI base URL became empty, startup logged an invalid-URL error and gated tool calls failed closed. Empty or whitespace `PUBLIC_URL` now counts as unset and falls back to `https://<server name or localhost>:<admin port>`.
+
 ## [0.10.0] - 2026-11-01
 
 Highlights: downstream MCP children are isolated from `/data` and from each other (TD-052, TD-059), the image ships `uv`/`uvx` and Python for uvx-based registry entries (#156), and Tool Review gains bulk approve (FB-033). **This release changes the container's run requirements; read BREAKING before upgrading.** `protocol` and `contracts` wire types are unchanged apart from the additive bulk-approve route.

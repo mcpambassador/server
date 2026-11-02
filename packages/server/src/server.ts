@@ -25,6 +25,7 @@ import {
 } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
 import path from 'path';
+import { resolveApprovalUiBaseUrl } from './services/approvals/base-url.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
   logger,
@@ -2010,9 +2011,11 @@ export class AmbassadorServer {
 
   /** ADR-023: approval links come from config (PUBLIC_URL), never from the request Host header. */
   private approvalUiBaseUrl(): string {
-    return (
-      this.config.publicUrl ?? `https://${this.config.serverName}:${this.config.adminPort}`
-    ).replace(/\/+$/, '');
+    return resolveApprovalUiBaseUrl(
+      this.config.publicUrl,
+      this.config.serverName,
+      this.config.adminPort
+    );
   }
 
   /** ADR-021 pin service (null before start) */
