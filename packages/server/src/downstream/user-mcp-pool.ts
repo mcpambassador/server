@@ -233,7 +233,7 @@ export class UserMcpPool {
           let connection: StdioMcpConnection | HttpMcpConnection | null = null;
 
           if (finalConfig.transport === 'stdio') {
-            connection = new StdioMcpConnection(finalConfig);
+            connection = new StdioMcpConnection(finalConfig, `user:${userId}:${finalConfig.name}`);
             await connection.start();
             instanceSet.connections.set(finalConfig.name, connection);
           } else if (finalConfig.transport === 'http' || finalConfig.transport === 'sse') {

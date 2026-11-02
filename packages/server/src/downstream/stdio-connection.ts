@@ -11,11 +11,12 @@ import type {
 } from './types.js';
 import { ToolInvocationResponseSchema, validateMcpConfig } from './types.js';
 import {
-  resolveChildIsolation,
+  resolveChildIsolationConfig,
   checkIsolationAvailable,
   wrapCommandForIsolation,
   type ChildIsolation,
 } from './child-isolation.js';
+import { getChildUidAllocator, errText, type UidLease } from './child-uid-allocator.js';
 import { ErrorRingBuffer, type ErrorLogEntry } from './error-ring-buffer.js';
 
 import { StringDecoder } from 'node:string_decoder';
@@ -128,7 +129,15 @@ export class StdioMcpConnection extends EventEmitter {
   /** config.env values (can be decrypted user credentials): scrubbed by exact value from stderr/errors */
   private secretValues: string[] = [];
 
-  constructor(config: DownstreamMcpConfig) {
+  /**
+   * @param instanceKey TD-059: identity of this downstream instance (`shared:<mcp>`, `user:<userId>:<mcp>`,
+   *   `discovery:<mcp>`). With MCP_AMBASSADOR_CHILD_UID_RANGE it selects the instance's own child uid;
+   *   without a key such a spawn is refused.
+   */
+  constructor(
+    config: DownstreamMcpConfig,
+    private readonly instanceKey?: string
+  ) {
     super();
     this.config = config;
 
@@ -184,10 +193,36 @@ export class StdioMcpConnection extends EventEmitter {
 
     // SEC-M9-02: safe environment - whitelist + config.env + server-controlled settings
     // TD-052: resolve child uid isolation; fail closed (never fall back to the server uid)
-    const isolation = resolveChildIsolation();
+    // TD-059: with a uid range every instance (this.instanceKey) gets its own uid and home
+    const isoConfig = resolveChildIsolationConfig();
+    let isolation: ChildIsolation | null = null;
+    let lease: UidLease | null = null;
+    if (isoConfig?.kind === 'legacy') {
+      isolation = isoConfig.iso;
+    } else if (isoConfig) {
+      if (!this.instanceKey) {
+        const msg = `[${this.config.name}] cannot start: no instance key for per-instance child uid (refusing to share a uid)`;
+        logger.error(msg);
+        throw new Error(msg);
+      }
+      try {
+        lease = getChildUidAllocator(isoConfig).lease(this.instanceKey);
+      } catch (err) {
+        const why = errText(err);
+        logger.error(`[MCP:${this.config.name}] ${why}`);
+        throw new Error(`[${this.config.name}] cannot start: ${why}`, { cause: err });
+      }
+      isolation = {
+        uid: lease.uid,
+        gid: lease.gid,
+        home: lease.home,
+        parent: isoConfig.homesRoot,
+      };
+    }
     if (isolation) {
       const problem = checkIsolationAvailable(isolation);
       if (problem) {
+        lease?.release();
         logger.error(`[MCP:${this.config.name}] ${problem}`);
         throw new Error(`[${this.config.name}] cannot start: ${problem}`);
       }
@@ -197,11 +232,16 @@ export class StdioMcpConnection extends EventEmitter {
       ? wrapCommandForIsolation(cmd, args, isolation, this.config.cwd || isolation.home)
       : { cmd, args };
 
-    this.process = spawn(target.cmd, target.args, {
-      cwd: isolation ? '/' : this.config.cwd || process.cwd(),
-      env: safeEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    try {
+      this.process = spawn(target.cmd, target.args, {
+        cwd: isolation ? '/' : this.config.cwd || process.cwd(),
+        env: safeEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      lease?.release();
+      throw err;
+    }
 
     const childProcess = this.process; // Capture for closure
 
@@ -253,6 +293,7 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process exit
     childProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+      lease?.release();
       const exitMsg = `Process exited: code=${code} signal=${signal}`;
       logger.info(`[MCP:${this.config.name}] ${exitMsg}`);
       // M33.1: Log exit to error buffer
@@ -265,6 +306,8 @@ export class StdioMcpConnection extends EventEmitter {
 
     // Handle process errors
     childProcess.on('error', (err: Error) => {
+      // a spawn failure emits 'error' without 'exit'; a live process keeps its uid until it exits
+      if (childProcess.pid === undefined) lease?.release();
       logger.error({ err }, `[MCP:${this.config.name}] Process error:`);
       // M33.1: Log error to buffer
       this.errorBuffer.push(

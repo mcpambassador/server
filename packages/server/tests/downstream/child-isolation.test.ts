@@ -159,7 +159,7 @@ describe('spawn wrapping', () => {
       '--',
       '/bin/sh',
       '-c',
-      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
+      'chmod 0700 "$HOME" 2>/dev/null; mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
       '/tmp/mcp-home',
       'npx',
       '-y',

@@ -154,12 +154,18 @@ ENV UV_PYTHON_DOWNLOADS=never \
     UV_PYTHON=/usr/bin/python3 \
     UV_CACHE_DIR=/tmp/.uv-cache
 
-# TD-052: unprivileged uid for downstream MCP child processes. It owns nothing but its own HOME
-# (/tmp/mcp-home, created by the entrypoint) and cannot read /data. See docker/entrypoint.sh.
-RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent -s /bin/false mcpchild
-ENV MCP_AMBASSADOR_CHILD_UID=1001 \
-    MCP_AMBASSADOR_CHILD_GID=1001 \
-    MCP_AMBASSADOR_CHILD_HOME=/tmp/mcp-home
+# TD-052/TD-059: unprivileged uids for downstream MCP child processes. Every downstream instance (shared
+# MCP, or user x MCP) gets its OWN uid from MCP_AMBASSADOR_CHILD_UID_RANGE and its own 0700 home under
+# /tmp/mcp-homes/<uid> (all created by docker/entrypoint.sh); none can read /data or another child's
+# environ/home. passwd/group entries are built for the default range so tools that look up the user work
+# on the read-only rootfs (a runtime range outside it only logs a warning). uid 1001 (mcpchild) is kept
+# for the legacy single-uid mode (MCP_AMBASSADOR_CHILD_UID=1001, home /tmp/mcp-home).
+RUN groupadd -g 1001 mcpchild && useradd -u 1001 -g mcpchild -M -d /nonexistent -s /bin/false mcpchild \
+ && for u in $(seq 20000 20999); do \
+      echo "mcpchild$u:x:$u:$u:mcp child:/nonexistent:/bin/false" >> /etc/passwd; \
+      echo "mcpchild$u:x:$u:" >> /etc/group; \
+    done
+ENV MCP_AMBASSADOR_CHILD_UID_RANGE=20000-20999
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 

@@ -24,6 +24,80 @@ export interface ChildIsolation {
   uid: number;
   gid: number;
   home: string;
+  /** TD-059: root-owned parent of a per-uid home (range mode only); verified before every spawn. */
+  parent?: string;
+}
+
+export const DEFAULT_CHILD_HOMES_ROOT = '/tmp/mcp-homes';
+export const DEFAULT_CHILD_UID_MAP = '/data/child-uids.json';
+export const MAX_CHILD_UID_RANGE_SIZE = 10000;
+
+/** TD-059: how child uids are chosen. */
+export type ChildIsolationConfig =
+  | { kind: 'legacy'; iso: ChildIsolation }
+  | {
+      kind: 'range';
+      min: number;
+      max: number;
+      homesRoot: string;
+      mapPath: string;
+    };
+
+const HOME_COMPONENT_RE = /^\/tmp\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/;
+
+/**
+ * TD-059: read MCP_AMBASSADOR_CHILD_UID_RANGE ("min-max"). Every downstream instance (shared MCP, or
+ * user x MCP) then gets its OWN uid from the range and its own 0700 home under MCP_AMBASSADOR_CHILD_HOMES_ROOT
+ * (default /tmp/mcp-homes, created root-owned 0711 with every home pre-created by docker/entrypoint.sh).
+ * Falls back to the single shared uid (TD-052, MCP_AMBASSADOR_CHILD_UID) when the range is unset.
+ */
+export function resolveChildIsolationConfig(
+  source: NodeJS.ProcessEnv = process.env,
+  serverUid: number | undefined = process.getuid?.(),
+  serverGid: number | undefined = process.getgid?.()
+): ChildIsolationConfig | null {
+  const rawRange = source['MCP_AMBASSADOR_CHILD_UID_RANGE']?.trim();
+  if (!rawRange) {
+    const iso = resolveChildIsolation(source, serverUid, serverGid);
+    return iso ? { kind: 'legacy', iso } : null;
+  }
+  if (source['MCP_AMBASSADOR_CHILD_UID']?.trim()) {
+    throw new Error(
+      'MCP_AMBASSADOR_CHILD_UID and MCP_AMBASSADOR_CHILD_UID_RANGE are both set; use only the range'
+    );
+  }
+  const m = /^(\d+)-(\d+)$/.exec(rawRange);
+  if (!m) {
+    throw new Error(
+      `MCP_AMBASSADOR_CHILD_UID_RANGE must look like "20000-20999", got "${rawRange}"`
+    );
+  }
+  const min = parseId('MCP_AMBASSADOR_CHILD_UID_RANGE (min)', m[1]!);
+  const max = parseId('MCP_AMBASSADOR_CHILD_UID_RANGE (max)', m[2]!);
+  if (max < min || max - min + 1 > MAX_CHILD_UID_RANGE_SIZE) {
+    throw new Error(
+      `MCP_AMBASSADOR_CHILD_UID_RANGE must have min <= max and at most ${MAX_CHILD_UID_RANGE_SIZE} ids, got "${rawRange}"`
+    );
+  }
+  for (const [name, id] of [
+    ['uid', serverUid],
+    ['gid', serverGid],
+  ] as const) {
+    if (id !== undefined && id >= min && id <= max) {
+      throw new Error(`MCP_AMBASSADOR_CHILD_UID_RANGE contains the server ${name} (${id})`);
+    }
+  }
+  const homesRoot = source['MCP_AMBASSADOR_CHILD_HOMES_ROOT']?.trim() || DEFAULT_CHILD_HOMES_ROOT;
+  if (!HOME_COMPONENT_RE.test(homesRoot)) {
+    throw new Error(
+      `MCP_AMBASSADOR_CHILD_HOMES_ROOT must be a single path component under /tmp, got "${homesRoot}"`
+    );
+  }
+  const mapPath = source['MCP_AMBASSADOR_CHILD_UID_MAP']?.trim() || DEFAULT_CHILD_UID_MAP;
+  if (!mapPath.startsWith('/')) {
+    throw new Error('MCP_AMBASSADOR_CHILD_UID_MAP must be an absolute path');
+  }
+  return { kind: 'range', min, max, homesRoot, mapPath };
 }
 
 function parseId(name: string, raw: string): number {
@@ -86,6 +160,7 @@ export function checkIsolationAvailable(
     capEff?: bigint | null;
     setprivOk?: boolean;
     homeOk?: boolean;
+    parentOk?: boolean;
   } = {}
 ): string | null {
   const capEff =
@@ -122,6 +197,23 @@ export function checkIsolationAvailable(
       }
     })();
 
+  const parentOk =
+    iso.parent === undefined
+      ? true
+      : (deps.parentOk ??
+        (() => {
+          try {
+            // the parent must be a real root-owned dir nobody else can write: a child can then neither
+            // create, rename nor replace any home entry
+            const st = lstatSync(iso.parent);
+            return (
+              st.isDirectory() && !st.isSymbolicLink() && st.uid === 0 && (st.mode & 0o022) === 0
+            );
+          } catch {
+            return false;
+          }
+        })());
+
   const hint =
     'Run the container via docker/entrypoint.sh with cap_add SETUID, SETGID, KILL, CHOWN, SETPCAP, or unset MCP_AMBASSADOR_CHILD_UID to disable child isolation (not recommended).';
   if (!setprivOk) {
@@ -137,6 +229,9 @@ export function checkIsolationAvailable(
   }
   if (!homeOk) {
     return `child isolation: child home ${iso.home} must be a real directory (not a symlink) owned by uid ${iso.uid} (created by docker/entrypoint.sh). ${hint}`;
+  }
+  if (!parentOk) {
+    return `child isolation: ${iso.parent} must be a real directory owned by root and not writable by others (created by docker/entrypoint.sh). ${hint}`;
   }
   return null;
 }
@@ -167,7 +262,7 @@ export function wrapCommandForIsolation(
       '--',
       '/bin/sh',
       '-c',
-      'mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
+      'chmod 0700 "$HOME" 2>/dev/null; mkdir -p -m 0700 "$TMPDIR" 2>/dev/null; cd -- "$0" && exec "$@"',
       cwd,
       cmd,
       ...args,
