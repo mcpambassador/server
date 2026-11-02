@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-01
+
+Highlights: downstream MCP children are isolated from `/data` and from each other (TD-052, TD-059), the image ships `uv`/`uvx` and Python for uvx-based registry entries (#156), and Tool Review gains bulk approve (FB-033). **This release changes the container's run requirements; read BREAKING before upgrading.** `protocol` and `contracts` wire types are unchanged apart from the additive bulk-approve route.
+
 ### BREAKING
+
+- Compose requirements (TD-052/TD-059, #158/#159). `docker-compose.yml` in this repo is the reference; a deployment's compose must match it:
+  - `user: "0:0"` (the entrypoint needs root to prepare per-instance homes, then drops to uid 1000)
+  - `cap_drop: [ALL]` and `cap_add: [SETUID, SETGID, KILL, CHOWN, SETPCAP]`
+  - `security_opt: [no-new-privileges:true]`
+  - `read_only: true` (with the `/data` and `/tmp` bind mounts)
+  - `deploy.resources.limits.pids` (the reference uses 4096), the container-wide process/thread cap that sits above the per-instance cap below
+  - Without the capabilities, MCP children fail closed (SETUID/SETGID/KILL missing) or the container refuses to start (SETPCAP missing); see the TD-052 entry below.
+- New environment variables (TD-059):
+  - `MCP_AMBASSADOR_CHILD_UID_RANGE` (image default `20000-20999`, 10000 ids at most, must not contain the server uid/gid). Every downstream instance (`shared:<mcp>`, `user:<id>:<mcp>`, `discovery:<mcp>`) gets its own uid/gid and 0700 home under `/tmp/mcp-homes/<uid>`. Assignments persist in `/data/child-uids.json` (0600). When the range is full, the least recently used idle uid is reclaimed and its home wiped, so widen the range if the startup log reports 80%+ assigned. The legacy single `MCP_AMBASSADOR_CHILD_UID` still works when the range is unset; setting both is an error.
+  - `MCP_AMBASSADOR_CHILD_NPROC` (default `256`, `0` disables): `RLIMIT_NPROC` per instance. **It counts threads, not only processes**, of every process running under that instance's uid. Browser MCPs (Playwright, Puppeteer/Chromium) and some runtimes with large thread pools can exceed 256: raise it (for example `1024`) if such an MCP fails with `EAGAIN`/"Resource temporarily unavailable" or Chromium crashes at launch. Keep it well under the container `pids` limit. Requires `prlimit` (util-linux, in the image).
 
 - TD-052: downstream stdio MCP children now run as uid 1001 (not the server's uid 1000) and cannot read `/data`. The container starts as root only to run `docker/entrypoint.sh`, then execs the server as uid 1000 holding CAP_SETUID/SETGID/KILL. Deployments must set `user: "0:0"`, `cap_drop: [ALL]`, `cap_add: [SETUID, SETGID, KILL, CHOWN, SETPCAP]` (see docker-compose.yml) to keep the capability set minimal. A compose without these still works (the image runs the entrypoint as root with Docker's default caps, which include SETPCAP, so the bounding set is still reduced to SETUID/SETGID/KILL); if SETUID/SETGID/KILL are missing entirely, MCP children refuse to start (fail closed), and if SETPCAP is missing the container refuses to start. `MCP_AMBASSADOR_CHILD_UID` unset restores the old behavior with no capabilities. Child HOME/npm/uv caches moved to `/tmp/mcp-home`; the old `/tmp/.npm-cache` is no longer used and can be deleted. After a rollback, empty the `/tmp` cache volume again before rolling forward.
 
@@ -16,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tool Review bulk approve (FB-033): `POST /v1/admin/mcps/:mcpId/tool-pins/approve` takes `{items: [{pin_id, expected_hash}], apply_to?, reason?, include_flagged?}` (1-200 items) and approves each pin only if its pending hash still equals `expected_hash`; mismatches and every other per-pin refusal are skipped and reported (`skipped[].reason`: `stale`, `flagged`, `blocked`, `not_pending`, `not_found`, `wrong_mcp`, `duplicate`, `baseline_conflict`, `corrupt`, `previously_revoked`) instead of failing the request. Pins carrying any flag other than the informational length flags are skipped unless `include_flagged` is true; never-approvable flags stay blocked, and previously revoked hashes are never force-approved in bulk. Each approval is audited as `tool_pin_approved` with a shared `bulk_id`, plus one `tool_pin_bulk_approved` summary event. Admin auth only. The SPA adds "Approve all (N)" per MCP group, row checkboxes with "Approve selected", and a confirmation dialog with the counts; flagged tools are excluded by default and need an explicit checkbox plus a second confirmation. Additive to `contracts` (new route, schemas and audit action); the client does not use it.
+- The runtime image ships `uv`/`uvx` (pinned by digest) and system `python3`, so uvx-based registry entries (for example Alpaca) can start (#156). `UV_PYTHON_DOWNLOADS=never`; caches live under `/tmp`.
 - `scripts/group-grant-loss-report.mjs`: read-only pre-upgrade report of active subscriptions that will stop being served once grants are checked at call time (run it on a copy of the DB).
 
 - `scripts/group-grant-loss-report.mjs`: read-only pre-upgrade report of active subscriptions that will stop being served once grants are checked at call time (run it on a copy of the DB).
@@ -25,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A uid reclaimed from an idle instance stays marked `preparing` until the victim's key is removed and the new lease is taken, instead of only until its home is wiped (TD-064). Previously only microtask ordering kept the fast path from leasing it in between.
 - A downstream MCP response over the message limit (1MB) no longer hangs the call for 30 seconds, and a response over 10MB no longer kills the MCP process (TD-045). The oversize line is discarded as it streams (memory stays bounded) and only the request it answers fails, quickly, with "Response too large"; an unterminated flood (64MB without a newline) fails the in-flight requests once and the process is left alone. Pending requests are also failed immediately when the process exits, and a write to a dead child (EPIPE on stdin) no longer raises an unhandled error that could crash the server. A stdio MCP process that exits unexpectedly (shared MCPs and per-user instances) is respawned with exponential backoff (1s doubling to 30s) and keeps retrying at that cap; an MCP stopped, removed, updated, restarted or terminated on purpose is not respawned, and a respawn that is superseded mid-start stops the process it started. Exits and respawns are audited (`mcp_process_exited`, `mcp_respawned`, `mcp_respawn_failed`, `mcp_respawn_failing` after 5 failed attempts), and the shared-MCP health check reports `degraded` while respawning and `unhealthy` once past 5 attempts.
 
 ### Security
