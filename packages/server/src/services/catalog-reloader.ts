@@ -18,6 +18,7 @@ export class CatalogReloadConflictError extends Error {
   }
 }
 
+import { forgetChildUidKeys } from '../downstream/child-uid-allocator.js';
 import { logger, publicErrorMessage } from '@mcpambassador/core';
 import type { DatabaseClient, McpCatalogEntry } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/manager.js';
@@ -367,6 +368,7 @@ export class CatalogReloader {
     const removePromises = toRemove.map(async name => {
       try {
         await this.mcpManager.removeMcp(name);
+        forgetChildUidKeys(key => key === `shared:${name}` || key === `discovery:${name}`);
         removed.push(name);
       } catch (err) {
         const errorMsg = publicErrorMessage(err);

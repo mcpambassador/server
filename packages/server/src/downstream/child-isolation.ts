@@ -31,6 +31,7 @@ export interface ChildIsolation {
 export const DEFAULT_CHILD_HOMES_ROOT = '/tmp/mcp-homes';
 export const DEFAULT_CHILD_UID_MAP = '/data/child-uids.json';
 export const MAX_CHILD_UID_RANGE_SIZE = 10000;
+export const MIN_CHILD_UID = 10000;
 
 /** TD-059: how child uids are chosen. */
 export type ChildIsolationConfig =
@@ -74,6 +75,11 @@ export function resolveChildIsolationConfig(
   }
   const min = parseId('MCP_AMBASSADOR_CHILD_UID_RANGE (min)', m[1]!);
   const max = parseId('MCP_AMBASSADOR_CHILD_UID_RANGE (max)', m[2]!);
+  if (min < MIN_CHILD_UID) {
+    throw new Error(
+      `MCP_AMBASSADOR_CHILD_UID_RANGE must start at ${MIN_CHILD_UID} or higher (system and login uids are off limits), got "${rawRange}"`
+    );
+  }
   if (max < min || max - min + 1 > MAX_CHILD_UID_RANGE_SIZE) {
     throw new Error(
       `MCP_AMBASSADOR_CHILD_UID_RANGE must have min <= max and at most ${MAX_CHILD_UID_RANGE_SIZE} ids, got "${rawRange}"`

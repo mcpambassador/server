@@ -43,6 +43,7 @@ vi.mock('../../src/downstream/child-uid-allocator.js', async orig => {
         wipeHome: (uid: number) => {
           wipes.push(uid);
         },
+        reapUid: () => 0,
       });
       return (globalThis as any).__td059Alloc;
     },

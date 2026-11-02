@@ -49,7 +49,7 @@ if [ -n "$CHILD_RANGE" ]; then
   RANGE_MIN="${CHILD_RANGE%-*}"
   RANGE_MAX="${CHILD_RANGE#*-}"
   case "$RANGE_MIN$RANGE_MAX" in *[!0-9]*) die "MCP_AMBASSADOR_CHILD_UID_RANGE must be numeric" ;; esac
-  [ "$RANGE_MIN" -ge 1 ] && [ "$RANGE_MAX" -ge "$RANGE_MIN" ] || die "MCP_AMBASSADOR_CHILD_UID_RANGE must have 1 <= min <= max"
+  [ "$RANGE_MIN" -ge 10000 ] && [ "$RANGE_MAX" -ge "$RANGE_MIN" ] || die "MCP_AMBASSADOR_CHILD_UID_RANGE must have 10000 <= min <= max"
   [ $((RANGE_MAX - RANGE_MIN + 1)) -le 10000 ] || die "MCP_AMBASSADOR_CHILD_UID_RANGE may hold at most 10000 ids"
   for id in "$SERVER_UID" "$SERVER_GID"; do
     if [ "$id" -ge "$RANGE_MIN" ] && [ "$id" -le "$RANGE_MAX" ]; then die "MCP_AMBASSADOR_CHILD_UID_RANGE contains the server uid/gid $id"; fi

@@ -8,16 +8,31 @@
  * Safety rules:
  * - A freshly assigned uid always has its home wiped first, as that uid (no root needed), so data left by an
  *   earlier owner of the uid (reclaim, or a lost map file) can never reach a different instance.
- * - A uid with a live process is never reassigned. When the range is full, the least recently used key
- *   without a live process is reclaimed; if none exists the spawn is refused.
+ * - A uid with a live lease is never reassigned. When the range is full, the least recently used key
+ *   without a live lease is reclaimed; if none can be prepared the spawn is refused.
+ * - Before a uid is (re)assigned, every process still running under it (a double-forked or setsid
+ *   descendant of the previous owner outlives its direct child) is SIGKILLed; if any survives the
+ *   assignment is refused for that uid (next candidate), so a new owner never shares a uid with leftovers.
+ *   The same sweep runs when the last lease on a uid is released.
  * - A corrupt or unreadable map fails closed (children are not started); it is never silently recreated.
  * - Logs carry a hash of the key, never the user id.
  */
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  fsyncSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeSync,
+} from 'node:fs';
 import { logger } from '@mcpambassador/core';
-import { SETPRIV_PATH } from './child-isolation.js';
+import { SETPRIV_PATH, resolveChildIsolationConfig } from './child-isolation.js';
+
+/** Cleaning attempts per assignment (each may kill processes and wipe a home), so refusal stays fast. */
+const MAX_PREPARE_ATTEMPTS = 8;
 
 export interface UidRange {
   min: number;
@@ -33,6 +48,8 @@ export interface AllocatorDeps {
   writeMap: (path: string, data: string) => void;
   /** Remove everything inside `home`, running as `uid`. Throws on failure. */
   wipeHome: (uid: number, home: string) => void;
+  /** SIGKILL every process running under `uid`; returns how many (non-zombie) processes remain. */
+  reapUid: (uid: number) => number;
   now: () => number;
 }
 
@@ -69,6 +86,47 @@ export function keyHash(key: string): string {
   return createHash('sha256').update(key).digest('hex').slice(0, 12);
 }
 
+/** Pids of non-zombie processes with any of real/effective/saved/fs uid == `uid` (reads /proc). */
+export function procsOfUid(uid: number): number[] {
+  const pids: number[] = [];
+  let names: string[];
+  try {
+    names = readdirSync('/proc');
+  } catch {
+    throw new Error('cannot read /proc to check for leftover child processes');
+  }
+  for (const n of names) {
+    if (!/^\d+$/.test(n)) continue;
+    let status: string;
+    try {
+      status = readFileSync(`/proc/${n}/status`, 'utf8');
+    } catch {
+      continue; // exited meanwhile
+    }
+    if (/^State:\s+[ZX]/m.test(status)) continue;
+    const m = /^Uid:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/m.exec(status);
+    if (m && [m[1], m[2], m[3], m[4]].some(v => Number(v) === uid)) pids.push(Number(n));
+  }
+  return pids;
+}
+
+/** SIGKILL every process of `uid` (needs CAP_KILL), repeating while new ones appear. Returns survivors. */
+export function reapProcessesOfUid(uid: number): number {
+  for (let round = 0; round < 20; round++) {
+    const pids = procsOfUid(uid);
+    if (pids.length === 0) return 0;
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // already gone, or not killable: the next scan decides
+      }
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+  }
+  return procsOfUid(uid).length;
+}
+
 const defaultDeps: AllocatorDeps = {
   readMap: path => {
     try {
@@ -80,11 +138,20 @@ const defaultDeps: AllocatorDeps = {
   },
   writeMap: (path, data) => {
     const tmp = `${path}.tmp-${process.pid}`;
-    writeFileSync(tmp, data, { mode: 0o600 });
+    const fd = openSync(tmp, 'w', 0o600);
+    try {
+      writeSync(fd, data);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(tmp, path);
   },
   wipeHome: (uid, home) => {
-    // find -delete never follows symlinks. Runs as the child uid with no capabilities.
+    // Runs as the child uid with no capabilities. A previous owner may have left 0500 subdirs or a 000 home
+    // (find cannot enter those), so the owner first restores u+rwx, then deletes. find never follows symlinks.
+    const script =
+      'h="$1"; chmod 0700 "$h" && find "$h" -mindepth 1 -type d -exec chmod u+rwx {} + ; find "$h" -mindepth 1 -delete';
     const r = spawnSync(
       SETPRIV_PATH,
       [
@@ -94,11 +161,11 @@ const defaultDeps: AllocatorDeps = {
         '--inh-caps=-all',
         '--ambient-caps=-all',
         '--',
-        '/usr/bin/find',
+        '/bin/sh',
+        '-c',
+        script,
+        'wipe',
         home,
-        '-mindepth',
-        '1',
-        '-delete',
       ],
       { timeout: 60_000, stdio: 'ignore', env: { PATH: '/usr/bin:/bin' } }
     );
@@ -106,6 +173,7 @@ const defaultDeps: AllocatorDeps = {
       throw new Error(`wipe of ${home} as uid ${uid} failed (status ${String(r.status)})`);
     }
   },
+  reapUid: uid => reapProcessesOfUid(uid),
   now: () => Date.now(),
 };
 
@@ -131,21 +199,14 @@ export class ChildUidAllocator {
     const entries = this.load();
     let entry = entries.get(key);
     if (!entry) {
-      const uid = this.pickUid(entries, key);
-      try {
-        this.deps.wipeHome(uid, this.homeFor(uid));
-      } catch (err) {
-        this.entries = null; // a reclaimed victim was dropped from memory only; reread the file
-        throw new ChildUidError(
-          `cannot prepare home for a new instance (uid ${uid}): ${errText(err)}`
-        );
-      }
+      const uid = this.prepareFreshUid(entries, key);
       entry = { uid, lastUsed: this.deps.now() };
       entries.set(key, entry);
       try {
         this.persist(entries);
       } catch (err) {
         entries.delete(key);
+        this.entries = null; // a reclaimed victim was dropped from memory only; reread the file
         throw new ChildUidError(`cannot persist ${this.range.mapPath}: ${errText(err)}`);
       }
       logger.info(`[child-uid] assigned uid ${uid} to instance ${keyHash(key)}`);
@@ -168,37 +229,95 @@ export class ChildUidAllocator {
         if (released) return;
         released = true;
         const n = (this.live.get(uid) ?? 1) - 1;
-        if (n <= 0) this.live.delete(uid);
-        else this.live.set(uid, n);
+        if (n > 0) {
+          this.live.set(uid, n);
+          return;
+        }
+        this.live.delete(uid);
+        try {
+          // the direct child is gone; kill anything it detached before the uid can be handed to someone else
+          const left = this.deps.reapUid(uid);
+          if (left > 0)
+            logger.warn(`[child-uid] ${left} process(es) of uid ${uid} survived SIGKILL`);
+        } catch (err) {
+          logger.warn(`[child-uid] leftover sweep of uid ${uid} failed: ${errText(err)}`);
+        }
       },
     };
   }
 
-  private pickUid(entries: Map<string, Entry>, key: string): number {
+  /**
+   * Choose a uid for a key without one and make it clean: no leftover processes, empty home. Candidates are the
+   * free uids (lowest first), then idle keys' uids (least recently used first, reclaimed). A candidate that
+   * cannot be cleaned is skipped, so one stuck uid never locks the range.
+   */
+  private prepareFreshUid(entries: Map<string, Entry>, key: string): number {
     const used = new Set<number>();
     for (const e of entries.values()) used.add(e.uid);
-    for (let uid = this.range.min; uid <= this.range.max; uid++) {
-      if (!used.has(uid)) return uid;
+    const idle = [...entries.entries()]
+      .filter(([, e]) => (this.live.get(e.uid) ?? 0) === 0)
+      .sort((x, y) => x[1].lastUsed - y[1].lastUsed);
+    let tried = 0;
+    let lastWhy = '';
+    const attempt = (uid: number): boolean => {
+      tried++;
+      try {
+        const left = this.deps.reapUid(uid);
+        if (left > 0) throw new Error(`${left} process(es) still running under it`);
+        this.deps.wipeHome(uid, this.homeFor(uid));
+        return true;
+      } catch (err) {
+        lastWhy = errText(err);
+        logger.warn(`[child-uid] uid ${uid} not usable for ${keyHash(key)}: ${lastWhy}`);
+        return false;
+      }
+    };
+    for (let uid = this.range.min; uid <= this.range.max && tried < MAX_PREPARE_ATTEMPTS; uid++) {
+      if (!used.has(uid) && attempt(uid)) return uid;
     }
-    // Range full: reclaim the least recently used key whose uid has no live process.
-    let victim: [string, Entry] | null = null;
-    for (const [k, e] of entries) {
-      if ((this.live.get(e.uid) ?? 0) > 0) continue;
-      if (!victim || e.lastUsed < victim[1].lastUsed) victim = [k, e];
+    for (const [k, e] of idle) {
+      if (tried >= MAX_PREPARE_ATTEMPTS) break;
+      if (attempt(e.uid)) {
+        entries.delete(k);
+        logger.warn(
+          `[child-uid] range exhausted: reclaimed uid ${e.uid} from instance ${keyHash(k)} for ${keyHash(key)} (home wiped)`
+        );
+        return e.uid;
+      }
     }
-    if (!victim) {
-      logger.warn(
-        `[child-uid] range ${this.range.min}-${this.range.max} exhausted, no idle uid to reclaim (instance ${keyHash(key)} refused)`
-      );
-      throw new ChildUidError(
-        `child uid range ${this.range.min}-${this.range.max} is exhausted and every uid has a live process`
-      );
-    }
-    entries.delete(victim[0]);
     logger.warn(
-      `[child-uid] range exhausted: reclaiming uid ${victim[1].uid} from instance ${keyHash(victim[0])} for ${keyHash(key)} (home will be wiped)`
+      tried === 0
+        ? `[child-uid] range ${this.range.min}-${this.range.max} exhausted, no idle uid to reclaim (instance ${keyHash(key)} refused)`
+        : `[child-uid] no usable uid in ${this.range.min}-${this.range.max} for instance ${keyHash(key)} (${tried} tried)`
     );
-    return victim[1].uid;
+    throw new ChildUidError(
+      tried === 0
+        ? `child uid range ${this.range.min}-${this.range.max} is exhausted and every uid has a live process`
+        : `no child uid could be prepared in ${this.range.min}-${this.range.max}${lastWhy ? ` (last: ${lastWhy})` : ''}`
+    );
+  }
+
+  /**
+   * Forget the uid assignment of keys (user deleted, MCP uninstalled) so the uid can be reused. Keys with a live
+   * lease are kept. The home is wiped on the next assignment. Returns how many keys were freed.
+   */
+  releaseKeys(match: (key: string) => boolean): number {
+    const entries = this.load();
+    let n = 0;
+    for (const [k, e] of [...entries]) {
+      if (!match(k) || (this.live.get(e.uid) ?? 0) > 0) continue;
+      entries.delete(k);
+      n++;
+    }
+    if (n > 0) {
+      try {
+        this.persist(entries);
+      } catch (err) {
+        this.entries = null;
+        throw new ChildUidError(`cannot persist ${this.range.mapPath}: ${errText(err)}`);
+      }
+    }
+    return n;
   }
 
   private load(): Map<string, Entry> {
@@ -271,6 +390,21 @@ export function getChildUidAllocator(range: UidRange): ChildUidAllocator {
     singleton = { sig, alloc: new ChildUidAllocator(range) };
   }
   return singleton.alloc;
+}
+
+/**
+ * Free the uid assignments of keys that will not come back (user deactivated, MCP removed from the catalog).
+ * No-op unless per-instance uids are configured; never throws (a failure only delays reuse of the uid).
+ */
+export function forgetChildUidKeys(match: (key: string) => boolean): void {
+  try {
+    const cfg = resolveChildIsolationConfig();
+    if (cfg?.kind !== 'range') return;
+    const n = getChildUidAllocator(cfg).releaseKeys(match);
+    if (n > 0) logger.info(`[child-uid] released ${n} uid assignment(s)`);
+  } catch (err) {
+    logger.warn(`[child-uid] could not release uid assignments: ${errText(err)}`);
+  }
 }
 
 /** Test hook. */
