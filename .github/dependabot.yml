@@ -24,7 +24,6 @@ updates:
       - "dependencies"
       - "automated"
 
-
   # GitHub Actions: one monthly grouped PR
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -37,6 +36,9 @@ updates:
       actions:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
     labels:
       - "dependencies"
       - "area: ci"
