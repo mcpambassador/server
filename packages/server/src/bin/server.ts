@@ -289,6 +289,7 @@ async function main() {
     }
   } catch (err) {
     // bad MCP_AMBASSADOR_CHILD_* settings: one clear line instead of a stack trace
+    // td036-allow: config validation error text, startup log only (no client or DB error involved)
     logger.error(
       `[Server] invalid child isolation configuration: ${err instanceof Error ? err.message : String(err)}`
     );
