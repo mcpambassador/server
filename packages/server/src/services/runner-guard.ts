@@ -230,6 +230,22 @@ export function checkRunnerCommand(command: readonly unknown[]): string | null {
   return scan(baseOf(first), command, 1);
 }
 
+/** Non-registry sources: VCS/URL schemes, standalone or as the `name@<source>` / `name @ <source>` form. */
+const SOURCE_SCHEME_RE =
+  /(^|@|\s)(git\+|git:|git@|github:|gitlab:|bitbucket:|gist:|file:|ssh:|link:|http:|https:|ftp:|data:|blob:)/i;
+const ARCHIVE_RE = /\.(tgz|tar|tar\.gz|zip|whl)$/i;
+/** npm treats `owner/repo` (no @scope, not a path) as a GitHub shorthand. */
+const GITHUB_SHORTHAND_RE = /^[A-Za-z0-9][\w.-]*\/[\w.-]+(#.*)?$/;
+
+/** `tok` is the package/script positional of a runner. Returns a generic reason, or null. */
+function checkPackageSpec(family: Family, tok: string): string | null {
+  const bad = (): string => 'runner package source not permitted (git, URL or archive spec)';
+  if (tok.includes('://') || SOURCE_SCHEME_RE.test(tok)) return bad();
+  if ((family === 'npx' || family === 'uv') && ARCHIVE_RE.test(tok)) return bad();
+  if (family === 'npx' && GITHUB_SHORTHAND_RE.test(tok)) return bad();
+  return null;
+}
+
 function scan(base: string, command: readonly unknown[], start: number): string | null {
   const family = familyOf(base);
   const rules = RULES[family];
@@ -265,7 +281,9 @@ function scan(base: string, command: readonly unknown[], start: number): string 
       }
       // uv / deno / bun: skip known subcommand words, the next positional is the tool or script.
       if (subcommands.includes(low)) continue;
-      return null; // package / script: the rest belongs to the launched program
+      // package / script: the rest belongs to the launched program, but the spec itself must come
+      // from the package registry, not an arbitrary git/URL/tarball source (TD-042).
+      return checkPackageSpec(family, tok);
     }
 
     const head = tok.split(/\s/)[0] ?? tok;
