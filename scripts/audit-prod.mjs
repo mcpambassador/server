@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 export const TRACKED = {};
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
+// TD-069: prod is clean at moderate and above, so moderate+ advisories now block too.
+const BLOCKING_SEVERITIES = ['moderate', 'high', 'critical'];
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** @returns {{code: number, lines: string[]}} */
@@ -37,10 +39,13 @@ export function evaluate({ stdout, exitCode, ignored, tracked = TRACKED, now = n
   if (exitCode !== 0 && advisories.length === 0)
     return unusable(`pnpm exited ${exitCode} with no advisories`);
 
-  const counted = advisories.filter(a => ['high', 'critical'].includes(a?.severity)).length;
-  const reported = (Number(vulns.high) || 0) + (Number(vulns.critical) || 0);
+  const counted = advisories.filter(a => BLOCKING_SEVERITIES.includes(a?.severity)).length;
+  const reported =
+    (Number(vulns.moderate) || 0) + (Number(vulns.high) || 0) + (Number(vulns.critical) || 0);
   if (counted !== reported)
-    return unusable(`metadata reports ${reported} high+critical but ${counted} advisories parsed`);
+    return unusable(
+      `metadata reports ${reported} moderate+high+critical but ${counted} advisories parsed`
+    );
 
   const blocking = [];
   for (const a of advisories) {
@@ -50,7 +55,7 @@ export function evaluate({ stdout, exitCode, ignored, tracked = TRACKED, now = n
       blocking.push(`unknown severity: ${label}`);
       continue;
     }
-    if (!['high', 'critical'].includes(a.severity)) continue;
+    if (!BLOCKING_SEVERITIES.includes(a.severity)) continue;
     if (!ignored.has(id)) {
       blocking.push(label);
       continue;
@@ -63,7 +68,7 @@ export function evaluate({ stdout, exitCode, ignored, tracked = TRACKED, now = n
   }
   for (const b of blocking) lines.push(`BLOCKING ${b}`);
   if (blocking.length) return { code: 1, lines };
-  lines.push('prod audit clean (high/critical)');
+  lines.push('prod audit clean (moderate/high/critical)');
   return { code: 0, lines };
 }
 
