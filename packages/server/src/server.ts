@@ -859,6 +859,26 @@ export class AmbassadorServer {
           .status(401)
           .send(wrapError(ErrorCodes.UNAUTHORIZED, 'Invalid or missing admin key'));
       }
+      // TD-067: on the session-protected admin API an unauthenticated request is a 401 BEFORE the
+      // CSRF check (which would otherwise fail 403/500 for lack of a `_csrf` cookie). Strictly
+      // read-only: reads request.session.userId only (no touch, no write, no audit). A session that
+      // is present but not admin still reaches CSRF, then the route preHandler's 401. Other routes (login, setup) stay CSRF-first because
+      // they are legitimately session-less. The route preHandler remains authoritative.
+      if (
+        request.url.startsWith('/v1/admin/') &&
+        // approvals has its own guard with a deliberate 403 contract (no existence oracle)
+        !request.url.startsWith('/v1/admin/approvals') &&
+        !request.session?.userId
+      ) {
+        return reply
+          .status(401)
+          .send(
+            wrapError(
+              ErrorCodes.UNAUTHORIZED,
+              'Admin authentication required (API key or admin session)'
+            )
+          );
+      }
       // Delegate to the csrfProtection handler registered by the plugin.
       // csrfProtection is a callback-style middleware (req, reply, next) —
       // wrap it in a Promise so the async hook awaits the outcome correctly.

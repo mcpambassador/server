@@ -138,8 +138,26 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     // Log full error server-side
     logger.error({ err: error }, '[admin-api] Error:');
 
+    // TD-067: errors thrown by hooks/parsers (CSRF plugin, content-type parsers) carry their own
+    // status while reply.statusCode is still 200. Honour a 4xx error status, never a 5xx one.
+    const errCode = (error as { code?: unknown }).code;
+    const errStatus = (error as { statusCode?: unknown }).statusCode;
+    const isCsrf = typeof errCode === 'string' && errCode.startsWith('FST_CSRF_');
+    const isBodyParse = typeof errCode === 'string' && errCode.startsWith('FST_ERR_CTP_');
+    if (isCsrf) {
+      return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, 'Access denied'));
+    }
+    if (isBodyParse) {
+      // Fixed text: parser messages can quote a fragment of the request body.
+      const status =
+        typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500 ? errStatus : 400;
+      return reply.status(status).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid request body'));
+    }
+
     // Return sanitized error to client
-    const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
+    const fromError =
+      typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500 ? errStatus : undefined;
+    const statusCode = fromError ?? (reply.statusCode >= 400 ? reply.statusCode : 500);
 
     if (statusCode === 401) {
       return reply
@@ -175,6 +193,11 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
             error instanceof Error ? publicErrorMessage(error) : 'Invalid request'
           )
         );
+    }
+
+    // Any other 4xx (e.g. 413, 415): keep the status with a fixed message.
+    if (statusCode >= 400 && statusCode < 500) {
+      return reply.status(statusCode).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid request'));
     }
 
     // Generic 500 response (no stack traces, SQL errors, or file paths)
