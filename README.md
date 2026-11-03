@@ -93,6 +93,17 @@ Set in the `agent_endpoint` block of the server config (the endpoint is off by d
 | `max_one_shot_grant_ttl_seconds` | `86400` (24h) | Cap for one-shot grants (no refresh token; the bearer lives as long as the grant). Max 7 days. |
 | `refresh_token_idle_ttl_seconds` | `2592000` (30 days) | A refresh token unused this long expires, so an abandoned long grant dies on its own. |
 
+Lowering `max_grant_ttl_seconds` or `max_dcr_grant_ttl_seconds` (the cap for dynamically registered clients, added in #200) only limits grants created afterwards. Existing grants keep their original expiry; to end one sooner, revoke it.
+
+### Session heartbeat
+
+Set in the `session` block of the server config.
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `heartbeat_min_interval_seconds` | `10` (1-60) | Minimum gap between heartbeats from one session; faster ones get `429`. Must be less than `heartbeat_expected_interval_seconds`. Keep it below the shortest `heartbeat_interval` any client uses (the client allows 15-300 s), otherwise that client gets `429` noise. |
+| `heartbeat_expected_interval_seconds` | `120` (15-3600) | How often clients are expected to heartbeat. |
+
 ## Security model
 
 - **Isolation**: each downstream stdio MCP instance runs under its own uid with a private home, cannot read `/data` or other instances, and starts with `no-new-privs`. The container has a read-only root filesystem and a reduced capability set. This is process-level isolation, not a sandbox:
