@@ -233,3 +233,27 @@ export async function listGroupMembers(
 export async function listUserGroups(db: DatabaseClient, user_id: string): Promise<UserGroup[]> {
   return compatSelect(db).from(user_groups).where(eq(user_groups.user_id, user_id));
 }
+
+/**
+ * List a user's groups with the group details in ONE query (TD-009: replaces a per-group lookup).
+ *
+ * @param db Database client
+ * @param user_id User UUID
+ * @returns One row per membership: group id, name, description and when the user was assigned
+ */
+export async function listUserGroupSummaries(
+  db: DatabaseClient,
+  user_id: string
+): Promise<Array<{ group_id: string; name: string; description: string; assigned_at: string }>> {
+  const rows = await compatSelect(db)
+    .from(user_groups)
+    .innerJoin(groups, eq(user_groups.group_id, groups.group_id))
+    .where(eq(user_groups.user_id, user_id));
+
+  return rows.map((row: any) => ({
+    group_id: row.user_groups.group_id,
+    name: row.groups.name,
+    description: row.groups.description,
+    assigned_at: row.user_groups.assigned_at,
+  }));
+}

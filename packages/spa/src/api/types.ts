@@ -142,6 +142,14 @@ export interface AdminUser {
   last_login_at?: string;
 }
 
+/** One group a user belongs to (GET /v1/admin/users/:userId/groups). */
+export interface UserGroupSummary {
+  group_id: string;
+  name: string;
+  description: string;
+  assigned_at: string;
+}
+
 export interface CreateUserRequest {
   username: string;
   password: string;
