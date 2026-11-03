@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger, publicErrorMessage } from '@mcpambassador/core';
+import { logger, publicErrorMessage, AmbassadorError } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -138,8 +138,33 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     // Log full error server-side
     logger.error({ err: error }, '[admin-api] Error:');
 
+    // TD-067: errors thrown by hooks/parsers (CSRF plugin, content-type parsers) carry their own
+    // status while reply.statusCode is still 200. Honour a 4xx error status, never a 5xx one.
+    const errCode = (error as { code?: unknown }).code;
+    const errStatus = (error as { statusCode?: unknown }).statusCode;
+    const isCsrf = typeof errCode === 'string' && errCode.startsWith('FST_CSRF_');
+    const isBodyParse = typeof errCode === 'string' && errCode.startsWith('FST_ERR_CTP_');
+    if (isCsrf) {
+      return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, 'Access denied'));
+    }
+    if (isBodyParse) {
+      // Fixed text: parser messages can quote a fragment of the request body.
+      const status =
+        typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500 ? errStatus : 400;
+      return reply.status(status).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid request body'));
+    }
+
     // Return sanitized error to client
-    const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
+    // Only trust a 4xx status carried by framework (FST_*) or Ambassador errors; any other thrown
+    // object with a `statusCode` property is treated as an internal error.
+    const trustedStatus =
+      error instanceof AmbassadorError ||
+      (typeof errCode === 'string' && errCode.startsWith('FST_'));
+    const fromError =
+      trustedStatus && typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500
+        ? errStatus
+        : undefined;
+    const statusCode = fromError ?? (reply.statusCode >= 400 ? reply.statusCode : 500);
 
     if (statusCode === 401) {
       return reply
@@ -175,6 +200,13 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
             error instanceof Error ? publicErrorMessage(error) : 'Invalid request'
           )
         );
+    }
+
+    // Any other 4xx (e.g. 413, 415): keep the status with a fixed message. The shared ErrorCodes
+    // envelope (contracts) has no PAYLOAD_TOO_LARGE / UNSUPPORTED_MEDIA_TYPE; adding them is a
+    // cross-repo contract change, so BAD_REQUEST is kept for now.
+    if (statusCode >= 400 && statusCode < 500) {
+      return reply.status(statusCode).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid request'));
     }
 
     // Generic 500 response (no stack traces, SQL errors, or file paths)
