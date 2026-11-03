@@ -34,7 +34,7 @@ jobs:
       - name: Test audit gate script
         run: node --test scripts/
 
-      - name: Run production audit (fail on high/critical, minus tracked ignoreGhsas)
+      - name: Run production audit (fail on moderate/high/critical, minus tracked ignoreGhsas)
         run: node scripts/audit-prod.mjs
 
   dependency-audit-full:
