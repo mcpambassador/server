@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, no-useless-escape */
-
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import type {

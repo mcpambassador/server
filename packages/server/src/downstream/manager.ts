@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
-
 import type {
   DownstreamMcpConfig,
   AggregatedTool,
@@ -127,7 +125,6 @@ export class SharedMcpManager {
           );
         }
       } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         logger.error({ err }, `[SharedMcpManager] Failed to start ${config.name}:`);
         // Continue with other MCPs even if one fails
       }
@@ -405,7 +402,6 @@ export class SharedMcpManager {
   async refreshAll(): Promise<void> {
     const refreshPromises = Array.from(this.connections.values()).map(conn =>
       conn.refreshToolList().catch(err => {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         logger.error({ err }, `[SharedMcpManager] Failed to refresh:`);
       })
     );
@@ -523,7 +519,6 @@ export class SharedMcpManager {
 
     const stopPromises = Array.from(this.connections.values()).map(conn =>
       conn.stop().catch(err => {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         logger.error({ err }, `[SharedMcpManager] Error stopping connection:`);
       })
     );
