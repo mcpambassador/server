@@ -62,10 +62,11 @@ function slotName(value: unknown): string | null {
  *    from its admin-declared OAuth env bindings; never from arbitrary user-chosen names;
  *  - the credential value must match EMBED_VALUE_RE (an allowlist: API keys/tokens incl. base64), so
  *    it cannot break out of JSON/quoted text and rewrite sibling fields;
- *  - keys that look like URL/host/endpoint/proxy/base/domain/region/etc. variables are never
- *    substituted (kept literal and locked, as before), and a template whose value looks like a
- *    URL/host (contains `://`, or a placeholder after `@`/`//` or followed by `.`) is rejected, so a
- *    credential can never choose where a request goes.
+ *  - composite templates are limited to auth/header variables: the KEY must end in HEADER(S), AUTH,
+ *    AUTHORIZATION, TOKEN, SECRET, CREDENTIAL(S) or API_KEY, so a credential can never end up in a
+ *    URL, host, endpoint or option variable;
+ *  - a template whose value looks like a URL/host (contains `://`, or a placeholder after `@`/`//` or
+ *    followed by `.`) is rejected as well.
  *  - when two credentials differ only by case, the first one wins (same as slots).
  * A whole-value `${NAME}` is the slot case above, not a composite.
  *
@@ -74,8 +75,8 @@ function slotName(value: unknown): string | null {
 const PLACEHOLDER_RE = /\$\{([A-Za-z0-9_]+)\}/g;
 /** Allowlist for a credential value embedded inside other text. */
 const EMBED_VALUE_RE = /^[A-Za-z0-9._~+/=:-]{1,4096}$/;
-const URL_LIKE_KEY_RE =
-  /(URL|URI|HOST|ENDPOINT|PROXY|BASE|ADDR|DOMAIN|SERVER|ORIGIN|REGION|REGISTRY|INDEX)/i;
+/** Composite templates are limited to auth/header variables (allowlist on the variable's NAME). */
+const COMPOSITE_KEY_RE = /(HEADERS?|AUTH|AUTHORIZATION|TOKEN|SECRET|CREDENTIALS?|API_KEY)$/i;
 /**
  * A template whose VALUE looks like a URL/host: a scheme separator anywhere, or a placeholder in a
  * host position (right after `@` or `//`, or directly followed by `.`). Such a credential could pick
@@ -103,14 +104,12 @@ export function mergeCredentialEnv(
     } else {
       lockedLower.add(key.toLowerCase());
       const embedded =
-        slot === null && typeof value === 'string' && !URL_LIKE_KEY_RE.test(key)
-          ? [...value.matchAll(PLACEHOLDER_RE)]
-          : [];
+        slot === null && typeof value === 'string' ? [...value.matchAll(PLACEHOLDER_RE)] : [];
       if (embedded.length === 0) {
         env[key] = value;
         continue;
       }
-      let ok = !URL_LIKE_VALUE_RE.test(value);
+      let ok = COMPOSITE_KEY_RE.test(key) && !URL_LIKE_VALUE_RE.test(value);
       const filled = value.replace(PLACEHOLDER_RE, (_m, name: string) => {
         const cred = credByLower.get(name.toLowerCase());
         if (cred === undefined || !EMBED_VALUE_RE.test(cred)) {

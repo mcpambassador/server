@@ -151,8 +151,8 @@ describe('mergeCredentialEnv placeholder slots', () => {
     });
 
     it('matches the credential name case-insensitively and fills repeats', () => {
-      const r = mergeCredentialEnv({ H: 'a=${Tok}&b=${TOK}' }, { tok: 'v1' });
-      expect(r.env.H).toBe('a=v1&b=v1');
+      const r = mergeCredentialEnv({ X_TOKEN: 'a=${Tok}&b=${TOK}' }, { tok: 'v1' });
+      expect(r.env.X_TOKEN).toBe('a=v1&b=v1');
     });
 
     it.each([
@@ -180,15 +180,35 @@ describe('mergeCredentialEnv placeholder slots', () => {
       'AWS_REGION',
       'NPM_REGISTRY',
       'PIP_INDEX',
-    ])('URL-like key %s is never substituted', key => {
+    ])('non-allowlisted key %s is never substituted (removed)', key => {
       const r = mergeCredentialEnv({ [key]: 'x ${TOK}' }, { TOK: 'abc' });
-      expect(r.env[key]).toBe('x ${TOK}');
-      expect(r.rejected).toEqual([]);
+      expect(r.env[key]).toBeUndefined();
+      expect(r.rejected).toEqual([key]);
+    });
+
+    it('${HOST}:8080 under a non-allowlisted key is removed', () => {
+      const r = mergeCredentialEnv({ UPSTREAM: '${HOST}:8080' }, { HOST: 'evil' });
+      expect(r.env.UPSTREAM).toBeUndefined();
+      expect(r.rejected).toEqual(['UPSTREAM']);
+    });
+
+    it.each([
+      'OPENAPI_MCP_HEADERS',
+      'AUTH_HEADER',
+      'MY_AUTH',
+      'X_AUTHORIZATION',
+      'GH_TOKEN',
+      'APP_SECRET',
+      'CREDENTIALS',
+      'STRIPE_API_KEY',
+    ])('allowlisted key %s is substituted', key => {
+      const r = mergeCredentialEnv({ [key]: 'Bearer ${TOK}' }, { TOK: 'abc' });
+      expect(r.env[key]).toBe('Bearer abc');
     });
 
     it('duplicate credential names differing by case: first wins', () => {
-      const r = mergeCredentialEnv({ H: 'a=${tok}' }, { TOK: 'first', tok: 'second' });
-      expect(r.env.H).toBe('a=first');
+      const r = mergeCredentialEnv({ X_TOKEN: 'a=${tok}' }, { TOK: 'first', tok: 'second' });
+      expect(r.env.X_TOKEN).toBe('a=first');
     });
 
     it('a missing credential removes the variable (fail closed, key reported)', () => {
@@ -220,22 +240,22 @@ describe('mergeCredentialEnv placeholder slots', () => {
 
     it('accepts base64 / token punctuation', () => {
       const v = 'AbC123+/=._~:-';
-      expect(mergeCredentialEnv({ H: 'k=${K}' }, { K: v }).env.H).toBe(`k=${v}`);
+      expect(mergeCredentialEnv({ X_TOKEN: 'k=${K}' }, { K: v }).env.X_TOKEN).toBe(`k=${v}`);
     });
 
     it('is single pass: a credential value is never re-expanded', () => {
       // OTHER's value is allowed charset-wise; it must not be spliced into A's value again
-      const r = mergeCredentialEnv({ H: '${A}' + '-${B}' }, { A: 'x', B: 'y' });
-      expect(r.env.H).toBe('x-y');
-      const r2 = mergeCredentialEnv({ H: 'p=${A}' }, { A: '$' });
-      expect(r2.rejected).toEqual(['H']);
+      const r = mergeCredentialEnv({ X_TOKEN: '${A}' + '-${B}' }, { A: 'x', B: 'y' });
+      expect(r.env.X_TOKEN).toBe('x-y');
+      const r2 = mergeCredentialEnv({ X_TOKEN: 'p=${A}' }, { A: '$' });
+      expect(r2.rejected).toEqual(['X_TOKEN']);
     });
 
-    it('never substitutes into URL/host-like keys (kept literal and locked)', () => {
+    it('never substitutes into URL/host-like keys (removed, key reported)', () => {
       for (const key of ['API_URL', 'BASE_URI', 'DB_HOST', 'MY_ENDPOINT', 'HTTPS_PROXY']) {
         const r = mergeCredentialEnv({ [key]: 'https://x/?k=${K}' }, { K: 'secret' });
-        expect(r.env[key]).toBe('https://x/?k=${K}');
-        expect(r.rejected).toEqual([]);
+        expect(r.env[key]).toBeUndefined();
+        expect(r.rejected).toEqual([key]);
       }
     });
 
