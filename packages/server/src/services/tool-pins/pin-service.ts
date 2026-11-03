@@ -731,6 +731,10 @@ export class ToolPinService {
     // TD-070: also hold the mcp-wide lock, so a revoke of this (mcp, tool) cannot run while a
     // not-yet-inserted pin for a new scope is in flight (its scope key did not exist to lock).
     // Lock order is always mcp-wide first, then scope keys (same as revoke), so the two cannot deadlock.
+    // Tradeoff: observes of different scopes of ONE mcp now serialize (previously they ran in parallel).
+    // Measured by the verifier: +30-50 ms for 20 concurrent users with real inserts, ~2 s if each insert
+    // takes 20 ms. Different mcps stay independent. A shared/exclusive lock (observe shared, revoke
+    // exclusive) would remove the cost; tracked as a follow-up TD.
     return this.withScopeLock(mcpWideKey(args.mcpId), () =>
       this.withScopeLock(key(args.mcpId, args.scopeUserId, ''), () => this.observeLocked(args))
     );
