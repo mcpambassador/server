@@ -110,6 +110,23 @@ describe('OAuthConsent refresh copy', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the unverified-client limit and only offers options within the cap', async () => {
+    server.use(
+      http.get('/v1/oauth/consent/r1', () =>
+        ok({
+          ...details,
+          max_ttl_seconds: 7 * 86400,
+          default_ttl_seconds: 3600,
+          unverified_ttl_limited: true,
+        })
+      )
+    );
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    expect(await screen.findByText(/Unverified clients are limited to 1 week/)).toBeInTheDocument();
+    const labels = screen.getAllByRole('option').map(o => o.textContent ?? '');
+    expect(labels.some(l => /month/.test(l))).toBe(false);
+  });
+
   it('says one short-lived token when refresh tokens are off', async () => {
     server.use(
       http.get('/v1/oauth/consent/r1', () => ok({ ...details, refresh_tokens_enabled: false }))

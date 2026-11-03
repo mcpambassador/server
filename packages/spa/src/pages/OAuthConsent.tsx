@@ -233,8 +233,11 @@ export function OAuthConsent() {
             <Field>
               <Label>Access lasts</Label>
               <Description>
-                Maximum {formatDuration(details.max_ttl_seconds)}. You can revoke access at any time
-                under Agent access.{' '}
+                Maximum {formatDuration(details.max_ttl_seconds)}.{' '}
+                {details.unverified_ttl_limited
+                  ? `Unverified clients are limited to ${formatDuration(details.max_ttl_seconds)}. `
+                  : ''}
+                You can revoke access at any time under Agent access.{' '}
                 {details.refresh_tokens_enabled === false
                   ? 'One short-lived token only; it is not renewed.'
                   : `Refreshes keep it alive; it expires early if unused for ${formatDuration(
