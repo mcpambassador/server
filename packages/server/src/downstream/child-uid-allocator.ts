@@ -411,9 +411,13 @@ export class ChildUidAllocator {
         }
         this.live.delete(uid);
         // lastUsed must reflect the end of the activity too (LRU for the cache GC); a persist failure is tolerated
+        // Only while the map captured at lease time is still the live one and still holds this entry: after a
+        // reset/reload/reclaim, persisting it would overwrite newer state with a stale map.
         try {
-          entry.lastUsed = this.deps.now();
-          this.persist(entries);
+          if (this.entries === entries && [...entries.values()].includes(entry)) {
+            entry.lastUsed = this.deps.now();
+            this.persist(entries);
+          }
         } catch {
           // LRU hint only
         }

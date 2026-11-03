@@ -140,10 +140,12 @@ function rig(over: Partial<CacheGcConfig> = {}, gcDeps: Partial<CacheGcDeps> = {
   let file: string | null = null;
   let t = 1000;
   const reaped: number[] = [];
+  let nWrites = 0;
   const aDeps: AllocatorDeps = {
     readMap: () => file,
     writeMap: (_p, d) => {
       file = d;
+      nWrites++;
     },
     wipeHome: () => Promise.resolve(),
     reapUid: uid => {
@@ -169,7 +171,19 @@ function rig(over: Partial<CacheGcConfig> = {}, gcDeps: Partial<CacheGcDeps> = {
   };
   const gc = new ChildCacheGc(alloc, cfg(over), deps);
   const mkHome = (uid: number): void => mkdirSync(join(root, String(uid)), { recursive: true });
-  return { alloc, gc, purged, usage, mkHome, reaped, readFile: () => file };
+  return {
+    alloc,
+    gc,
+    purged,
+    usage,
+    mkHome,
+    reaped,
+    readFile: () => file,
+    writes: () => nWrites,
+    setFile: (d: string) => {
+      file = d;
+    },
+  };
 }
 
 describe('ChildCacheGc safety', () => {
@@ -383,6 +397,22 @@ describe('ChildUidAllocator.exclusiveIfIdle', () => {
     const l = await r.alloc.lease('shared:fs');
     l.release();
     expect((await r.alloc.exclusiveIfIdle('shared:other', l.uid, async () => 1)).ran).toBe(false);
+  });
+
+  it('does not persist a stale map on release after the allocator reloaded its state', async () => {
+    const r = rig();
+    const l = await r.alloc.lease('shared:fs');
+    const writes = r.writes();
+    // another process/reload replaced the map on disk and in memory
+    r.setFile(
+      JSON.stringify({ version: 1, entries: { 'shared:other': { uid: 20003, lastUsed: 5 } } })
+    );
+    (r.alloc as unknown as { entries: unknown }).entries = null;
+    r.alloc.instances(); // reload from the new file
+    l.release();
+    expect(r.writes()).toBe(writes); // release wrote nothing
+    expect(r.readFile()).toContain('shared:other');
+    expect(r.readFile()).not.toContain('shared:fs');
   });
 
   it('stamps lastUsed on the final release', async () => {
