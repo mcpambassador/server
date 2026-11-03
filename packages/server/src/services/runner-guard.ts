@@ -256,6 +256,18 @@ function checkPackageSpec(family: Family, tok: string): string | null {
   return null;
 }
 
+/**
+ * deno/bun have many value-less flags (--allow-net, --deny-*, --unstable-*, --no-lock ...). They are
+ * treated as boolean so the script/package that follows is not swallowed. Unknown `=`-less flags
+ * still swallow the next token, but that token is spec-checked (see scan), so a URL there is refused.
+ */
+function isKnownBoolFlag(family: Family, name: string): boolean {
+  if (family !== 'deno' && family !== 'bun') return false;
+  return /^(allow-|deny-|unstable|no-|smol$|hot$|watch$|watch-|inspect$|prefer-|frozen|bun$|silent$)/.test(
+    name
+  );
+}
+
 function scan(base: string, command: readonly unknown[], start: number): string | null {
   const family = familyOf(base);
   const rules = RULES[family];
@@ -285,6 +297,12 @@ function scan(base: string, command: readonly unknown[], start: number): string 
     if (afterDashes || !tok.startsWith('-') || tok === '-') {
       if (swallowNext) {
         swallowNext = false;
+        // An option VALUE that is a git/URL/archive spec is never legitimate before the package, and
+        // a mis-guessed boolean flag would otherwise hide the real package here.
+        if (family !== 'other') {
+          const r = checkPackageSpec(family, tok);
+          if (r) return r;
+        }
         continue;
       }
       const low = tok.toLowerCase();
@@ -352,7 +370,7 @@ function scan(base: string, command: readonly unknown[], start: number): string 
       ) {
         return `runner option not permitted: ${safeToken(flag)}`;
       }
-      swallowNext = eq < 0 && !matches(rules.bool, name);
+      swallowNext = eq < 0 && !matches(rules.bool, name) && !isKnownBoolFlag(family, name);
       continue;
     }
 
