@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
 import { requestLogSerializers } from './log-serializers.js';
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import { eq, or } from 'drizzle-orm';
 import argon2 from 'argon2';
 import { initializeTls } from './tls.js';
-import { isAgentEndpointPath } from './spa-handler.js';
+import { applyNoStoreUnlessStaticAsset, isAgentEndpointPath } from './spa-handler.js';
 import {
   listPermittedTools,
   invokeTool,
@@ -282,11 +282,11 @@ export class AmbassadorServer {
     });
 
     // F-SEC-M6-008: Security headers
-    this.fastify.addHook('onSend', async (_request, reply) => {
+    this.fastify.addHook('onSend', async (request, reply) => {
       reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
       reply.header('X-Content-Type-Options', 'nosniff');
       reply.header('X-Frame-Options', 'DENY');
-      reply.header('Cache-Control', 'no-store');
+      applyNoStoreUnlessStaticAsset(request, reply);
     });
 
     // Initialize database
@@ -826,7 +826,7 @@ export class AmbassadorServer {
     // has an authenticated session. This is required for the login and setup endpoints.
     // The secret is stored in a `_csrf` cookie (HttpOnly, SameSite=strict, Secure).
     // Tokens are signed with HMAC-SHA256 using the secret.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const csrfProtection = (await import('@fastify/csrf-protection')).default;
     await this.adminServer.register(csrfProtection, {
       cookieKey: '_csrf',
@@ -895,9 +895,9 @@ export class AmbassadorServer {
     });
 
     // Security headers hook (SEC-M10-10)
-    this.adminServer.addHook('onSend', async (_request, reply, payload) => {
-      // SEC-M10-10: Cache-Control for all admin responses
-      reply.header('Cache-Control', 'no-store');
+    this.adminServer.addHook('onSend', async (request, reply, payload) => {
+      // SEC-M10-10: Cache-Control for all admin responses (TD-021: except hashed SPA static assets)
+      applyNoStoreUnlessStaticAsset(request, reply);
 
       // Additional security headers
       reply.header('X-Content-Type-Options', 'nosniff');
