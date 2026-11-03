@@ -66,4 +66,4 @@ body:
         - OS: Ubuntu 24.04
         - Node.js: 20.11.0
         - Docker: 25.0.2
-        - Client version: 0.9.1
+        - Client version: 0.10.1
