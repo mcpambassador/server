@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/require-await */
-
 import { keyHash } from './child-uid-allocator.js';
 import { logger, ServiceUnavailableError } from '@mcpambassador/core';
 import type {
@@ -253,7 +251,6 @@ export class UserMcpPool {
             this.registerConnectionHandlers(connection, userId, finalConfig.name);
           }
         } catch (err) {
-          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           logger.error(
             { err },
             `[UserMcpPool] User ${keyHash(userId)} failed to start ${config.name}:`
@@ -284,7 +281,6 @@ export class UserMcpPool {
             await connection.stop();
             logger.info(`[UserMcpPool] Stopped connection ${mcpName} for user ${keyHash(userId)}`);
           } catch (stopErr) {
-            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
             logger.error(
               { err: stopErr },
               `[UserMcpPool] Failed to stop connection ${mcpName} for user ${userId}:`
@@ -437,7 +433,6 @@ export class UserMcpPool {
     // Stop all connections (parallel)
     const stopPromises = Array.from(instanceSet.connections.values()).map(conn =>
       conn.stop().catch(err => {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         logger.error({ err }, `[UserMcpPool] User ${keyHash(userId)} error stopping connection:`);
       })
     );
@@ -692,7 +687,6 @@ export class UserMcpPool {
     });
 
     connection.on('error', err => {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       logger.error({ err }, `[UserMcpPool] User ${keyHash(userId)} MCP ${mcpName} error:`);
     });
   }

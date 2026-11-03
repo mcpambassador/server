@@ -7,16 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Config: `server.body_limit_bytes` (default 1048576, both listeners) and `session.heartbeat_min_interval_seconds` (default 10). Defaults match the previous hard-coded values (TD-014).
-
 ### Changed
 
-- Internal: one shared `ARGON2_OPTIONS` constant (identical values: argon2id, 19456 KiB, 2 passes, 1 lane) for admin keys, client keys, user passwords and the dev seed (TD-014).
+- Internal: removed 30 stale ESLint disable comments (75 → 45) and made unused disable directives a lint error (TD-002).
 
 ### Fixed
 
+- Hashed SPA assets under `/app/assets/` are cacheable again (`public, max-age=31536000, immutable`); a global `no-store` hook was overriding it. API, auth and HTML responses stay uncached (TD-021).
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 
 ## [0.10.3] - 2026-11-03

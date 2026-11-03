@@ -34,7 +34,7 @@ server:
 authentication:
   provider: api_key
   config:
-    key_prefix: "amb_sk_"
+    key_prefix: "amb_pk_"
 
 authorization:
   provider: local_rbac
