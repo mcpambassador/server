@@ -15,9 +15,9 @@
   "type": "module",
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=8.0.0"
+    "pnpm": ">=10.0.0"
   },
-  "packageManager": "pnpm@8.15.0",
+  "packageManager": "pnpm@10.34.7+sha512.ba98abc585539933375b5971f4bc6d6c73a1b4b7edc4a879e7d102fe5423d1e02309d67c60a11f04955093a96e521ad9c3b138cdd654ca5be563f378b3ae48bd",
   "scripts": {
     "build": "pnpm -r --workspace-concurrency=1 build",
     "test": "pnpm -r test",
@@ -46,6 +46,12 @@
     "better-sqlite3": "^12.6.2"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "argon2",
+      "better-sqlite3",
+      "esbuild",
+      "re2"
+    ],
     "overrides": {
       "hono": "^4.12.25",
       "@hono/node-server": "^2.1.3",

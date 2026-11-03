@@ -15,7 +15,7 @@ Do NOT open public issues for security vulnerabilities. See .github/SECURITY.md 
 Prerequisites
 
 - Node 22.x (we test on Node 22 and Node 24)
-- pnpm 8.15.x (the repo uses pnpm workspaces)
+- pnpm 10.x (the repo uses pnpm workspaces)
 - Docker / Docker Compose (optional, for local container validation)
 
 Clone and install

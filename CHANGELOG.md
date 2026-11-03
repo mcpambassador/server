@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Build tooling: pnpm 8.15.0 -> 10.34.7, pinned with its sha512 integrity in `packageManager` (CI via `pnpm/action-setup` reading `packageManager`, Dockerfile via corepack; `pnpm-lock.yaml` is now lockfile v9 with the same resolved versions). pnpm 10 skips dependency build scripts by default, so `pnpm.onlyBuiltDependencies` lists `argon2`, `better-sqlite3`, `esbuild` and `re2` (TD-078). Contributors need pnpm 10 (`corepack enable`).
+
 ### Fixed
 
 - When an MCP is archived or a user is deactivated, its child uid is now reaped and its home wiped right away (as that uid, inside the allocator queue, the same path as a wipe on reassignment) instead of staying on disk until the uid is reused (TD-077). The cache GC log no longer says "became busy" when the instance simply no longer owns the uid.
