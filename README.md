@@ -114,7 +114,7 @@ pnpm monorepo:
 
 ## Development
 
-Node.js 20+ and pnpm 8.15+. Changes to `protocol` or `contracts` also affect the client; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Node.js 22+ and pnpm 8.15+. Changes to `protocol` or `contracts` also affect the client; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 pnpm install && pnpm -r build && pnpm -r lint && pnpm format:check && pnpm -r typecheck && pnpm -r test

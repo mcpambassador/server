@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- TD-075: the server moves to Node 22. The Docker builder and runtime images are `node:22-bookworm-slim` (pinned by digest), CI runs on Node 22 and 24 (Node 20 is end of life), `engines.node` is `>=22.0.0`, and `@types/node` is 22.
+
 ## [0.10.1] - 2026-11-02
 
 ### Changed

@@ -13,7 +13,7 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
-// Equivalent to __dirname in CommonJS — @types/node@20 types import.meta.url
+// Equivalent to __dirname in CommonJS — @types/node@22 types import.meta.url
 // but not import.meta.dirname (added in Node 21.2.0).
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

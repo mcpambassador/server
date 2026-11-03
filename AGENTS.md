@@ -32,4 +32,4 @@ These mirror the GitHub Actions CI workflow (`.github/workflows/ci.yml`).
 - **Prettier:** After editing ANY `.ts`, `.json`, or `.md` file, run `pnpm format` before committing
 - **ESLint:** The config is `eslint.config.js` (ESLint 10 flat config). No `.eslintrc.*` files.
 - **Typecheck:** Each package has its own `tsconfig.json` extending `tsconfig.base.json`. Changes to shared types can break downstream packages.
-- **Node version:** CI runs on Node 20. Do not use APIs added after Node 20 (e.g., `import.meta.dirname` requires Node 21.2+).
+- **Node version:** CI runs on Node 22 (and 24). Do not use APIs added after Node 22.
