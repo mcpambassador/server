@@ -121,6 +121,28 @@ describe('checkRunnerCommand', () => {
   });
 });
 
+describe('refused container/namespace runners', () => {
+  for (const r of [
+    'ctr',
+    'crictl',
+    'kubectl',
+    'buildah',
+    'runc',
+    'crun',
+    'nsenter',
+    'unshare',
+    'systemd-nspawn',
+    'bwrap',
+    'lxc-execute',
+    'chroot',
+  ]) {
+    it(`refuses ${r} (also by path)`, () => {
+      expect(checkRunnerCommand([r, 'run', 'x'])).toBeTruthy();
+      expect(checkRunnerCommand([`/usr/bin/${r}`, 'x'])).toBeTruthy();
+    });
+  }
+});
+
 describe('isBlockedEnvName', () => {
   const blocked = [
     'PATH',

@@ -189,7 +189,20 @@ const DENIED_SUBCOMMANDS: Partial<Record<Family, readonly string[]>> = {
 /** CLIs that share docker's `run` option grammar; all go through the default-deny docker check. */
 const DOCKER_FAMILY = ['docker', 'podman', 'nerdctl', 'finch', 'podman-remote'];
 /** Low-level runtimes with no safe `run` subset; refused outright. */
-const REFUSED_RUNNERS = ['ctr', 'crictl', 'kubectl'];
+const REFUSED_RUNNERS = [
+  'ctr',
+  'crictl',
+  'kubectl',
+  'buildah',
+  'runc',
+  'crun',
+  'nsenter',
+  'unshare',
+  'systemd-nspawn',
+  'bwrap',
+  'lxc-execute',
+  'chroot',
+];
 
 function isDockerFamily(base: string): boolean {
   return DOCKER_FAMILY.includes(base);
