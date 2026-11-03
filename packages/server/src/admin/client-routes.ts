@@ -228,6 +228,13 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
       return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'Client key not found'));
     }
 
+    // A revoked client is terminal: reject every mutation (including un-revoke); only DELETE is allowed.
+    if (key.status === 'revoked') {
+      return reply
+        .status(409)
+        .send(wrapError(ErrorCodes.CONFLICT, 'Client is revoked and cannot be modified'));
+    }
+
     // If profile_id is being changed, verify it exists
     if (body.profile_id !== undefined) {
       const profile = await db.query.tool_profiles.findFirst({
