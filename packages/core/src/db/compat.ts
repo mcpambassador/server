@@ -7,19 +7,29 @@
  * @see docs/drizzle-type-errors-report.md
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any -- the query-builder helpers below return `any` on purpose: the SQLite/PG builder unions do not unify (F-TECH-DEBT-001). Internals (raw handles, transactions) are typed. */
 
 import { logger } from '../utils/logger.js';
 import type { DatabaseClient } from './client.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { PgTable } from 'drizzle-orm/pg-core';
 
+/** The slice of better-sqlite3's Database that the compat layer uses. */
+interface SqliteHandle {
+  prepare(sql: string): { run(): unknown };
+}
+
+/** The slice of a Drizzle PG database that the compat layer uses. */
+interface PgExecutor {
+  execute(sql: string): Promise<unknown>;
+}
+
 /**
  * Type guard to check if database is PostgreSQL
  */
-function isPostgres(db: DatabaseClient): boolean {
+function isPostgres(db: DatabaseClient): db is DatabaseClient & PgExecutor {
   // PostgreSQL client has 'execute' method, SQLite doesn't
-  return 'execute' in db && typeof (db as any).execute === 'function';
+  return 'execute' in db && typeof (db as { execute?: unknown }).execute === 'function';
 }
 
 /**
@@ -93,17 +103,27 @@ export function compatCount(query: any): any {
  * Helper to get the raw SQLite client from a Drizzle database instance.
  * Drizzle ORM stores the underlying better-sqlite3 client at db.session.client.
  */
-function getSqliteClient(db: DatabaseClient): any {
-  const client = (db as any).session?.client;
-  if (client && typeof client.prepare === 'function') {
+function getSqliteClient(db: DatabaseClient): SqliteHandle | null {
+  const isHandle = (c: unknown): c is SqliteHandle =>
+    typeof c === 'object' && c !== null && typeof (c as SqliteHandle).prepare === 'function';
+  const client = (db as { session?: { client?: unknown } }).session?.client;
+  if (isHandle(client)) {
     return client;
   }
   // Fallback: try $client (newer Drizzle versions)
-  const alt = (db as any).$client;
-  if (alt && typeof alt.prepare === 'function') {
+  const alt = (db as { $client?: unknown }).$client;
+  if (isHandle(alt)) {
     return alt;
   }
   return null;
+}
+
+function requireSqliteClient(db: DatabaseClient): SqliteHandle {
+  const client = getSqliteClient(db);
+  if (!client) {
+    throw new Error('SQLite prepare() method not available');
+  }
+  return client;
 }
 
 /**
@@ -113,17 +133,12 @@ function getSqliteClient(db: DatabaseClient): any {
  * @param sql Raw SQL string
  * @returns Query result
  */
-export async function compatExecute(db: DatabaseClient, sql: string): Promise<any> {
+export async function compatExecute(db: DatabaseClient, sql: string): Promise<unknown> {
   if (isPostgres(db)) {
     // PostgreSQL: use execute()
-    return await (db as any).execute(sql);
-  } else {
-    const client = getSqliteClient(db);
-    if (client) {
-      return client.prepare(sql).run();
-    }
-    throw new Error('SQLite prepare() method not available');
+    return await db.execute(sql);
   }
+  return requireSqliteClient(db).prepare(sql).run();
 }
 
 /**
@@ -141,32 +156,33 @@ export async function compatExecute(db: DatabaseClient, sql: string): Promise<an
  * @returns Result of the callback
  */
 export async function compatTransaction<T>(db: DatabaseClient, fn: () => Promise<T>): Promise<T> {
-  if (isPostgres(db)) {
-    await (db as any).execute('BEGIN');
+  // SQLite statements must run synchronously (no await before fn()/after it settles): every caller
+  // shares one connection, so an extra microtask tick would let unrelated work interleave into the
+  // open transaction (pr118-verifier pins this ordering). Only PostgreSQL awaits its statements.
+  const pg = isPostgres(db) ? db : null;
+  const sqlite = pg ? null : requireSqliteClient(db);
+
+  if (pg) {
+    await pg.execute('BEGIN');
   } else {
-    const client = getSqliteClient(db);
-    if (client) {
-      client.prepare('BEGIN IMMEDIATE').run();
-    } else {
-      throw new Error('SQLite prepare() method not available');
-    }
+    sqlite!.prepare('BEGIN IMMEDIATE').run();
   }
 
   try {
     const result = await fn();
-    if (isPostgres(db)) {
-      await (db as any).execute('COMMIT');
+    if (pg) {
+      await pg.execute('COMMIT');
     } else {
-      getSqliteClient(db).prepare('COMMIT').run();
+      sqlite!.prepare('COMMIT').run();
     }
     return result;
   } catch (err) {
     // A failing ROLLBACK (e.g. the connection died) must not mask the original error.
     try {
-      if (isPostgres(db)) {
-        await (db as any).execute('ROLLBACK');
+      if (pg) {
+        await pg.execute('ROLLBACK');
       } else {
-        getSqliteClient(db).prepare('ROLLBACK').run();
+        sqlite!.prepare('ROLLBACK').run();
       }
     } catch (rollbackErr) {
       logger.error({ err: rollbackErr }, '[db] ROLLBACK failed after transaction error');

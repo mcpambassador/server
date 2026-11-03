@@ -20,6 +20,7 @@ import {
   publishMcpEntry,
   listSubscriptionsForMcp,
   updateSubscription,
+  compatTransaction,
 } from '@mcpambassador/core';
 
 /**
@@ -196,16 +197,17 @@ export async function archiveMcpEntry(db: DatabaseClient, mcpId: string): Promis
     throw new Error(`MCP not found: ${mcpId}`);
   }
 
-  // Set status to archived
-  await updateMcpEntry(db, mcpId, { status: 'archived' });
+  // TD-001: archive + pause cascade is one transaction (all or none)
+  await compatTransaction(db, async () => {
+    await updateMcpEntry(db, mcpId, { status: 'archived' });
 
-  // Pause active subscriptions
-  const subscriptions = await listSubscriptionsForMcp(db, mcpId);
-  for (const sub of subscriptions) {
-    if (sub.status === 'active') {
-      await updateSubscription(db, sub.subscription_id, { status: 'paused' });
+    const subscriptions = await listSubscriptionsForMcp(db, mcpId);
+    for (const sub of subscriptions) {
+      if (sub.status === 'active') {
+        await updateSubscription(db, sub.subscription_id, { status: 'paused' });
+      }
     }
-  }
+  });
 }
 
 /**

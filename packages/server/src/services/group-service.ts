@@ -20,6 +20,7 @@ import {
   removeUserFromGroup,
   listGroupMembers,
   listUserGroups,
+  listUserGroupSummaries,
   grantGroupAccess,
   revokeGroupAccess,
   listMcpsForGroup,
@@ -231,6 +232,20 @@ export async function getUserGroupsService(
   userId: string
 ): Promise<UserGroup[]> {
   return listUserGroups(db, userId);
+}
+
+/**
+ * Get a user's groups with name and description in one query (TD-009).
+ *
+ * @param db Database client
+ * @param userId User UUID
+ * @returns Array of group summaries with the assignment time
+ */
+export async function getUserGroupSummariesService(
+  db: DatabaseClient,
+  userId: string
+): Promise<Array<{ group_id: string; name: string; description: string; assigned_at: string }>> {
+  return listUserGroupSummaries(db, userId);
 }
 
 /**

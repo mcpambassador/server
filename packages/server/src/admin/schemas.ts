@@ -128,6 +128,7 @@ export const createClientSchema = z
   })
   .strict();
 
+/** Admin PATCH body. A revoked client is immutable: any PATCH of it returns 409 (only DELETE is allowed). */
 export const updateClientSchema = z
   .object({
     status: z.enum(['active', 'suspended', 'revoked']).optional(),

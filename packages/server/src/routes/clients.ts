@@ -14,11 +14,13 @@ import {
   logger,
   client_mcp_subscriptions,
   compatSelect,
+  compatTransaction,
   publicErrorMessage,
 } from '@mcpambassador/core';
 import { eq } from 'drizzle-orm';
 import { requireUserSession } from '../auth/user-session.js';
 import { wrapError, ErrorCodes } from '../admin/reply-envelope.js';
+import { safeIssueMessage } from '../admin/routes.js';
 import {
   createUserClient,
   listUserClients,
@@ -40,6 +42,13 @@ export interface ClientRoutesConfig {
   onGrantsRevoked?: (grantIds: string[]) => void;
   /** TD-040: the user's spawnable MCP set may have changed (client suspended/reactivated/deleted) */
   onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
+}
+
+/** Zod issues as {path, message} only (never received values). */
+function zodIssuesForReply(
+  issues: Array<{ code: string; path: Array<string | number>; message: string }> | undefined
+): Array<{ path: string; message: string }> {
+  return (issues ?? []).map(i => ({ path: i.path.join('.'), message: safeIssueMessage(i) }));
 }
 
 /**
@@ -151,7 +160,13 @@ export async function registerClientRoutes(
         if (error.name === 'ZodError') {
           return reply
             .status(400)
-            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request data', error.issues));
+            .send(
+              wrapError(
+                ErrorCodes.VALIDATION_ERROR,
+                'Invalid request data',
+                zodIssuesForReply(error.issues)
+              )
+            );
         }
 
         if (error.message.includes('not found')) {
@@ -219,12 +234,31 @@ export async function registerClientRoutes(
       try {
         const body = updateClientSchema.parse(request.body);
 
-        if (body.client_name) {
-          await updateUserClientName(db, userId, params.clientId, body.client_name, isAdmin);
+        // Validate the whole transition before applying any field (no partial rename + 409).
+        // An admin-revoked client is immutable.
+        const current = await getUserClient(db, userId, params.clientId, isAdmin);
+        if (current.status === 'revoked') {
+          throw new Error('Invalid state transition: revoked clients cannot be modified');
+        }
+        if (body.status === 'suspended' && current.status !== 'active') {
+          throw new Error('Invalid state transition: only active clients can be suspended');
+        }
+        if (body.status === 'active' && current.status !== 'suspended') {
+          throw new Error('Invalid state transition: only suspended clients can be reactivated');
         }
 
+        // Rename + status change are atomic: a lost race (e.g. an admin revoke) rolls back both.
+        await compatTransaction(db, async () => {
+          if (body.client_name) {
+            await updateUserClientName(db, userId, params.clientId, body.client_name, isAdmin);
+          }
+          if (body.status === 'suspended') {
+            await suspendUserClient(db, userId, params.clientId, isAdmin);
+          } else if (body.status === 'active') {
+            await reactivateUserClient(db, userId, params.clientId, isAdmin);
+          }
+        });
         if (body.status === 'suspended') {
-          await suspendUserClient(db, userId, params.clientId, isAdmin);
           await revokeClientGrantsWithAudit(
             { db, audit, onGrantsRevoked },
             params.clientId,
@@ -232,8 +266,6 @@ export async function registerClientRoutes(
             request.ip ?? '0.0.0.0',
             'bound_client_suspended'
           );
-        } else if (body.status === 'active') {
-          await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
         if (body.status === 'suspended' || body.status === 'active') {
           await onUserAccessChanged?.([userId], 'client_status_changed').catch(() => undefined);
@@ -256,6 +288,17 @@ export async function registerClientRoutes(
           },
         });
       } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return reply
+            .status(400)
+            .send(
+              wrapError(
+                ErrorCodes.VALIDATION_ERROR,
+                'Invalid request data',
+                zodIssuesForReply(error.issues)
+              )
+            );
+        }
         if (error.message.includes('not found') || error.message.includes('access denied')) {
           return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'Client not found'));
         }
