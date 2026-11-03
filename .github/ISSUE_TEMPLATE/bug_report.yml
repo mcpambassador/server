@@ -15,7 +15,7 @@ body:
     attributes:
       label: Server Version
       description: "Run: `docker inspect mcpambassador-server --format '{{.Config.Labels.version}}'` or check your deployment"
-      placeholder: "e.g. 0.10.3"
+      placeholder: "e.g. 0.10.4"
     validations:
       required: true
 

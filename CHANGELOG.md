@@ -7,22 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-11-03
+
+Highlights: **a stricter runner guard** (docker/podman arguments, container runtimes, and git/URL/archive/local package sources are refused), **revoked clients are immutable**, **unverified OAuth clients get a shorter grant cap**, and **suspending or deactivating a user cuts their live agent streams**. Two behaviour changes need attention on upgrade (see Upgrade notes). `protocol` wire types are unchanged.
+
 ### Security
 
-- Agent OAuth: dynamically registered (unverified) clients are capped at `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days) instead of `max_grant_ttl_seconds`; the consent screen shows the effective cap. Admin-registered clients are unchanged (TD-080).
+- Docker/podman MCP commands go through a default-deny parser: only `run`, with a short list of confinement-preserving options (`--rm -i -q --init --read-only --pull --network none|bridge --memory --cpus --pids-limit --cap-drop=ALL --security-opt=no-new-privileges --name --workdir`) and a numeric non-zero `--user` (names are refused because the image's `/etc/passwd` decides what they map to). Mounts, `--privileged`, host namespaces, `--cap-add`, devices, `--entrypoint`, `-e`/`--env-file`, tmpfs and global `-H/--host/--context` are rejected. nerdctl, finch and podman-remote get the same check; ctr, crictl, kubectl, buildah, runc, crun, nsenter, unshare, systemd-nspawn, bwrap, lxc-execute and chroot are refused outright. `docker` stays out of the default command allowlist, and enabling it needs the Docker socket (host-root equivalent), so it is unsupported for untrusted MCPs (TD-042).
+- The env-name denylist now also blocks `DOCKER_*`, `CONTAINER_*` and `CONTAINERS_*` (e.g. `CONTAINERS_CONF`, `CONTAINERS_REGISTRIES_CONF`) plus `REGISTRY_AUTH_FILE`, `STORAGE_DRIVER` and `STORAGE_OPTS` (TD-042).
+- Runner commands (npx, npm exec, pnpm dlx, bunx, uvx/uv, pip, deno, bun) can only name registry packages. Git, `github:`/`file:`/`ssh:`, http(s) and other URL specs, archives (`.tgz .tar .tar.gz .zip .whl`), npm's `owner/repo` shorthand and, for pip, local paths are rejected, including after `--`, after value-less flags such as `deno --allow-net`, and for every positional of install-style subcommands (`add`, `install`, `uv pip install`). Error text is generic and never echoes the value (TD-042).
+- Agent OAuth: dynamically registered (unverified) clients are capped at `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days, 60 s to 1 year) instead of `max_grant_ttl_seconds`; the effective cap is the smaller of the two. It is enforced at consent and again at code exchange; the consent screen shows the cap. Admin-registered clients, one-shot grants and existing grants are unchanged (TD-080).
+- Credential placeholders embedded in an MCP's fixed env values (e.g. Notion `OPENAPI_MCP_HEADERS`) are filled from the user's credentials under a strict allowlist. Only auth/header-style variables are eligible (key ends in HEADER(S), AUTH, AUTHORIZATION, TOKEN, SECRET, CREDENTIAL(S) or API_KEY), URL/host/endpoint/proxy-shaped templates are never filled, the value must match `^[A-Za-z0-9._~+/=:-]{1,4096}$`, expansion is single-pass, and anything that cannot be filled is removed with only its key logged (TD-050).
+- GitHub Actions are pinned to commit SHAs (TD-079).
 
 ### Changed
 
-- Tests: server vitest `testTimeout`/`hookTimeout` raised to 30s to stop load-induced flakes (TD-047).
+- **Revoked clients are terminal.** Any mutation of a revoked client (status change, rename, config) now returns 409; only DELETE is allowed. The check is part of the UPDATE (`status != 'revoked'`), so a concurrent revoke cannot be overwritten, and side effects run only when a row changed. Applies to the admin and user client routes.
+- Suspending (PATCH status) or deactivating (DELETE) a user now aborts that user's in-flight `/mcp` agent streams immediately and writes an `agent_streams_closed` audit event (reason, stream count, grant count). Grants are kept, so reactivation restores access (TD-025).
+- Archiving an MCP and pausing its subscriptions is now one transaction (TD-001). `compatTransaction` no longer lets a failing ROLLBACK mask the original error, and its internals are typed (TD-003).
+- `GET /v1/admin/users/:userId/groups` uses one joined query instead of one lookup per group; the response is unchanged (TD-009, TD-010).
+- Consent details: `max_ttl_seconds` is now the client's effective cap, with an optional `unverified_ttl_limited`. The SPA shows "Unverified clients are limited to N" and filters the picker (older servers omit the field, so the SPA stays compatible).
+- Docker/podman images without a `@sha256` digest log a warning at spawn, MCP create/update and registry install.
+- Dependencies and tooling: vitest 3 to 4.1.12 (TD-016), `drizzle-orm` and `drizzle-kit` pinned to exact versions (TD-004), 30 stale ESLint disable comments removed and unused disable directives are now a lint error (TD-002), server vitest timeouts raised to 30 s (TD-047), the legacy `amb_sk_` prefix dropped from the config test fixture (TD-006).
 
-### Changed
+### Added
 
-- Internal: removed 30 stale ESLint disable comments (75 → 45) and made unused disable directives a lint error (TD-002).
+- `server.body_limit_bytes` (default 1048576), used by both listeners.
+- `session.heartbeat_min_interval_seconds` (default 10) replaces the hard-coded heartbeat limiter and its 429 message. Keep it below the shortest client `heartbeat_interval` (clients allow 15 to 300 s), or that client gets 429s.
+- `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days), see Security.
+- One shared `ARGON2_OPTIONS` in core (argon2id, 19456 KiB, 2 passes, 1 lane) replaces 6 copies. The values are identical, so existing and new hashes do not change.
+- README: a "Session heartbeat" table and a note that lowering `max_grant_ttl_seconds` or `max_dcr_grant_ttl_seconds` only affects grants created afterwards.
 
 ### Fixed
 
+- `PATCH` of a user client with an invalid `status` returned 500 (uncaught ZodError); it is now 400 (TD-013).
 - Hashed SPA assets under `/app/assets/` are cacheable again (`public, max-age=31536000, immutable`); a global `no-store` hook was overriding it. API, auth and HTML responses stay uncached (TD-021).
-- A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
+- A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, and a second case-variant credential for a filled slot is dropped (TD-051).
+- Tests: the group-tool-policy audit-event test selects the event by its metadata instead of racing other events (TD-047).
+
+### Upgrade notes
+
+- **Composite env values:** an MCP env value that contains an embedded `${X}` that cannot be filled is now removed instead of being passed with the literal `${X}`. Check entries whose fixed env contains `${...}` text that is not a credential. Composite templates are limited to auth/header-style keys (see Security).
+- **Runner package sources:** MCPs whose command points at a git URL, http(s) URL, archive, `github:`/`file:` spec, GitHub shorthand or (for pip) a local path are now rejected at create, update, install and spawn. Existing entries that use them fail to start until they are changed to a registry package (e.g. `pkg@1.2.3`, `pkg==1.0`). The 73 entries in the community registry are unaffected.
+- **Docker/podman MCPs:** commands outside the allowlist above are rejected, and `--user` must be a numeric non-zero uid. The community registry's vendored runner-guard needs a re-sync.
+- **Revoked clients:** integrations that edited a revoked client now get 409; delete it instead.
+- **Heartbeat:** if you set `session.heartbeat_min_interval_seconds`, keep it below your shortest client `heartbeat_interval`.
 
 ## [0.10.3] - 2026-11-03
 
