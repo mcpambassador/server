@@ -81,7 +81,6 @@ export function adminKeyActor(request: FastifyRequest): string | undefined {
  * @returns Fastify preHandler hook
  */
 export function authenticateAdmin(db: DatabaseClient): preHandlerHookHandler {
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if ((await verifyAdminKeyHeader(db, request)) !== 'valid') {
       return reply
@@ -107,7 +106,6 @@ export function authenticateAdmin(db: DatabaseClient): preHandlerHookHandler {
  * @returns Fastify preHandler hook
  */
 export function authenticateAdminOrSession(db: DatabaseClient): preHandlerHookHandler {
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     // Option 1: X-Admin-Key header. A header that is present but invalid is a hard 401 (S2):
     // it must never fall through to a cookie session.

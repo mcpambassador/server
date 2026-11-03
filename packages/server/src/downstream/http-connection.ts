@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-
 import { EventEmitter } from 'events';
 import type {
   DownstreamMcpConfig,
@@ -151,7 +149,6 @@ export class HttpMcpConnection extends EventEmitter {
       const chunks: Uint8Array[] = [];
       let totalSize = 0;
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -181,7 +178,7 @@ export class HttpMcpConnection extends EventEmitter {
           if (line.startsWith('data: ')) {
             const jsonData = line.substring(6); // Remove "data: " prefix
             const jsonResponse = JSON.parse(jsonData);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
             return jsonResponse;
           }
         }
@@ -191,7 +188,6 @@ export class HttpMcpConnection extends EventEmitter {
       // Plain JSON response
       const jsonResponse = JSON.parse(responseText);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return jsonResponse;
     } catch (err) {
       clearTimeout(timeoutId);
@@ -283,7 +279,7 @@ export class HttpMcpConnection extends EventEmitter {
   /**
    * Stop the connection
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
+
   async stop(): Promise<void> {
     logger.info(`[MCP:${this.config.name}] Stopping HTTP connection...`);
     this.startedAt = null;

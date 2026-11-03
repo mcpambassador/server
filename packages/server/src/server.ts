@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-redundant-type-constituents, @typescript-eslint/require-await, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
+/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion, @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-function-return-type */
 
 import { requestLogSerializers } from './log-serializers.js';
 import Fastify, { FastifyInstance, FastifyRequest } from 'fastify';
@@ -826,7 +826,7 @@ export class AmbassadorServer {
     // has an authenticated session. This is required for the login and setup endpoints.
     // The secret is stored in a `_csrf` cookie (HttpOnly, SameSite=strict, Secure).
     // Tokens are signed with HMAC-SHA256 using the secret.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const csrfProtection = (await import('@fastify/csrf-protection')).default;
     await this.adminServer.register(csrfProtection, {
       cookieKey: '_csrf',

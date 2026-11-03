@@ -11,9 +11,6 @@
  * @see SEC-V2-003 Session Token Format
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/restrict-template-expressions */
-
 import { randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
