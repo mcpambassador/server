@@ -64,7 +64,7 @@ export async function registerSetupRoutes(
   async function acquireLock(): Promise<void> {
     while (setupLock) {
       // Wait until lock is released
-      // eslint-disable-next-line no-await-in-loop
+
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     setupLock = true;

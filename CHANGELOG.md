@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Internal: removed 30 stale ESLint disable comments (75 → 45) and made unused disable directives a lint error (TD-002).
+
 ### Fixed
 
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
