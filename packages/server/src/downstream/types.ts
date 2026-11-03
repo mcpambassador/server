@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { logger } from '@mcpambassador/core';
 
 /**
  * Downstream MCP configuration (from ambassador-server.yaml)
@@ -30,7 +31,7 @@ export interface DownstreamMcpConfig {
 /**
  * F-SEC-M6-001: Security-sensitive environment variables that must not be overridden
  */
-import { checkRunnerCommand, isBlockedEnvName } from '../services/runner-guard.js';
+import { checkRunnerCommand, isBlockedEnvName, runnerWarning } from '../services/runner-guard.js';
 
 /**
  * @deprecated Exact-name list kept for compatibility. Use `isBlockedEnvName` (TD-039): it is
@@ -188,6 +189,8 @@ export function validateMcpConfig(config: DownstreamMcpConfig): void {
     if (runnerIssue) {
       throw new Error(`[${config.name}] ${runnerIssue}`);
     }
+    const runnerAdvice = runnerWarning(config.command);
+    if (runnerAdvice) logger.warn(`[${config.name}] ${runnerAdvice}`);
 
     // Check for dangerous environment variables
     if (config.env) {

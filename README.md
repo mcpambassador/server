@@ -99,7 +99,8 @@ Set in the `agent_endpoint` block of the server config (the endpoint is off by d
   - instances share the container's network namespace and process list;
   - the server process keeps `SETUID`/`SETGID`/`KILL`;
   - isolation can be disabled, and the legacy single-uid mode puts every instance under one uid;
-  - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only add MCPs you trust.
+  - git/URL package specs in an MCP definition are not guarded yet, so only add MCPs you trust;
+  - `docker` is not in the default command allowlist. If you add it (`MCP_ALLOWED_COMMANDS`), only `docker run`/`podman run` with a small allowlist of confinement-preserving options is accepted (no mounts, `--privileged`, host namespaces, added capabilities, root user, `--entrypoint`, or daemon-redirecting global options), and `DOCKER_*`/`CONTAINER_*` env names are blocked. **Running docker needs access to the Docker socket, which is host-root equivalent. It is unsupported for untrusted MCPs, whatever the argument guard accepts.**
 - **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them (unless that MCP's pin policy is `auto`, which is not allowed for registry or imported MCPs); flagged or previously revoked definitions need an explicit extra step.
 - **Authorization order per call**: kill switch, group policy, then the subscription's selected tools. A tool that is denied answers the same as one that does not exist.
 - **Approval gates**: per-tool human approval for remote-agent (`/mcp`) grants; the approver sees a redacted argument preview. Stdio client calls to a gated tool are refused (`not_supported_for_client`).
