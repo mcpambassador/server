@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.4] - 2026-11-03
 
-Highlights: **a stricter runner guard** (docker/podman arguments, container runtimes, and git/URL/archive/local package sources are refused), **revoked clients are immutable**, **unverified OAuth clients get a shorter grant cap**, and **suspending or deactivating a user cuts their live agent streams**. Two behaviour changes need attention on upgrade (see Upgrade notes). `protocol` wire types are unchanged.
+Highlights: **a stricter runner guard** (docker/podman arguments, container runtimes, and git/URL/archive/local package sources are refused), **revoked clients are immutable**, **unverified OAuth clients get a shorter grant cap**, and **suspending or deactivating a user cuts their live agent streams**. Several behaviour changes need attention on upgrade (see Upgrade notes). `protocol` wire types are unchanged.
 
 ### Security
 
@@ -23,10 +23,11 @@ Highlights: **a stricter runner guard** (docker/podman arguments, container runt
 ### Changed
 
 - **Revoked clients are terminal.** Any mutation of a revoked client (status change, rename, config) now returns 409; only DELETE is allowed. The check is part of the UPDATE (`status != 'revoked'`), so a concurrent revoke cannot be overwritten, and side effects run only when a row changed. Applies to the admin and user client routes.
-- Suspending (PATCH status) or deactivating (DELETE) a user now aborts that user's in-flight `/mcp` agent streams immediately and writes an `agent_streams_closed` audit event (reason, stream count, grant count). Grants are kept, so reactivation restores access (TD-025).
+- Suspending or deactivating a user (PATCH status or DELETE) now aborts that user's in-flight `/mcp` agent streams immediately and writes an `agent_streams_closed` audit event (reason, stream count, grant count). Grants are kept, so reactivation restores access (TD-025).
 - Archiving an MCP and pausing its subscriptions is now one transaction (TD-001). `compatTransaction` no longer lets a failing ROLLBACK mask the original error, and its internals are typed (TD-003).
 - `GET /v1/admin/users/:userId/groups` uses one joined query instead of one lookup per group; the response is unchanged (TD-009, TD-010).
 - Consent details: `max_ttl_seconds` is now the client's effective cap, with an optional `unverified_ttl_limited`. The SPA shows "Unverified clients are limited to N" and filters the picker (older servers omit the field, so the SPA stays compatible).
+- `POST`/`PATCH /v1/users/me/clients` 400 `VALIDATION_ERROR` details are now `[{path, message}]` instead of raw zod issues.
 - Docker/podman images without a `@sha256` digest log a warning at spawn, MCP create/update and registry install.
 - Dependencies and tooling: vitest 3 to 4.1.12 (TD-016), `drizzle-orm` and `drizzle-kit` pinned to exact versions (TD-004), 30 stale ESLint disable comments removed and unused disable directives are now a lint error (TD-002), server vitest timeouts raised to 30 s (TD-047), the legacy `amb_sk_` prefix dropped from the config test fixture (TD-006).
 
@@ -51,7 +52,8 @@ Highlights: **a stricter runner guard** (docker/podman arguments, container runt
 - **Runner package sources:** MCPs whose command points at a git URL, http(s) URL, archive, `github:`/`file:` spec, GitHub shorthand or (for pip) a local path are now rejected at create, update, install and spawn. Existing entries that use them fail to start until they are changed to a registry package (e.g. `pkg@1.2.3`, `pkg==1.0`). The 73 entries in the community registry are unaffected.
 - **Docker/podman MCPs:** commands outside the allowlist above are rejected, and `--user` must be a numeric non-zero uid. The community registry's vendored runner-guard needs a re-sync.
 - **Revoked clients:** integrations that edited a revoked client now get 409; delete it instead.
-- **Heartbeat:** if you set `session.heartbeat_min_interval_seconds`, keep it below your shortest client `heartbeat_interval`.
+- **Heartbeat and body limit:** `session.heartbeat_min_interval_seconds` above 60, or at or above `heartbeat_expected_interval_seconds`, now fails config validation at startup, and `server.body_limit_bytes` outside 1 KiB to 64 MiB fails to load. Keep the heartbeat minimum below your shortest client `heartbeat_interval`.
+- **Dynamically registered OAuth clients:** they previously got grants up to `max_grant_ttl_seconds` (30 days by default); they are now capped at 7 days. Set `agent_endpoint.max_dcr_grant_ttl_seconds` to keep the old cap. Existing grants are unchanged.
 
 ## [0.10.3] - 2026-11-03
 
