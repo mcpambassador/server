@@ -24,6 +24,7 @@ import {
   type DownstreamMcpConfig,
 } from './downstream/index.js';
 import { SessionLifecycleManager } from './session/index.js';
+import { stopChildCacheGc } from './downstream/child-cache-gc.js';
 import path from 'path';
 import { resolveAgentPublicUrls, resolveApprovalUiBaseUrl } from './services/approvals/base-url.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -2319,6 +2320,7 @@ DELETE THIS FILE after recording the value.
     // Stop rate limit cleanup timer (Sprint 3.3)
     logger.info('[Server] Stopping rate limit cleanup timer...');
     stopRateLimitCleanup();
+    stopChildCacheGc(); // TD-062
 
     // Stop session lifecycle manager (M15)
     if (this.lifecycleManager) {
