@@ -569,6 +569,7 @@ const ENV_PREFIXES = [
   'pnpm_',
   'docker_',
   'container_',
+  'podman_', // PODMAN_CONNECTIONS_CONF, PODMAN_HOST ...: redirect the daemon
   'containers_', // CONTAINERS_CONF, CONTAINERS_REGISTRIES_CONF, CONTAINERS_STORAGE_CONF ...
   'bun_',
   'deno_',
@@ -585,7 +586,6 @@ const ENV_SUFFIXES = ['_proxy'];
 /** Case-insensitive exact names. */
 const ENV_EXACT = [
   'registry_auth_file',
-  'podman_connections_conf', // alternate podman connections file: redirects the daemon
   'storage_driver',
   'storage_opts',
   'path',

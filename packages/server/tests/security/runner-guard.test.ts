@@ -175,6 +175,8 @@ describe('isBlockedEnvName', () => {
     'CONTAINERS_STORAGE_CONF',
     'PODMAN_CONNECTIONS_CONF',
     'podman_connections_conf',
+    'PODMAN_HOST',
+    'PODMAN_IGNORE_CGROUPSV1_WARNING',
     'REGISTRY_AUTH_FILE',
     'STORAGE_DRIVER',
     'STORAGE_OPTS',
