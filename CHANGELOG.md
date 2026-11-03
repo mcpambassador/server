@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Build tooling: pnpm 8.15.0 -> 10.34.9 (`packageManager`, CI, Dockerfile; `pnpm-lock.yaml` is now lockfile v9 with the same resolved versions). pnpm 10 skips dependency build scripts by default, so `pnpm.onlyBuiltDependencies` lists `argon2`, `better-sqlite3`, `esbuild` and `re2` (TD-078). Contributors need pnpm 10 (`corepack enable`).
+
 ## [0.10.2] - 2026-11-03
 
 Highlights: **the server and the MCP child processes it launches now run on Node 22** (the container base image changed), **the per-instance MCP cache cleanup is enabled by default (`enforce`)** and empties idle instances' `.cache` (see Added), dependency advisories are cleared with a stricter audit gate, and admin errors return proper 401/403/400 codes. `protocol` and `contracts` wire types are unchanged.
