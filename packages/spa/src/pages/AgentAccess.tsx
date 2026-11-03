@@ -304,6 +304,11 @@ export function AgentAccess() {
   usePageTitle('Agent access');
   const { grants, isLoading, error, hasMore, loadMore, loadingMore } = useAgentGrants();
   const { data: info, isLoading: infoLoading } = useAgentEndpointInfo();
+  // One-shot grants have no refresh token (bearer = grant lifetime), so they get a lower cap
+  const oneShotMaxTtl = Math.min(
+    info?.max_one_shot_grant_ttl_seconds ?? FALLBACK_MAX_TTL,
+    info?.max_grant_ttl_seconds ?? FALLBACK_MAX_TTL
+  );
   const revoke = useRevokeGrant();
   const [pending, setPending] = useState<AgentGrantSummary | null>(null);
   const [revokeAllOpen, setRevokeAllOpen] = useState(false);
@@ -481,8 +486,8 @@ export function AgentAccess() {
       <CreateGrantDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        defaultTtl={info?.default_grant_ttl_seconds ?? FALLBACK_DEFAULT_TTL}
-        maxTtl={info?.max_grant_ttl_seconds ?? FALLBACK_MAX_TTL}
+        defaultTtl={Math.min(info?.default_grant_ttl_seconds ?? FALLBACK_DEFAULT_TTL, oneShotMaxTtl)}
+        maxTtl={oneShotMaxTtl}
       />
     </div>
   );

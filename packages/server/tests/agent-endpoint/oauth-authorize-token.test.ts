@@ -47,7 +47,7 @@ describe('authorize + consent (pending request model)', () => {
   let clientId: string;
 
   beforeAll(async () => {
-    s = await startAgentTestServer(agentEndpointOpts());
+    s = await startAgentTestServer(agentEndpointOpts({ max_grant_ttl_seconds: 86400 }));
     alice = await loginSession(s, await createUser(s, 'alice'));
     bob = await loginSession(s, await createUser(s, 'bob'));
     clientId = await registerAdminClient(s);

@@ -148,6 +148,9 @@ const BufferConfigSchema = z.object({
 
 // ===== ADR-020 Remote Agent Endpoint Configuration =====
 
+/** One year in seconds: ceiling for grant lifetimes */
+const MAX_GRANT_TTL_CEILING = 365 * 86400;
+
 const AgentEndpointConfigSchema = z
   .object({
     /** Public issuer URL of the built-in AS (default: PUBLIC_URL, else https://serverName:adminPort) */
@@ -162,10 +165,40 @@ const AgentEndpointConfigSchema = z
     max_oauth_clients: z.number().int().min(1).max(10000).default(100),
     /** Access token lifetime in seconds (15 min default) */
     access_token_ttl_seconds: z.number().int().min(60).max(3600).default(900),
-    /** Default grant lifetime in seconds (1h) */
-    default_grant_ttl_seconds: z.number().int().min(60).max(86400).default(3600),
-    /** Hard maximum grant lifetime in seconds (24h) */
-    max_grant_ttl_seconds: z.number().int().min(60).max(86400).default(86400),
+    /** Default grant lifetime in seconds (1h); ceiling 1 year. Must not exceed max_grant_ttl_seconds. */
+    default_grant_ttl_seconds: z.number().int().min(60).max(MAX_GRANT_TTL_CEILING).default(3600),
+    /**
+     * Hard maximum lifetime of a grant (refresh family) in seconds. Default 30 days; ceiling
+     * 1 year. Applies to OAuth grants; access tokens stay short (access_token_ttl_seconds).
+     */
+    max_grant_ttl_seconds: z
+      .number()
+      .int()
+      .min(60)
+      .max(MAX_GRANT_TTL_CEILING)
+      .default(30 * 86400),
+    /**
+     * Hard maximum lifetime of a one-shot grant (POST /v1/users/me/agent-grants) in seconds.
+     * One-shot grants have no refresh token, so the bearer token lives as long as the grant:
+     * keep this short. Default 24h, ceiling 7 days; also bounded by max_grant_ttl_seconds.
+     */
+    max_one_shot_grant_ttl_seconds: z
+      .number()
+      .int()
+      .min(60)
+      .max(7 * 86400)
+      .default(86400),
+    /**
+     * A refresh token expires after this many seconds unused (each rotation slides the window),
+     * so a long grant on an abandoned machine dies early. Never extends past the grant itself.
+     * Default 30 days.
+     */
+    refresh_token_idle_ttl_seconds: z
+      .number()
+      .int()
+      .min(3600)
+      .max(MAX_GRANT_TTL_CEILING)
+      .default(30 * 86400),
     /** Authorization code lifetime in seconds */
     auth_code_ttl_seconds: z.number().int().min(10).max(600).default(60),
     /** Issue rotating refresh tokens for grants created via /oauth/authorize */
@@ -190,6 +223,11 @@ const AgentEndpointConfigSchema = z
         failed_auth_per_minute: z.number().int().min(1).default(20),
       })
       .prefault({}),
+  })
+  .refine(c => c.default_grant_ttl_seconds <= c.max_grant_ttl_seconds, {
+    path: ['default_grant_ttl_seconds'],
+    message:
+      'agent_endpoint.default_grant_ttl_seconds must not exceed agent_endpoint.max_grant_ttl_seconds (raise max_grant_ttl_seconds or lower default_grant_ttl_seconds)',
   })
   .prefault({});
 

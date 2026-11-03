@@ -78,7 +78,9 @@ export const TTL_PRESETS: { seconds: number; label: string }[] = [
   { seconds: 4 * 3600, label: '4 hours' },
   { seconds: 12 * 3600, label: '12 hours' },
   { seconds: 24 * 3600, label: '24 hours' },
-  { seconds: 7 * 24 * 3600, label: '7 days' },
+  { seconds: 7 * 24 * 3600, label: '1 week' },
+  { seconds: 30 * 24 * 3600, label: '1 month' },
+  { seconds: 365 * 24 * 3600, label: '1 year' },
 ];
 
 /** TTL options ≤ max, always including the default (and the max itself). */
@@ -94,6 +96,9 @@ export function ttlOptions(defaultSeconds: number, maxSeconds: number) {
 }
 
 export function formatDuration(seconds: number): string {
+  if (seconds === 7 * 86400) return '1 week';
+  if (seconds === 30 * 86400) return '1 month';
+  if (seconds === 365 * 86400) return '1 year';
   if (seconds % 86400 === 0) return `${seconds / 86400} day${seconds === 86400 ? '' : 's'}`;
   if (seconds % 3600 === 0) return `${seconds / 3600} hour${seconds === 3600 ? '' : 's'}`;
   if (seconds % 60 === 0) return `${seconds / 60} minute${seconds === 60 ? '' : 's'}`;

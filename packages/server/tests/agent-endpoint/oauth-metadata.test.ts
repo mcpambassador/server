@@ -90,13 +90,15 @@ describe('agent endpoint disabled (default)', () => {
     expect(cfg.refresh_tokens_enabled).toBe(true);
     expect(cfg.access_token_ttl_seconds).toBe(900);
     expect(cfg.default_grant_ttl_seconds).toBe(3600);
-    expect(cfg.max_grant_ttl_seconds).toBe(86400);
+    expect(cfg.max_grant_ttl_seconds).toBe(30 * 86400);
     expect(cfg.allowed_origins).toEqual([]);
   });
 
   it('rejects out-of-range TTL config', async () => {
     const { AgentEndpointConfigSchema } = await import('@mcpambassador/core');
-    expect(() => AgentEndpointConfigSchema.parse({ max_grant_ttl_seconds: 86401 })).toThrow();
+    expect(() =>
+      AgentEndpointConfigSchema.parse({ max_grant_ttl_seconds: 365 * 86400 + 1 })
+    ).toThrow();
     expect(() => AgentEndpointConfigSchema.parse({ access_token_ttl_seconds: 30 })).toThrow();
   });
 });

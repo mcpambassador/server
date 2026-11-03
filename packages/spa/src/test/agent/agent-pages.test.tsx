@@ -80,6 +80,21 @@ describe('helpers', () => {
     const opts = ttlOptions(3600, 7200).map(o => o.seconds);
     expect(opts).toEqual([900, 3600, 7200]);
   });
+
+  it('offers 1 week / 1 month / 1 year only up to the max', () => {
+    const day = 86400;
+    const full = ttlOptions(3600, 365 * day);
+    expect(full.map(o => o.label)).toEqual(
+      expect.arrayContaining(['1 week', '1 month', '1 year'])
+    );
+    expect(full.at(-1)).toEqual({ seconds: 365 * day, label: '1 year' });
+    // 24h max: nothing longer than a day is offered
+    expect(ttlOptions(3600, day).map(o => o.label)).not.toContain('1 week');
+    // 30d max (the new server default): week and month, no year
+    const m = ttlOptions(3600, 30 * day).map(o => o.label);
+    expect(m).toEqual(expect.arrayContaining(['1 week', '1 month']));
+    expect(m).not.toContain('1 year');
+  });
 });
 
 describe('OAuthConsent', () => {
@@ -245,6 +260,34 @@ describe('AgentAccess', () => {
       .setup()
       .click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
     expect(await screen.findByText(/default 30 minutes, maximum 2 hours/)).toBeInTheDocument();
+  });
+
+  it('caps the one-shot dialog at the one-shot max, not the 1-year grant max', async () => {
+    server.use(
+      http.get('/v1/users/me/agent-endpoint', () =>
+        ok({
+          enabled: true,
+          default_grant_ttl_seconds: 3600,
+          max_grant_ttl_seconds: 365 * 86400,
+          max_one_shot_grant_ttl_seconds: 86400,
+          refresh_tokens_enabled: true,
+          resource_url: 'https://amb.test:8443/mcp',
+        })
+      ),
+      http.get('/v1/users/me/agent-grants', () =>
+        HttpResponse.json({ ok: true, data: [], pagination: { has_more: false } })
+      ),
+      http.get('/v1/users/me/clients', () =>
+        ok([{ id: 'c1', clientName: 'Laptop', status: 'active' }])
+      ),
+      http.get('/v1/users/me/clients/c1/subscriptions', () => ok([]))
+    );
+    renderAt(<AgentAccess />, '/app/agent-access');
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: /Create one-shot grant/ }));
+    expect(await screen.findByText(/default 1 hour, maximum 1 day/)).toBeInTheDocument();
+    expect(screen.queryByText('1 year')).not.toBeInTheDocument();
   });
   const future = new Date(Date.now() + 3600_000).toISOString();
   const grant = {

@@ -1042,7 +1042,8 @@ export class AmbassadorServer {
     await registerAgentEndpointInfoRoute(this.adminServer, {
       enabled: !!agentEndpointConfig?.enabled,
       default_grant_ttl_seconds: agentEndpointConfig?.default_grant_ttl_seconds ?? 3600,
-      max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 86400,
+      max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 30 * 86400,
+      max_one_shot_grant_ttl_seconds: agentEndpointConfig?.max_one_shot_grant_ttl_seconds ?? 86400,
       refresh_tokens_enabled:
         !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
       // Canonical MCP resource URL (what clients register as `claude mcp add ... <url>`)
