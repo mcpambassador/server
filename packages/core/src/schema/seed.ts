@@ -14,6 +14,7 @@ import { tool_profiles, users, groups, user_groups } from './index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { NewToolProfile } from './index.js';
 import argon2 from 'argon2';
+import { ARGON2_OPTIONS } from '../utils/argon2-options.js';
 import { logger } from '../utils/logger.js';
 
 const log = logger.child({ module: 'schema:seed' });
@@ -325,12 +326,6 @@ export async function seedDevData(db: any): Promise<void> {
   });
 
   // Hash dev passwords (DEV ONLY - never use these in production)
-  const ARGON2_OPTIONS = {
-    type: argon2.argon2id,
-    memoryCost: 19456,
-    timeCost: 2,
-    parallelism: 1,
-  };
   const adminPasswordHash = await argon2.hash('admin123', ARGON2_OPTIONS);
   const qaPasswordHash = await argon2.hash('test1234', ARGON2_OPTIONS);
 

@@ -21,18 +21,9 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../../utils/logger.js';
+import { ARGON2_OPTIONS } from '../../utils/argon2-options.js';
 
 const log = logger.child({ module: 'db:admin-keys' });
-
-/**
- * Argon2id parameters (same as client API keys)
- */
-const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-};
 
 /**
  * Admin key prefix (ADR-006)
