@@ -83,11 +83,15 @@ export interface ObserveSummary {
 
 const SYSTEM_AUTO = 'system:auto';
 
-const key = (mcpId: string, scope: string | null, tool: string): string =>
+export const key = (mcpId: string, scope: string | null, tool: string): string =>
   `${mcpId}\u0000${scope ?? ''}\u0000${tool}`;
 
-/** TD-070: mcp-wide lock key; sorts apart from any scope key (scope keys are `<mcp>\0<scope>\0`). */
-const mcpWideKey = (mcpId: string): string => `${mcpId}\u0000\u0001mcp-wide\u0000`;
+/**
+ * TD-070: mcp-wide lock key. It is `<mcp>\0`, a strict prefix of every scope key (`<mcp>\0<scope>\0<tool>`),
+ * so it sorts before all of them and can never equal one. It is always taken FIRST (observe, revoke)
+ * and then the scope keys; never pass it to withScopeLocks together with scope keys.
+ */
+export const mcpWideKey = (mcpId: string): string => `${mcpId}\u0000`;
 
 const nowIso = (): string => new Date().toISOString();
 

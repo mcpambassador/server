@@ -38,6 +38,7 @@ import {
   type DatabaseClient,
 } from '@mcpambassador/core';
 import { createUser } from '../../src/auth/user-auth.js';
+import { key as scopeLockKey, mcpWideKey } from '../../src/services/tool-pins/pin-service.js';
 import { ToolPinService } from '../../src/services/tool-pins/pin-service.js';
 
 const def = (description: string) => [
@@ -113,5 +114,18 @@ describe('revoke vs concurrent scope pin creation (TD-070)', () => {
     expect(pins.resolveApproved(mcpId, u2Id, 'search')).toBeUndefined();
     expect(pins.getPin(mcpId, u2Id, 'search')?.approved_hash ?? null).toBeNull();
     expect(pins.isRevoked(mcpId, 'search', hash)).toBe(true);
+  });
+});
+
+describe('TD-070 lock key ordering', () => {
+  it('the mcp-wide key sorts before every scope key of the same mcp and equals none', () => {
+    const mcp = 'mcp-1';
+    const scopes = [null, '', '0', 'a', 'user-1', '\u0001', 'zzz'];
+    for (const sc of scopes) {
+      const k = scopeLockKey(mcp, sc, '');
+      expect(mcpWideKey(mcp) < k).toBe(true);
+      expect(mcpWideKey(mcp)).not.toBe(k);
+    }
+    expect(mcpWideKey(mcp) < scopeLockKey(mcp, null, 'tool')).toBe(true);
   });
 });
