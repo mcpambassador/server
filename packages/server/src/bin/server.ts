@@ -10,6 +10,7 @@ import fs from 'fs';
 import yaml from 'yaml';
 import type { DownstreamMcpConfig } from '../downstream/index.js';
 import { resolveChildIsolationConfig } from '../downstream/child-isolation.js';
+import { startChildCacheGc } from '../downstream/child-cache-gc.js';
 import { logger, loadConfig, type AmbassadorConfig } from '@mcpambassador/core';
 
 /**
@@ -337,6 +338,7 @@ async function main() {
   try {
     await server.initialize();
     await server.start();
+    startChildCacheGc(); // TD-062; never throws, no-op without per-instance child uids
   } catch (err) {
     logger.error({ err }, '[Server] Failed to start');
     process.exit(1);

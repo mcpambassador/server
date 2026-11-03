@@ -258,6 +258,7 @@ export class ChildUidAllocator {
   /** uids being cleaned for a (re)assignment right now; their entries must not be leased through the fast path */
   private preparing = new Set<number>();
   private readonly deps: AllocatorDeps;
+  private idleListener: ((uid: number) => void) | undefined;
 
   constructor(
     private readonly range: UidRange,
@@ -268,6 +269,53 @@ export class ChildUidAllocator {
 
   homeFor(uid: number): string {
     return `${this.range.homesRoot}/${uid}`;
+  }
+
+  /** TD-062: the configured range (read-only view for the cache GC). */
+  get uidRange(): { min: number; max: number; homesRoot: string } {
+    return { min: this.range.min, max: this.range.max, homesRoot: this.range.homesRoot };
+  }
+
+  /** TD-062: called after the last lease of a uid is released and its leftover sweep finished. */
+  setIdleListener(fn: ((uid: number) => void) | undefined): void {
+    this.idleListener = fn;
+  }
+
+  /** TD-062: assigned instances with their liveness. Throws ChildUidError when the map is unreadable. */
+  instances(): Array<{ key: string; uid: number; lastUsed: number; live: boolean }> {
+    return [...this.load()].map(([key, e]) => ({
+      key,
+      uid: e.uid,
+      lastUsed: e.lastUsed,
+      live: (this.live.get(e.uid) ?? 0) > 0 || this.preparing.has(e.uid),
+    }));
+  }
+
+  /**
+   * TD-062: run `fn` with exclusive use of an ASSIGNED uid, only if it has no live lease and is not being
+   * prepared. Runs inside the serialized chain with the uid marked `preparing`, so a lease for that instance
+   * (fast path or queued) cannot start a child until `fn` is done. `fn` must be bounded in time.
+   */
+  exclusiveIfIdle<T>(
+    uid: number,
+    fn: () => Promise<T>
+  ): Promise<{ ran: true; value: T } | { ran: false }> {
+    const run = this.chain.then(async (): Promise<{ ran: true; value: T } | { ran: false }> => {
+      const assigned = [...this.load().values()].some(e => e.uid === uid);
+      if (!assigned || (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid))
+        return { ran: false };
+      this.preparing.add(uid);
+      try {
+        return { ran: true, value: await fn() };
+      } finally {
+        this.preparing.delete(uid);
+      }
+    });
+    this.chain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   }
 
   /** Lease the uid for `key` (assigning one if needed). Throws ChildUidError; callers must not spawn. */
@@ -356,14 +404,24 @@ export class ChildUidAllocator {
         // The direct child is gone; kill anything it detached. Round 0 runs right here; later rounds stop as
         // soon as the uid is leased again (a quick stop -> start of the same instance) or being reclaimed.
         const stale = (): boolean => (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid);
-        void this.deps.reapUid(uid, stale).then(
-          left => {
-            if (left > 0)
-              logger.warn(`[child-uid] ${left} process(es) of uid ${uid} survived SIGKILL`);
-          },
-          (err: unknown) =>
-            logger.warn(`[child-uid] leftover sweep of uid ${uid} failed: ${errText(err)}`)
-        );
+        void this.deps
+          .reapUid(uid, stale)
+          .then(
+            left => {
+              if (left > 0)
+                logger.warn(`[child-uid] ${left} process(es) of uid ${uid} survived SIGKILL`);
+            },
+            (err: unknown) =>
+              logger.warn(`[child-uid] leftover sweep of uid ${uid} failed: ${errText(err)}`)
+          )
+          .then(() => {
+            if (stale()) return;
+            try {
+              this.idleListener?.(uid);
+            } catch {
+              // the listener (cache GC) must never affect lease handling
+            }
+          });
       },
     };
   }
