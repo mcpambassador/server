@@ -39,3 +39,4 @@ export type {
 export * from './utils/errors.js';
 export * from './utils/logger.js';
 export * from './utils/redact.js';
+export * from './utils/argon2-options.js';
