@@ -32,7 +32,7 @@ import {
   publishMcpCatalogEntry,
 } from '../services/mcp-catalog-service.js';
 import { validateMcpConfig } from '../services/mcp-validator.js';
-import { checkCatalogEntry } from '../services/runner-guard.js';
+import { checkCatalogEntry, runnerWarning } from '../services/runner-guard.js';
 import { commandNotPermittedReason } from '../downstream/types.js';
 import { discoverTools } from '../services/tool-discovery-engine.js';
 
@@ -100,7 +100,15 @@ export const registerAdminMcpRoutes: FastifyPluginCallback<AdminMcpRoutesConfig>
         credential_schema: body.credential_schema,
         oauth_access_token_env_var: body.oauth_config?.access_token_env_var,
       });
-    if (!reason) return true;
+    if (!reason) {
+      // TD-042: non-fatal advice (unpinned docker image) is logged at create/update, not just at spawn.
+      const cmd = body.config?.['command'];
+      if (Array.isArray(cmd)) {
+        const advice = runnerWarning(cmd);
+        if (advice) logger.warn(`[AdminMcpRoutes] ${advice}`);
+      }
+      return true;
+    }
     reply.status(400).send(wrapError(ErrorCodes.VALIDATION_ERROR, reason));
     return false;
   };

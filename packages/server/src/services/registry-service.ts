@@ -142,7 +142,7 @@ function cleanForLog(v: unknown, max: number): string {
 
 import { SecretStore, OAuthConfigError, isSupportedSecretBinding } from './secret-store.js';
 import { createMcpSchema, oauthConfigSchema } from '../admin/mcp-schemas.js';
-import { checkCatalogEntry } from './runner-guard.js';
+import { checkCatalogEntry, runnerWarning } from './runner-guard.js';
 import { commandNotPermittedReason } from '../downstream/types.js';
 import * as yaml from 'yaml';
 import type { DatabaseClient } from '@mcpambassador/core';
@@ -576,6 +576,14 @@ export class RegistryService {
       });
     if (guardReason) {
       return { success: false, message: `MCP '${name}' was rejected: ${guardReason}` };
+    }
+    {
+      const cfg = registryEntry.config as Record<string, unknown> | undefined;
+      const cmd = cfg?.['command'];
+      if (Array.isArray(cmd)) {
+        const advice = runnerWarning(cmd);
+        if (advice) logger.warn(`[RegistryService] MCP '${name}': ${advice}`);
+      }
     }
 
     // Check if already installed

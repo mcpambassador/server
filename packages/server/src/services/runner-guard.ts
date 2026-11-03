@@ -186,6 +186,15 @@ const DENIED_SUBCOMMANDS: Partial<Record<Family, readonly string[]>> = {
   bun: ['repl'],
 };
 
+/** CLIs that share docker's `run` option grammar; all go through the default-deny docker check. */
+const DOCKER_FAMILY = ['docker', 'podman', 'nerdctl', 'finch', 'podman-remote'];
+/** Low-level runtimes with no safe `run` subset; refused outright. */
+const REFUSED_RUNNERS = ['ctr', 'crictl', 'kubectl'];
+
+function isDockerFamily(base: string): boolean {
+  return DOCKER_FAMILY.includes(base);
+}
+
 function baseOf(command: string): string {
   // Basename, lowercase, no Windows extension: `/usr/bin/NPX.cmd` -> `npx`.
   return (command.split(/[\\/]/).pop() ?? '').toLowerCase().replace(/\.(cmd|exe|bat)$/, '');
@@ -228,7 +237,8 @@ export function checkRunnerCommand(command: readonly unknown[]): string | null {
   const first = command[0];
   if (typeof first !== 'string') return null;
   const base = baseOf(first);
-  if (base === 'docker' || base === 'podman') return checkDockerRun(command);
+  if (REFUSED_RUNNERS.includes(base)) return 'container runner not permitted';
+  if (isDockerFamily(base)) return checkDockerRun(command);
   return scan(base, command, 1);
 }
 
@@ -249,10 +259,9 @@ const DOCKER_IMAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
 function dockerUserOk(v: string): boolean {
   const parts = v.split(':');
   if (parts.length > 2) return false;
-  return parts.every(p => {
-    if (/^\d+$/.test(p)) return Number(p) > 0; // uid/gid 0 is root
-    return /^[A-Za-z_][A-Za-z0-9_-]{0,31}$/.test(p) && p.toLowerCase() !== 'root';
-  });
+  // Numeric, non-zero only. A user NAME is resolved through the image's own /etc/passwd, which the
+  // image controls, so any name (not just "root") can map to uid 0 and defeat the check.
+  return parts.every(p => /^\d{1,10}$/.test(p) && Number(p) > 0);
 }
 
 /** Value validators by canonical option name. Return true when the value is acceptable. */
@@ -290,7 +299,7 @@ function parseDockerRunInner(command: readonly unknown[]): string | { image: str
   const sub = typeof command[1] === 'string' ? command[1].trim().toLowerCase() : '';
   // Options before the subcommand (-H, --context, --config, --host ...) redirect the daemon.
   if (sub !== 'run') {
-    return `docker subcommand not permitted: ${safeToken(String(command[1] ?? ''))} (only 'run')`;
+    return `docker subcommand not permitted: ${safeToken(typeof command[1] === 'string' ? command[1] : '')} (only 'run')`;
   }
   const take = (flag: string, name: string, value: string | undefined): string | null => {
     const rule = DOCKER_VALUE_RULES[name];
@@ -358,7 +367,7 @@ function parseDockerRunInner(command: readonly unknown[]): string | { image: str
 export function runnerWarning(command: readonly unknown[]): string | null {
   if (!Array.isArray(command) || typeof command[0] !== 'string') return null;
   const base = baseOf(command[0]);
-  if (base !== 'docker' && base !== 'podman') return null;
+  if (!isDockerFamily(base)) return null;
   const { error, image } = parseDockerRun(command);
   if (error) return null;
   if (!image || image.includes('@sha256:')) return null;
@@ -475,6 +484,7 @@ const ENV_PREFIXES = [
   'pnpm_',
   'docker_',
   'container_',
+  'containers_', // CONTAINERS_CONF, CONTAINERS_REGISTRIES_CONF, CONTAINERS_STORAGE_CONF ...
   'bun_',
   'deno_',
   'git_',
@@ -489,6 +499,9 @@ const ENV_SUFFIXES = ['_proxy'];
 
 /** Case-insensitive exact names. */
 const ENV_EXACT = [
+  'registry_auth_file',
+  'storage_driver',
+  'storage_opts',
   'path',
   'pathext',
   'home',

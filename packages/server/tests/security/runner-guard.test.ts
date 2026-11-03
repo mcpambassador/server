@@ -147,6 +147,13 @@ describe('isBlockedEnvName', () => {
     'HOME',
     'XDG_CONFIG_HOME',
     ' PATH ',
+    'CONTAINERS_CONF',
+    'CONTAINERS_CONF_OVERRIDE',
+    'CONTAINERS_REGISTRIES_CONF',
+    'CONTAINERS_STORAGE_CONF',
+    'REGISTRY_AUTH_FILE',
+    'STORAGE_DRIVER',
+    'STORAGE_OPTS',
   ];
   for (const n of blocked) {
     it(`blocks ${JSON.stringify(n)}`, () => expect(isBlockedEnvName(n)).toBe(true));
@@ -451,6 +458,14 @@ describe('docker / podman run (TD-042)', () => {
       ['docker', 'run', '--security-opt', 'seccomp=unconfined', 'img'],
     ],
     ['--security-opt apparmor', ['docker', 'run', '--security-opt=apparmor=unconfined', 'img']],
+    ['--user name', ['docker', 'run', '--user', 'app', 'img']],
+    ['--user name:gid', ['docker', 'run', '--user=app:1000', 'img']],
+    ['nerdctl --privileged', ['nerdctl', 'run', '--privileged', 'img']],
+    ['finch --privileged', ['finch', 'run', '--privileged', 'img']],
+    ['podman-remote --privileged', ['podman-remote', 'run', '--privileged', 'img']],
+    ['ctr', ['ctr', 'run', 'img', 'x']],
+    ['crictl', ['crictl', 'run', 'x']],
+    ['kubectl', ['kubectl', 'run', 'x', '--image=img']],
     ['--user root', ['docker', 'run', '--user', 'root', 'img']],
     ['--user 0', ['docker', 'run', '-u', '0', 'img']],
     ['--user 0:0', ['docker', 'run', '--user=0:0', 'img']],
@@ -491,6 +506,7 @@ describe('docker / podman run (TD-042)', () => {
     expect(runnerWarning(['docker', 'run', 'img:1.2.3'])).toMatch(/tag only/);
     expect(runnerWarning(['docker', 'run', D])).toBeNull();
     expect(runnerWarning(['docker', 'run', '--memory', '64m', D])).toBeNull();
+    expect(runnerWarning(['nerdctl', 'run', 'img'])).toMatch(/digest/);
     expect(runnerWarning(['npx', 'pkg'])).toBeNull();
     expect(runnerWarning(['docker', 'run', '--privileged', 'img'])).toBeNull();
   });
