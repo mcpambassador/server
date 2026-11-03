@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Archiving an MCP catalog entry and pausing its subscriptions is now one transaction, so a failure part-way no longer leaves a half-archived entry (TD-001).
+- A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 
 ### Changed
 

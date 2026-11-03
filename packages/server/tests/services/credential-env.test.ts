@@ -115,8 +115,14 @@ describe('mergeCredentialEnv placeholder slots', () => {
       { brave_api_key: '${BRAVE_API_KEY}', X: '${x}' },
       { BRAVE_API_KEY: 'k', x: 'v' }
     );
-    expect(r.env).toEqual({ BRAVE_API_KEY: 'k', x: 'v' });
+    // TD-051: written under the slot's own key, not the credential's casing
+    expect(r.env).toEqual({ brave_api_key: 'k', X: 'v' });
     expect(r.dropped).toEqual([]);
+  });
+
+  it('a non-slot credential keeps its own name', () => {
+    const r = mergeCredentialEnv({ MODE: 'ro' }, { Token: 't' });
+    expect(r.env).toEqual({ MODE: 'ro', Token: 't' });
   });
 
   it('removes an unfilled slot instead of passing the literal ${X}', () => {

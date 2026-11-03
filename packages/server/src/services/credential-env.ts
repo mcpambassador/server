@@ -47,7 +47,7 @@ function slotName(value: unknown): string | null {
  *
  * Exception, the placeholder SLOT: a fixed value that is exactly `${NAME}` where NAME equals its own
  * key (case-insensitive), e.g. `{ BRAVE_API_KEY: '${BRAVE_API_KEY}' }`, means "the credential for
- * this name goes here". The credential for that name fills it. A slot for a different name
+ * this name goes here". The credential for that name fills it, under the slot's key (TD-051). A slot for a different name
  * (`{ A: '${B}' }`) stays locked. A slot still unfilled after the merge is REMOVED so the child never
  * receives the literal `${X}` (HTTP transports then fail closed on the unresolved URL variable).
  *
@@ -82,9 +82,11 @@ export function mergeCredentialEnv(
     }
     const slotKey = slots.get(lower);
     if (slotKey !== undefined) {
-      slots.delete(lower); // filled; the credential's own name is used
+      slots.delete(lower); // filled
+      env[slotKey] = value; // TD-051: the slot's key wins, so the child sees the name the entry expects
+    } else {
+      env[name] = value;
     }
-    env[name] = value;
   }
   // Unfilled slots are not copied into env at all (removed).
   return { env, dropped };
