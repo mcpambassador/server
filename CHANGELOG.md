@@ -7,17 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-03
+
+Highlights: **agent grants can last up to a year** (1 week, 1 month, 1 year), with short access tokens, a lower cap for one-shot grants and an idle limit on refresh tokens. **The default maximum grant lifetime rises from 24h to 30 days on upgrade** (see Changed). Also: the build moves to pnpm 10 and the child uid cleanup on archive/deactivate is fixed. `protocol` wire types are unchanged; `contracts` only gains optional fields.
+
 ### Added
 
 - Agent grants can now last up to a year. `agent_endpoint.max_grant_ttl_seconds` and `default_grant_ttl_seconds` accept up to 31536000 (1 year), and the SPA offers "1 week", "1 month" and "1 year" next to the shorter presets (up to the configured max). Access tokens stay short (`access_token_ttl_seconds`, max 1h, default 15 min): only the grant, i.e. the rotating refresh family, lives longer, so users re-authorize far less often. Users still see and revoke their grants on the Agent access page, and revoking kills the whole refresh family.
 - `agent_endpoint.max_one_shot_grant_ttl_seconds` (default 24h, ceiling 7 days): cap for one-shot grants (`POST /v1/users/me/agent-grants`). They have no refresh token, so their bearer token lives as long as the grant; a long OAuth grant limit does not lengthen it. `GET /v1/users/me/agent-endpoint` returns it as an optional field.
 - `agent_endpoint.refresh_token_idle_ttl_seconds` (default 30 days, min 1h): a refresh token not used for this long expires (each rotation slides the window; it never outlives the grant), so a long grant on an abandoned machine dies on its own.
 - Startup now fails with a clear message when `default_grant_ttl_seconds` is larger than `max_grant_ttl_seconds`.
+- Consent details gain optional `refresh_tokens_enabled` and `refresh_token_idle_ttl_seconds`; the `agent_token_refreshed` audit event adds `refresh_token_expires_at`.
 
 ### Changed
 
 - **Default `agent_endpoint.max_grant_ttl_seconds` rises from 24h to 30 days on upgrade** (unset configs get the new default). To keep the old limit, set `max_grant_ttl_seconds: 86400` explicitly. One-shot grants are unaffected (their default cap stays 24h).
-
 - Build tooling: pnpm 8.15.0 -> 10.34.7, pinned with its sha512 integrity in `packageManager` (CI via `pnpm/action-setup` reading `packageManager`, Dockerfile via corepack; `pnpm-lock.yaml` is now lockfile v9 with the same resolved versions). pnpm 10 skips dependency build scripts by default, so `pnpm.onlyBuiltDependencies` lists `argon2`, `better-sqlite3`, `esbuild` and `re2` (TD-078). Contributors need pnpm 10 (`corepack enable`).
 
 ### Fixed
