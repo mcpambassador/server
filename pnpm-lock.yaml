@@ -89,7 +89,7 @@ importers:
         specifier: ^0.44.0
         version: 0.44.0
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 0.45.4
         version: 0.45.4(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)
       uuid:
         specifier: ^11.1.1
@@ -140,7 +140,7 @@ importers:
         specifier: ^12.6.2
         version: 12.6.2
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 0.45.4
         version: 0.45.4(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)
       pino:
         specifier: ^8.17.2
@@ -165,7 +165,7 @@ importers:
         specifier: ^7.6.8
         version: 7.6.13
       drizzle-kit:
-        specifier: ^0.31.11
+        specifier: 0.31.11
         version: 0.31.11
       typescript:
         specifier: ^5.3.3
@@ -231,7 +231,7 @@ importers:
         specifier: 2.1.0
         version: 2.1.0
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 0.45.4
         version: 0.45.4(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(postgres@3.4.8)
       fastify:
         specifier: ^5.12.2

@@ -51,7 +51,7 @@
     "ajv": "^8.17.1",
     "argon2": "^0.44.0",
     "canonicalize": "2.1.0",
-    "drizzle-orm": "^0.45.4",
+    "drizzle-orm": "0.45.4",
     "fastify": "^5.12.2",
     "pino": "^8.17.2",
     "re2": "1.27.0",
