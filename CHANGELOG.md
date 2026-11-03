@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `GET /v1/admin/users/:userId/groups` loads a user's groups with one joined query instead of one lookup per group; the response is unchanged (TD-009). The SPA types it as `UserGroupSummary` (TD-010).
 
+### Fixed
+
+- A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
+
 ## [0.10.3] - 2026-11-03
 
 Highlights: **agent grants can last up to a year** (1 week, 1 month, 1 year), with short access tokens, a lower cap for one-shot grants and an idle limit on refresh tokens. **The default maximum grant lifetime rises from 24h to 30 days on upgrade** (see Changed). Also: the build moves to pnpm 10 and the child uid cleanup on archive/deactivate is fixed. `protocol` wire types are unchanged; `contracts` only gains optional fields.

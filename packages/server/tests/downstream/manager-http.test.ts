@@ -15,31 +15,25 @@ beforeAll(async () => {
 });
 
 describe('SharedMcpManager mixed transports', () => {
-  it('initializes http transport configs', async () => {
+  // These configs cannot connect (no such stdio binary, nothing listening); the manager must
+  // isolate each failure instead of throwing, and expose an empty catalog.
+  it('initializes mixed transport configs without throwing when none connect', async () => {
     if (!available) return expect(true).toBeTruthy();
     const mgr = new SharedMcpManager();
     const configs = [
       makeMcpConfig({ name: 's1', transport: 'stdio' }),
-      makeMcpConfig({ name: 'h1', transport: 'http', url: 'http://127.0.0.1' }),
+      makeMcpConfig({ name: 'h1', transport: 'http', url: 'http://127.0.0.1:1' }),
     ];
-    if (typeof mgr.initialize === 'function') {
-      await mgr.initialize(configs);
-      const status = mgr.getStatus ? mgr.getStatus() : null;
-      expect(mgr.connections.has('s1')).toBe(true);
-    } else {
-      expect(true).toBeTruthy();
-    }
+    await expect(mgr.initialize(configs)).resolves.toBeUndefined();
+    expect(mgr.getConnectionNames()).toEqual([]);
+    await mgr.shutdown();
   });
 
-  it('aggregates tool catalogs across transports', async () => {
+  it('aggregates an empty tool catalog across transports', async () => {
     if (!available) return expect(true).toBeTruthy();
-    // If implementation exists, call aggregateTools and ensure result is an array
     const mgr = new SharedMcpManager();
-    if (typeof mgr.aggregateTools === 'function') {
-      const agg = await mgr.aggregateTools();
-      expect(Array.isArray(agg)).toBe(true);
-    } else {
-      expect(true).toBeTruthy();
-    }
+    await mgr.aggregateTools();
+    expect(Array.isArray(mgr.getToolCatalog())).toBe(true);
+    expect(mgr.getToolCatalog()).toHaveLength(0);
   });
 });

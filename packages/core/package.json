@@ -38,6 +38,6 @@
     "@types/better-sqlite3": "^7.6.8",
     "drizzle-kit": "^0.31.11",
     "typescript": "^5.3.3",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.12"
   }
 }
