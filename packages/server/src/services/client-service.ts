@@ -27,7 +27,7 @@ import {
   compatDelete,
   compatTransaction,
 } from '@mcpambassador/core';
-import { eq, and } from 'drizzle-orm';
+import { eq, ne, and } from 'drizzle-orm';
 
 // CR-L3: Define constant for client key generation
 const CLIENT_KEY_BYTES = 36; // 36 bytes → 48 base64 chars
@@ -225,7 +225,15 @@ export async function suspendUserClient(
     ? eq(clients.client_id, clientId)
     : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
-  await compatUpdate(db, clients).set({ status: 'suspended' }).where(whereClause);
+  // Compare-and-set on the source status: a concurrent admin revoke between the read above and
+  // this write must win (revoked is terminal), so 0 rows updated means the transition is invalid.
+  const updated = (await compatUpdate(db, clients)
+    .set({ status: 'suspended' })
+    .where(and(whereClause, eq(clients.status, 'active')))
+    .returning({ id: clients.client_id })) as unknown[];
+  if (updated.length === 0) {
+    throw new Error('Invalid state transition: only active clients can be suspended');
+  }
   // ADR-023: open approvals bound to this client die with the suspension (also when no grant is live)
   await voidApprovalsForLifecycleBestEffort(db, { boundClientId: clientId }, 'client_suspended');
 
@@ -258,7 +266,15 @@ export async function reactivateUserClient(
     ? eq(clients.client_id, clientId)
     : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
-  await compatUpdate(db, clients).set({ status: 'active' }).where(whereClause);
+  // Compare-and-set on the source status: a concurrent admin revoke between the read above and
+  // this write must win (revoked is terminal), so 0 rows updated means the transition is invalid.
+  const updated = (await compatUpdate(db, clients)
+    .set({ status: 'active' })
+    .where(and(whereClause, eq(clients.status, 'suspended')))
+    .returning({ id: clients.client_id })) as unknown[];
+  if (updated.length === 0) {
+    throw new Error('Invalid state transition: only suspended clients can be reactivated');
+  }
 
   logger.info(`[ClientService] User ${userId} reactivated client ${clientId}`);
 }
@@ -334,7 +350,14 @@ export async function updateUserClientName(
     ? eq(clients.client_id, clientId)
     : and(eq(clients.client_id, clientId), eq(clients.user_id, userId));
 
-  await compatUpdate(db, clients).set({ client_name: clientName }).where(whereClause);
+  // A revoked client is immutable; 0 rows updated also covers a revoke racing the read above.
+  const updated = (await compatUpdate(db, clients)
+    .set({ client_name: clientName })
+    .where(and(whereClause, ne(clients.status, 'revoked')))
+    .returning({ id: clients.client_id })) as unknown[];
+  if (updated.length === 0) {
+    throw new Error('Invalid state transition: revoked clients cannot be modified');
+  }
 
   logger.info(`[ClientService] User ${userId} updated client ${clientId} name`);
 }
