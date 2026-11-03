@@ -9,6 +9,7 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any -- the query-builder helpers below return `any` on purpose: the SQLite/PG builder unions do not unify (F-TECH-DEBT-001). Internals (raw handles, transactions) are typed. */
 
+import { logger } from '../utils/logger.js';
 import type { DatabaseClient } from './client.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -176,10 +177,15 @@ export async function compatTransaction<T>(db: DatabaseClient, fn: () => Promise
     }
     return result;
   } catch (err) {
-    if (pg) {
-      await pg.execute('ROLLBACK');
-    } else {
-      sqlite!.prepare('ROLLBACK').run();
+    // A failing ROLLBACK (e.g. the connection died) must not mask the original error.
+    try {
+      if (pg) {
+        await pg.execute('ROLLBACK');
+      } else {
+        sqlite!.prepare('ROLLBACK').run();
+      }
+    } catch (rollbackErr) {
+      logger.error({ err: rollbackErr }, '[db] ROLLBACK failed after transaction error');
     }
     throw err;
   }
