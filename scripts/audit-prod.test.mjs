@@ -80,3 +80,24 @@ test('malformed reviewBy fails closed', () => {
     assert.equal(r.code, 2, String(reviewBy));
   }
 });
+
+test('untracked moderate blocks (gate raised to moderate)', () =>
+  assert.equal(
+    evaluate({
+      ...base,
+      stdout: out({ 1: adv('GHSA-m', 'moderate') }, { moderate: 1 }),
+      exitCode: 1,
+    }).code,
+    1
+  ));
+test('low and info do not block', () =>
+  assert.equal(
+    evaluate({
+      ...base,
+      stdout: out({ 1: adv('GHSA-l', 'low'), 2: adv('GHSA-i', 'info') }, { low: 1, info: 1 }),
+      exitCode: 1,
+    }).code,
+    0
+  ));
+test('metadata moderate count mismatch is unusable', () =>
+  assert.equal(evaluate({ ...base, stdout: out({}, { moderate: 1 }), exitCode: 0 }).code, 2));

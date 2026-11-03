@@ -265,7 +265,7 @@ describe('group tool policy admin API (ADR-025)', () => {
     const file = path.join(server.dataDir, 'audit', 'audit.jsonl');
     // audit is flushed on an interval: poll for the line
     let events: Array<{ action?: string; metadata?: Record<string, unknown> }> = [];
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 100; i++) {
       events = fs.existsSync(file)
         ? fs
             .readFileSync(file, 'utf8')
@@ -293,7 +293,7 @@ describe('group tool policy admin API (ADR-025)', () => {
       added_count: 2,
     });
     expect(JSON.stringify(m)).not.toMatch(/X-Admin-Key|admin_key/i);
-  });
+  }, 30_000); // polls up to 25s: the audit file flushes every 5s and vitest's default test timeout is 5s
 
   it('the marketplace shows a user only the tools their groups offer (union)', async () => {
     const user = await createUser(server.db, {
