@@ -569,6 +569,7 @@ const ENV_PREFIXES = [
   'pnpm_',
   'docker_',
   'container_',
+  'podman_', // PODMAN_CONNECTIONS_CONF, PODMAN_HOST ...: redirect the daemon
   'containers_', // CONTAINERS_CONF, CONTAINERS_REGISTRIES_CONF, CONTAINERS_STORAGE_CONF ...
   'bun_',
   'deno_',

@@ -20,6 +20,7 @@ import {
   registerAgentOAuthRoutes,
   registerCookieFreeGuard,
   registerAgentEndpointInfoRoute,
+  effectiveDcrGrantCap,
   isCookieFreePath,
 } from '../src/routes/agent-oauth.js';
 import {
@@ -413,6 +414,7 @@ describe('S5 cookie-free guard + info route', () => {
       enabled: true,
       default_grant_ttl_seconds: 3600,
       max_grant_ttl_seconds: 86400,
+      max_dcr_grant_ttl_seconds: 3600,
       refresh_tokens_enabled: true,
       resource_url: 'https://amb.test:8443/mcp',
     });
@@ -421,7 +423,11 @@ describe('S5 cookie-free guard + info route', () => {
     sess = { userId: 'u1' };
     const r = await a.inject({ url: '/v1/users/me/agent-endpoint' });
     expect(r.statusCode).toBe(200);
-    expect(r.json().data).toMatchObject({ enabled: true, max_grant_ttl_seconds: 86400 });
+    expect(r.json().data).toMatchObject({
+      enabled: true,
+      max_grant_ttl_seconds: 86400,
+      max_dcr_grant_ttl_seconds: 3600,
+    });
     await a.close();
   });
 });
@@ -475,5 +481,16 @@ describe('R2 admin-key auth, optional label, RFC 7591 error codes', () => {
     });
     expect(r.statusCode).toBe(400);
     expect(r.json().error).toBe('invalid_redirect_uri');
+  });
+});
+
+describe('effectiveDcrGrantCap', () => {
+  it('defaults to 7 days, never exceeds max_grant_ttl_seconds', () => {
+    expect(effectiveDcrGrantCap(undefined)).toBe(7 * 86400);
+    expect(effectiveDcrGrantCap({ max_grant_ttl_seconds: 86400 })).toBe(86400);
+    expect(effectiveDcrGrantCap({ max_dcr_grant_ttl_seconds: 3600 })).toBe(3600);
+    expect(
+      effectiveDcrGrantCap({ max_dcr_grant_ttl_seconds: 30 * 86400, max_grant_ttl_seconds: 86400 })
+    ).toBe(86400);
   });
 });
