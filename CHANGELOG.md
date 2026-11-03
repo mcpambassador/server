@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Agent OAuth: dynamically registered (unverified) clients are capped at `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days) instead of `max_grant_ttl_seconds`; the consent screen shows the effective cap. Admin-registered clients are unchanged (TD-080).
+
 ### Changed
 
 - Tests: server vitest `testTimeout`/`hookTimeout` raised to 30s to stop load-induced flakes (TD-047).

@@ -493,6 +493,11 @@ export async function discoverTools(
       for (const name of merged.dropped) {
         warnings.push(`Credential env var '${name}' collides with fixed env; ignored`);
       }
+      for (const key of merged.rejected) {
+        warnings.push(
+          `Env var '${key}' not set: its credential placeholder could not be filled safely`
+        );
+      }
       dsConfig.env = dsConfig.env || Object.keys(merged.env).length > 0 ? merged.env : undefined;
     }
 

@@ -90,8 +90,20 @@ Set in the `agent_endpoint` block of the server config (the endpoint is off by d
 | `access_token_ttl_seconds` | `900` | Bearer token lifetime (max 3600). Stays short however long the grant is. |
 | `default_grant_ttl_seconds` | `3600` | Pre-selected grant lifetime in the consent screen; must be at most `max_grant_ttl_seconds`. |
 | `max_grant_ttl_seconds` | `2592000` (30 days) | Longest OAuth grant users can pick (max `31536000`, 1 year). Set `86400` for the old 24h limit. |
+| `max_dcr_grant_ttl_seconds` | `604800` (7 days) | Cap for clients that registered themselves (`registered_via=dcr`); range `60`-`31536000`. The effective cap is the smaller of this and `max_grant_ttl_seconds`. Admin-registered clients are not affected. |
 | `max_one_shot_grant_ttl_seconds` | `86400` (24h) | Cap for one-shot grants (no refresh token; the bearer lives as long as the grant). Max 7 days. |
 | `refresh_token_idle_ttl_seconds` | `2592000` (30 days) | A refresh token unused this long expires, so an abandoned long grant dies on its own. |
+
+Lowering `max_grant_ttl_seconds` or `max_dcr_grant_ttl_seconds` (the cap for dynamically registered clients, since v0.10.4) only limits grants created afterwards. Existing grants keep their original expiry; to end one sooner, revoke it.
+
+### Session heartbeat
+
+Set in the `session` block of the server config.
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `heartbeat_min_interval_seconds` | `10` (1-60) | Minimum gap between heartbeats from one session; faster ones get `429`. Must be less than `heartbeat_expected_interval_seconds`. Keep it below the shortest `heartbeat_interval` any client uses (the client allows 15-300 s), otherwise that client gets `429` noise. |
+| `heartbeat_expected_interval_seconds` | `120` (15-3600) | How often clients are expected to heartbeat. |
 
 ## Security model
 
@@ -99,7 +111,8 @@ Set in the `agent_endpoint` block of the server config (the endpoint is off by d
   - instances share the container's network namespace and process list;
   - the server process keeps `SETUID`/`SETGID`/`KILL`;
   - isolation can be disabled, and the legacy single-uid mode puts every instance under one uid;
-  - docker arguments and git/URL specs in an MCP definition are not guarded (TD-042), so only add MCPs you trust.
+  - git/URL package specs in an MCP definition are not guarded yet, so only add MCPs you trust;
+  - `docker` is not in the default command allowlist. If you add it (`MCP_ALLOWED_COMMANDS`), only `docker run`/`podman run` with a small allowlist of confinement-preserving options is accepted (no mounts, `--privileged`, host namespaces, added capabilities, root user, `--entrypoint`, or daemon-redirecting global options), and `DOCKER_*`/`CONTAINER_*` env names are blocked. **Running docker needs access to the Docker socket, which is host-root equivalent. It is unsupported for untrusted MCPs, whatever the argument guard accepts.**
 - **Tool pinning**: the full definition of every downstream tool is hashed. Unreviewed or changed definitions are hidden from agents until an admin approves them (unless that MCP's pin policy is `auto`, which is not allowed for registry or imported MCPs); flagged or previously revoked definitions need an explicit extra step.
 - **Authorization order per call**: kill switch, group policy, then the subscription's selected tools. A tool that is denied answers the same as one that does not exist.
 - **Approval gates**: per-tool human approval for remote-agent (`/mcp`) grants; the approver sees a redacted argument preview. Stdio client calls to a gated tool are refused (`not_supported_for_client`).

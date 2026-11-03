@@ -933,6 +933,11 @@ export class AmbassadorServer {
       onGrantsRevoked: ids => {
         for (const id of ids) this.agentEndpointDeps?.streams.closeGrant(id);
       },
+      closeGrantStreams: ids => {
+        let closed = 0;
+        for (const id of ids) closed += this.agentEndpointDeps?.streams.closeGrant(id) ?? 0;
+        return closed;
+      },
     });
 
     // Register user-facing API routes on admin server (M29.7)

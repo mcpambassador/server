@@ -9,6 +9,7 @@ import {
   checkCatalogEntry,
   isBlockedEnvName,
   credentialEnvNames,
+  runnerWarning,
 } from '../../src/services/runner-guard.js';
 import { validateMcpConfig as spawnValidate } from '../../src/downstream/types.js';
 import { validateMcpConfig as catalogValidate } from '../../src/services/mcp-validator.js';
@@ -120,6 +121,28 @@ describe('checkRunnerCommand', () => {
   });
 });
 
+describe('refused container/namespace runners', () => {
+  for (const r of [
+    'ctr',
+    'crictl',
+    'kubectl',
+    'buildah',
+    'runc',
+    'crun',
+    'nsenter',
+    'unshare',
+    'systemd-nspawn',
+    'bwrap',
+    'lxc-execute',
+    'chroot',
+  ]) {
+    it(`refuses ${r} (also by path)`, () => {
+      expect(checkRunnerCommand([r, 'run', 'x'])).toBeTruthy();
+      expect(checkRunnerCommand([`/usr/bin/${r}`, 'x'])).toBeTruthy();
+    });
+  }
+});
+
 describe('isBlockedEnvName', () => {
   const blocked = [
     'PATH',
@@ -146,6 +169,13 @@ describe('isBlockedEnvName', () => {
     'HOME',
     'XDG_CONFIG_HOME',
     ' PATH ',
+    'CONTAINERS_CONF',
+    'CONTAINERS_CONF_OVERRIDE',
+    'CONTAINERS_REGISTRIES_CONF',
+    'CONTAINERS_STORAGE_CONF',
+    'REGISTRY_AUTH_FILE',
+    'STORAGE_DRIVER',
+    'STORAGE_OPTS',
   ];
   for (const n of blocked) {
     it(`blocks ${JSON.stringify(n)}`, () => expect(isBlockedEnvName(n)).toBe(true));
@@ -520,4 +550,127 @@ describe('package source specs (TD-042)', () => {
   for (const [l, c] of good) {
     it(`allows: ${l}`, () => expect(checkRunnerCommand(c)).toBeNull());
   }
+});
+describe('docker / podman run (TD-042)', () => {
+  const D = 'ghcr.io/org/img@sha256:' + 'a'.repeat(64);
+  const okCases: Array<[string, string[]]> = [
+    ['minimal', ['docker', 'run', 'img']],
+    [
+      'hardened',
+      [
+        'docker',
+        'run',
+        '-i',
+        '--rm',
+        '--network=none',
+        '--read-only',
+        '--cap-drop=ALL',
+        '--security-opt=no-new-privileges',
+        '--user',
+        '1000:1000',
+        '--memory=256m',
+        '--cpus=1.5',
+        '--pids-limit',
+        '64',
+        D,
+        '--flag',
+      ],
+    ],
+    ['podman', ['podman', 'run', '--rm', '-i', 'img:1.2']],
+    [
+      'short cluster + values',
+      ['docker', 'run', '-iq', '-m', '512m', '-u1000', '-w', '/app', 'img'],
+    ],
+    ['bridge net', ['docker', 'run', '--net', 'bridge', 'img']],
+    ['container args may look like flags', ['docker', 'run', 'img', '--privileged', '-v', '/:/h']],
+  ];
+  for (const [l, c] of okCases) {
+    it(`allows: ${l}`, () => expect(checkRunnerCommand(c)).toBeNull());
+  }
+
+  const badCases: Array<[string, string[]]> = [
+    ['--privileged', ['docker', 'run', '--privileged', 'img']],
+    ['-v bind mount', ['docker', 'run', '-v', '/:/host', 'img']],
+    ['--volume=', ['docker', 'run', '--volume=/etc:/e', 'img']],
+    ['--mount', ['docker', 'run', '--mount', 'type=bind,src=/,dst=/h', 'img']],
+    ['--network=host', ['docker', 'run', '--network=host', 'img']],
+    ['--net host', ['docker', 'run', '--net', 'host', 'img']],
+    ['--network container:', ['docker', 'run', '--network', 'container:x', 'img']],
+    ['--pid=host', ['docker', 'run', '--pid=host', 'img']],
+    ['--ipc=host', ['docker', 'run', '--ipc=host', 'img']],
+    ['--uts=host', ['docker', 'run', '--uts=host', 'img']],
+    ['--userns=host', ['docker', 'run', '--userns=host', 'img']],
+    ['--cap-add', ['docker', 'run', '--cap-add=SYS_ADMIN', 'img']],
+    ['--cap-drop non-all', ['docker', 'run', '--cap-drop=NET_RAW', 'img']],
+    ['--device', ['docker', 'run', '--device=/dev/sda', 'img']],
+    [
+      '--security-opt seccomp=unconfined',
+      ['docker', 'run', '--security-opt', 'seccomp=unconfined', 'img'],
+    ],
+    ['--security-opt apparmor', ['docker', 'run', '--security-opt=apparmor=unconfined', 'img']],
+    ['--user name', ['docker', 'run', '--user', 'app', 'img']],
+    ['--user name:gid', ['docker', 'run', '--user=app:1000', 'img']],
+    ['nerdctl --privileged', ['nerdctl', 'run', '--privileged', 'img']],
+    ['finch --privileged', ['finch', 'run', '--privileged', 'img']],
+    ['podman-remote --privileged', ['podman-remote', 'run', '--privileged', 'img']],
+    ['ctr', ['ctr', 'run', 'img', 'x']],
+    ['crictl', ['crictl', 'run', 'x']],
+    ['kubectl', ['kubectl', 'run', 'x', '--image=img']],
+    ['--user root', ['docker', 'run', '--user', 'root', 'img']],
+    ['--user 0', ['docker', 'run', '-u', '0', 'img']],
+    ['--user 0:0', ['docker', 'run', '--user=0:0', 'img']],
+    ['--user 1000:0', ['docker', 'run', '--user=1000:0', 'img']],
+    ['--entrypoint', ['docker', 'run', '--entrypoint', 'sh', 'img']],
+    ['--env-file', ['docker', 'run', '--env-file', '/etc/x', 'img']],
+    ['-e', ['docker', 'run', '-e', 'A=b', 'img']],
+    ['--pull invalid', ['docker', 'run', '--pull=x', 'img']],
+    ['--workdir traversal', ['docker', 'run', '-w', '/a/../b', 'img']],
+    ['--workdir relative', ['docker', 'run', '-w', 'rel', 'img']],
+    ['--memory 0', ['docker', 'run', '--memory=0', 'img']],
+    ['--tmpfs', ['docker', 'run', '--tmpfs', '/t:exec', 'img']],
+    ['--', ['docker', 'run', '--', 'img']],
+    ['global --host', ['docker', '--host', 'tcp://evil.example:2375', 'run', 'img']],
+    ['global -H', ['docker', '-H', 'tcp://evil.example', 'run', 'img']],
+    ['global --context', ['docker', '--context', 'evil', 'run', 'img']],
+    ['subcommand exec', ['docker', 'exec', 'c', 'sh']],
+    ['subcommand build', ['docker', 'build', '.']],
+    ['no image', ['docker', 'run', '--rm']],
+    ['bad image chars', ['docker', 'run', 'img;id']],
+    ['clustered unknown short', ['docker', 'run', '-it', 'img']],
+    ['value-less --user', ['docker', 'run', '--user']],
+    ['podman --privileged', ['podman', 'run', '--privileged', 'img']],
+    ['abs path docker', ['/usr/bin/docker', 'run', '--privileged', 'img']],
+  ];
+  for (const [l, c] of badCases) {
+    it(`rejects: ${l}`, () => {
+      const r = checkRunnerCommand(c);
+      expect(r).toBeTruthy();
+      expect(r).not.toContain('evil.example');
+      expect(r).not.toContain('/etc');
+    });
+  }
+
+  it('warns for unpinned images, not digests or other runners', () => {
+    expect(runnerWarning(['docker', 'run', 'img'])).toMatch(/digest/);
+    expect(runnerWarning(['docker', 'run', '--rm', 'img:latest'])).toMatch(/digest/);
+    expect(runnerWarning(['docker', 'run', 'img:1.2.3'])).toMatch(/tag only/);
+    expect(runnerWarning(['docker', 'run', D])).toBeNull();
+    expect(runnerWarning(['docker', 'run', '--memory', '64m', D])).toBeNull();
+    expect(runnerWarning(['nerdctl', 'run', 'img'])).toMatch(/digest/);
+    expect(runnerWarning(['npx', 'pkg'])).toBeNull();
+    expect(runnerWarning(['docker', 'run', '--privileged', 'img'])).toBeNull();
+  });
+
+  it('blocks DOCKER_* and CONTAINER_* env names', () => {
+    for (const n of [
+      'DOCKER_HOST',
+      'DOCKER_CONFIG',
+      'DOCKER_CONTEXT',
+      'CONTAINER_HOST',
+      'docker_host',
+    ]) {
+      expect(isBlockedEnvName(n)).toBe(true);
+    }
+    expect(isBlockedEnvName('MY_DOCKER_THING')).toBe(false);
+  });
 });

@@ -191,6 +191,17 @@ const AgentEndpointConfigSchema = z
       .max(MAX_GRANT_TTL_CEILING)
       .default(30 * 86400),
     /**
+     * Lower grant lifetime cap for dynamically registered (unverified, `registered_via = dcr`)
+     * OAuth clients, in seconds (TD-080). Default 7 days; the effective cap is the smaller of this
+     * and max_grant_ttl_seconds. Admin-registered clients are not affected.
+     */
+    max_dcr_grant_ttl_seconds: z
+      .number()
+      .int()
+      .min(60)
+      .max(MAX_GRANT_TTL_CEILING)
+      .default(7 * 86400),
+    /**
      * Hard maximum lifetime of a one-shot grant (POST /v1/users/me/agent-grants) in seconds.
      * One-shot grants have no refresh token, so the bearer token lives as long as the grant:
      * keep this short. Default 24h, ceiling 7 days; also bounded by max_grant_ttl_seconds.
