@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fake downstream MCP for ADR-020 tests. Plain Node 20, no deps. Newline-delimited JSON-RPC on stdio.
+// Fake downstream MCP for ADR-020 tests. Plain Node, no deps. Newline-delimited JSON-RPC on stdio.
 //
 // Env:
 //   FAKE_MCP_TOOLS   comma-separated tool names (default "echo"). Each tool takes any object.

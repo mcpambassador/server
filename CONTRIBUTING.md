@@ -14,7 +14,7 @@ Do NOT open public issues for security vulnerabilities. See .github/SECURITY.md 
 
 Prerequisites
 
-- Node 20.x (we test on Node 20 and Node 22)
+- Node 22.x (we test on Node 22 and Node 24)
 - pnpm 8.15.x (the repo uses pnpm workspaces)
 - Docker / Docker Compose (optional, for local container validation)
 
@@ -103,7 +103,7 @@ When you open a pull request:
 - Labels may be added automatically based on files changed (for example: area: core, area: spa)
 - Reviewers are auto-assigned
 - If authentication, cryptography, or schema files changed a security-review-required label is added (this is expected)
-- CI runs a set of checks: build, lint, typecheck, and tests (on Node 20 and Node 22)
+- CI runs a set of checks: build, lint, typecheck, and tests (on Node 22 and Node 24)
 - Security audit and secret scanning run for dependency changes
 - Docker build validation runs on Dockerfile changes
 - PRs with no activity for 14+ days are marked stale; 21+ days are auto-closed
@@ -120,7 +120,7 @@ pnpm -r typecheck
 pnpm -r test
 ```
 
-Note: CI runs on both Node 20 and Node 22. Do not use APIs added after Node 20.
+Note: CI runs on both Node 22 and Node 24. Do not use APIs added after Node 22.
 
 ## Coding Standards
 

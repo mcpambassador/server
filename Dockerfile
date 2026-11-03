@@ -15,9 +15,9 @@
 # -----------------------------------------------------------------------------
 # STAGE 1: BUILD
 # -----------------------------------------------------------------------------
-# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-# Base image pinned by digest (index of node:20-slim, `docker buildx imagetools inspect node:20-slim`, 2026-11-01)
-FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
+# TD-075: Node 22 LTS on Debian bookworm slim (Node 20 is EOL since April 2026)
+# Base image pinned by digest (index of node:22-bookworm-slim, `docker buildx imagetools inspect node:22-bookworm-slim`, 2026-11-02)
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS builder
 
 # Install build tools for native modules (better-sqlite3, argon2)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
@@ -59,8 +59,8 @@ RUN pnpm build
 # -----------------------------------------------------------------------------
 # STAGE 2: RUNTIME
 # -----------------------------------------------------------------------------
-# F-SEC-M7-001 remediation: Node 18 EOL → Node 20 LTS on Debian Slim (supported until April 2026)
-FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+# TD-075: Node 22 LTS on Debian bookworm slim (Node 20 is EOL since April 2026)
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 # Install openssl for TLS certificate generation, and the distro python3 so uvx-launched (PyPI)
 # MCP servers run on a fixed interpreter instead of downloading a managed Python at runtime.
@@ -72,7 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl python3
 # To bump: pick a release from https://github.com/astral-sh/uv/releases, re-inspect, update both.
 COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /usr/local/bin/
 
-# Create non-root user (node:20-slim has node:1000 — remove it first)
+# Create non-root user (node:22-bookworm-slim has node:1000 — remove it first)
 RUN userdel node 2>/dev/null; groupdel node 2>/dev/null; \
     groupadd -g 1000 mcpambassador && \
     useradd -u 1000 -g mcpambassador -m -s /bin/false mcpambassador

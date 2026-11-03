@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Size cap and LRU purge for the per-instance MCP caches (TD-062). Each downstream instance's home (`/tmp/mcp-homes/<uid>`) could grow without bound (npm/uv/XDG caches and `TMPDIR`; the bind-mounted `./cache` also keeps them across restarts). The server now measures homes as the instance's own uid and, for an **idle** instance (no running process, not being started), empties only `.npm-cache`, `.uv-cache`, `.cache` and `tmp` in its home when the home exceeds `MCP_AMBASSADOR_CHILD_HOME_MAX_MB` (default `1024`), and, when all homes together exceed `MCP_AMBASSADOR_CHILD_HOMES_TOTAL_MAX_MB` (default `10240`), purges idle instances least recently used first. Triggers: an instance stopping, and a sweep every `MCP_AMBASSADOR_CHILD_CACHE_GC_INTERVAL_MIN` minutes (default `360`; first one 10 minutes after boot). A running instance is never touched (an over-cap one only logs a warning); a start of an instance waits for a purge of its own home instead of racing it; anything else in a home (config, tokens, state) is never auto-deleted (a home that stays over the cap because of such data logs a warning). `MCP_AMBASSADOR_CHILD_CACHE_GC=dry-run` only logs what would be purged, `off` disables it, `0` disables a cap; invalid values fall back to the defaults. Every purge is logged with a hash of the instance key (no user id), the bytes freed and the reason. Active only with per-instance uids (`MCP_AMBASSADOR_CHILD_UID_RANGE`, the default in the image). Instances re-download their caches on next use, so the first start after a purge can be slower.
 
+### Changed
+
+- TD-075: the server moves to Node 22. The Docker builder and runtime images are `node:22-bookworm-slim` (pinned by digest), CI runs on Node 22 and 24 (Node 20 is end of life), `engines.node` is `>=22.0.0`, and `@types/node` is 22.
+
 ## [0.10.1] - 2026-11-02
 
 ### Changed
