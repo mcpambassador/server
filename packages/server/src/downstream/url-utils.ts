@@ -54,7 +54,6 @@ export function redactUrl(input: string): string {
     // Redact sensitive parameters
     for (const key of params.keys()) {
       if (SENSITIVE_PARAMS.has(key.toLowerCase())) {
-        // eslint-disable-next-line no-useless-escape
         params.set(key, '***REDACTED***');
         modified = true;
       }
