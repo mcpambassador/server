@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/authz-local",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "MCP Ambassador - Local RBAC Authorization Provider",
   "type": "module",
   "main": "./dist/index.js",
