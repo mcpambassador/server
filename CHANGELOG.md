@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A revoked client is terminal (TD-013): `PATCH /v1/admin/clients/:clientId` now returns 409 for any change to a revoked client (including un-revoke; only DELETE is allowed), the user `PATCH /v1/users/me/clients/:clientId` returns 409 for a rename or status change of an admin-revoked client and validates the transition before applying any field, and suspend/reactivate compare-and-set on the source status so they cannot overwrite a concurrent revoke. Validation errors on the user client routes return `{path, message}` only.
+- A revoked client is terminal (TD-013): the admin PATCH updates with a compare-and-set (no write over a concurrent revoke, 409), `PATCH /v1/admin/clients/:clientId` now returns 409 for any change to a revoked client (including un-revoke; only DELETE is allowed), the user `PATCH /v1/users/me/clients/:clientId` returns 409 for a rename or status change of an admin-revoked client and validates the transition before applying any field, and suspend/reactivate compare-and-set on the source status so they cannot overwrite a concurrent revoke. Validation errors on the user client routes return `{path, message}` only.
 - `PATCH /v1/users/me/clients/:clientId` returned 500 instead of 400 for an invalid `status` value (TD-013).
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 

@@ -14,6 +14,7 @@ import {
   logger,
   client_mcp_subscriptions,
   compatSelect,
+  compatTransaction,
   publicErrorMessage,
 } from '@mcpambassador/core';
 import { eq } from 'drizzle-orm';
@@ -246,12 +247,18 @@ export async function registerClientRoutes(
           throw new Error('Invalid state transition: only suspended clients can be reactivated');
         }
 
-        if (body.client_name) {
-          await updateUserClientName(db, userId, params.clientId, body.client_name, isAdmin);
-        }
-
+        // Rename + status change are atomic: a lost race (e.g. an admin revoke) rolls back both.
+        await compatTransaction(db, async () => {
+          if (body.client_name) {
+            await updateUserClientName(db, userId, params.clientId, body.client_name, isAdmin);
+          }
+          if (body.status === 'suspended') {
+            await suspendUserClient(db, userId, params.clientId, isAdmin);
+          } else if (body.status === 'active') {
+            await reactivateUserClient(db, userId, params.clientId, isAdmin);
+          }
+        });
         if (body.status === 'suspended') {
-          await suspendUserClient(db, userId, params.clientId, isAdmin);
           await revokeClientGrantsWithAudit(
             { db, audit, onGrantsRevoked },
             params.clientId,
@@ -259,8 +266,6 @@ export async function registerClientRoutes(
             request.ip ?? '0.0.0.0',
             'bound_client_suspended'
           );
-        } else if (body.status === 'active') {
-          await reactivateUserClient(db, userId, params.clientId, isAdmin);
         }
         if (body.status === 'suspended' || body.status === 'active') {
           await onUserAccessChanged?.([userId], 'client_status_changed').catch(() => undefined);

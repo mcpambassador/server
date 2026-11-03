@@ -4,7 +4,7 @@
  * admin revoke.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { clients, compatUpdate, createToolProfile } from '@mcpambassador/core';
 import { startTestServer, stopTestServer, type TestServerHandle } from '../admin-api/helpers.js';
@@ -169,6 +169,27 @@ describe('Admin-revoked clients are immutable', () => {
     for (const issue of JSON.parse(res.body).error.details ?? []) {
       expect(Object.keys(issue).sort()).toEqual(['message', 'path']);
     }
+  });
+
+  it('admin PATCH that lost a race with a revoke is 409 and leaves the client revoked', async () => {
+    const { id } = await createClient('admin-race');
+    const stale = await server.db.query.clients.findFirst({
+      where: (c, { eq }) => eq(c.client_id, id),
+    });
+    expect(stale!.status).toBe('active');
+    await adminRevoke(id);
+
+    // The route's read sees the pre-revoke row (revoke lands between its read and its update)
+    const spy = vi.spyOn(server.db.query.clients, 'findFirst').mockResolvedValueOnce(stale);
+    const res = await server.admin.inject({
+      method: 'PATCH',
+      url: `/v1/admin/clients/${id}`,
+      headers: adminHeaders(),
+      payload: { status: 'suspended' },
+    });
+    spy.mockRestore();
+    expect(res.statusCode).toBe(409);
+    expect(await statusOf(id)).toBe('revoked');
   });
 
   describe('suspend/reactivate race with an admin revoke', () => {
