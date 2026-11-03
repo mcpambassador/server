@@ -606,6 +606,27 @@ describe('ChildUidAllocator', () => {
     l.release();
   });
 
+  it('TD-077: a lease queued before releaseKeys that gets the freed uid is not wiped by the later cleanup', async () => {
+    const h = harness(20000, 20000);
+    const a = h.make();
+    (await a.lease('k')).release();
+    await a.drain();
+    h.events.length = 0;
+    let unblock!: () => void;
+    const gate = new Promise<void>(r => (unblock = r));
+    const blocker = a.exclusiveIfIdle('k', 20000, () => gate); // holds the chain
+    const lease = a.lease('new'); // queued BEFORE the drop
+    a.releaseKeys(k => k === 'k'); // frees uid 20000; cleanup queues behind the lease
+    unblock();
+    await blocker;
+    const l = await lease;
+    await a.drain();
+    expect(l.uid).toBe(20000);
+    // only the assignment's own reap + wipe: the cleanup saw the uid assigned and live, so the home is intact
+    expect(h.events).toEqual(['reap:20000', 'wipe:20000']);
+    l.release();
+  });
+
   it('exclusiveIfIdle tells an unassigned key from a busy one', async () => {
     const h = harness();
     const a = h.make();
