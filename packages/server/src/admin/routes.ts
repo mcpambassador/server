@@ -13,7 +13,7 @@
  */
 
 import type { FastifyInstance, FastifyPluginCallback } from 'fastify';
-import { logger, publicErrorMessage } from '@mcpambassador/core';
+import { logger, publicErrorMessage, AmbassadorError } from '@mcpambassador/core';
 import type { DatabaseClient, AuditProvider } from '@mcpambassador/core';
 import type { SharedMcpManager } from '../downstream/index.js';
 import type { UserMcpPool } from '../downstream/user-mcp-pool.js';
@@ -155,8 +155,15 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
     }
 
     // Return sanitized error to client
+    // Only trust a 4xx status carried by framework (FST_*) or Ambassador errors; any other thrown
+    // object with a `statusCode` property is treated as an internal error.
+    const trustedStatus =
+      error instanceof AmbassadorError ||
+      (typeof errCode === 'string' && errCode.startsWith('FST_'));
     const fromError =
-      typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500 ? errStatus : undefined;
+      trustedStatus && typeof errStatus === 'number' && errStatus >= 400 && errStatus < 500
+        ? errStatus
+        : undefined;
     const statusCode = fromError ?? (reply.statusCode >= 400 ? reply.statusCode : 500);
 
     if (statusCode === 401) {
@@ -195,7 +202,9 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
         );
     }
 
-    // Any other 4xx (e.g. 413, 415): keep the status with a fixed message.
+    // Any other 4xx (e.g. 413, 415): keep the status with a fixed message. The shared ErrorCodes
+    // envelope (contracts) has no PAYLOAD_TOO_LARGE / UNSUPPORTED_MEDIA_TYPE; adding them is a
+    // cross-repo contract change, so BAD_REQUEST is kept for now.
     if (statusCode >= 400 && statusCode < 500) {
       return reply.status(statusCode).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid request'));
     }

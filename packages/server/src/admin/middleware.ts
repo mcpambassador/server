@@ -124,7 +124,12 @@ export function authenticateAdminOrSession(db: DatabaseClient): preHandlerHookHa
       return; // Authentication successful
     }
 
-    // Both authentication methods failed
+    // Authenticated session that is not an admin: 403 (authenticated, forbidden), not 401.
+    if (request.session?.userId) {
+      return reply.status(403).send(wrapError(ErrorCodes.FORBIDDEN, 'Access denied'));
+    }
+
+    // No valid credentials at all
     return reply
       .status(401)
       .send(

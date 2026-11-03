@@ -289,7 +289,7 @@ describe('agent oauth routes', () => {
             payload: m === 'PUT' ? { dynamic_client_registration: true } : undefined,
           })
         ).statusCode
-      ).toBe(401); // admin routes answer 401 for non-admins, like every /v1/admin route
+      ).toBe(403); // authenticated non-admin: 403, like every /v1/admin route
     }
     expect(deps.runtime.dynamic_client_registration).toBe(false);
   });

@@ -862,12 +862,15 @@ export class AmbassadorServer {
       // TD-067: on the session-protected admin API an unauthenticated request is a 401 BEFORE the
       // CSRF check (which would otherwise fail 403/500 for lack of a `_csrf` cookie). Strictly
       // read-only: reads request.session.userId only (no touch, no write, no audit). A session that
-      // is present but not admin still reaches CSRF, then the route preHandler's 401. Other routes (login, setup) stay CSRF-first because
+      // is present but not admin still reaches CSRF, then the route preHandler's 403. Other routes (login, setup) stay CSRF-first because
       // they are legitimately session-less. The route preHandler remains authoritative.
+      // Match on the ROUTED pattern (not the raw URL) so percent-encoded paths that Fastify
+      // normalizes to an admin handler cannot skip the check.
+      const routed = request.routeOptions?.url ?? '';
       if (
-        request.url.startsWith('/v1/admin/') &&
+        routed.startsWith('/v1/admin/') &&
         // approvals has its own guard with a deliberate 403 contract (no existence oracle)
-        !request.url.startsWith('/v1/admin/approvals') &&
+        !routed.startsWith('/v1/admin/approvals') &&
         !request.session?.userId
       ) {
         return reply

@@ -79,7 +79,7 @@ describe('unauthenticated admin POST is 401, not 500', () => {
     });
     expect(r.statusCode).toBe(401);
   });
-  it('a non-admin user session is 401 on admin routes', async () => {
+  it('a non-admin user session is 403 on admin routes', async () => {
     const cookie = await login('td067user', false);
     const c = await csrf(cookie);
     const r = await raw().inject({
@@ -88,7 +88,16 @@ describe('unauthenticated admin POST is 401, not 500', () => {
       headers: { cookie: c.cookie, 'x-csrf-token': c.token },
       payload: {},
     });
-    expect(r.statusCode).toBe(401);
+    expect(r.statusCode).toBe(403);
+  });
+  it('percent-encoded admin paths still get the 401 pre-check', async () => {
+    for (const url of [
+      '/v1/%61dmin/mcps/00000000-0000-4000-8000-000000000000/discover',
+      '/%76%31/admin/mcps/00000000-0000-4000-8000-000000000000/discover',
+    ]) {
+      const r = await raw().inject({ method: 'POST', url, payload: {} });
+      expect(r.statusCode).toBe(401);
+    }
   });
   it('an invalid admin key is still 401', async () => {
     const r = await raw().inject({
