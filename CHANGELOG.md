@@ -7,9 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-02
+
+Highlights: **the server and the MCP child processes it launches now run on Node 22** (the container base image changed), dependency advisories are cleared with a stricter audit gate, and admin errors return proper 401/403/400 codes. `protocol` and `contracts` wire types are unchanged.
+
+### Changed
+
+- **Node 22 runtime (TD-075).** The Docker builder and runtime images are now `node:22-bookworm-slim` (pinned by digest, same Debian 12 as before). Downstream MCP children that run `node`/`npx` therefore run on Node 22 instead of Node 20; rebuild the image (`docker compose build`) and re-test MCPs that depend on Node 20 behavior. CI tests on Node 22 and 24 (Node 20 is end of life), `engines.node` is `>=22.0.0`, and `@types/node` is 22. Container user, `setpriv`/`prlimit`/`tini` paths, setuid stripping and NoNewPrivs for children are unchanged.
+- Dependency Audit now runs on every pull request, and the audit gate blocks on **moderate** as well as high and critical advisories (TD-069).
+
 ### Added
 
 - Size cap and LRU purge for the per-instance MCP caches (TD-062). Each downstream instance's home (`/tmp/mcp-homes/<uid>`) could grow without bound (npm/uv/XDG caches and `TMPDIR`; the bind-mounted `./cache` also keeps them across restarts). The server now measures homes as the instance's own uid and, for an **idle** instance (no running process, not being started), empties only `.npm-cache`, `.uv-cache`, `.cache` and `tmp` in its home when the home exceeds `MCP_AMBASSADOR_CHILD_HOME_MAX_MB` (default `1024`), and, when all homes together exceed `MCP_AMBASSADOR_CHILD_HOMES_TOTAL_MAX_MB` (default `10240`), purges idle instances least recently used first. Triggers: an instance stopping, and a sweep every `MCP_AMBASSADOR_CHILD_CACHE_GC_INTERVAL_MIN` minutes (default `360`; first one 10 minutes after boot). A running instance is never touched (an over-cap one only logs a warning); a start of an instance waits for a purge of its own home instead of racing it; anything else in a home (config, tokens, state) is never auto-deleted (a home that stays over the cap because of such data logs a warning). `MCP_AMBASSADOR_CHILD_CACHE_GC=dry-run` only logs what would be purged, `off` disables it, `0` disables a cap; invalid values fall back to the defaults. Every purge is logged with a hash of the instance key (no user id), the bytes freed and the reason. Active only with per-instance uids (`MCP_AMBASSADOR_CHILD_UID_RANGE`, the default in the image). Instances re-download their caches on next use, so the first start after a purge can be slower.
+
+### Fixed
+
+- Admin API errors (TD-067): a request with no session gets 401, a valid non-admin session gets 403, and CSRF failures and malformed bodies get 400 instead of 500. Only trusted errors (`AmbassadorError`, Fastify `FST_*`) keep their 4xx status; the CSRF pre-check matches the routed path, so percent-encoded paths cannot bypass it.
+- Tool pins (TD-070): revoking a pin now takes an mcp-wide lock before the per-scope locks, so a concurrent discovery cannot insert a pin for a new scope while a revoke runs. Discoveries of different scopes of the same MCP now serialize (about +30-50 ms with 20 concurrent users); a shared/exclusive lock is tracked as TD-076.
+- All production dependency advisories are cleared (TD-069): unused `pino-pretty` and `@fastify/view` removed, `re2` 1.27.0, and the `minimatch` override is scoped to `glob@14`.
+- Test flakes: the group tool policy audit test no longer races the 5 s audit flush, and tests no longer fetch the community registry from GitHub (a global test stub answers it), which had caused `HTTP 403: rate limit exceeded` failures.
 
 ## [0.10.1] - 2026-11-02
 
