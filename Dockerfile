@@ -22,14 +22,14 @@ FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3
 # Install build tools for native modules (better-sqlite3, argon2)
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
-# Install pnpm
-RUN npm install -g pnpm@10.34.9
-
 # Set working directory
 WORKDIR /build
 
 # Copy package manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# pnpm from package.json `packageManager` (version + sha512 integrity, verified by corepack)
+RUN corepack enable && corepack install
 COPY packages/core/package.json ./packages/core/
 COPY packages/protocol/package.json ./packages/protocol/
 COPY packages/authn-ephemeral/package.json ./packages/authn-ephemeral/
