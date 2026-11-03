@@ -585,6 +585,7 @@ const ENV_SUFFIXES = ['_proxy'];
 /** Case-insensitive exact names. */
 const ENV_EXACT = [
   'registry_auth_file',
+  'podman_connections_conf', // alternate podman connections file: redirects the daemon
   'storage_driver',
   'storage_opts',
   'path',

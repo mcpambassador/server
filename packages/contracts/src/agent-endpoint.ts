@@ -505,6 +505,12 @@ export interface UserAgentEndpointInfo {
    * Optional for compatibility with older servers; clients fall back to 24h.
    */
   max_one_shot_grant_ttl_seconds?: number;
+  /**
+   * Effective max grant lifetime for clients that registered themselves (DCR): the smaller of
+   * agent_endpoint.max_dcr_grant_ttl_seconds and max_grant_ttl_seconds. Optional for compatibility
+   * with older servers (then use max_grant_ttl_seconds).
+   */
+  max_dcr_grant_ttl_seconds?: number;
   refresh_tokens_enabled: boolean;
   /**
    * Canonical MCP resource URL (`resource_base_url` + `/mcp`): the URL to give

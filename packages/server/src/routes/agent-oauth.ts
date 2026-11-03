@@ -138,6 +138,17 @@ export function registerCookieFreeGuard(app: FastifyInstance): void {
  * GET /v1/users/me/agent-endpoint — registered whether or not the endpoint is enabled so the SPA
  * can hide the Agent access page when `enabled:false`.
  */
+/** Effective grant cap for DCR-registered clients: the smaller of the DCR cap and the general cap (TD-080). */
+export function effectiveDcrGrantCap(cfg?: {
+  max_grant_ttl_seconds?: number;
+  max_dcr_grant_ttl_seconds?: number;
+}): number {
+  return Math.min(
+    cfg?.max_dcr_grant_ttl_seconds ?? 7 * 86400,
+    cfg?.max_grant_ttl_seconds ?? 30 * 86400
+  );
+}
+
 export async function registerAgentEndpointInfoRoute(
   app: FastifyInstance,
   info: UserAgentEndpointInfo

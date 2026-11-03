@@ -173,6 +173,8 @@ describe('isBlockedEnvName', () => {
     'CONTAINERS_CONF_OVERRIDE',
     'CONTAINERS_REGISTRIES_CONF',
     'CONTAINERS_STORAGE_CONF',
+    'PODMAN_CONNECTIONS_CONF',
+    'podman_connections_conf',
     'REGISTRY_AUTH_FILE',
     'STORAGE_DRIVER',
     'STORAGE_OPTS',
