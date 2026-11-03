@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Tests: server vitest `testTimeout`/`hookTimeout` raised to 30s to stop load-induced flakes (TD-047).
+
+### Changed
+
 - Internal: removed 30 stale ESLint disable comments (75 → 45) and made unused disable directives a lint error (TD-002).
 
 ### Fixed

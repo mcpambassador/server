@@ -9,6 +9,7 @@ import {
 import { apiClient } from '../client';
 import type {
   AdminUser,
+  UserGroupSummary,
   CreateUserRequest,
   UpdateUserRequest,
   Group,
@@ -65,12 +66,7 @@ export function useAdminUser(userId: string) {
 export function useAdminUserGroups(userId: string) {
   return useQuery({
     queryKey: ['admin', 'users', userId, 'groups'],
-    queryFn: async () => {
-      const response = await apiClient.get<
-        Array<{ group_id: string; name: string; description?: string | null; assigned_at: string }>
-      >(`/v1/admin/users/${userId}/groups`);
-      return response;
-    },
+    queryFn: () => apiClient.get<UserGroupSummary[]>(`/v1/admin/users/${userId}/groups`),
     enabled: !!userId,
   });
 }

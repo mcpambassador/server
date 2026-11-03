@@ -176,10 +176,8 @@ export function UserDetail() {
             </div>
           ) : userGroups.length > 0 ? (
             <div className="space-y-3">
-              {userGroups.map((group: Record<string, unknown>) => {
-                const id = (group['group_id'] as string) || '';
-                const name = (group['name'] as string) || '';
-                const desc = (group['description'] as string) || '';
+              {userGroups.map(group => {
+                const { group_id: id, name, description: desc } = group;
                 return (
                   <div
                     key={id}

@@ -35,7 +35,7 @@ import { adminKeyActor } from './middleware.js';
 import { updateUserParamsSchema, listUsersQuerySchema } from './schemas.js';
 import { createPaginationEnvelope } from './pagination.js';
 import { wrapSuccess, wrapError, ErrorCodes } from './reply-envelope.js';
-import { getUserGroupsService, getGroupService } from '../services/group-service.js';
+import { getUserGroupSummariesService } from '../services/group-service.js';
 
 /**
  * Admin user routes plugin configuration
@@ -507,22 +507,10 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
         return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'User not found'));
       }
 
-      const userGroups = await getUserGroupsService(db, userId);
+      // One joined query (TD-009), not one lookup per group
+      const groups = await getUserGroupSummariesService(db, userId);
 
-      // Enrich with group details
-      const enrichedGroups = await Promise.all(
-        userGroups.map(async ug => {
-          const group = await getGroupService(db, ug.group_id);
-          return {
-            group_id: ug.group_id,
-            name: group.name,
-            description: group.description,
-            assigned_at: ug.assigned_at,
-          };
-        })
-      );
-
-      return reply.send(wrapSuccess(enrichedGroups));
+      return reply.send(wrapSuccess(groups));
     } catch (err: any) {
       if (err.name === 'ZodError') {
         return reply.status(400).send(wrapError(ErrorCodes.BAD_REQUEST, 'Invalid user ID format'));

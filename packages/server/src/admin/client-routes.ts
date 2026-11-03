@@ -22,7 +22,7 @@ import {
   listClientKeysQuerySchema,
 } from './schemas.js';
 import { clients, compatInsert, compatUpdate } from '@mcpambassador/core';
-import { eq, and, or, desc, asc } from 'drizzle-orm';
+import { eq, ne, and, or, desc, asc } from 'drizzle-orm';
 import { revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
 import { adminKeyActor } from './middleware.js';
 import { user_sessions } from '@mcpambassador/core';
@@ -228,6 +228,13 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
       return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'Client key not found'));
     }
 
+    // A revoked client is terminal: reject every mutation (including un-revoke); only DELETE is allowed.
+    if (key.status === 'revoked') {
+      return reply
+        .status(409)
+        .send(wrapError(ErrorCodes.CONFLICT, 'Client is revoked and cannot be modified'));
+    }
+
     // If profile_id is being changed, verify it exists
     if (body.profile_id !== undefined) {
       const profile = await db.query.tool_profiles.findFirst({
@@ -246,11 +253,20 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
     if (body.status !== undefined) updates.status = body.status;
     if (body.profile_id !== undefined) updates.profile_id = body.profile_id;
 
+    // Compare-and-set: never write over a client that was revoked since the read above (revoked is
+    // terminal). 0 rows updated means we lost that race; side effects below run only on a real change.
+    const updated = (await compatUpdate(db, clients)
+      .set(updates)
+      .where(and(eq(clients.client_id, clientId), ne(clients.status, 'revoked')))
+      .returning({ id: clients.client_id })) as unknown[];
+    if (updated.length === 0) {
+      return reply
+        .status(409)
+        .send(wrapError(ErrorCodes.CONFLICT, 'Client is revoked and cannot be modified'));
+    }
+
     // If status changes to revoked, expire all sessions for this key's user
     if (statusChanged && body.status === 'revoked') {
-      // Update key
-      await compatUpdate(db, clients).set(updates).where(eq(clients.client_id, clientId));
-
       // Expire all active sessions for this key's user
       await compatUpdate(db, user_sessions)
         .set({ status: 'expired' })
@@ -269,9 +285,6 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
       if (userPool) {
         await userPool.terminateForUser(key.user_id);
       }
-    } else {
-      // Normal update
-      await compatUpdate(db, clients).set(updates).where(eq(clients.client_id, clientId));
     }
 
     // S5: suspending / revoking a client revokes (and retains) its agent grants
