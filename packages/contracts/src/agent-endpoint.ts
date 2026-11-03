@@ -142,6 +142,10 @@ export interface ConsentDetails {
    */
   clients: ConsentClientOption[];
   default_ttl_seconds: number;
+  /** Optional (older servers omit): whether the grant gets rotating refresh tokens */
+  refresh_tokens_enabled?: boolean;
+  /** Optional: a refresh token unused this long expires early (seconds) */
+  refresh_token_idle_ttl_seconds?: number;
   max_ttl_seconds: number;
 }
 
@@ -350,7 +354,8 @@ export type RevokeRequest = z.infer<typeof revokeRequestSchema>;
 /**
  * POST /v1/users/me/agent-grants — one-shot grant for headless/CI; no refresh token.
  * The access token lifetime equals the grant TTL (default agent_endpoint.default_grant_ttl_seconds,
- * max agent_endpoint.max_grant_ttl_seconds); there is no renewal, create a new grant instead.
+ * capped by agent_endpoint.max_one_shot_grant_ttl_seconds, default 24h, and by
+ * agent_endpoint.max_grant_ttl_seconds); there is no renewal, create a new grant instead.
  */
 export const createGrantRequestSchema = z.object({
   /** The user's own ACTIVE Ambassador client this grant binds to */
@@ -490,7 +495,13 @@ export type AgentAuthFailureReason = (typeof AGENT_AUTH_FAILURE_REASONS)[number]
 export interface UserAgentEndpointInfo {
   enabled: boolean;
   default_grant_ttl_seconds: number;
+  /** Max lifetime of an OAuth grant (refresh family); access tokens stay short regardless */
   max_grant_ttl_seconds: number;
+  /**
+   * Max lifetime of a one-shot grant (no refresh token, so the bearer lives as long as the grant).
+   * Optional for compatibility with older servers; clients fall back to 24h.
+   */
+  max_one_shot_grant_ttl_seconds?: number;
   refresh_tokens_enabled: boolean;
   /**
    * Canonical MCP resource URL (`resource_base_url` + `/mcp`): the URL to give

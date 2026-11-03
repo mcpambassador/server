@@ -81,6 +81,18 @@ Configured by environment variables (see `.env.example`, `docker-compose.yml`, a
 | `PUBLIC_URL`                                           |                                         | Optional; unset or empty falls back to `https://<MCP_AMBASSADOR_SERVER_NAME or localhost>:9443`. Set it to the URL users reach (e.g. behind a reverse proxy); it is used for OAuth callbacks, approval links and the agent-endpoint issuer. If set, it must be https, or http only on loopback. (v0.10.0: the reference compose passed it empty, which disabled approval gates and left the agent-endpoint issuer empty, so set it explicitly there.) |
 | `REGISTRY_URL` / `REGISTRY_TOKEN` / `REGISTRY_ENABLED` | community registry URL / empty / `true` | Registry source, token for a private registry, on/off                                                                                                                                                                                                                                                                                                                                                                                                 |
 
+### Agent endpoint grant lifetimes
+
+Set in the `agent_endpoint` block of the server config (the endpoint is off by default).
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `access_token_ttl_seconds` | `900` | Bearer token lifetime (max 3600). Stays short however long the grant is. |
+| `default_grant_ttl_seconds` | `3600` | Pre-selected grant lifetime in the consent screen; must be at most `max_grant_ttl_seconds`. |
+| `max_grant_ttl_seconds` | `2592000` (30 days) | Longest OAuth grant users can pick (max `31536000`, 1 year). Set `86400` for the old 24h limit. |
+| `max_one_shot_grant_ttl_seconds` | `86400` (24h) | Cap for one-shot grants (no refresh token; the bearer lives as long as the grant). Max 7 days. |
+| `refresh_token_idle_ttl_seconds` | `2592000` (30 days) | A refresh token unused this long expires, so an abandoned long grant dies on its own. |
+
 ## Security model
 
 - **Isolation**: each downstream stdio MCP instance runs under its own uid with a private home, cannot read `/data` or other instances, and starts with `no-new-privs`. The container has a read-only root filesystem and a reduced capability set. This is process-level isolation, not a sandbox:

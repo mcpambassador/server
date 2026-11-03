@@ -134,7 +134,8 @@ describe('audit lifecycle events + no token leakage', () => {
       (await refresh(s, { client_id: clientId, refresh_token: t.refreshTok })).body
     );
     secrets.push(r.access_token, r.refresh_token);
-    await waitForAudit(s, 'agent_token_refreshed');
+    const line = await waitForAudit(s, 'agent_token_refreshed', 'refresh_token_expires_at');
+    expect(line).toMatch(/refresh_token_expires_at"?:"?\d{4}-\d{2}-\d{2}T/);
     await revoke(s, { client_id: clientId, token: r.refresh_token, hint: 'refresh_token' });
     await waitForAudit(s, 'agent_token_revoked');
   });

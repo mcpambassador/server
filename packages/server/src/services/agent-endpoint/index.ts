@@ -238,6 +238,13 @@ function clampTtl(deps: AgentEndpointDeps, requested: number | undefined): numbe
   return Math.min(requested ?? c.default_grant_ttl_seconds, c.max_grant_ttl_seconds);
 }
 
+/** One-shot grants have no refresh token (bearer lifetime = grant lifetime), so cap them lower. */
+function clampOneShotTtl(deps: AgentEndpointDeps, requested: number | undefined): number {
+  const c = deps.config;
+  const cap = Math.min(c.max_one_shot_grant_ttl_seconds, c.max_grant_ttl_seconds);
+  return Math.min(requested ?? Math.min(c.default_grant_ttl_seconds, cap), cap);
+}
+
 export function parseScopeString(scope: string | undefined): string[] {
   if (!scope) return ['mcp:*'];
   const parts = [...new Set(scope.split(/\s+/).filter(Boolean))];
@@ -323,17 +330,19 @@ async function issueRefreshToken(
   deps: AgentEndpointDeps,
   grant: AgentGrantRecord,
   familyId: string
-): Promise<string> {
+): Promise<{ raw: string; expiresAt: string }> {
   const raw = generateToken(REFRESH_TOKEN_PREFIX);
-  // Refresh lifetime is capped by the grant's own expiry
+  // Refresh lifetime is capped by the grant's own expiry and slides by the idle window
+  const idleExpiry = Date.now() + deps.config.refresh_token_idle_ttl_seconds * 1000;
+  const expiresAt = new Date(Math.min(new Date(grant.expires_at).getTime(), idleExpiry));
   await insertAgentToken(deps.db, {
     token_hash: hashToken(raw),
     kind: 'refresh',
     grant_id: grant.grant_id,
     family_id: familyId,
-    expires_at: grant.expires_at,
+    expires_at: expiresAt.toISOString(),
   });
-  return raw;
+  return { raw, expiresAt: expiresAt.toISOString() };
 }
 
 // ===== Verification (used by /mcp in P5) =====
@@ -487,6 +496,8 @@ export async function getConsentDetails(
     clients: await listConsentClients(deps.db, userId),
     default_ttl_seconds: deps.config.default_grant_ttl_seconds,
     max_ttl_seconds: deps.config.max_grant_ttl_seconds,
+    refresh_tokens_enabled: deps.config.refresh_tokens_enabled,
+    refresh_token_idle_ttl_seconds: deps.config.refresh_token_idle_ttl_seconds,
   };
 }
 
@@ -662,9 +673,10 @@ async function exchangeCode(
   });
   const family = randomUUID();
   const at = await issueAccessToken(deps, grant, family);
-  const rt = deps.config.refresh_tokens_enabled
+  const rtIssued = deps.config.refresh_tokens_enabled
     ? await issueRefreshToken(deps, grant, family)
     : undefined;
+  const rt = rtIssued?.raw;
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_grant_created', {
     user_id: grant.user_id,
@@ -744,7 +756,8 @@ async function exchangeRefresh(
   }
   const family = tok.family_id ?? randomUUID();
   const at = await issueAccessToken(deps, grant, family);
-  const rt = await issueRefreshToken(deps, grant, family);
+  const rtIssued = await issueRefreshToken(deps, grant, family);
+  const rt = rtIssued.raw;
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_token_refreshed', {
     user_id: grant.user_id,
@@ -754,6 +767,7 @@ async function exchangeRefresh(
       agent_grant_id: grant.grant_id,
       oauth_client_id: client.client_id,
       token_prefix: logPrefix(at.raw),
+      refresh_token_expires_at: rtIssued.expiresAt,
     },
   });
   return {
@@ -886,7 +900,7 @@ export async function createGrant(
     tool_allowlist: req.tool_allowlist?.length ? req.tool_allowlist : null,
     disclosure_mode: req.disclosure_mode ?? 'full',
     resource: deps.config.resource,
-    expires_at: isoIn(clampTtl(deps, req.ttl_seconds)),
+    expires_at: isoIn(clampOneShotTtl(deps, req.ttl_seconds)),
   });
   // One-shot: no refresh token; the access token lives as long as the grant (capped)
   const raw = generateToken(ACCESS_TOKEN_PREFIX);
