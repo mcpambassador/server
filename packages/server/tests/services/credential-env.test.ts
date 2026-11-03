@@ -73,7 +73,11 @@ describe('mergeCredentialEnv (TD-049)', () => {
   });
 
   it('merges non-colliding names and handles missing fixed env', () => {
-    expect(mergeCredentialEnv(undefined, { K: 'v' })).toEqual({ env: { K: 'v' }, dropped: [] });
+    expect(mergeCredentialEnv(undefined, { K: 'v' })).toEqual({
+      env: { K: 'v' },
+      dropped: [],
+      rejected: [],
+    });
   });
 });
 
@@ -139,11 +143,141 @@ describe('mergeCredentialEnv placeholder slots', () => {
     expect(r.env).toEqual({ MODE: 'ro' });
   });
 
-  it('does not substitute inside other values (TD-050): embedded placeholders are locked literals', () => {
-    const fixed = { OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer ${NOTION_API_KEY}"}' };
-    const r = mergeCredentialEnv(fixed, { NOTION_API_KEY: 'k', OPENAPI_MCP_HEADERS: 'evil' });
-    expect(r.env.OPENAPI_MCP_HEADERS).toBe(fixed.OPENAPI_MCP_HEADERS);
-    expect(r.dropped).toEqual(['OPENAPI_MCP_HEADERS']);
+  describe('composite values (TD-050)', () => {
+    const NOTION = '{"Authorization": "Bearer ${NOTION_API_KEY}", "Notion-Version": "2022-06-28"}';
+    const fixed = { OPENAPI_MCP_HEADERS: NOTION };
+
+    it('fills an embedded placeholder (Notion shape)', () => {
+      const r = mergeCredentialEnv(fixed, { NOTION_API_KEY: 'ntn_abc123' });
+      expect(r.env.OPENAPI_MCP_HEADERS).toBe(
+        '{"Authorization": "Bearer ntn_abc123", "Notion-Version": "2022-06-28"}'
+      );
+      expect(JSON.parse(r.env.OPENAPI_MCP_HEADERS as string).Authorization).toBe(
+        'Bearer ntn_abc123'
+      );
+      expect(r.rejected).toEqual([]);
+      expect(r.dropped).toEqual([]);
+    });
+
+    it('matches the credential name case-insensitively and fills repeats', () => {
+      const r = mergeCredentialEnv({ X_TOKEN: 'a=${Tok}&b=${TOK}' }, { tok: 'v1' });
+      expect(r.env.X_TOKEN).toBe('a=v1&b=v1');
+    });
+
+    it.each([
+      ['https://${TENANT}.example.com'],
+      ['${REGION}.api.vendor.com'],
+      ['user@${HOSTPART}/path'],
+      ['//${TENANT}/x'],
+      ['x https://fixed.example/${TENANT}'],
+    ])('rejects a URL/host-shaped template value: %s', tpl => {
+      const r = mergeCredentialEnv(
+        { OPTS: tpl, MODE: 'ro' },
+        { TENANT: 'evil', REGION: 'evil', HOSTPART: 'evil' }
+      );
+      expect(r.env.OPTS).toBeUndefined();
+      expect(r.env.MODE).toBe('ro');
+      expect(JSON.stringify(r.env)).not.toContain('${');
+      expect(r.rejected).toEqual(['OPTS']);
+    });
+
+    it.each([
+      'API_BASE',
+      'TENANT_DOMAIN',
+      'MCP_SERVER',
+      'ORIGIN',
+      'AWS_REGION',
+      'NPM_REGISTRY',
+      'PIP_INDEX',
+    ])('non-allowlisted key %s is never substituted (removed)', key => {
+      const r = mergeCredentialEnv({ [key]: 'x ${TOK}' }, { TOK: 'abc' });
+      expect(r.env[key]).toBeUndefined();
+      expect(r.rejected).toEqual([key]);
+    });
+
+    it('${HOST}:8080 under a non-allowlisted key is removed', () => {
+      const r = mergeCredentialEnv({ UPSTREAM: '${HOST}:8080' }, { HOST: 'evil' });
+      expect(r.env.UPSTREAM).toBeUndefined();
+      expect(r.rejected).toEqual(['UPSTREAM']);
+    });
+
+    it.each([
+      'OPENAPI_MCP_HEADERS',
+      'AUTH_HEADER',
+      'MY_AUTH',
+      'X_AUTHORIZATION',
+      'GH_TOKEN',
+      'APP_SECRET',
+      'CREDENTIALS',
+      'STRIPE_API_KEY',
+    ])('allowlisted key %s is substituted', key => {
+      const r = mergeCredentialEnv({ [key]: 'Bearer ${TOK}' }, { TOK: 'abc' });
+      expect(r.env[key]).toBe('Bearer abc');
+    });
+
+    it('duplicate credential names differing by case: first wins', () => {
+      const r = mergeCredentialEnv({ X_TOKEN: 'a=${tok}' }, { TOK: 'first', tok: 'second' });
+      expect(r.env.X_TOKEN).toBe('a=first');
+    });
+
+    it('a missing credential removes the variable (fail closed, key reported)', () => {
+      const r = mergeCredentialEnv({ ...fixed, MODE: 'ro' }, {});
+      expect(r.env).toEqual({ MODE: 'ro' });
+      expect(r.rejected).toEqual(['OPENAPI_MCP_HEADERS']);
+    });
+
+    it('a placeholder naming an undeclared credential removes the variable', () => {
+      const r = mergeCredentialEnv(fixed, { OTHER_KEY: 'x' });
+      expect(r.env.OPENAPI_MCP_HEADERS).toBeUndefined();
+      expect(r.rejected).toEqual(['OPENAPI_MCP_HEADERS']);
+    });
+
+    it.each([
+      ['a double quote', 'x", "Notion-Version": "evil'],
+      ['a newline', 'x\ny'],
+      ['a backslash', 'x\\y'],
+      ['a space', 'x y'],
+      ['a brace', 'x}'],
+      ['a dollar', '${OTHER}'],
+      ['too long', 'a'.repeat(4097)],
+    ])('rejects a credential value containing %s', (_n, bad) => {
+      const r = mergeCredentialEnv(fixed, { NOTION_API_KEY: bad });
+      expect(r.env.OPENAPI_MCP_HEADERS).toBeUndefined();
+      expect(r.rejected).toEqual(['OPENAPI_MCP_HEADERS']);
+      expect(JSON.stringify(r)).not.toContain(bad.slice(0, 5) + 'zz'); // no value echoed beyond env
+    });
+
+    it('accepts base64 / token punctuation', () => {
+      const v = 'AbC123+/=._~:-';
+      expect(mergeCredentialEnv({ X_TOKEN: 'k=${K}' }, { K: v }).env.X_TOKEN).toBe(`k=${v}`);
+    });
+
+    it('is single pass: a credential value is never re-expanded', () => {
+      // OTHER's value is allowed charset-wise; it must not be spliced into A's value again
+      const r = mergeCredentialEnv({ X_TOKEN: '${A}' + '-${B}' }, { A: 'x', B: 'y' });
+      expect(r.env.X_TOKEN).toBe('x-y');
+      const r2 = mergeCredentialEnv({ X_TOKEN: 'p=${A}' }, { A: '$' });
+      expect(r2.rejected).toEqual(['X_TOKEN']);
+    });
+
+    it('never substitutes into URL/host-like keys (removed, key reported)', () => {
+      for (const key of ['API_URL', 'BASE_URI', 'DB_HOST', 'MY_ENDPOINT', 'HTTPS_PROXY']) {
+        const r = mergeCredentialEnv({ [key]: 'https://x/?k=${K}' }, { K: 'secret' });
+        expect(r.env[key]).toBeUndefined();
+        expect(r.rejected).toEqual([key]);
+      }
+    });
+
+    it('fixed env still wins: a credential cannot overwrite the composite key', () => {
+      const r = mergeCredentialEnv(fixed, { NOTION_API_KEY: 'k', OPENAPI_MCP_HEADERS: 'evil' });
+      expect(r.dropped).toEqual(['OPENAPI_MCP_HEADERS']);
+      expect(r.env.OPENAPI_MCP_HEADERS).toContain('Bearer k');
+    });
+
+    it('a whole-value placeholder naming a different variable stays a locked literal', () => {
+      const r = mergeCredentialEnv({ A: '${B}' }, { B: 'v' });
+      expect(r.env).toEqual({ A: '${B}', B: 'v' });
+    });
   });
 });
 

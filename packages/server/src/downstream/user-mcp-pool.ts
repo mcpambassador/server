@@ -213,6 +213,12 @@ export class UserMcpPool {
               );
             }
 
+            for (const key of merged.rejected) {
+              logger.warn(
+                `[UserMcpPool] Env var '${key}' for ${config.name} not set: its credential placeholder could not be filled safely`
+              );
+            }
+
             finalConfig = {
               ...config,
               env: merged.env,
