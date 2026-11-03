@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Agent OAuth: dynamically registered (unverified) clients are capped at `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days) instead of `max_grant_ttl_seconds`; the consent screen shows the effective cap. Admin-registered clients are unchanged (TD-080).
+
 ### Changed
 
 - Internal: removed 30 stale ESLint disable comments (75 → 45) and made unused disable directives a lint error (TD-002).

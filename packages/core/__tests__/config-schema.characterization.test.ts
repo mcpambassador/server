@@ -22,6 +22,7 @@ const AGENT_DEFAULTS = {
   access_token_ttl_seconds: 900,
   default_grant_ttl_seconds: 3600,
   max_grant_ttl_seconds: 30 * 86400,
+  max_dcr_grant_ttl_seconds: 7 * 86400,
   max_one_shot_grant_ttl_seconds: 86400,
   refresh_token_idle_ttl_seconds: 30 * 86400,
   auth_code_ttl_seconds: 60,

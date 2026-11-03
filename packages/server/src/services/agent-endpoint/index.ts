@@ -233,9 +233,21 @@ export async function emitAgentAudit(
 const isoIn = (seconds: number, from: number = Date.now()): string =>
   new Date(from + seconds * 1000).toISOString();
 
-function clampTtl(deps: AgentEndpointDeps, requested: number | undefined): number {
+/** Effective grant lifetime cap: unverified (DCR) clients get the lower cap (TD-080). */
+function grantCap(deps: AgentEndpointDeps, registeredVia: 'admin' | 'dcr'): number {
   const c = deps.config;
-  return Math.min(requested ?? c.default_grant_ttl_seconds, c.max_grant_ttl_seconds);
+  return registeredVia === 'dcr'
+    ? Math.min(c.max_grant_ttl_seconds, c.max_dcr_grant_ttl_seconds)
+    : c.max_grant_ttl_seconds;
+}
+
+function clampTtl(
+  deps: AgentEndpointDeps,
+  requested: number | undefined,
+  registeredVia: 'admin' | 'dcr'
+): number {
+  const cap = grantCap(deps, registeredVia);
+  return Math.min(requested ?? deps.config.default_grant_ttl_seconds, cap);
 }
 
 /** One-shot grants have no refresh token (bearer lifetime = grant lifetime), so cap them lower. */
@@ -488,14 +500,17 @@ export async function getConsentDetails(
   if (!oc || oc.disabled) {
     throw new AgentApiError(404, 'not_found', 'Authorization request not found or expired');
   }
+  const ttlCap = grantCap(deps, oc.registered_via);
   return {
     client_name: oc.client_name,
     client_verified: oc.registered_via === 'admin',
     redirect_uri_host: new URL(pending.redirect_uri).host,
     requested_scopes: pending.requested_scopes,
     clients: await listConsentClients(deps.db, userId),
-    default_ttl_seconds: deps.config.default_grant_ttl_seconds,
-    max_ttl_seconds: deps.config.max_grant_ttl_seconds,
+    default_ttl_seconds: Math.min(deps.config.default_grant_ttl_seconds, ttlCap),
+    max_ttl_seconds: ttlCap,
+    unverified_ttl_limited:
+      oc.registered_via === 'dcr' && ttlCap < deps.config.max_grant_ttl_seconds,
     refresh_tokens_enabled: deps.config.refresh_tokens_enabled,
     refresh_token_idle_ttl_seconds: deps.config.refresh_token_idle_ttl_seconds,
   };
@@ -561,7 +576,7 @@ export async function decideConsent(
     resource: pending.resource,
     bound_client_id: bound.client_id,
     label: req.label ?? oc.client_name,
-    ttl_seconds: clampTtl(deps, req.ttl_seconds),
+    ttl_seconds: clampTtl(deps, req.ttl_seconds, oc.registered_via),
     expires_at: isoIn(deps.config.auth_code_ttl_seconds),
     used_at: null,
   });
@@ -656,7 +671,7 @@ async function exchangeCode(
 
   const ttl = Math.min(
     code.ttl_seconds ?? deps.config.default_grant_ttl_seconds,
-    deps.config.max_grant_ttl_seconds
+    grantCap(deps, client.registered_via)
   );
   const grant = await createAgentGrant(deps.db, {
     grant_id: grantId,

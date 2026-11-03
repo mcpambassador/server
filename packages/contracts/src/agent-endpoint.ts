@@ -146,7 +146,10 @@ export interface ConsentDetails {
   refresh_tokens_enabled?: boolean;
   /** Optional: a refresh token unused this long expires early (seconds) */
   refresh_token_idle_ttl_seconds?: number;
+  /** Effective cap for THIS client (lower for unverified/DCR clients, TD-080) */
   max_ttl_seconds: number;
+  /** true when max_ttl_seconds was lowered because the client is unverified (older servers omit) */
+  unverified_ttl_limited?: boolean;
 }
 
 // ===== Progressive tool disclosure (ADR-022, 3b) =====
