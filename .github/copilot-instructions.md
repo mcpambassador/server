@@ -5,7 +5,7 @@
 This is the **mcpambassador_server** repository — a pnpm monorepo containing the Ambassador Server. It is the core of the platform: a Fastify HTTP server with a React SPA, SQLite database, and a plugin-based architecture for auth, authorization, and audit.
 
 **Version:** 0.10.2  
-**Stack:** Node.js 20+, TypeScript strict, pnpm workspaces, Fastify, Zod, Drizzle ORM (SQLite), React 19, Tailwind v4, Vite, Docker
+**Stack:** Node.js 22+, TypeScript strict, pnpm workspaces, Fastify, Zod, Drizzle ORM (SQLite), React 19, Tailwind v4, Vite, Docker
 
 ## Monorepo Package Structure
 
@@ -90,7 +90,7 @@ Flag these as **WARNINGS**:
 - Use Vitest; test files are `*.test.ts`
 - Unit tests mock external dependencies (DB, file system)
 - Integration tests use in-memory SQLite
-- Target: `pnpm test` must pass on Node 20 and Node 22
+- Target: `pnpm test` must pass on Node 22 and Node 24
 
 ## Docker
 - See `Dockerfile` — multi-stage build, non-root user `mcpambassador:1000`, `/data` volume

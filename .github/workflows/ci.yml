@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v6
@@ -75,7 +75,7 @@ jobs:
         run: pnpm test
 
       - name: Upload coverage
-        if: matrix.node-version == 20
+        if: matrix.node-version == 22
         uses: actions/upload-artifact@v5
         with:
           name: coverage
@@ -95,7 +95,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies

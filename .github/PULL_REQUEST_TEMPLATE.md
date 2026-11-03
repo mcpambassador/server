@@ -37,7 +37,7 @@ Fixes # (issue)
 ## Testing
 
 - [ ] I have added/updated unit tests for this change
-- [ ] `pnpm test` passes locally on Node 20
+- [ ] `pnpm test` passes locally on Node 22
 - [ ] `pnpm lint` and `pnpm typecheck` pass
 
 ## Additional Notes

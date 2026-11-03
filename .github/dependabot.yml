@@ -17,7 +17,7 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # CI and runtime are Node 20; stay on the Node 20 typings
+      # CI and runtime are Node 22; stay on the Node 22 typings
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
     labels:
