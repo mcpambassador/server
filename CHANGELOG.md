@@ -17,6 +17,7 @@ Highlights: **agent grants can last up to a year** (1 week, 1 month, 1 year), wi
 - `agent_endpoint.max_one_shot_grant_ttl_seconds` (default 24h, ceiling 7 days): cap for one-shot grants (`POST /v1/users/me/agent-grants`). They have no refresh token, so their bearer token lives as long as the grant; a long OAuth grant limit does not lengthen it. `GET /v1/users/me/agent-endpoint` returns it as an optional field.
 - `agent_endpoint.refresh_token_idle_ttl_seconds` (default 30 days, min 1h): a refresh token not used for this long expires (each rotation slides the window; it never outlives the grant), so a long grant on an abandoned machine dies on its own.
 - Startup now fails with a clear message when `default_grant_ttl_seconds` is larger than `max_grant_ttl_seconds`.
+- Consent details gain optional `refresh_tokens_enabled` and `refresh_token_idle_ttl_seconds`; the `agent_token_refreshed` audit event adds `refresh_token_expires_at`.
 
 ### Changed
 
