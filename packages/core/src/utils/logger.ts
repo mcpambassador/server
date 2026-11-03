@@ -6,7 +6,7 @@
  * @see Architecture §11 Audit Deep Dive
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
 
 import pinoModule from 'pino';
 import { REDACT_CENSOR, REDACT_PATHS, serializeErr } from './redact.js';

@@ -106,16 +106,15 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   // ==========================================================================
   // ADMIN AUTHENTICATION HOOK (all routes)
   // ==========================================================================
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
   fastify.addHook('preHandler', authenticateAdminOrSession(db));
 
   // ==========================================================================
   // SEC-M8-01: Security headers on all admin routes
   // ==========================================================================
   fastify.addHook('onSend', (_request, reply, _payload, done) => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     reply.header('X-Content-Type-Options', 'nosniff');
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+
     reply.header('Cache-Control', 'no-store');
     done();
   });

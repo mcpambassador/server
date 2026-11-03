@@ -24,6 +24,29 @@ export function isAgentEndpointPath(url: string): boolean {
   );
 }
 
+/**
+ * TD-021: the global `Cache-Control: no-store` hooks must not clobber the cache policy the SPA static
+ * handler sets on /app files (`public, ...`). API, auth and HTML responses never carry `public`, so
+ * they keep no-store. Call from an onSend hook in place of an unconditional `no-store`.
+ */
+export function applyNoStoreUnlessStaticAsset(
+  request: { url: string },
+  reply: {
+    getHeader: (name: string) => unknown;
+    header: (name: string, value: string) => unknown;
+  }
+): void {
+  const existing = reply.getHeader('cache-control');
+  if (
+    request.url.startsWith('/app/') &&
+    typeof existing === 'string' &&
+    existing.startsWith('public,')
+  ) {
+    return;
+  }
+  reply.header('Cache-Control', 'no-store');
+}
+
 /** H-2: CSP and hardening headers for every HTML/asset response the SPA handler serves. */
 export const SPA_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";

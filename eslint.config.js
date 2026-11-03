@@ -38,6 +38,9 @@ export default tseslint.config(
   {
     files: ['packages/*/src/**/*.ts'],
 
+    // TD-002: a disable comment that no longer suppresses anything is a lint error
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+
     extends: [
       // Base JS recommended rules
       js.configs.recommended,
