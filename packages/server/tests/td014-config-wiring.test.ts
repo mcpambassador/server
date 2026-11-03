@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import argon2 from 'argon2';
-import { ARGON2_OPTIONS as CORE_ARGON2 } from '@mcpambassador/core';
+import { AmbassadorConfigSchema, ARGON2_OPTIONS as CORE_ARGON2 } from '@mcpambassador/core';
 import { ARGON2_OPTIONS as POLICY_ARGON2 } from '../src/auth/password-policy.js';
 import {
   startAgentTestServer,
@@ -41,6 +41,26 @@ describe('argon2 options (shared constant)', () => {
       timeCost: 2,
       parallelism: 1,
     });
+  });
+});
+
+describe('config validation', () => {
+  it('rejects min heartbeat interval >= expected interval and values over 60', () => {
+    // Root config has other required sections; look only at issues under `session`.
+    const sessionIssues = (session: Record<string, number>) => {
+      const r = AmbassadorConfigSchema.safeParse({ session });
+      return r.success ? [] : r.error.issues.filter(i => i.path[0] === 'session');
+    };
+    const bad = sessionIssues({
+      heartbeat_expected_interval_seconds: 30,
+      heartbeat_min_interval_seconds: 30,
+    });
+    expect(bad.map(i => i.message).join()).toContain('heartbeat_expected_interval_seconds');
+    expect(sessionIssues({ heartbeat_min_interval_seconds: 61 }).length).toBeGreaterThan(0);
+    expect(sessionIssues({ heartbeat_min_interval_seconds: 10 })).toEqual([]);
+  });
+  it('freezes ARGON2_OPTIONS', () => {
+    expect(Object.isFrozen(CORE_ARGON2)).toBe(true);
   });
 });
 
