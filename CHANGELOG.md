@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hashed SPA assets under `/app/assets/` are cacheable again (`public, max-age=31536000, immutable`); a global `no-store` hook was overriding it. API, auth and HTML responses stay uncached (TD-021).
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 
 ## [0.10.3] - 2026-11-03
