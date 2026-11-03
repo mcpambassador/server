@@ -1047,14 +1047,19 @@ export class AmbassadorServer {
 
     // ADR-020: agent authorization server (off by default)
     const agentEndpointConfig = this.config.ambassadorConfig?.agent_endpoint;
-    const { registerAgentOAuthRoutes, registerAgentEndpointInfoRoute, registerCookieFreeGuard } =
-      await import('./routes/agent-oauth.js');
+    const {
+      registerAgentOAuthRoutes,
+      registerAgentEndpointInfoRoute,
+      registerCookieFreeGuard,
+      effectiveDcrGrantCap,
+    } = await import('./routes/agent-oauth.js');
     registerCookieFreeGuard(this.adminServer);
     await registerAgentEndpointInfoRoute(this.adminServer, {
       enabled: !!agentEndpointConfig?.enabled,
       default_grant_ttl_seconds: agentEndpointConfig?.default_grant_ttl_seconds ?? 3600,
       max_grant_ttl_seconds: agentEndpointConfig?.max_grant_ttl_seconds ?? 30 * 86400,
       max_one_shot_grant_ttl_seconds: agentEndpointConfig?.max_one_shot_grant_ttl_seconds ?? 86400,
+      max_dcr_grant_ttl_seconds: effectiveDcrGrantCap(agentEndpointConfig),
       refresh_tokens_enabled:
         !!agentEndpointConfig?.enabled && agentEndpointConfig.refresh_tokens_enabled,
       // Canonical MCP resource URL (what clients register as `claude mcp add ... <url>`)
