@@ -83,8 +83,15 @@ export interface ObserveSummary {
 
 const SYSTEM_AUTO = 'system:auto';
 
-const key = (mcpId: string, scope: string | null, tool: string): string =>
+export const key = (mcpId: string, scope: string | null, tool: string): string =>
   `${mcpId}\u0000${scope ?? ''}\u0000${tool}`;
+
+/**
+ * TD-070: mcp-wide lock key. It is `<mcp>\0`, a strict prefix of every scope key (`<mcp>\0<scope>\0<tool>`),
+ * so it sorts before all of them and can never equal one. It is always taken FIRST (observe, revoke)
+ * and then the scope keys; never pass it to withScopeLocks together with scope keys.
+ */
+export const mcpWideKey = (mcpId: string): string => `${mcpId}\u0000`;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -556,14 +563,17 @@ export class ToolPinService {
   ): Promise<DecisionResult> {
     const pin0 = this.getById(pinId);
     if (!pin0) return { ok: false, code: 'not_found' };
-    // revoke withdraws the hash in every scope serving it: lock each scope of this (mcp, tool)
-    const keys = new Set([key(pin0.mcp_id, pin0.scope_user_id, '')]);
-    for (const l of this.pins.values()) {
-      if (l.rec.mcp_id === pin0.mcp_id && l.rec.tool_name === pin0.tool_name) {
-        keys.add(key(l.rec.mcp_id, l.rec.scope_user_id, ''));
+    // TD-070: take the mcp-wide lock first (every observe of this mcp holds it too), then lock each
+    // scope of this (mcp, tool) computed UNDER it, so no scope pin can appear unlocked in between.
+    return this.withScopeLock(mcpWideKey(pin0.mcp_id), () => {
+      const keys = new Set([key(pin0.mcp_id, pin0.scope_user_id, '')]);
+      for (const l of this.pins.values()) {
+        if (l.rec.mcp_id === pin0.mcp_id && l.rec.tool_name === pin0.tool_name) {
+          keys.add(key(l.rec.mcp_id, l.rec.scope_user_id, ''));
+        }
       }
-    }
-    return this.withScopeLocks([...keys], () => this.revokeLocked(pinId, o));
+      return this.withScopeLocks([...keys], () => this.revokeLocked(pinId, o));
+    });
   }
 
   private async revokeLocked(
@@ -718,8 +728,15 @@ export class ToolPinService {
    * Serialized per (mcp, scope) so two overlapping discoveries cannot race on the same rows.
    */
   observe(args: ObserveArgs): Promise<ObserveSummary> {
-    return this.withScopeLock(key(args.mcpId, args.scopeUserId, ''), () =>
-      this.observeLocked(args)
+    // TD-070: also hold the mcp-wide lock, so a revoke of this (mcp, tool) cannot run while a
+    // not-yet-inserted pin for a new scope is in flight (its scope key did not exist to lock).
+    // Lock order is always mcp-wide first, then scope keys (same as revoke), so the two cannot deadlock.
+    // Tradeoff: observes of different scopes of ONE mcp now serialize (previously they ran in parallel).
+    // Measured by the verifier: +30-50 ms for 20 concurrent users with real inserts, ~2 s if each insert
+    // takes 20 ms. Different mcps stay independent. A shared/exclusive lock (observe shared, revoke
+    // exclusive) would remove the cost; tracked as a follow-up TD.
+    return this.withScopeLock(mcpWideKey(args.mcpId), () =>
+      this.withScopeLock(key(args.mcpId, args.scopeUserId, ''), () => this.observeLocked(args))
     );
   }
 
