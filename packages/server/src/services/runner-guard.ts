@@ -186,6 +186,28 @@ const DENIED_SUBCOMMANDS: Partial<Record<Family, readonly string[]>> = {
   bun: ['repl'],
 };
 
+/** CLIs that share docker's `run` option grammar; all go through the default-deny docker check. */
+const DOCKER_FAMILY = ['docker', 'podman', 'nerdctl', 'finch', 'podman-remote'];
+/** Low-level runtimes with no safe `run` subset; refused outright. */
+const REFUSED_RUNNERS = [
+  'ctr',
+  'crictl',
+  'kubectl',
+  'buildah',
+  'runc',
+  'crun',
+  'nsenter',
+  'unshare',
+  'systemd-nspawn',
+  'bwrap',
+  'lxc-execute',
+  'chroot',
+];
+
+function isDockerFamily(base: string): boolean {
+  return DOCKER_FAMILY.includes(base);
+}
+
 function baseOf(command: string): string {
   // Basename, lowercase, no Windows extension: `/usr/bin/NPX.cmd` -> `npx`.
   return (command.split(/[\\/]/).pop() ?? '').toLowerCase().replace(/\.(cmd|exe|bat)$/, '');
@@ -227,7 +249,144 @@ export function checkRunnerCommand(command: readonly unknown[]): string | null {
   if (!Array.isArray(command) || command.length === 0) return null;
   const first = command[0];
   if (typeof first !== 'string') return null;
-  return scan(baseOf(first), command, 1);
+  const base = baseOf(first);
+  if (REFUSED_RUNNERS.includes(base)) return 'container runner not permitted';
+  if (isDockerFamily(base)) return checkDockerRun(command);
+  return scan(base, command, 1);
+}
+
+// ---------------------------------------------------------------------------------------------
+// docker / podman (TD-042). DEFAULT-DENY: only `run` with a short list of confinement-preserving
+// options. `docker` is NOT in the default command allowlist; this guards operators who add it via
+// MCP_ALLOWED_COMMANDS. Enabling docker at all needs the Docker socket, which is host-root
+// equivalent: unsupported for untrusted MCPs, whatever this guard accepts.
+// ---------------------------------------------------------------------------------------------
+
+/** Boolean options (no value, no `=value`). Short ones may be clustered (`-iq`). */
+const DOCKER_BOOL_LONG = ['rm', 'interactive', 'init', 'read-only', 'quiet'];
+const DOCKER_BOOL_SHORT = ['i', 'q'];
+
+const DOCKER_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+const DOCKER_IMAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
+
+function dockerUserOk(v: string): boolean {
+  const parts = v.split(':');
+  if (parts.length > 2) return false;
+  // Numeric, non-zero only. A user NAME is resolved through the image's own /etc/passwd, which the
+  // image controls, so any name (not just "root") can map to uid 0 and defeat the check.
+  return parts.every(p => /^\d{1,10}$/.test(p) && Number(p) > 0);
+}
+
+/** Value validators by canonical option name. Return true when the value is acceptable. */
+const DOCKER_VALUE_RULES: Record<string, (v: string) => boolean> = {
+  pull: v => ['always', 'missing', 'never'].includes(v),
+  network: v => v === 'none' || v === 'bridge',
+  memory: v => /^[1-9]\d{0,12}[bkmg]?$/i.test(v),
+  cpus: v => /^(?:\d{1,3})(?:\.\d{1,3})?$/.test(v) && Number(v) > 0,
+  'pids-limit': v => /^[1-9]\d{0,6}$/.test(v),
+  user: dockerUserOk,
+  'cap-drop': v => v.toLowerCase() === 'all',
+  'security-opt': v => /^no-new-privileges(?:[=:]true)?$/.test(v),
+  name: v => DOCKER_NAME_RE.test(v),
+  workdir: v => /^\/[A-Za-z0-9_./-]{0,255}$/.test(v) && !v.split('/').includes('..'),
+};
+
+const DOCKER_LONG_ALIASES: Record<string, string> = { net: 'network' };
+const DOCKER_SHORT_VALUE: Record<string, string> = { m: 'memory', u: 'user', w: 'workdir' };
+
+interface DockerParse {
+  error: string | null;
+  image: string | null;
+}
+
+function parseDockerRun(command: readonly unknown[]): DockerParse {
+  const r = parseDockerRunInner(command);
+  return typeof r === 'string' ? { error: r, image: null } : { error: null, image: r.image };
+}
+
+export function checkDockerRun(command: readonly unknown[]): string | null {
+  return parseDockerRun(command).error;
+}
+
+function parseDockerRunInner(command: readonly unknown[]): string | { image: string } {
+  const sub = typeof command[1] === 'string' ? command[1].trim().toLowerCase() : '';
+  // Options before the subcommand (-H, --context, --config, --host ...) redirect the daemon.
+  if (sub !== 'run') {
+    return `docker subcommand not permitted: ${safeToken(typeof command[1] === 'string' ? command[1] : '')} (only 'run')`;
+  }
+  const take = (flag: string, name: string, value: string | undefined): string | null => {
+    const rule = DOCKER_VALUE_RULES[name];
+    if (!rule) return `docker option not permitted: ${safeToken(flag)}`;
+    if (value === undefined || !rule(value)) {
+      return `docker option value not permitted: ${safeToken(flag)}`;
+    }
+    return null;
+  };
+  for (let i = 2; i < command.length; i++) {
+    const raw = command[i];
+    if (typeof raw !== 'string') return 'docker argument must be a string';
+    const tok = raw.trim();
+    if (tok === '--') return 'docker option not permitted: --';
+    if (!tok.startsWith('-') || tok === '-') {
+      if (!DOCKER_IMAGE_RE.test(tok)) return 'docker image reference not permitted';
+      return { image: tok }; // the rest belongs to the container
+    }
+    if (tok.startsWith('--')) {
+      const eq = tok.indexOf('=');
+      const flag = (eq >= 0 ? tok.slice(0, eq) : tok).toLowerCase();
+      const name0 = flag.slice(2);
+      const name = DOCKER_LONG_ALIASES[name0] ?? name0;
+      if (DOCKER_BOOL_LONG.includes(name)) {
+        if (eq >= 0) return `docker option not permitted: ${safeToken(flag)}`;
+        continue;
+      }
+      let value: string | undefined;
+      if (eq >= 0) value = tok.slice(eq + 1);
+      else {
+        const next = command[i + 1];
+        value = typeof next === 'string' ? next.trim() : undefined;
+        i++;
+      }
+      const r = take(flag, name, value);
+      if (r) return r;
+      continue;
+    }
+    // Short option or cluster: -i, -iq, -m512m, -u1000, -w /app
+    const letters = tok.slice(1);
+    for (let k = 0; k < letters.length; k++) {
+      const ch = (letters[k] as string).toLowerCase();
+      if (DOCKER_BOOL_SHORT.includes(ch)) continue;
+      const name = DOCKER_SHORT_VALUE[ch];
+      if (!name) return `docker option not permitted: ${safeToken(`-${ch}`)}`;
+      let value = letters.slice(k + 1);
+      if (value.startsWith('=')) value = value.slice(1);
+      if (value === '') {
+        const next = command[i + 1];
+        value = typeof next === 'string' ? next.trim() : '';
+        i++;
+      }
+      const r = take(`-${ch}`, name, value);
+      if (r) return r;
+      break;
+    }
+  }
+  return 'docker image reference missing';
+}
+
+/**
+ * Non-fatal advice for a docker/podman command that passed {@link checkRunnerCommand}: an image
+ * without a digest is mutable. Prefer `name@sha256:...`. Returns null when fine or not docker.
+ */
+export function runnerWarning(command: readonly unknown[]): string | null {
+  if (!Array.isArray(command) || typeof command[0] !== 'string') return null;
+  const base = baseOf(command[0]);
+  if (!isDockerFamily(base)) return null;
+  const { error, image } = parseDockerRun(command);
+  if (error) return null;
+  if (!image || image.includes('@sha256:')) return null;
+  return image.split('/').pop()?.includes(':') && !/:latest$/.test(image)
+    ? 'docker image is pinned by tag only; prefer a @sha256 digest'
+    : 'docker image has no pinned version or digest; prefer a @sha256 digest';
 }
 
 function scan(base: string, command: readonly unknown[], start: number): string | null {
@@ -336,6 +495,9 @@ const ENV_PREFIXES = [
   'dyld_',
   'yarn_',
   'pnpm_',
+  'docker_',
+  'container_',
+  'containers_', // CONTAINERS_CONF, CONTAINERS_REGISTRIES_CONF, CONTAINERS_STORAGE_CONF ...
   'bun_',
   'deno_',
   'git_',
@@ -350,6 +512,9 @@ const ENV_SUFFIXES = ['_proxy'];
 
 /** Case-insensitive exact names. */
 const ENV_EXACT = [
+  'registry_auth_file',
+  'storage_driver',
+  'storage_opts',
   'path',
   'pathext',
   'home',
