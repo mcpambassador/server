@@ -155,6 +155,42 @@ describe('mergeCredentialEnv placeholder slots', () => {
       expect(r.env.H).toBe('a=v1&b=v1');
     });
 
+    it.each([
+      ['https://${TENANT}.example.com'],
+      ['${REGION}.api.vendor.com'],
+      ['user@${HOSTPART}/path'],
+      ['//${TENANT}/x'],
+      ['x https://fixed.example/${TENANT}'],
+    ])('rejects a URL/host-shaped template value: %s', tpl => {
+      const r = mergeCredentialEnv(
+        { OPTS: tpl, MODE: 'ro' },
+        { TENANT: 'evil', REGION: 'evil', HOSTPART: 'evil' }
+      );
+      expect(r.env.OPTS).toBeUndefined();
+      expect(r.env.MODE).toBe('ro');
+      expect(JSON.stringify(r.env)).not.toContain('${');
+      expect(r.rejected).toEqual(['OPTS']);
+    });
+
+    it.each([
+      'API_BASE',
+      'TENANT_DOMAIN',
+      'MCP_SERVER',
+      'ORIGIN',
+      'AWS_REGION',
+      'NPM_REGISTRY',
+      'PIP_INDEX',
+    ])('URL-like key %s is never substituted', key => {
+      const r = mergeCredentialEnv({ [key]: 'x ${TOK}' }, { TOK: 'abc' });
+      expect(r.env[key]).toBe('x ${TOK}');
+      expect(r.rejected).toEqual([]);
+    });
+
+    it('duplicate credential names differing by case: first wins', () => {
+      const r = mergeCredentialEnv({ H: 'a=${tok}' }, { TOK: 'first', tok: 'second' });
+      expect(r.env.H).toBe('a=first');
+    });
+
     it('a missing credential removes the variable (fail closed, key reported)', () => {
       const r = mergeCredentialEnv({ ...fixed, MODE: 'ro' }, {});
       expect(r.env).toEqual({ MODE: 'ro' });

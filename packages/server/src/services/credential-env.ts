@@ -57,12 +57,16 @@ function slotName(value: unknown): string | null {
  * never re-expanded). Rules, all fail-closed (the whole variable is removed and its KEY reported in
  * `rejected`, never a value):
  *  - the template comes from the entry's own fixed env, never from user input;
- *  - NAME must be one of the supplied credentials (callers build `credentialEnv` from the MCP's
- *    declared credential_schema properties), matched case-insensitively;
+ *  - NAME must be one of the supplied credentials, matched case-insensitively. `credentialEnv` is
+ *    built by the caller from the MCP's declared credential_schema properties (static credentials) or
+ *    from its admin-declared OAuth env bindings; never from arbitrary user-chosen names;
  *  - the credential value must match EMBED_VALUE_RE (an allowlist: API keys/tokens incl. base64), so
  *    it cannot break out of JSON/quoted text and rewrite sibling fields;
- *  - keys that look like URL/host/endpoint/proxy variables are never substituted (kept literal and
- *    locked, as before), so a credential can never choose where a request goes.
+ *  - keys that look like URL/host/endpoint/proxy/base/domain/region/etc. variables are never
+ *    substituted (kept literal and locked, as before), and a template whose value looks like a
+ *    URL/host (contains `://`, or a placeholder after `@`/`//` or followed by `.`) is rejected, so a
+ *    credential can never choose where a request goes.
+ *  - when two credentials differ only by case, the first one wins (same as slots).
  * A whole-value `${NAME}` is the slot case above, not a composite.
  *
  * Returns the dropped NAMES (collisions) and rejected KEYS (composite failures), never values.
@@ -70,7 +74,14 @@ function slotName(value: unknown): string | null {
 const PLACEHOLDER_RE = /\$\{([A-Za-z0-9_]+)\}/g;
 /** Allowlist for a credential value embedded inside other text. */
 const EMBED_VALUE_RE = /^[A-Za-z0-9._~+/=:-]{1,4096}$/;
-const URL_LIKE_KEY_RE = /(URL|URI|HOST|ENDPOINT|PROXY)/i;
+const URL_LIKE_KEY_RE =
+  /(URL|URI|HOST|ENDPOINT|PROXY|BASE|ADDR|DOMAIN|SERVER|ORIGIN|REGION|REGISTRY|INDEX)/i;
+/**
+ * A template whose VALUE looks like a URL/host: a scheme separator anywhere, or a placeholder in a
+ * host position (right after `@` or `//`, or directly followed by `.`). Such a credential could pick
+ * the destination (`https://${TENANT}.example.com`), so the variable is rejected, never filled.
+ */
+const URL_LIKE_VALUE_RE = /:\/\/|@\$\{|\/\/\$\{|\$\{[A-Za-z0-9_]+\}\./;
 
 export function mergeCredentialEnv(
   fixedEnv: Record<string, string> | undefined,
@@ -78,7 +89,9 @@ export function mergeCredentialEnv(
 ): { env: Record<string, string>; dropped: string[]; rejected: string[] } {
   const fixed = fixedEnv ?? {};
   const credByLower = new Map<string, string>();
-  for (const [n, v] of Object.entries(credentialEnv)) credByLower.set(n.toLowerCase(), v);
+  for (const [n, v] of Object.entries(credentialEnv)) {
+    if (!credByLower.has(n.toLowerCase())) credByLower.set(n.toLowerCase(), v); // first wins, like slots
+  }
   const rejected: string[] = [];
   const env: Record<string, string> = {};
   const slots = new Map<string, string>(); // lowercase name -> fixed key holding the slot
@@ -97,7 +110,7 @@ export function mergeCredentialEnv(
         env[key] = value;
         continue;
       }
-      let ok = true;
+      let ok = !URL_LIKE_VALUE_RE.test(value);
       const filled = value.replace(PLACEHOLDER_RE, (_m, name: string) => {
         const cred = credByLower.get(name.toLowerCase());
         if (cred === undefined || !EMBED_VALUE_RE.test(cred)) {
