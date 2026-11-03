@@ -49,6 +49,7 @@ import {
   compatUpdate,
   compatInsert,
   compatTransaction,
+  ARGON2_OPTIONS,
   // seedDevData removed — replaced by first-run setup wizard (ADR-019)
   type OAuthCredentialBlob,
   type OAuthConfig,
@@ -195,6 +196,11 @@ export class AmbassadorServer {
   private hmacSecret: Buffer | null = null; // M14: HMAC secret for session tokens
   private lifecycleManager: SessionLifecycleManager | null = null; // M15: Session lifecycle manager
   private heartbeatRateLimit: Map<string, number> = new Map(); // M15: Heartbeat rate limiting
+
+  /** TD-014: request body cap for both listeners (config server.body_limit_bytes, default 1 MiB) */
+  private bodyLimitBytes(): number {
+    return this.config.ambassadorConfig?.server?.body_limit_bytes ?? 1048576;
+  }
   private credentialVault: CredentialVault | null = null; // CR-H2: M26: Credential vault with proper type
   private oauthTokenManager: OAuthTokenManager | null = null; // ADR-014: OAuth token lifecycle manager
   private registryService: RegistryService | null = null; // Community registry service
@@ -256,7 +262,7 @@ export class AmbassadorServer {
         level: this.config.logLevel,
         serializers: requestLogSerializers,
       },
-      bodyLimit: 1048576, // 1MB max request body (F-SEC-M6 condition)
+      bodyLimit: this.bodyLimitBytes(), // default 1 MiB (F-SEC-M6 condition); TD-014: server.body_limit_bytes
       https: {
         key: tlsCerts.key,
         cert: tlsCerts.cert,
@@ -768,7 +774,7 @@ export class AmbassadorServer {
         level: this.config.logLevel,
         serializers: requestLogSerializers,
       },
-      bodyLimit: 1048576,
+      bodyLimit: this.bodyLimitBytes(),
       https: {
         key: Buffer.from(tlsCerts.key),
         cert: Buffer.from(tlsCerts.cert),
@@ -1519,13 +1525,15 @@ export class AmbassadorServer {
         // Authenticate request
         const session = await this.authenticate(request);
 
-        // Rate limit: max 1 heartbeat per 10 seconds per session (SEC-V2-006)
+        // Rate limit: max 1 heartbeat per session.heartbeat_min_interval_seconds (default 10, SEC-V2-006)
+        const minIntervalSeconds =
+          this.config.ambassadorConfig?.session?.heartbeat_min_interval_seconds ?? 10;
         const lastHeartbeat = this.heartbeatRateLimit.get(session.session_id);
         const now = Date.now();
-        if (lastHeartbeat && now - lastHeartbeat < 10000) {
+        if (lastHeartbeat && now - lastHeartbeat < minIntervalSeconds * 1000) {
           return reply.status(429).send({
             error: 'rate_limit_exceeded',
-            message: 'Heartbeat rate limit: max 1 per 10 seconds',
+            message: `Heartbeat rate limit: max 1 per ${minIntervalSeconds} seconds`,
           });
         }
 
@@ -2207,12 +2215,7 @@ DELETE THIS FILE after recording these values.
     const keyPrefix = base64url.substring(0, 8);
 
     // Hash with Argon2id
-    const keyHash = await argon2.hash(clientKey, {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
+    const keyHash = await argon2.hash(clientKey, ARGON2_OPTIONS);
 
     // Insert into clients table
     const nowIso = new Date().toISOString();
