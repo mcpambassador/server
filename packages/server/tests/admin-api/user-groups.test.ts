@@ -75,4 +75,74 @@ describe('Admin: GET /v1/admin/users/:userId/groups', () => {
 
     expect(res.statusCode).toBe(404);
   });
+
+  it('returns every group with its name and description (TD-009)', async () => {
+    const user = await createUser(handle.db, {
+      username: 'multi-group-user',
+      password: 'pass1234',
+      display_name: 'Multi',
+    });
+    const loner = await createUser(handle.db, {
+      username: 'no-group-user',
+      password: 'pass1234',
+      display_name: 'Loner',
+    });
+    const created: Array<{ group_id: string; name: string; description: string }> = [];
+    for (const [name, description] of [
+      ['g-multi-a', 'first'],
+      ['g-multi-b', 'second'],
+    ] as const) {
+      const r = await handle.fastify.inject({
+        method: 'POST',
+        url: '/v1/admin/groups',
+        headers: { 'X-Admin-Key': handle.adminKey },
+        payload: { name, description, status: 'active' },
+      });
+      expect(r.statusCode).toBe(201);
+      created.push(JSON.parse(r.body).data);
+      const add = await handle.fastify.inject({
+        method: 'POST',
+        url: `/v1/admin/groups/${created[created.length - 1]!.group_id}/members`,
+        headers: { 'X-Admin-Key': handle.adminKey },
+        payload: { user_id: user.user_id },
+      });
+      expect(add.statusCode).toBe(201);
+    }
+
+    const res = await handle.fastify.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${user.user_id}/groups`,
+      headers: { 'X-Admin-Key': handle.adminKey },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = JSON.parse(res.body).data as Array<Record<string, string>>;
+    // every new user is also in the default 'all-users' group
+    const mine = data.filter(g => g.name.startsWith('g-multi-'));
+    expect(mine.map(g => [g.name, g.description]).sort()).toEqual([
+      ['g-multi-a', 'first'],
+      ['g-multi-b', 'second'],
+    ]);
+    for (const g of data) {
+      expect(Object.keys(g).sort()).toEqual(['assigned_at', 'description', 'group_id', 'name']);
+    }
+
+    const empty = await handle.fastify.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${loner.user_id}/groups`,
+      headers: { 'X-Admin-Key': handle.adminKey },
+    });
+    expect(empty.statusCode).toBe(200);
+    expect((JSON.parse(empty.body).data as Array<{ name: string }>).map(g => g.name)).toEqual([
+      'all-users',
+    ]);
+  });
+
+  it('returns 400 for a malformed user id', async () => {
+    const res = await handle.fastify.inject({
+      method: 'GET',
+      url: '/v1/admin/users/not-a-uuid/groups',
+      headers: { 'X-Admin-Key': handle.adminKey },
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });
