@@ -2,6 +2,12 @@ import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import * as child_process from 'child_process';
 import { makeMcpConfig } from './helpers';
 
+// vitest 4: ESM namespace exports cannot be spied on, so mock the module and spy on the mock.
+vi.mock('child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('child_process')>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
+
 let StdioMcpConnection: any;
 
 beforeEach(() => {
@@ -30,8 +36,9 @@ describe('StdioMcpConnection initialize handshake', () => {
     const writes: string[] = [];
 
     // stub spawn to provide fake stdio and capture writes
-    const spawnMock = vi.spyOn(child_process, 'spawn').mockImplementation(() => {
+    const spawnMock = vi.mocked(child_process.spawn).mockImplementation(() => {
       const fakeStdin = {
+        on: () => {},
         write: (chunk: string) => {
           // capture written chunk
           if (typeof chunk === 'string') {
@@ -70,14 +77,21 @@ describe('StdioMcpConnection initialize handshake', () => {
         },
       } as any;
 
-      return {
+      const fakeChild: any = new EventEmitter();
+      Object.assign(fakeChild, {
         stdout: fakeStdout,
         stderr: fakeStderr,
         stdin: fakeStdin,
         pid: 12345,
-        kill: () => {},
-        on: () => {},
-      } as any;
+        exitCode: null,
+        signalCode: null,
+        kill: () => {
+          fakeChild.exitCode = 0;
+          fakeChild.emit('exit', 0, null);
+          return true;
+        },
+      });
+      return fakeChild;
     });
 
     const config = makeMcpConfig({ transport: 'stdio' });

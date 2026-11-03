@@ -18,7 +18,7 @@ describe('HttpMcpConnection (SEC-M9-03/04/08)', () => {
   let server: http.Server | null = null;
   let port = 0;
 
-  beforeAll(done => {
+  beforeAll(async () => {
     server = http.createServer((req, res) => {
       if (req.url?.includes('/tools')) {
         const body = JSON.stringify([{ name: 'tool1', description: 't' }]);
@@ -36,10 +36,12 @@ describe('HttpMcpConnection (SEC-M9-03/04/08)', () => {
       res.writeHead(200, { 'content-type': 'text/plain' });
       res.end('ok');
     });
-    server.listen(0, '127.0.0.1', () => {
-      // @ts-ignore
-      port = (server!.address() as any).port;
-      done();
+    await new Promise<void>(resolve => {
+      server!.listen(0, '127.0.0.1', () => {
+        // @ts-ignore
+        port = (server!.address() as any).port;
+        resolve();
+      });
     });
   });
 
