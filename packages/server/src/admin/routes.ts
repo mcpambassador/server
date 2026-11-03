@@ -64,6 +64,8 @@ export interface AdminRoutesConfig {
   killSwitchManager: KillSwitchManager;
   userPool: UserMcpPool | null;
   onGrantsRevoked?: (grantIds: string[]) => void;
+  /** TD-025: close the live agent streams of these grants (grants stay valid); returns the count */
+  closeGrantStreams?: (grantIds: string[]) => number;
   /** TD-040: users whose granted/subscribed MCP set changed; the pool is re-synced (non-fatal). */
   onUserAccessChanged?: (userIds: string[], reason: string) => Promise<void>;
   rotateHmacSecret: () => Promise<number>;
@@ -258,7 +260,12 @@ export const adminRoutes: FastifyPluginCallback<AdminRoutesConfig> = (
   }
 
   // User management (6 endpoints)
-  fastify.register(registerAdminUserRoutes, { db, audit, userPool });
+  fastify.register(registerAdminUserRoutes, {
+    db,
+    audit,
+    userPool,
+    closeGrantStreams: opts.closeGrantStreams,
+  });
 
   // Group management (9 endpoints)
   fastify.register(registerAdminGroupRoutes, {

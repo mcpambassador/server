@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Suspending or deactivating a user now closes that user's open agent (`/mcp`) streams immediately and audits it as `agent_streams_closed`; before, they ended only at the next token validation. Grants are kept, so reactivating restores access (TD-025).
+
+### Fixed
+
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 
 ## [0.10.3] - 2026-11-03

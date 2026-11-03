@@ -25,6 +25,7 @@ import {
   compatInsert,
   compatUpdate,
   voidApprovalsForLifecycle,
+  listAgentGrantsForUser,
 } from '@mcpambassador/core';
 import { eq, and, or, desc, asc } from 'drizzle-orm';
 import { validatePassword, hashPassword } from '../auth/password-policy.js';
@@ -43,6 +44,8 @@ export interface AdminUserRoutesConfig {
   db: DatabaseClient;
   audit: AuditProvider;
   userPool: UserMcpPool | null;
+  /** TD-025: aborts the in-flight /mcp requests of the given grants; returns how many were closed */
+  closeGrantStreams?: (grantIds: string[]) => number;
 }
 
 /**
@@ -53,7 +56,34 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
   opts: AdminUserRoutesConfig,
   done
 ) => {
-  const { db, audit, userPool } = opts;
+  const { db, audit, userPool, closeGrantStreams } = opts;
+
+  /**
+   * TD-025: a suspended/deactivated user's open agent streams die now, not at the next token
+   * validation. Grants are kept (like disabling an OAuth client), so reactivation restores access.
+   */
+  const closeUserAgentStreams = async (
+    userId: string,
+    reason: 'user_suspended' | 'user_deactivated',
+    sourceIp: string
+  ): Promise<void> => {
+    if (!closeGrantStreams) return;
+    const grantIds = (await listAgentGrantsForUser(db, userId))
+      .filter(g => !g.revoked_at)
+      .map(g => g.grant_id);
+    const closed = closeGrantStreams(grantIds);
+    if (closed === 0) return;
+    await audit.emit({
+      event_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      event_type: 'admin_action',
+      severity: 'info',
+      user_id: userId,
+      source_ip: sourceIp,
+      action: 'agent_streams_closed',
+      metadata: { reason, streams_closed: closed, grants: grantIds.length },
+    });
+  };
 
   // ==========================================================================
   // M21: POST /v1/admin/users - Create user with authentication
@@ -296,6 +326,11 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       if (userPool) {
         await userPool.terminateForUser(userId);
       }
+      await closeUserAgentStreams(
+        userId,
+        body.status === 'deactivated' ? 'user_deactivated' : 'user_suspended',
+        request.ip || '127.0.0.1'
+      );
     } else {
       // Normal update (no cascading)
       await compatUpdate(db, users).set(updates).where(eq(users.user_id, userId));
@@ -368,6 +403,7 @@ export const registerAdminUserRoutes: FastifyPluginCallback<AdminUserRoutesConfi
       if (userPool) {
         await userPool.terminateForUser(userId);
       }
+      await closeUserAgentStreams(userId, 'user_deactivated', request.ip || '127.0.0.1');
       // TD-059: give the user's child uids back (homes are wiped when a uid is assigned again)
       forgetChildUidKeys(key => key.startsWith(`user:${userId}:`));
 

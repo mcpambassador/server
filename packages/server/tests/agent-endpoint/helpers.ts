@@ -59,6 +59,8 @@ export interface AgentTestServer {
   adminKey: string;
   dataDir: string;
   db: DatabaseClient;
+  /** The running server (tests that need its internals, e.g. the agent stream registry) */
+  server: AmbassadorServer;
   stop: () => Promise<void>;
 }
 
@@ -90,6 +92,7 @@ export async function startAgentTestServer(
     adminKey: admin_key,
     dataDir,
     db: (server as unknown as { db: DatabaseClient }).db,
+    server,
     stop: async () => {
       try {
         await server.stop();
@@ -122,6 +125,7 @@ export async function restartAgentTestServer(
     adminKey: prev.adminKey,
     dataDir: prev.dataDir,
     db: (server as unknown as { db: DatabaseClient }).db,
+    server,
     stop: async () => {
       try {
         await server.stop();
