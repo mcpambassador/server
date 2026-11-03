@@ -3,10 +3,6 @@ name: Security Audit
 on:
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'packages/**/package.json'
   schedule:
     # Run every Monday at 09:00 UTC
     - cron: '0 9 * * 1'
@@ -32,7 +28,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test audit gate script
-        run: node --test scripts/
+        run: node --test 'scripts/*.test.mjs'
 
       - name: Run production audit (fail on moderate/high/critical, minus tracked ignoreGhsas)
         run: node scripts/audit-prod.mjs
