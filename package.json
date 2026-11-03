@@ -1,6 +1,6 @@
 {
   "name": "@mcpambassador/monorepo",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "private": true,
   "description": "MCP Ambassador Server - Monorepo Root",
   "license": "Apache-2.0",
