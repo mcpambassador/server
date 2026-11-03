@@ -73,7 +73,7 @@ const STRICT_ALLOWED: Partial<
 
 /** Subcommand words skipped (not treated as the package) while scanning, per family. */
 const SUBCOMMANDS: Partial<Record<Family, readonly string[]>> = {
-  uv: ['tool', 'run', 'pip', 'install', 'uninstall', 'x', 'exec'],
+  uv: ['tool', 'run', 'pip', 'install', 'uninstall', 'x', 'exec', 'add'],
   deno: [
     'run',
     'task',
@@ -389,6 +389,44 @@ export function runnerWarning(command: readonly unknown[]): string | null {
     : 'docker image has no pinned version or digest; prefer a @sha256 digest';
 }
 
+/** Non-registry sources: VCS/URL schemes, standalone or as the `name@<source>` / `name @ <source>` form. */
+const SOURCE_SCHEME_RE =
+  /(^|@|\s)(git\+|git:|git@|github:|gitlab:|bitbucket:|gist:|file:|ssh:|link:|http:|https:|ftp:|data:|blob:)/i;
+const ARCHIVE_RE = /\.(tgz|tar|tar\.gz|zip|whl)$/i;
+/** npm treats `owner/repo` (no @scope, not a path) as a GitHub shorthand. */
+const GITHUB_SHORTHAND_RE = /^[A-Za-z0-9][\w.-]*\/[\w.-]+(#.*)?$/;
+
+/** Install-style subcommands: EVERY following positional is a package spec, not just the first. */
+const INSTALL_SUBCOMMANDS = ['add', 'install', 'i'];
+
+/** pip positionals that are local paths (`./x`, `/x`, `~/x`, `.`, `a/b`, `C:\\x`). */
+const LOCAL_PATH_RE = /^(\.|~)|[\\/]/;
+
+/** `tok` is the package/script positional of a runner. Returns a generic reason, or null. */
+function checkPackageSpec(family: Family, tok: string): string | null {
+  const bad = (): string => 'runner package source not permitted (git, URL or archive spec)';
+  if (tok.includes('://') || SOURCE_SCHEME_RE.test(tok)) return bad();
+  if ((family === 'npx' || family === 'uv' || family === 'pip') && ARCHIVE_RE.test(tok)) {
+    return bad();
+  }
+  // pip: a local directory or file is a source too (`pip install .`, `./pkg`, `/abs/pkg`).
+  if (family === 'pip' && LOCAL_PATH_RE.test(tok)) return bad();
+  if (family === 'npx' && GITHUB_SHORTHAND_RE.test(tok)) return bad();
+  return null;
+}
+
+/**
+ * deno/bun have many value-less flags (--allow-net, --deny-*, --unstable-*, --no-lock ...). They are
+ * treated as boolean so the script/package that follows is not swallowed. Unknown `=`-less flags
+ * still swallow the next token, but that token is spec-checked (see scan), so a URL there is refused.
+ */
+function isKnownBoolFlag(family: Family, name: string): boolean {
+  if (family !== 'deno' && family !== 'bun') return false;
+  return /^(allow-|deny-|unstable|no-|smol$|hot$|watch$|watch-|inspect$|prefer-|frozen|bun$|silent$)/.test(
+    name
+  );
+}
+
 function scan(base: string, command: readonly unknown[], start: number): string | null {
   const family = familyOf(base);
   const rules = RULES[family];
@@ -399,6 +437,9 @@ function scan(base: string, command: readonly unknown[], start: number): string 
   const pm = isPackageManagerCli(base);
   let swallowNext = false;
   let subSeen = false;
+  let installMode = false;
+  // After a bare `--` every token is a positional (the package is still the next one).
+  let afterDashes = false;
 
   for (let i = start; i < command.length; i++) {
     const rawTok = command[i];
@@ -406,25 +447,56 @@ function scan(base: string, command: readonly unknown[], start: number): string 
     // A single element holding "--registry evil" is not an option to the runner, but treat the first
     // word as one: stricter, never looser.
     const tok = rawTok.trim();
-    if (tok === '--') return null;
+    if (tok === '--' && !afterDashes) {
+      afterDashes = true;
+      swallowNext = false;
+      continue;
+    }
 
-    if (!tok.startsWith('-') || tok === '-') {
+    if (afterDashes || !tok.startsWith('-') || tok === '-') {
       if (swallowNext) {
         swallowNext = false;
+        // An option VALUE that is a git/URL/archive spec is never legitimate before the package, and
+        // a mis-guessed boolean flag would otherwise hide the real package here.
+        if (family !== 'other') {
+          const r = checkPackageSpec(family, tok);
+          if (r) return r;
+        }
         continue;
       }
       const low = tok.toLowerCase();
       if (deniedSub.includes(low)) return `runner subcommand not permitted: ${safeToken(tok)}`;
-      // pip: `install -c file` puts options AFTER the subcommand, so keep scanning.
-      if (family === 'pip') continue;
+      // Install-style (`add`, `install`): every positional is a package spec.
+      if (installMode) {
+        const r = checkPackageSpec(family, tok);
+        if (r) return r;
+        continue;
+      }
+      // pip: the first positional is the subcommand; `install -c file` puts options AFTER it, so
+      // keep scanning, and check EVERY later positional (name, archive, URL, local path).
+      if (family === 'pip') {
+        if (!subSeen) {
+          subSeen = true;
+          continue;
+        }
+        const r = checkPackageSpec(family, tok);
+        if (r) return r;
+        continue;
+      }
       // npm/pnpm/yarn: the first positional is a subcommand (exec, dlx, ...); the package follows it.
       if (pm && !subSeen) {
         subSeen = true;
+        if (INSTALL_SUBCOMMANDS.includes(low)) installMode = true;
         continue;
       }
       // uv / deno / bun: skip known subcommand words, the next positional is the tool or script.
-      if (subcommands.includes(low)) continue;
-      return null; // package / script: the rest belongs to the launched program
+      if (subcommands.includes(low)) {
+        if (INSTALL_SUBCOMMANDS.includes(low)) installMode = true;
+        continue;
+      }
+      // package / script: the rest belongs to the launched program, but the spec itself must come
+      // from the package registry, not an arbitrary git/URL/tarball source (TD-042).
+      return checkPackageSpec(family, tok);
     }
 
     const head = tok.split(/\s/)[0] ?? tok;
@@ -457,7 +529,7 @@ function scan(base: string, command: readonly unknown[], start: number): string 
       ) {
         return `runner option not permitted: ${safeToken(flag)}`;
       }
-      swallowNext = eq < 0 && !matches(rules.bool, name);
+      swallowNext = eq < 0 && !matches(rules.bool, name) && !isKnownBoolFlag(family, name);
       continue;
     }
 
