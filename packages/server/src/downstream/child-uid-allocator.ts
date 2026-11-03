@@ -300,26 +300,31 @@ export class ChildUidAllocator {
     key: string,
     uid: number,
     fn: () => Promise<T>
-  ): Promise<{ ran: true; value: T } | { ran: false }> {
-    const run = this.chain.then(async (): Promise<{ ran: true; value: T } | { ran: false }> => {
-      // the key must still own this uid: a reclaimed uid belongs to someone else now
-      const assigned = this.load().get(key)?.uid === uid;
-      if (!assigned || (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid))
-        return { ran: false };
-      this.preparing.add(uid);
-      try {
+  ): Promise<{ ran: true; value: T } | { ran: false; reason: 'unassigned' | 'busy' }> {
+    const run = this.chain.then(
+      async (): Promise<
+        { ran: true; value: T } | { ran: false; reason: 'unassigned' | 'busy' }
+      > => {
+        // the key must still own this uid: a reclaimed uid belongs to someone else now
+        const assigned = this.load().get(key)?.uid === uid;
+        if (!assigned) return { ran: false, reason: 'unassigned' };
+        if ((this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid))
+          return { ran: false, reason: 'busy' };
+        this.preparing.add(uid);
         try {
-          return { ran: true, value: await fn() };
-        } catch (err) {
-          // fn timed out or failed: whatever it left running as this uid (du/find) must die before the
-          // uid is released to the next lease
-          await this.deps.reapUid(uid).catch(() => undefined);
-          throw err;
+          try {
+            return { ran: true, value: await fn() };
+          } catch (err) {
+            // fn timed out or failed: whatever it left running as this uid (du/find) must die before the
+            // uid is released to the next lease
+            await this.deps.reapUid(uid).catch(() => undefined);
+            throw err;
+          }
+        } finally {
+          this.preparing.delete(uid);
         }
-      } finally {
-        this.preparing.delete(uid);
       }
-    });
+    );
     this.chain = run.then(
       () => undefined,
       () => undefined
@@ -507,14 +512,19 @@ export class ChildUidAllocator {
 
   /**
    * Forget the uid assignment of keys (user deleted, MCP uninstalled) so the uid can be reused. Keys with a live
-   * lease are kept. The home is wiped on the next assignment. Returns how many keys were freed.
+   * lease are kept. Returns how many keys were freed. TD-077: the freed uids are then reaped and their homes
+   * wiped as the uid inside the allocator chain (same path as a wipe on reassignment), so nothing is left
+   * behind in a home that no assignment (and so no cache GC) covers. The cleanup is asynchronous; `drain()`
+   * waits for it.
    */
   releaseKeys(match: (key: string) => boolean): number {
     const entries = this.load();
     let n = 0;
+    const dropped: number[] = [];
     for (const [k, e] of [...entries]) {
       if (!match(k) || (this.live.get(e.uid) ?? 0) > 0) continue;
       entries.delete(k);
+      dropped.push(e.uid);
       n++;
     }
     if (n > 0) {
@@ -524,8 +534,39 @@ export class ChildUidAllocator {
         this.entries = null;
         throw new ChildUidError(`cannot persist ${this.range.mapPath}: ${errText(err)}`);
       }
+      this.chain = this.chain.then(() => this.cleanDropped(dropped));
     }
     return n;
+  }
+
+  /** Resolves when the queued uid operations (including TD-077 cleanups of dropped assignments) are done. */
+  drain(): Promise<void> {
+    return this.chain;
+  }
+
+  /** TD-077: kill leftovers and wipe the home of uids whose assignment was dropped. Never throws. */
+  private async cleanDropped(uids: number[]): Promise<void> {
+    for (const uid of uids) {
+      // reassigned or in use since the drop: whoever has it now cleaned it (or is cleaning it)
+      if (
+        (this.live.get(uid) ?? 0) > 0 ||
+        this.preparing.has(uid) ||
+        [...this.load().values()].some(e => e.uid === uid)
+      )
+        continue;
+      this.preparing.add(uid);
+      try {
+        const left = await this.deps.reapUid(uid);
+        if (left > 0) throw new Error(`${left} process(es) still running under it`);
+        await this.deps.wipeHome(uid, this.homeFor(uid));
+        logger.info(`[child-uid] uid ${uid} released; home wiped`);
+      } catch (err) {
+        // the home is wiped again when the uid is next assigned
+        logger.warn(`[child-uid] could not clean released uid ${uid}: ${errText(err)}`);
+      } finally {
+        this.preparing.delete(uid);
+      }
+    }
   }
 
   private load(): Map<string, Entry> {

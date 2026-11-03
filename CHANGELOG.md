@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- When an MCP is archived or a user is deactivated, its child uid is now reaped and its home wiped right away (as that uid, inside the allocator queue, the same path as a wipe on reassignment) instead of staying on disk until the uid is reused (TD-077). The cache GC log no longer says "became busy" when the instance simply no longer owns the uid.
+
 ## [0.10.2] - 2026-11-03
 
 Highlights: **the server and the MCP child processes it launches now run on Node 22** (the container base image changed), **the per-instance MCP cache cleanup is enabled by default (`enforce`)** and empties idle instances' `.cache` (see Added), dependency advisories are cleared with a stricter audit gate, and admin errors return proper 401/403/400 codes. `protocol` and `contracts` wire types are unchanged.

@@ -551,6 +551,78 @@ describe('ChildUidAllocator', () => {
     live.release();
   });
 
+  it('TD-077: releaseKeys reaps and wipes the dropped uids (not live ones) as the uid', async () => {
+    const h = harness();
+    const a = h.make();
+    const l1 = await a.lease('user:u1:a');
+    const l2 = await a.lease('user:u1:b');
+    l2.release();
+    await a.drain();
+    h.events.length = 0;
+    h.wiped.length = 0;
+    expect(a.releaseKeys(k => k.startsWith('user:u1:'))).toBe(1); // u1:a is live
+    await a.drain();
+    expect(h.wiped).toEqual([[l2.uid, `/tmp/mcp-homes/${l2.uid}`]]);
+    expect(h.events).toEqual([`reap:${l2.uid}`, `wipe:${l2.uid}`]);
+    l1.release();
+  });
+
+  it('TD-077: a failing wipe or leftover process is logged, never thrown, and the wipe repeats on reassign', async () => {
+    const h = harness(20000, 20000);
+    const a = h.make();
+    (await a.lease('k')).release();
+    await a.drain();
+    const warn = vi.spyOn(logger, 'warn');
+    h.hooks.reapUid = () => Promise.resolve(2);
+    expect(a.releaseKeys(k => k === 'k')).toBe(1);
+    await expect(a.drain()).resolves.toBeUndefined();
+    expect(warn.mock.calls.map(c => String(c[0])).join('\n')).toMatch(
+      /could not clean released uid 20000.*still running/
+    );
+    warn.mockRestore();
+    h.hooks.reapUid = () => Promise.resolve(0);
+    h.wiped.length = 0;
+    expect((await a.lease('k2')).uid).toBe(20000);
+    expect(h.wiped.length).toBe(1);
+  });
+
+  it('TD-077: the cleanup of a dropped uid runs before the same uid is handed to a new key', async () => {
+    const h = harness(20000, 20000);
+    const a = h.make();
+    (await a.lease('k')).release();
+    await a.drain();
+    h.events.length = 0;
+    let unblock!: () => void;
+    const gate = new Promise<void>(r => (unblock = r));
+    const blocker = a.exclusiveIfIdle('k', 20000, () => gate); // holds the chain
+    a.releaseKeys(k => k === 'k'); // dropped while the exclusive op is running; cleanup queues behind it
+    const lease = a.lease('new');
+    unblock();
+    await blocker;
+    const l = await lease;
+    expect(l.uid).toBe(20000);
+    // cleanup (reap, wipe) first, then the assignment's own reap + wipe
+    expect(h.events).toEqual(['reap:20000', 'wipe:20000', 'reap:20000', 'wipe:20000']);
+    l.release();
+  });
+
+  it('exclusiveIfIdle tells an unassigned key from a busy one', async () => {
+    const h = harness();
+    const a = h.make();
+    const l = await a.lease('k');
+    expect(await a.exclusiveIfIdle('k', l.uid, async () => 1)).toEqual({
+      ran: false,
+      reason: 'busy',
+    });
+    expect(await a.exclusiveIfIdle('nobody', l.uid, async () => 1)).toEqual({
+      ran: false,
+      reason: 'unassigned',
+    });
+    l.release();
+    await a.drain();
+    expect(await a.exclusiveIfIdle('k', l.uid, async () => 1)).toEqual({ ran: true, value: 1 });
+  });
+
   it('release is idempotent and a second lease on the same key keeps the uid live', async () => {
     const h = harness(20000, 20000);
     const a = h.make();

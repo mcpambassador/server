@@ -187,7 +187,7 @@ export interface GcTarget {
     key: string,
     uid: number,
     fn: () => Promise<T>
-  ) => Promise<{ ran: true; value: T } | { ran: false }>;
+  ) => Promise<{ ran: true; value: T } | { ran: false; reason?: 'unassigned' | 'busy' }>;
   setIdleListener: (fn: ((uid: number) => void) | undefined) => void;
 }
 
@@ -404,7 +404,11 @@ export class ChildCacheGc {
         return true;
       });
       if (!r.ran) {
-        logger.info(`[child-cache-gc] ${tag} became busy; purge skipped`);
+        logger.info(
+          r.reason === 'unassigned'
+            ? `[child-cache-gc] ${tag} no longer owns this uid (released or reassigned); purge skipped`
+            : `[child-cache-gc] ${tag} became busy; purge skipped`
+        );
         return false;
       }
       logger.info(
