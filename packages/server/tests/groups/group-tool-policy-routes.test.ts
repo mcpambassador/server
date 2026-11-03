@@ -264,26 +264,40 @@ describe('group tool policy admin API (ADR-025)', () => {
     });
     const file = path.join(server.dataDir, 'audit', 'audit.jsonl');
     // audit is flushed on an interval: poll for the line
-    let events: Array<{ action?: string; metadata?: Record<string, unknown> }> = [];
-    for (let i = 0; i < 100; i++) {
-      events = fs.existsSync(file)
+    type AuditEvent = { action?: string; metadata?: Record<string, unknown> };
+    // Earlier PUTs in this file also write group.mcp_tool_policy.set (e.g. count 0), so select THIS
+    // PUT's event by its distinctive metadata rather than taking the last matching action.
+    const isMine = (e: AuditEvent): boolean => {
+      const md = e.metadata ?? {};
+      return (
+        e.action === 'group.mcp_tool_policy.set' &&
+        md['group_id'] === groupId &&
+        md['mcp_id'] === mcpId &&
+        md['count'] === 2 &&
+        JSON.stringify(md['added']) === JSON.stringify(['t1', 't3'])
+      );
+    };
+    let mine: AuditEvent | undefined;
+    let seen = 0;
+    for (let i = 0; i < 100 && !mine; i++) {
+      const events: AuditEvent[] = fs.existsSync(file)
         ? fs
             .readFileSync(file, 'utf8')
             .split('\n')
             .filter(Boolean)
-            .map(l => JSON.parse(l) as (typeof events)[number])
+            .map(l => JSON.parse(l) as AuditEvent)
         : [];
-      if (
-        events.some(
-          e => e.action === 'group.mcp_tool_policy.set' && (e.metadata as any)?.count === 2
-        )
-      )
-        break;
-      await new Promise(r => setTimeout(r, 250));
+      seen = events.filter(e => e.action === 'group.mcp_tool_policy.set').length;
+      mine = events.find(isMine);
+      if (!mine) await new Promise(r => setTimeout(r, 250));
     }
-    const hits = events.filter(e => e.action === 'group.mcp_tool_policy.set');
-    expect(hits.length).toBeGreaterThan(0);
-    const m = hits[hits.length - 1]!.metadata!;
+    if (!mine) {
+      throw new Error(
+        `no group.mcp_tool_policy.set audit event with count=2/added=[t1,t3] for this group and MCP after polling ` +
+          `(${seen} group.mcp_tool_policy.set events seen in ${file})`
+      );
+    }
+    const m = mine.metadata!;
     expect(m).toMatchObject({
       group_id: groupId,
       mcp_id: mcpId,
