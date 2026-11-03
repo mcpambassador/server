@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A second credential differing only in case can no longer overwrite or duplicate an env slot that was already filled; it is dropped like other fixed-env collisions.
+- `compatTransaction`: a failing ROLLBACK is logged instead of replacing the original error.
 - A per-user credential that fills an env placeholder slot (`KEY: '${KEY}'`) now lands under the slot's key, not the credential's casing, so Linux children see the name the entry expects (TD-051).
 
 ## [0.10.3] - 2026-11-03

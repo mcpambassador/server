@@ -9,6 +9,7 @@
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
+import { logger } from '../utils/logger.js';
 import type { DatabaseClient } from './client.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -160,10 +161,15 @@ export async function compatTransaction<T>(db: DatabaseClient, fn: () => Promise
     }
     return result;
   } catch (err) {
-    if (isPostgres(db)) {
-      await (db as any).execute('ROLLBACK');
-    } else {
-      getSqliteClient(db).prepare('ROLLBACK').run();
+    // A failing ROLLBACK (e.g. the connection died) must not mask the original error.
+    try {
+      if (isPostgres(db)) {
+        await (db as any).execute('ROLLBACK');
+      } else {
+        getSqliteClient(db).prepare('ROLLBACK').run();
+      }
+    } catch (rollbackErr) {
+      logger.error({ err: rollbackErr }, '[db] ROLLBACK failed after transaction error');
     }
     throw err;
   }
