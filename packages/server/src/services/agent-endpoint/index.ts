@@ -330,7 +330,7 @@ async function issueRefreshToken(
   deps: AgentEndpointDeps,
   grant: AgentGrantRecord,
   familyId: string
-): Promise<string> {
+): Promise<{ raw: string; expiresAt: string }> {
   const raw = generateToken(REFRESH_TOKEN_PREFIX);
   // Refresh lifetime is capped by the grant's own expiry and slides by the idle window
   const idleExpiry = Date.now() + deps.config.refresh_token_idle_ttl_seconds * 1000;
@@ -342,7 +342,7 @@ async function issueRefreshToken(
     family_id: familyId,
     expires_at: expiresAt.toISOString(),
   });
-  return raw;
+  return { raw, expiresAt: expiresAt.toISOString() };
 }
 
 // ===== Verification (used by /mcp in P5) =====
@@ -496,6 +496,8 @@ export async function getConsentDetails(
     clients: await listConsentClients(deps.db, userId),
     default_ttl_seconds: deps.config.default_grant_ttl_seconds,
     max_ttl_seconds: deps.config.max_grant_ttl_seconds,
+    refresh_tokens_enabled: deps.config.refresh_tokens_enabled,
+    refresh_token_idle_ttl_seconds: deps.config.refresh_token_idle_ttl_seconds,
   };
 }
 
@@ -671,9 +673,10 @@ async function exchangeCode(
   });
   const family = randomUUID();
   const at = await issueAccessToken(deps, grant, family);
-  const rt = deps.config.refresh_tokens_enabled
+  const rtIssued = deps.config.refresh_tokens_enabled
     ? await issueRefreshToken(deps, grant, family)
     : undefined;
+  const rt = rtIssued?.raw;
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_grant_created', {
     user_id: grant.user_id,
@@ -753,7 +756,8 @@ async function exchangeRefresh(
   }
   const family = tok.family_id ?? randomUUID();
   const at = await issueAccessToken(deps, grant, family);
-  const rt = await issueRefreshToken(deps, grant, family);
+  const rtIssued = await issueRefreshToken(deps, grant, family);
+  const rt = rtIssued.raw;
   await touchOAuthClient(deps.db, client.client_id);
   await emitAgentAudit(deps, 'agent_token_refreshed', {
     user_id: grant.user_id,
@@ -763,6 +767,7 @@ async function exchangeRefresh(
       agent_grant_id: grant.grant_id,
       oauth_client_id: client.client_id,
       token_prefix: logPrefix(at.raw),
+      refresh_token_expires_at: rtIssued.expiresAt,
     },
   });
   return {

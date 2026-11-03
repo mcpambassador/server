@@ -142,6 +142,10 @@ export interface ConsentDetails {
    */
   clients: ConsentClientOption[];
   default_ttl_seconds: number;
+  /** Optional (older servers omit): whether the grant gets rotating refresh tokens */
+  refresh_tokens_enabled?: boolean;
+  /** Optional: a refresh token unused this long expires early (seconds) */
+  refresh_token_idle_ttl_seconds?: number;
   max_ttl_seconds: number;
 }
 

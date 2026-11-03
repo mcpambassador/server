@@ -97,6 +97,30 @@ describe('helpers', () => {
   });
 });
 
+describe('OAuthConsent refresh copy', () => {
+  it('says refreshes keep it alive, with the idle window from config', async () => {
+    server.use(
+      http.get('/v1/oauth/consent/r1', () =>
+        ok({ ...details, refresh_tokens_enabled: true, refresh_token_idle_ttl_seconds: 14 * 86400 })
+      )
+    );
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    expect(
+      await screen.findByText(/Refreshes keep it alive; it expires early if unused for 14 days/)
+    ).toBeInTheDocument();
+  });
+
+  it('says one short-lived token when refresh tokens are off', async () => {
+    server.use(
+      http.get('/v1/oauth/consent/r1', () => ok({ ...details, refresh_tokens_enabled: false }))
+    );
+    renderAt(<OAuthConsent />, '/app/oauth/consent?request_id=r1');
+    expect(
+      await screen.findByText(/One short-lived token only; it is not renewed/)
+    ).toBeInTheDocument();
+  });
+});
+
 describe('OAuthConsent', () => {
   beforeEach(() => {
     server.use(http.get('/v1/oauth/consent/r1', () => ok(details)));

@@ -93,6 +93,7 @@ Set in the `agent_endpoint` block of the server config (the endpoint is off by d
 | `max_one_shot_grant_ttl_seconds` | `86400` (24h) | Cap for one-shot grants (no refresh token; the bearer lives as long as the grant). Max 7 days. |
 | `refresh_token_idle_ttl_seconds` | `2592000` (30 days) | A refresh token unused this long expires, so an abandoned long grant dies on its own. |
 
+## Security model
 
 - **Isolation**: each downstream stdio MCP instance runs under its own uid with a private home, cannot read `/data` or other instances, and starts with `no-new-privs`. The container has a read-only root filesystem and a reduced capability set. This is process-level isolation, not a sandbox:
   - instances share the container's network namespace and process list;

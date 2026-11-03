@@ -263,6 +263,9 @@ function CreateGrantDialog({
                 <DisclosureModeField value={disclosureMode} onChange={setDisclosureMode} />
                 <Field>
                   <Label>Expires after</Label>
+                  <Description>
+                    One token for the whole period: one-shot grants are not refreshed or renewed.
+                  </Description>
                   <Select
                     name="ttl"
                     value={ttl}
