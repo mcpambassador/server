@@ -290,6 +290,67 @@ describe('Client Routes', () => {
     });
   });
 
+  describe('PATCH status state transitions (TD-013)', () => {
+    let clientId: string;
+
+    const patch = (payload: Record<string, unknown>, id = clientId) =>
+      server.admin.inject({
+        method: 'PATCH',
+        url: `/v1/users/me/clients/${id}`,
+        headers: { cookie: sessionCookie },
+        payload,
+      });
+
+    beforeAll(async () => {
+      const res = await server.admin.inject({
+        method: 'POST',
+        url: '/v1/users/me/clients',
+        headers: { cookie: sessionCookie },
+        payload: { client_name: 'transition-test-client', profile_id: testProfileId },
+      });
+      clientId = JSON.parse(res.body).data.client.id;
+    });
+
+    it('rejects active -> active with 409', async () => {
+      const res = await patch({ status: 'active' });
+      expect(res.statusCode).toBe(409);
+    });
+
+    it('suspends an active client', async () => {
+      const res = await patch({ status: 'suspended' });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).data.status).toBe('suspended');
+    });
+
+    it('rejects suspended -> suspended with 409', async () => {
+      const res = await patch({ status: 'suspended' });
+      expect(res.statusCode).toBe(409);
+    });
+
+    it('reactivates a suspended client', async () => {
+      const res = await patch({ status: 'active' });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).data.status).toBe('active');
+    });
+
+    it('rejects the unsupported status "revoked" with 400', async () => {
+      const res = await patch({ status: 'revoked' });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('returns 404 for any PATCH once the client is revoked (deleted)', async () => {
+      const del = await server.admin.inject({
+        method: 'DELETE',
+        url: `/v1/users/me/clients/${clientId}`,
+        headers: { cookie: sessionCookie },
+      });
+      expect(del.statusCode).toBe(204);
+
+      expect((await patch({ status: 'active' })).statusCode).toBe(404);
+      expect((await patch({ client_name: 'zombie' })).statusCode).toBe(404);
+    });
+  });
+
   describe('DELETE /v1/users/me/clients/:clientId', () => {
     let testClientId: string;
 

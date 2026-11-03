@@ -256,6 +256,11 @@ export async function registerClientRoutes(
           },
         });
       } catch (error: any) {
+        if (error.name === 'ZodError') {
+          return reply
+            .status(400)
+            .send(wrapError(ErrorCodes.VALIDATION_ERROR, 'Invalid request data', error.issues));
+        }
         if (error.message.includes('not found') || error.message.includes('access denied')) {
           return reply.status(404).send(wrapError(ErrorCodes.NOT_FOUND, 'Client not found'));
         }
