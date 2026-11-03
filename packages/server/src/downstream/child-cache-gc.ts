@@ -53,6 +53,9 @@ const FIRST_SWEEP_DELAY_MS = 10 * 60_000;
 /** Per-uid throttle for the "instance went idle" trigger. */
 const IDLE_CHECK_MIN_GAP_MS = 10 * 60_000;
 const GC_EXEC_TIMEOUT_MS = 120_000;
+/** Each du/find/chmod kills itself (execFile's timeout only kills the sh), a little before execFile gives up. */
+const TOOL_TIMEOUT_S = 100;
+const TK = `timeout -s KILL ${TOOL_TIMEOUT_S}`;
 
 function readInt(
   source: NodeJS.ProcessEnv,
@@ -84,10 +87,13 @@ export function resolveCacheGcConfig(
   const rawMode = source['MCP_AMBASSADOR_CHILD_CACHE_GC']?.trim().toLowerCase();
   if (rawMode) {
     if (rawMode === 'enforce' || rawMode === 'dry-run' || rawMode === 'off') mode = rawMode;
-    else
+    else {
+      // a destructive feature fails safe: an unknown value never deletes anything
+      mode = 'dry-run';
       warn(
-        `[child-cache-gc] MCP_AMBASSADOR_CHILD_CACHE_GC="${rawMode}" is not enforce|dry-run|off; using enforce`
+        `[child-cache-gc] MCP_AMBASSADOR_CHILD_CACHE_GC="${rawMode}" is not enforce|dry-run|off; using dry-run (log only)`
       );
+    }
   }
   const cap = 1024 * 1024; // MiB: 1 TiB, a sanity bound
   return {
@@ -178,6 +184,7 @@ export interface GcTarget {
   homeFor: (uid: number) => string;
   instances: () => Array<{ key: string; uid: number; lastUsed: number; live: boolean }>;
   exclusiveIfIdle: <T>(
+    key: string,
     uid: number,
     fn: () => Promise<T>
   ) => Promise<{ ran: true; value: T } | { ran: false }>;
@@ -202,6 +209,7 @@ const setprivRunner: ScriptRunner = async (uid, script, args) => {
       '--clear-groups',
       '--inh-caps=-all',
       '--ambient-caps=-all',
+      '--no-new-privs',
       '--',
       '/bin/sh',
       '-c',
@@ -216,15 +224,17 @@ const setprivRunner: ScriptRunner = async (uid, script, args) => {
 
 /** du -x stays on one device; -P (default) never follows symlinks. Unreadable entries only shrink the figure. */
 export const MEASURE_SCRIPT =
-  'h="$1"; shift; [ -d "$h" ] && [ ! -L "$h" ] || exit 3; du -skx -- "$h" 2>/dev/null; ' +
-  'for d in "$@"; do p="$h/$d"; if [ -d "$p" ] && [ ! -L "$p" ]; then du -skx -- "$p" 2>/dev/null; fi; done; exit 0';
+  'h="$1"; shift; [ -d "$h" ] && [ ! -L "$h" ] || exit 3; ' +
+  `${TK} du -skx -- "$h" 2>/dev/null; ` +
+  'for d in "$@"; do p="$h/$d"; if [ -d "$p" ] && [ ! -L "$p" ]; then ' +
+  `${TK} du -skx -- "$p" 2>/dev/null; fi; done; exit 0`;
 
 /** The owner first restores u+rwx on cache subdirs (a 0500 dir cannot be emptied), then deletes contents only. */
 export const PURGE_SCRIPT =
   'h="$1"; shift; [ -d "$h" ] && [ ! -L "$h" ] || exit 3; ' +
   'for d in "$@"; do p="$h/$d"; [ -d "$p" ] && [ ! -L "$p" ] || continue; ' +
-  'find -P "$p" -xdev -type d -exec chmod u+rwx {} + 2>/dev/null; ' +
-  'find -P "$p" -xdev -mindepth 1 -delete || exit 4; done';
+  `${TK} find -P "$p" -xdev -type d -exec chmod u+rwx {} + 2>/dev/null; ` +
+  `${TK} find -P "$p" -xdev -mindepth 1 -delete || exit 4; done`;
 
 export function makeDefaultGcDeps(run: ScriptRunner = setprivRunner): CacheGcDeps {
   return {
@@ -387,7 +397,7 @@ export class ChildCacheGc {
     const home = this.target.homeFor(m.uid);
     const tag = `instance ${keyHash(m.key)} (uid ${m.uid})`;
     try {
-      const r = await this.target.exclusiveIfIdle(m.uid, async () => {
+      const r = await this.target.exclusiveIfIdle(m.key, m.uid, async () => {
         verifyHome(this.target.uidRange, m.uid, home);
         if (this.cfg.mode === 'dry-run') return false;
         await this.deps.purge(m.uid, home);

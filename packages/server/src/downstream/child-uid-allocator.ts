@@ -297,16 +297,25 @@ export class ChildUidAllocator {
    * (fast path or queued) cannot start a child until `fn` is done. `fn` must be bounded in time.
    */
   exclusiveIfIdle<T>(
+    key: string,
     uid: number,
     fn: () => Promise<T>
   ): Promise<{ ran: true; value: T } | { ran: false }> {
     const run = this.chain.then(async (): Promise<{ ran: true; value: T } | { ran: false }> => {
-      const assigned = [...this.load().values()].some(e => e.uid === uid);
+      // the key must still own this uid: a reclaimed uid belongs to someone else now
+      const assigned = this.load().get(key)?.uid === uid;
       if (!assigned || (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid))
         return { ran: false };
       this.preparing.add(uid);
       try {
-        return { ran: true, value: await fn() };
+        try {
+          return { ran: true, value: await fn() };
+        } catch (err) {
+          // fn timed out or failed: whatever it left running as this uid (du/find) must die before the
+          // uid is released to the next lease
+          await this.deps.reapUid(uid).catch(() => undefined);
+          throw err;
+        }
       } finally {
         this.preparing.delete(uid);
       }
@@ -401,6 +410,13 @@ export class ChildUidAllocator {
           return;
         }
         this.live.delete(uid);
+        // lastUsed must reflect the end of the activity too (LRU for the cache GC); a persist failure is tolerated
+        try {
+          entry.lastUsed = this.deps.now();
+          this.persist(entries);
+        } catch {
+          // LRU hint only
+        }
         // The direct child is gone; kill anything it detached. Round 0 runs right here; later rounds stop as
         // soon as the uid is leased again (a quick stop -> start of the same instance) or being reclaimed.
         const stale = (): boolean => (this.live.get(uid) ?? 0) > 0 || this.preparing.has(uid);

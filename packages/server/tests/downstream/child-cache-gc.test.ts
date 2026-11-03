@@ -86,7 +86,7 @@ describe('resolveCacheGcConfig', () => {
       },
       warn
     );
-    expect(c.mode).toBe('enforce');
+    expect(c.mode).toBe('dry-run'); // a mistyped mode must never delete
     expect(c.perHomeBytes).toBe(1024 * MIB);
     expect(c.totalBytes).toBe(10240 * MIB);
     expect(c.intervalMs).toBe(360 * 60_000);
@@ -139,13 +139,17 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 function rig(over: Partial<CacheGcConfig> = {}, gcDeps: Partial<CacheGcDeps> = {}) {
   let file: string | null = null;
   let t = 1000;
+  const reaped: number[] = [];
   const aDeps: AllocatorDeps = {
     readMap: () => file,
     writeMap: (_p, d) => {
       file = d;
     },
     wipeHome: () => Promise.resolve(),
-    reapUid: () => Promise.resolve(0),
+    reapUid: uid => {
+      reaped.push(uid);
+      return Promise.resolve(0);
+    },
     now: () => ++t,
   };
   const alloc = new ChildUidAllocator(
@@ -165,7 +169,7 @@ function rig(over: Partial<CacheGcConfig> = {}, gcDeps: Partial<CacheGcDeps> = {
   };
   const gc = new ChildCacheGc(alloc, cfg(over), deps);
   const mkHome = (uid: number): void => mkdirSync(join(root, String(uid)), { recursive: true });
-  return { alloc, gc, purged, usage, mkHome };
+  return { alloc, gc, purged, usage, mkHome, reaped, readFile: () => file };
 }
 
 describe('ChildCacheGc safety', () => {
@@ -347,20 +351,46 @@ describe('ChildCacheGc safety', () => {
 describe('ChildUidAllocator.exclusiveIfIdle', () => {
   it('does not run for a live, unassigned or preparing uid; runs and blocks leases for an idle one', async () => {
     const r = rig();
-    expect((await r.alloc.exclusiveIfIdle(20005, async () => 1)).ran).toBe(false); // unassigned
+    expect((await r.alloc.exclusiveIfIdle('nokey', 20005, async () => 1)).ran).toBe(false); // unassigned
     const l = await r.alloc.lease('shared:fs');
-    expect((await r.alloc.exclusiveIfIdle(l.uid, async () => 1)).ran).toBe(false); // live
+    expect((await r.alloc.exclusiveIfIdle('shared:fs', l.uid, async () => 1)).ran).toBe(false); // live
     l.release();
-    const res = await r.alloc.exclusiveIfIdle(l.uid, async () => {
+    const res = await r.alloc.exclusiveIfIdle('shared:fs', l.uid, async () => {
       expect(r.alloc.instances().find(i => i.uid === l.uid)?.live).toBe(true); // marked busy inside
       return 7;
     });
     expect(res).toEqual({ ran: true, value: 7 });
     expect(r.alloc.instances().find(i => i.uid === l.uid)?.live).toBe(false);
     await expect(
-      r.alloc.exclusiveIfIdle(l.uid, () => Promise.reject(new Error('x')))
+      r.alloc.exclusiveIfIdle('shared:fs', l.uid, () => Promise.reject(new Error('x')))
     ).rejects.toThrow('x');
     (await r.alloc.lease('shared:fs')).release(); // chain still works after a throwing fn
+  });
+
+  it('kills everything left running as the uid when fn throws (timeout), before releasing it', async () => {
+    const r = rig();
+    const l = await r.alloc.lease('shared:fs');
+    l.release();
+    r.reaped.length = 0;
+    await expect(
+      r.alloc.exclusiveIfIdle('shared:fs', l.uid, () => Promise.reject(new Error('timeout')))
+    ).rejects.toThrow('timeout');
+    expect(r.reaped).toEqual([l.uid]);
+  });
+
+  it('does not run when the key no longer owns the uid', async () => {
+    const r = rig();
+    const l = await r.alloc.lease('shared:fs');
+    l.release();
+    expect((await r.alloc.exclusiveIfIdle('shared:other', l.uid, async () => 1)).ran).toBe(false);
+  });
+
+  it('stamps lastUsed on the final release', async () => {
+    const r = rig();
+    const l = await r.alloc.lease('shared:fs');
+    const before = r.alloc.instances().find(i => i.uid === l.uid)!.lastUsed;
+    l.release();
+    expect(r.alloc.instances().find(i => i.uid === l.uid)!.lastUsed).toBeGreaterThan(before);
   });
 });
 
