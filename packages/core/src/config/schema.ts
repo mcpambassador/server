@@ -31,6 +31,11 @@ const ServerConfigSchema = z.object({
   trust_proxy: z
     .union([z.boolean(), z.string().min(1), z.array(z.string().min(1)).min(1)])
     .default(false),
+  /**
+   * TD-014: maximum request body in bytes (default 1 MiB, F-SEC-M6). Applies to BOTH listeners
+   * (8443 and 9443); individual routes may set a smaller limit of their own.
+   */
+  body_limit_bytes: z.number().int().min(1024).max(67108864).default(1048576),
 });
 
 // ===== §6.1 Registration Configuration =====
@@ -110,6 +115,8 @@ const SessionConfigSchema = z
     ttl_seconds: z.number().int().min(60).max(86400).default(28800),
     /** Browser (SPA/admin UI) session absolute TTL in seconds (8h default, max 24h) — TD-014/B1 */
     ui_ttl_seconds: z.number().int().min(1).max(86400).default(28800),
+    /** Minimum seconds between heartbeats of one session; faster ones get 429 (SEC-V2-006, TD-014) */
+    heartbeat_min_interval_seconds: z.number().int().min(1).max(3600).default(10),
     /** Expected heartbeat interval in seconds (2 min default) */
     heartbeat_expected_interval_seconds: z.number().int().min(15).max(3600).default(120),
     /** Sweep interval in seconds (30 min default) */

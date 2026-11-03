@@ -9,6 +9,7 @@
  */
 
 import argon2 from 'argon2';
+import { ARGON2_OPTIONS } from '@mcpambassador/core';
 
 /**
  * Password length constraints
@@ -22,16 +23,8 @@ export const MAX_PASSWORD_LENGTH = 128;
  */
 export const MIN_CHARACTER_CLASSES = 2;
 
-/**
- * Argon2id parameters (OWASP minimum)
- * Same parameters as used for preshared key hashing
- */
-export const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
-  memoryCost: 19456, // 19MB
-  timeCost: 2,
-  parallelism: 1,
-};
+/** Argon2id parameters: the shared constant from core (TD-014), re-exported for existing importers */
+export { ARGON2_OPTIONS };
 
 /**
  * Password validation result

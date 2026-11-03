@@ -21,7 +21,7 @@ import {
   updateClientParamsSchema,
   listClientKeysQuerySchema,
 } from './schemas.js';
-import { clients, compatInsert, compatUpdate } from '@mcpambassador/core';
+import { clients, compatInsert, compatUpdate, ARGON2_OPTIONS } from '@mcpambassador/core';
 import { eq, and, or, desc, asc } from 'drizzle-orm';
 import { revokeClientGrantsWithAudit } from '../services/agent-endpoint/index.js';
 import { adminKeyActor } from './middleware.js';
@@ -91,12 +91,7 @@ export const registerAdminClientRoutes: FastifyPluginCallback<AdminClientRoutesC
     const keyPrefix = base64url.substring(0, 8);
 
     // Hash with Argon2id
-    const keyHash = await argon2.hash(clientKey, {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
+    const keyHash = await argon2.hash(clientKey, ARGON2_OPTIONS);
 
     const clientId = crypto.randomUUID();
     const nowIso = new Date().toISOString();

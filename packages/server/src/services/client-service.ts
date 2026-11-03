@@ -26,6 +26,7 @@ import {
   compatSelect,
   compatDelete,
   compatTransaction,
+  ARGON2_OPTIONS,
 } from '@mcpambassador/core';
 import { eq, and } from 'drizzle-orm';
 
@@ -104,12 +105,7 @@ export async function createUserClient(
   const keyPrefix = base64url.substring(0, 8);
 
   // Hash with Argon2id (same settings as admin)
-  const keyHash = await argon2.hash(clientKey, {
-    type: argon2.argon2id,
-    memoryCost: 19456,
-    timeCost: 2,
-    parallelism: 1,
-  });
+  const keyHash = await argon2.hash(clientKey, ARGON2_OPTIONS);
 
   const clientId = crypto.randomUUID();
   const nowIso = new Date().toISOString();

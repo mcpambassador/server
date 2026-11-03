@@ -42,7 +42,7 @@ describe('AmbassadorConfigSchema defaults', () => {
   it('minimal config: full defaulted object', () => {
     const r = AmbassadorConfigSchema.parse(minimal);
     expect(r).toEqual({
-      server: { host: '0.0.0.0', port: 8443, trust_proxy: false },
+      server: { host: '0.0.0.0', port: 8443, trust_proxy: false, body_limit_bytes: 1048576 },
       authentication: { provider: 'ephemeral', config: {} },
       authorization: { provider: 'local', config: {} },
       audit: { provider: 'file', on_failure: 'buffer', config: {} },
@@ -101,6 +101,7 @@ describe('AmbassadorConfigSchema defaults', () => {
       spindown_delay_seconds: 300,
       ttl_seconds: 28800,
       ui_ttl_seconds: 28800,
+      heartbeat_min_interval_seconds: 10,
       heartbeat_expected_interval_seconds: 120,
       sweep_interval_seconds: 1800,
       evaluation_interval_seconds: 120,
