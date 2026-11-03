@@ -84,6 +84,7 @@ export function mergeCredentialEnv(
     if (slotKey !== undefined) {
       slots.delete(lower); // filled
       env[slotKey] = value; // TD-051: the slot's key wins, so the child sees the name the entry expects
+      lockedLower.add(lower); // a second case-variant credential must not overwrite or duplicate it
     } else {
       env[name] = value;
     }

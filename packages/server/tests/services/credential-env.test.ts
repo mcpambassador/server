@@ -120,6 +120,15 @@ describe('mergeCredentialEnv placeholder slots', () => {
     expect(r.dropped).toEqual([]);
   });
 
+  it('a second case-variant credential cannot overwrite or duplicate a filled slot', () => {
+    const r = mergeCredentialEnv(
+      { BRAVE_API_KEY: '${BRAVE_API_KEY}' },
+      { BRAVE_API_KEY: 'first', brave_api_key: 'second' }
+    );
+    expect(r.env).toEqual({ BRAVE_API_KEY: 'first' });
+    expect(r.dropped).toEqual(['brave_api_key']);
+  });
+
   it('a non-slot credential keeps its own name', () => {
     const r = mergeCredentialEnv({ MODE: 'ro' }, { Token: 't' });
     expect(r.env).toEqual({ MODE: 'ro', Token: 't' });
