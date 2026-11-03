@@ -82,6 +82,7 @@ export {
   removeUserFromGroup,
   listGroupMembers,
   listUserGroups,
+  listUserGroupSummaries,
 } from './repositories/groups.js';
 
 // MCP catalog repository
