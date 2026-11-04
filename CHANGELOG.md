@@ -34,7 +34,7 @@ Highlights: **a stricter runner guard** (docker/podman arguments, container runt
 ### Added
 
 - `server.body_limit_bytes` (default 1048576), used by both listeners.
-- `session.heartbeat_min_interval_seconds` (default 10) replaces the hard-coded heartbeat limiter and its 429 message. Keep it below the shortest client `heartbeat_interval` (clients allow 15 to 300 s), or that client gets 429s.
+- `session.heartbeat_min_interval_seconds` (default 10) replaces the hard-coded heartbeat limiter and its 429 message. Keep it below the shortest client `heartbeat_interval_seconds` (clients allow 15 to 300 s), or that client gets 429s.
 - `agent_endpoint.max_dcr_grant_ttl_seconds` (default 7 days), see Security. `GET /v1/users/me/agent-endpoint` returns it as an optional field (the effective cap for unverified clients).
 - One shared `ARGON2_OPTIONS` in core (argon2id, 19456 KiB, 2 passes, 1 lane) replaces 6 copies. The values are identical, so existing and new hashes do not change.
 - README: a "Session heartbeat" table and a note that lowering `max_grant_ttl_seconds` or `max_dcr_grant_ttl_seconds` only affects grants created afterwards.
@@ -52,7 +52,7 @@ Highlights: **a stricter runner guard** (docker/podman arguments, container runt
 - **Runner package sources:** MCPs whose command points at a git URL, http(s) URL, archive, `github:`/`file:` spec, GitHub shorthand or (for pip) a local path are now rejected at create, update, install and spawn. Existing entries that use them fail to start until they are changed to a registry package (e.g. `pkg@1.2.3`, `pkg==1.0`). The 73 entries in the community registry are unaffected.
 - **Docker/podman MCPs:** commands outside the allowlist above are rejected, and `--user` must be a numeric non-zero uid. The community registry's vendored runner-guard needs a re-sync.
 - **Revoked clients:** integrations that edited a revoked client now get 409; delete it instead.
-- **Heartbeat and body limit:** `session.heartbeat_min_interval_seconds` above 60, or at or above `heartbeat_expected_interval_seconds`, now fails config validation at startup, and `server.body_limit_bytes` outside 1 KiB to 64 MiB fails to load. Keep the heartbeat minimum below your shortest client `heartbeat_interval`.
+- **Heartbeat and body limit:** `session.heartbeat_min_interval_seconds` above 60, or at or above `heartbeat_expected_interval_seconds`, now fails config validation at startup, and `server.body_limit_bytes` outside 1 KiB to 64 MiB fails to load. Keep the heartbeat minimum below your shortest client `heartbeat_interval_seconds`.
 - **Dynamically registered OAuth clients:** they previously got grants up to `max_grant_ttl_seconds` (30 days by default); they are now capped at 7 days. Set `agent_endpoint.max_dcr_grant_ttl_seconds` to keep the old cap. Existing grants are unchanged.
 
 ## [0.10.3] - 2026-11-03

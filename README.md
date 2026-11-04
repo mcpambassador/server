@@ -102,7 +102,7 @@ Set in the `session` block of the server config.
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `heartbeat_min_interval_seconds` | `10` (1-60) | Minimum gap between heartbeats from one session; faster ones get `429`. Must be less than `heartbeat_expected_interval_seconds`. Keep it below the shortest `heartbeat_interval` any client uses (the client allows 15-300 s), otherwise that client gets `429` noise. |
+| `heartbeat_min_interval_seconds` | `10` (1-60) | Minimum gap between heartbeats from one session; faster ones get `429`. Must be less than `heartbeat_expected_interval_seconds`. Keep it below the shortest `heartbeat_interval_seconds` any client uses (the client allows 15-300 s), otherwise that client gets `429` noise. |
 | `heartbeat_expected_interval_seconds` | `120` (15-3600) | How often clients are expected to heartbeat. |
 
 ## Security model
